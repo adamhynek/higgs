@@ -1,0 +1,4 @@
+LIBRARY	"forcepull_vr"
+EXPORTS
+SKSEPlugin_Query
+SKSEPlugin_Load

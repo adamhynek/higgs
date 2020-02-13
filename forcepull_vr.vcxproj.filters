@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <None Include="exports.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{cb9578b9-db1e-46f5-ba9a-79745c37eab3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{22b395a8-d87b-406a-9e0f-90de5921c130}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\api">
+      <UniqueIdentifier>{26d992b9-49ef-4009-a552-078658fa2037}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\api\utils">
+      <UniqueIdentifier>{f2ad6fda-a293-4c41-b580-dc8b3e0be836}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\RE">
+      <UniqueIdentifier>{a9203d2d-0171-4ad8-aabc-e773ac9d7a09}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="include\api\PapyrusVRTypes.cpp">
+      <Filter>include\api</Filter>
+    </ClCompile>
+    <ClCompile Include="include\api\utils\OpenVRUtils.cpp">
+      <Filter>include\api\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utils.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\api\openvr.h">
+      <Filter>include\api</Filter>
+    </ClInclude>
+    <ClInclude Include="include\api\OpenVRTypes.h">
+      <Filter>include\api</Filter>
+    </ClInclude>
+    <ClInclude Include="include\api\PapyrusVRAPI.h">
+      <Filter>include\api</Filter>
+    </ClInclude>
+    <ClInclude Include="include\api\PapyrusVRTypes.h">
+      <Filter>include\api</Filter>
+    </ClInclude>
+    <ClInclude Include="include\api\VRHookAPI.h">
+      <Filter>include\api</Filter>
+    </ClInclude>
+    <ClInclude Include="include\api\VRManagerAPI.h">
+      <Filter>include\api</Filter>
+    </ClInclude>
+    <ClInclude Include="include\api\utils\OpenVRUtils.h">
+      <Filter>include\api\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="include\main.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\version.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RE\havok.h">
+      <Filter>include\RE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\physics.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\utils.h">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
