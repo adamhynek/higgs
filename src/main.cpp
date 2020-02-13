@@ -178,6 +178,7 @@ void OnPoseUpdate(float deltaTime)
 							shaderApplied = true;
 						}
 						pullObj = obj;
+						break;
 					}
 				}
 			}
