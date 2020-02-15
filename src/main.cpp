@@ -38,7 +38,7 @@ RelocAddr<bhkWorld ***> BHKWORLD(0x1f850d0);
 
 // Alternatively, 0x30008E0 + 0x78
 // Even better, (*0x2FC60C0) + 0x78
-// Address of pointer to bhkSimpleShapePhantom that tracks the right hand
+// Address of pointer to bhkSimpleShapePhantom that tracks the right hand - maybe not actually the right hand?
 RelocAddr<bhkSimpleShapePhantom **> SPHERE_SHAPE_ADDR(0x3000958);
 
 
@@ -58,18 +58,20 @@ __declspec(align(16)) hkpLinearCastInput linearCastInput; // Need to be 128-bit 
 
 TESObjectREFR *pullObj = nullptr;
 TESObjectREFR *prevPullObj = nullptr;
+TESObjectREFR *selectedObj = nullptr;
 
 NiPoint3 initialPullObjRelativePosition(0, 0, 0);
 NiPoint3 prevHandPosLocal(0, 0, 0); // Relative to hmd
 
 bool pullDesired = false;
 bool pushDesired = false;
-bool shaderApplied = false;
 
 long long lastDebugCastTime = 0;
 
 bool isLoaded = false;
 bool isLastUpdateValid = false;
+bool g_triggerPressed = false;
+bool g_triggerReleased = false;
 
 //UInt32 spellFormId = 0x1C789; // fireball
 //UInt32 spellFormId = 0x2B96C; // ice spike
@@ -79,6 +81,7 @@ bool isLastUpdateValid = false;
 SpellItem *g_debugSpell = nullptr;
 TESObjectREFR *debugSourceActivator = nullptr;
 TESObjectREFR *debugTargetActivator = nullptr;
+
 bool g_debug = false; // Set to true to fire a spell (visual only) in the direction that the cast happens
 
 TESEffectShader *g_itemSelectedShader = nullptr;
@@ -145,44 +148,65 @@ void OnPoseUpdate(float deltaTime)
 		}
 	}
 
-	// Convert hand position from skyrim coords to havok coords
-	float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
-	NiPoint3 hkHandPos = handPos * havokWorldScale;
-	NiPoint3 hkTargetPos = hkHandPos + castDirection * 5;
+	if (!pullObj) {
+		// Convert hand position from skyrim coords to havok coords
+		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
+		NiPoint3 hkHandPos = handPos * havokWorldScale;
+		NiPoint3 hkTargetPos = hkHandPos + castDirection * 5;
 
-	bhkWorld *world = **BHKWORLD;
-	bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
-	cdPointCollector.reset();
-	float radiusBefore = sphere->phantom->m_motionState.m_objectRadius; // save radius so we can restore it
-	sphere->phantom->m_motionState.m_objectRadius = 0.2f;
-	// TODO: Maybe create our own phantom and add it to the world instead of reusing the game's one?
-	// TODO: The cast sometimes goes through objects. I think this is because the sphere's position does not exactly match the hand's.
-	linearCastInput.m_to = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z, 0 };
-	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
-	sphere->phantom->m_motionState.m_objectRadius = radiusBefore;
+		bhkWorld *world = **BHKWORLD;
+		bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
+		cdPointCollector.reset();
+		float radiusBefore = sphere->phantom->m_motionState.m_objectRadius; // save radius so we can restore it
+		sphere->phantom->m_motionState.m_objectRadius = 0.4f;
+		// TODO: Maybe create our own phantom and add it to the world instead of reusing the game's one? Or don't add it to the world and it might work anyway??
+		// TODO: The cast sometimes goes through objects. I think this is because the sphere's position does not exactly match the hand's.
+		linearCastInput.m_to = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z, 0 };
+		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
+		sphere->phantom->m_motionState.m_objectRadius = radiusBefore;
 
-	// Process result of cast
-	// TODO: Search multiple cells around the player instead of just the one. Then it might be good to cache collision objs on cell change.
-	// TODO: Measure how long these casts + searches take.
-	for (int i = 0; i < cell->refData.maxSize; i++) {
-		auto ref = cell->refData.refArray[i];
-		if (ref.unk08 != nullptr && ref.ref) {
-			auto obj = ref.ref;
-			if (obj && obj->loadedState && obj->loadedState->node && obj->loadedState->node->unk040) {
-				auto collisionObj = (bhkCollisionObject *)obj->loadedState->node->unk040;
-				if (&collisionObj->body->hkBody->m_collidable == cdPointCollector.m_closestCollidable) {
-					TESForm *baseForm = obj->baseForm;
-					if (baseForm && baseForm->formType == kFormType_Weapon) {
-						if (!shaderApplied) {
-							EffectShader_Play(vmRegistry, 0, g_itemSelectedShader, obj, -1.0f);
-							shaderApplied = true;
+		// Process result of cast
+		// TODO: Search multiple cells around the player instead of just the one. Then it might be good to cache collision objs on cell change.
+		// TODO: Measure how long these casts + searches take.
+		bool isSelected = false;
+		for (int i = 0; i < cell->refData.maxSize; i++) {
+			auto ref = cell->refData.refArray[i];
+			if (ref.unk08 != nullptr && ref.ref) {
+				auto obj = ref.ref;
+				if (obj && obj->loadedState && obj->loadedState->node && obj->loadedState->node->unk040) {
+					auto collisionObj = (bhkCollisionObject *)obj->loadedState->node->unk040;
+					if (&collisionObj->body->hkBody->m_collidable == cdPointCollector.m_closestCollidable) {
+						TESForm *baseForm = obj->baseForm;
+						if (baseForm && baseForm->formType == kFormType_Weapon) {
+							if (obj != selectedObj) {
+								if (selectedObj) {
+									EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+								}
+								selectedObj = obj;
+								EffectShader_Play(vmRegistry, 0, g_itemSelectedShader, selectedObj, -1.0f);
+							}
+							isSelected = true;
+							break;
 						}
-						pullObj = obj;
-						break;
 					}
 				}
 			}
 		}
+		if (!isSelected && selectedObj) {
+			EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+			selectedObj = nullptr;
+		}
+
+		if (g_triggerPressed) {
+			// Pick up the item
+			pullObj = selectedObj;
+		}
+	}
+
+	if (g_triggerReleased) {
+		// Drop the item
+		pullObj = nullptr;
+		selectedObj = nullptr;
 	}
 
 	if (pullObj && !(pullObj->flags & TESForm::kFlagIsDeleted) && pullObj->loadedState && pullObj->loadedState->node) {
@@ -196,9 +220,9 @@ void OnPoseUpdate(float deltaTime)
 					Activate(vmRegistry, 0, pullObj, player, false);
 					papyrusActor::EquipItemEx(player, weapon, 1, false, false);
 					pullObj = nullptr;
+					selectedObj = nullptr;
 					pullDesired = false;
 					pushDesired = false;
-					shaderApplied = false;
 				}
 			}
 		}
@@ -280,12 +304,12 @@ void OnPoseUpdate(float deltaTime)
 				float magnitude = 80.0f;
 				ApplyHavokImpulse(vmRegistry, 0, pullObj, dir.x, dir.y, dir.z, magnitude);
 				EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, pullObj);
-				shaderApplied = false;
 				pullObj = nullptr;
+				selectedObj = nullptr;
 			}
 			else {
-				float newMagnitude = VectorLength(deltaPos) * 0.03f;
-				newMagnitude = min(newMagnitude, 7.0f); // Cap at some reasonable value
+				float newMagnitude = VectorLength(deltaPos) * 0.05f;
+				newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
 				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
 				ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
@@ -298,8 +322,24 @@ void OnPoseUpdate(float deltaTime)
 	prevPullObj = pullObj;
 	prevHandPosLocal = handPosLocal;
 
+	// Reset these every frame so that they are only ever true for a single frame
+	g_triggerPressed = false;
+	g_triggerReleased = false;
 
 	isLastUpdateValid = true;
+}
+
+void OnButtonEvent(PapyrusVR::VREventType eventType, PapyrusVR::EVRButtonId buttonId, PapyrusVR::VRDevice device)
+{
+	// This function runs before OnPoseUpdate, so there are no race conditions
+	if (buttonId == PapyrusVR::EVRButtonId::k_EButton_SteamVR_Trigger && device == PapyrusVR::VRDevice::VRDevice_RightController) {
+		if (eventType == PapyrusVR::VREventType::VREventType_Pressed) {
+			g_triggerPressed = true;
+		}
+		else if (eventType == PapyrusVR::VREventType::VREventType_Released) {
+			g_triggerReleased = true;
+		}
+	}
 }
 
 extern "C" {	
@@ -371,6 +411,7 @@ extern "C" {
 				g_papyrusvr = (PapyrusVRAPI*)msg->data;
 				g_papyrusvrManager = g_papyrusvr->GetVRManager();
 				g_openvrHook = g_papyrusvr->GetOpenVRHook();
+
 				if (!g_papyrusvrManager) {
 					_MESSAGE("Could not get PapyrusVRManager");
 					return;
@@ -381,6 +422,7 @@ extern "C" {
 				}
 				// Registers for PoseUpdates
 				g_papyrusvrManager->RegisterVRUpdateListener(OnPoseUpdate);
+				g_papyrusvrManager->RegisterVRButtonListener(OnButtonEvent);
 			}
 		}
 	}
