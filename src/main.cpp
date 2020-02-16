@@ -288,9 +288,6 @@ void OnPoseUpdate(float deltaTime)
 			auto collisionObj = (bhkCollisionObject *)(pullObj->loadedState->node->unk040);
 			auto velocity = collisionObj->body->hkBody->motion.m_linearVelocity;
 
-			auto hkPosition = collisionObj->body->hkBody->motion.m_motionState.m_transform.m_translation;
-			float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
-
 			if (pullDesired) {
 				float newMagnitude = VectorLength(relObjPos) * 0.1f;
 				newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
