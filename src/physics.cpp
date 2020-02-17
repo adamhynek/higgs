@@ -30,6 +30,29 @@ void CdPointCollector::addCdPoint(const hkpCdPoint& point)
 	m_earlyOutDistance = point.m_contact.getDistance(); // Only accept closer hits after this
 }
 
+CdBodyPairCollector::CdBodyPairCollector()
+{
+	reset();
+}
+
+void CdBodyPairCollector::reset()
+{
+	m_earlyOut = false;
+}
+
+void CdBodyPairCollector::addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB)
+{
+	// Note: for optimization purposes this should set the m_earlyOut:
+	// - true if you want to get no more hits
+	// - false if you want to get more hits (which is the default)
+
+	const hkpCdBody *cdBody = &bodyB;
+	while (cdBody->m_parent) {
+		cdBody = cdBody->m_parent;
+	}
+	_MESSAGE("Hit: %x", cdBody->m_shape ? cdBody->m_shape->m_type : HK_SHAPE_INVALID);
+}
+
 RayHitCollector::RayHitCollector()
 {
 	reset();

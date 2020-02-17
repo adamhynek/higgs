@@ -21,3 +21,10 @@ struct CdPointCollector : public hkpCdPointCollector
 
 	const hkpCdBody *m_closestCollidable = nullptr;
 };
+
+struct CdBodyPairCollector : public hkpCdBodyPairCollector
+{
+	CdBodyPairCollector();
+	void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) override;
+	void reset() override;
+};

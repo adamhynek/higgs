@@ -87,6 +87,29 @@ bool g_debug = false; // Set to true to fire a spell (visual only) in the direct
 TESEffectShader *g_itemSelectedShader = nullptr;
 
 
+inline bool IsSelectable(TESForm *form)
+{
+	switch (form->formType)
+	{
+	case kFormType_Weapon:
+	case kFormType_Misc:
+	case kFormType_Ingredient:
+	case kFormType_Armor:
+	case kFormType_Ammo:	
+	case kFormType_Book:
+	case kFormType_ScrollItem:
+	case kFormType_Potion:
+	case kFormType_SoulGem:
+	case kFormType_Key: // unverified - TODO
+	//case kFormType_Arrow: // Now this one could be fun - catch fired arrows out of the air? Could this work for spell projectiles too? Does it work at all? TODO
+	//case kFormType_Projectile: // Will highlight stuck arrows fine, but setting their havok velocity does nothing :(
+	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
+		return true;
+	default:
+		return false;
+	}
+}
+
 // Called on each update (about 90-100 calls per second)
 void OnPoseUpdate(float deltaTime)
 {
@@ -157,13 +180,14 @@ void OnPoseUpdate(float deltaTime)
 		bhkWorld *world = **BHKWORLD;
 		bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
 		cdPointCollector.reset();
-		float radiusBefore = sphere->phantom->m_motionState.m_objectRadius; // save radius so we can restore it
-		sphere->phantom->m_motionState.m_objectRadius = 0.4f;
+		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
+		sphereShape->m_radius = 0.5f;
 		// TODO: Maybe create our own phantom and add it to the world instead of reusing the game's one? Or don't add it to the world and it might work anyway??
 		// TODO: The cast sometimes goes through objects. I think this is because the sphere's position does not exactly match the hand's.
 		linearCastInput.m_to = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z, 0 };
 		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
-		sphere->phantom->m_motionState.m_objectRadius = radiusBefore;
+		sphereShape->m_radius = radiusBefore;
 
 		// Process result of cast
 		// TODO: Search multiple cells around the player instead of just the one. Then it might be good to cache collision objs on cell change.
@@ -177,7 +201,7 @@ void OnPoseUpdate(float deltaTime)
 					auto collisionObj = (bhkCollisionObject *)obj->loadedState->node->unk040;
 					if (&collisionObj->body->hkBody->m_collidable == cdPointCollector.m_closestCollidable) {
 						TESForm *baseForm = obj->baseForm;
-						if (baseForm && baseForm->formType == kFormType_Weapon) {
+						if (baseForm && IsSelectable(baseForm)) {
 							if (obj != selectedObj) {
 								if (selectedObj) {
 									EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
@@ -205,6 +229,9 @@ void OnPoseUpdate(float deltaTime)
 
 	if (g_triggerReleased) {
 		// Drop the item
+		if (selectedObj) {
+			EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+		}
 		pullObj = nullptr;
 		selectedObj = nullptr;
 	}

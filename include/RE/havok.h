@@ -199,6 +199,11 @@ struct hkpBoxShape : public hkpShape
 };
 static_assert(sizeof(hkpBoxShape) == 0x40);
 
+struct hkpConvexShape : public hkpShape
+{
+	float m_radius; // 20
+};
+
 struct hkpShapeRayCastCollectorOutput
 {
 	hkVector4 m_normal;
@@ -269,7 +274,7 @@ class hkpRayHitCollector
 {
 public:
 	virtual void addRayHit(const hkpCdBody * cdBody, const hkpShapeRayCastCollectorOutput * hitInfo) = 0;
-	virtual ~hkpRayHitCollector() { }
+	virtual inline ~hkpRayHitCollector() { }
 
 public:
 	//void *vtbl; // 00
@@ -305,7 +310,7 @@ struct hkContactPoint
 
 	hkVector4 m_position; // 00
 	hkVector4 m_separatingNormal; // 10
-	hkVector4 m_separatingNormal_again; // 20 - It's here twice for some reason
+	hkVector4 m_separatingNormal_again; // 20 - It appears to be here twice for some reason - maybe sometimes it's different?
 };
 static_assert(sizeof(hkContactPoint) == 0x30);
 
@@ -320,7 +325,7 @@ struct hkpCdPointCollector
 {
 	virtual inline ~hkpCdPointCollector() {}
 	virtual void addCdPoint(const hkpCdPoint& point) = 0;
-	virtual inline void reset() { m_earlyOutDistance = 1.0f; };
+	virtual inline void reset() { m_earlyOutDistance = 1.0f; }
 
 	//void * vtbl; // 00
 	float m_earlyOutDistance; // 08
@@ -335,6 +340,26 @@ struct hkpLinearCastInput
 	inline hkpLinearCastInput() : m_maxExtraPenetration(0.01f), m_startPointTolerance(0.01f) {}
 };
 static_assert(sizeof(hkpLinearCastInput) == 0x18);
+
+struct hkpCdBodyPairCollector
+{
+	virtual inline ~hkpCdBodyPairCollector() {}
+	virtual void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) = 0;
+	virtual inline void reset() { m_earlyOut = false; }
+
+	//void * vtbl; // 00
+	hkBool m_earlyOut; // 08
+};
+
+struct hkpCollisionInput
+{
+
+};
+
+struct hkpProcessCollisionInput : public hkpCollisionInput
+{
+	// Pointer to this struct can be gotten from hkpWorld
+};
 
 struct hkpSimulation
 {
@@ -382,7 +407,7 @@ struct ahkpWorld
 	void * m_entityEntityBroadPhaseListener; // B0
 	void * m_broadPhaseBorderListener; // B8
 	void * m_multithreadedSimulationJobData; // C0
-	void * m_collisionInput; // C8
+	hkpProcessCollisionInput * m_collisionInput; // C8
 	void * m_collisionFilter;  // D0
 	void * m_collisionDispatcher; // D8
 	void * m_convexListFilter; // E0
