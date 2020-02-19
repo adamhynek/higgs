@@ -29,3 +29,26 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 {
 	return (modInfo->modIndex << 24) | formLower;
 }
+
+bool IsSelectable(TESForm *form)
+{
+	switch (form->formType)
+	{
+	case kFormType_Weapon:
+	case kFormType_Misc:
+	case kFormType_Ingredient:
+	case kFormType_Armor:
+	case kFormType_Ammo:
+	case kFormType_Book:
+	case kFormType_ScrollItem:
+	case kFormType_Potion:
+	case kFormType_SoulGem:
+	case kFormType_Key: // unverified - TODO
+	//case kFormType_Arrow: // Now this one could be fun - catch fired arrows out of the air? Could this work for spell projectiles too? Does it work at all? TODO
+	//case kFormType_Projectile: // Will highlight stuck arrows fine, but setting their havok velocity does nothing :(
+	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
+		return true;
+	default:
+		return false;
+	}
+}

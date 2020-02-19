@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "RE/havok.h"
 
 
@@ -10,7 +11,9 @@ public:
 	inline void reset();
 	void addRayHit(const hkpCdBody * cdBody, const hkpShapeRayCastCollectorOutput * hitInfo) override;
 
-	const hkpCdBody *m_closestCollidable = nullptr;
+	hkpShapeRayCastCollectorOutput m_closestHitInfo;
+	bool m_doesHitExist = false;
+	//const hkpCdBody *m_closestCollidable = nullptr;
 };
 
 struct CdPointCollector : public hkpCdPointCollector
@@ -19,7 +22,7 @@ struct CdPointCollector : public hkpCdPointCollector
 	void addCdPoint(const hkpCdPoint& point) override;
 	inline void reset() override;
 
-	const hkpCdBody *m_closestCollidable = nullptr;
+	std::vector<std::pair<hkVector4, hkpCdBody *>> m_hits;
 };
 
 struct CdBodyPairCollector : public hkpCdBodyPairCollector

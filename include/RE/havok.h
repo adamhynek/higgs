@@ -127,7 +127,7 @@ enum hkpShapeType
 };
 
 // Must be aligned to 16 bytes (128 bits) as it's a simd type
-struct hkVector4
+__declspec(align(16)) struct hkVector4
 {
 	float x;
 	float y;
@@ -290,7 +290,6 @@ struct hkpWorldRayCastInput
 
 	inline hkpWorldRayCastInput() : m_enableShapeCollectionFilter(false), m_filterInfo(0) {}
 };
-static_assert(sizeof(hkpWorldRayCastInput) == 0x28);
 
 struct hkpWorldRayCaster
 {
@@ -339,7 +338,6 @@ struct hkpLinearCastInput
 
 	inline hkpLinearCastInput() : m_maxExtraPenetration(0.01f), m_startPointTolerance(0.01f) {}
 };
-static_assert(sizeof(hkpLinearCastInput) == 0x18);
 
 struct hkpCdBodyPairCollector
 {
@@ -469,8 +467,9 @@ struct hkpMotion
 	UInt16 m_savedQualityTypeIndex; // 130 - 0 if above pointer is null?
 	UInt16 m_gravityFactor; // 132
 	UInt32 pad134;
+	UInt64 pad138;
 };
-static_assert(sizeof(hkpMotion) == 0x138);
+static_assert(sizeof(hkpMotion) == 0x140);
 
 struct hkpRigidBody
 {

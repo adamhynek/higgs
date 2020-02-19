@@ -61,5 +61,5 @@ RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay(0x00AB5B20);
 typedef void(*_hkpWorld_LinearCast)(ahkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector);
 RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast(0x00AB5EC0);
 
-typedef void(*_hkpWorld_GetPenetrations)(const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdBodyPairCollector* collector);
+typedef void(*_hkpWorld_GetPenetrations)(ahkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdBodyPairCollector* collector);
 RelocAddr<_hkpWorld_GetPenetrations> hkpWorld_GetPenetrations(0x00AB6AA0);

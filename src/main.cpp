@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <limits>
 #include "common/IDebugLog.h"  // IDebugLog
 #include "skse64_common/skse_version.h"  // RUNTIME_VERSION
 #include "skse64/PluginAPI.h"  // SKSEInterface, PluginInfo
@@ -54,7 +55,9 @@ VMClassRegistry *vmRegistry = nullptr;
 
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
-__declspec(align(16)) hkpLinearCastInput linearCastInput; // Need to be 128-bit aligned for simd hkVector4 types, or we CRASH
+hkpLinearCastInput linearCastInput;
+RayHitCollector rayHitCollector;
+hkpWorldRayCastInput rayCastInput;
 
 TESObjectREFR *pullObj = nullptr;
 TESObjectREFR *prevPullObj = nullptr;
@@ -67,6 +70,9 @@ bool pullDesired = false;
 bool pushDesired = false;
 
 long long lastDebugCastTime = 0;
+long long lastSelectedTime = 0;
+
+long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
 
 bool isLoaded = false;
 bool isLastUpdateValid = false;
@@ -86,32 +92,8 @@ bool g_debug = false; // Set to true to fire a spell (visual only) in the direct
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 
-
-inline bool IsSelectable(TESForm *form)
-{
-	switch (form->formType)
-	{
-	case kFormType_Weapon:
-	case kFormType_Misc:
-	case kFormType_Ingredient:
-	case kFormType_Armor:
-	case kFormType_Ammo:	
-	case kFormType_Book:
-	case kFormType_ScrollItem:
-	case kFormType_Potion:
-	case kFormType_SoulGem:
-	case kFormType_Key: // unverified - TODO
-	//case kFormType_Arrow: // Now this one could be fun - catch fired arrows out of the air? Could this work for spell projectiles too? Does it work at all? TODO
-	//case kFormType_Projectile: // Will highlight stuck arrows fine, but setting their havok velocity does nothing :(
-	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
-		return true;
-	default:
-		return false;
-	}
-}
-
 // Called on each update (about 90-100 calls per second)
-void OnPoseUpdate(float deltaTime)
+void OnPoseUpdateUntimed(float deltaTime)
 {
 	if (!isLoaded) return;
 
@@ -177,46 +159,76 @@ void OnPoseUpdate(float deltaTime)
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
 		NiPoint3 hkTargetPos = hkHandPos + castDirection * 5;
 
+		NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
+
 		bhkWorld *world = **BHKWORLD;
+
+		// First, raycast in the pointing direction
+		// TODO: Make raycast ignore plants and shit?
+		rayHitCollector.reset();
+		rayCastInput.m_from = { hkHandPos.x, hkHandPos.y, hkHandPos.z, 0 };
+		rayCastInput.m_to = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z, 0 };
+		hkpWorld_CastRay(world->world, &rayCastInput, &rayHitCollector);
+		if (rayHitCollector.m_doesHitExist) {
+			// If raycast hit, we want to linearcast only up to the ray hit location
+			hitPosition = hkHandPos + (hkTargetPos - hkHandPos) * rayHitCollector.m_closestHitInfo.m_hitFraction;
+		}
+
+		// Now, linearcast up to the point the raycast hit, or up to the limit if it's empty space
 		bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
 		cdPointCollector.reset();
 		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
-		sphereShape->m_radius = 0.5f;
-		// TODO: Maybe create our own phantom and add it to the world instead of reusing the game's one? Or don't add it to the world and it might work anyway??
-		// TODO: The cast sometimes goes through objects. I think this is because the sphere's position does not exactly match the hand's.
-		linearCastInput.m_to = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z, 0 };
+		sphereShape->m_radius = 0.3f;
+		linearCastInput.m_to = { hitPosition.x, hitPosition.y, hitPosition.z, 0 };
 		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 		sphereShape->m_radius = radiusBefore;
 
 		// Process result of cast
-		// TODO: Search multiple cells around the player instead of just the one. Then it might be good to cache collision objs on cell change.
-		// TODO: Measure how long these casts + searches take.
+		// TODO: Search the adjacent cell in the direction that the player is pointing as well, so we can hit things across cell boundaries
 		bool isSelected = false;
+		TESObjectREFR *closestObj = nullptr;
+		float closestDistance = (std::numeric_limits<float>::max)();
 		for (int i = 0; i < cell->refData.maxSize; i++) {
 			auto ref = cell->refData.refArray[i];
 			if (ref.unk08 != nullptr && ref.ref) {
 				auto obj = ref.ref;
 				if (obj && obj->loadedState && obj->loadedState->node && obj->loadedState->node->unk040) {
-					auto collisionObj = (bhkCollisionObject *)obj->loadedState->node->unk040;
-					if (&collisionObj->body->hkBody->m_collidable == cdPointCollector.m_closestCollidable) {
-						TESForm *baseForm = obj->baseForm;
-						if (baseForm && IsSelectable(baseForm)) {
-							if (obj != selectedObj) {
-								if (selectedObj) {
-									EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
-								}
-								selectedObj = obj;
-								EffectShader_Play(vmRegistry, 0, g_itemSelectedShader, selectedObj, -1.0f);
+					TESForm *baseForm = obj->baseForm;
+					if (baseForm && IsSelectable(baseForm)) {
+						auto collisionObj = (bhkCollisionObject *)obj->loadedState->node->unk040;
+						auto *collidableAddr = &collisionObj->body->hkBody->m_collidable;
+						// TODO: If multiple hits on one collidable, we're just picking one of the hits at random right now
+						auto it = std::find_if(cdPointCollector.m_hits.begin(), cdPointCollector.m_hits.end(), [collidableAddr](auto pair) { return pair.second == collidableAddr; });
+						if (it != cdPointCollector.m_hits.end()) {
+							auto pair = *it;
+
+							// Get distance from the hit on the collidable to the ray
+							NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
+							NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
+							float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+							if (dist < closestDistance) {
+								closestObj = obj;
+								closestDistance = dist;
 							}
-							isSelected = true;
-							break;
 						}
 					}
 				}
 			}
 		}
-		if (!isSelected && selectedObj) {
+		if (closestObj) {
+			if (closestObj != selectedObj) {
+				if (selectedObj) {
+					EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+				}
+				selectedObj = closestObj;
+				EffectShader_Play(vmRegistry, 0, g_itemSelectedShader, selectedObj, -1.0f);
+			}
+			isSelected = true;
+			lastSelectedTime = currentTime;
+		}
+
+		if (!isSelected && selectedObj && currentTime - lastSelectedTime > g_selectedLeewayTime) {
 			EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
 			selectedObj = nullptr;
 		}
@@ -238,20 +250,22 @@ void OnPoseUpdate(float deltaTime)
 
 	if (pullObj && !(pullObj->flags & TESForm::kFlagIsDeleted) && pullObj->loadedState && pullObj->loadedState->node) {
 		auto relObjPos = pullObj->pos - handPos;
-		TESForm *baseForm = pullObj->baseForm;
-		if (baseForm && baseForm->formType == kFormType_Weapon) {
-			auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
-			if (weapon) {
-				if (VectorLength(relObjPos) < 30) {
-					_MESSAGE("Equipping");
-					Activate(vmRegistry, 0, pullObj, player, false);
+		if (VectorLength(relObjPos) < 30) {
+			_MESSAGE("Equipping");
+			// Pickup the item
+			Activate(vmRegistry, 0, pullObj, player, false);
+			// If the item is a weapon, equip it too
+			auto baseForm = pullObj->baseForm;
+			if (baseForm && baseForm->formType == kFormType_Weapon) {
+				auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
+				if (weapon) {
 					papyrusActor::EquipItemEx(player, weapon, 1, false, false);
-					pullObj = nullptr;
-					selectedObj = nullptr;
-					pullDesired = false;
-					pushDesired = false;
 				}
 			}
+			pullObj = nullptr;
+			selectedObj = nullptr;
+			pullDesired = false;
+			pushDesired = false;
 		}
 
 		if (pullObj) { // (Could be nulled out above)
@@ -351,6 +365,14 @@ void OnPoseUpdate(float deltaTime)
 	g_triggerReleased = false;
 
 	isLastUpdateValid = true;
+}
+
+void OnPoseUpdate(float Deltatime)
+{
+	//long long currentTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	OnPoseUpdateUntimed(Deltatime);
+	//long long timeElapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - currentTime;
+	//_MESSAGE("%d", timeElapsed);
 }
 
 void OnButtonEvent(PapyrusVR::VREventType eventType, PapyrusVR::EVRButtonId buttonId, PapyrusVR::VRDevice device)

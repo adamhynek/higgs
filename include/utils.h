@@ -13,3 +13,5 @@ float DotProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiAVObject * GetHighestParent(NiAVObject *node);
 
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
+
+bool IsSelectable(TESForm *form);

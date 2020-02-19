@@ -9,7 +9,7 @@ CdPointCollector::CdPointCollector()
 void CdPointCollector::reset()
 {
 	m_earlyOutDistance = 1.0f;
-	m_closestCollidable = nullptr;
+	m_hits.clear(); // TODO: Shrink to fit?
 }
 
 void CdPointCollector::addCdPoint(const hkpCdPoint& point)
@@ -26,8 +26,8 @@ void CdPointCollector::addCdPoint(const hkpCdPoint& point)
 	}
 	//_MESSAGE("Hit: %x", cdBody->m_shape ? cdBody->m_shape->m_type : HK_SHAPE_INVALID);
 
-	m_closestCollidable = cdBody;
-	m_earlyOutDistance = point.m_contact.getDistance(); // Only accept closer hits after this
+	m_hits.push_back(std::make_pair(point.m_contact.m_position, cdBody));
+	//m_earlyOutDistance = point.m_contact.getDistance(); // Only accept closer hits after this
 }
 
 CdBodyPairCollector::CdBodyPairCollector()
@@ -61,7 +61,7 @@ RayHitCollector::RayHitCollector()
 void RayHitCollector::reset()
 {
 	m_earlyOutHitFraction = 1.0f;
-	m_closestCollidable = nullptr;
+	m_doesHitExist = false;
 }
 
 void RayHitCollector::addRayHit(const hkpCdBody * cdBody, const hkpShapeRayCastCollectorOutput * hitInfo)
@@ -71,11 +71,13 @@ void RayHitCollector::addRayHit(const hkpCdBody * cdBody, const hkpShapeRayCastC
 	// - 1.0 if you want to get all hits (constructor initializes this value to 1.0 by default)
 	// - output.m_hitFraction if you only want to get closer hits than one just found
 
-	while (cdBody->m_parent) {
-		cdBody = cdBody->m_parent;
-	}
+	//while (cdBody->m_parent) {
+	//	cdBody = cdBody->m_parent;
+	//}
 	//_MESSAGE("Raycast hit: %x", cdBody->m_shape ? cdBody->m_shape->m_type : HK_SHAPE_INVALID);
 
-	m_closestCollidable = cdBody;
+	//m_closestCollidable = cdBody;
+	m_closestHitInfo = *hitInfo;
+	m_doesHitExist = true;
 	m_earlyOutHitFraction = hitInfo->m_hitFraction; // Only accept closer hits after this
 }
