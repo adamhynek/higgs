@@ -92,6 +92,7 @@ bool g_debug = false; // Set to true to fire a spell (visual only) in the direct
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 
+
 // Called on each update (about 90-100 calls per second)
 void OnPoseUpdateUntimed(float deltaTime)
 {
@@ -185,37 +186,27 @@ void OnPoseUpdateUntimed(float deltaTime)
 		sphereShape->m_radius = radiusBefore;
 
 		// Process result of cast
-		// TODO: Search the adjacent cell in the direction that the player is pointing as well, so we can hit things across cell boundaries
 		bool isSelected = false;
 		TESObjectREFR *closestObj = nullptr;
 		float closestDistance = (std::numeric_limits<float>::max)();
-		for (int i = 0; i < cell->refData.maxSize; i++) {
-			auto ref = cell->refData.refArray[i];
-			if (ref.unk08 != nullptr && ref.ref) {
-				auto obj = ref.ref;
-				if (obj && obj->loadedState && obj->loadedState->node && obj->loadedState->node->unk040) {
-					TESForm *baseForm = obj->baseForm;
-					if (baseForm && IsSelectable(baseForm)) {
-						auto collisionObj = (bhkCollisionObject *)obj->loadedState->node->unk040;
-						auto *collidableAddr = &collisionObj->body->hkBody->m_collidable;
-						// TODO: If multiple hits on one collidable, we're just picking one of the hits at random right now
-						auto it = std::find_if(cdPointCollector.m_hits.begin(), cdPointCollector.m_hits.end(), [collidableAddr](auto pair) { return pair.second == collidableAddr; });
-						if (it != cdPointCollector.m_hits.end()) {
-							auto pair = *it;
 
-							// Get distance from the hit on the collidable to the ray
-							NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
-							NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
-							float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
-							if (dist < closestDistance) {
-								closestObj = obj;
-								closestDistance = dist;
-							}
-						}
+		for (auto pair : cdPointCollector.m_hits) {
+			auto ref = FindCollidableRef(reinterpret_cast<hkpCollidable *>(pair.second));
+			if (ref) {
+				TESForm *baseForm = ref->baseForm;
+				if (baseForm && IsSelectable(baseForm)) {
+					// Get distance from the hit on the collidable to the ray
+					NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
+					NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
+					float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+					if (dist < closestDistance) {
+						closestObj = ref;
+						closestDistance = dist;
 					}
 				}
 			}
 		}
+
 		if (closestObj) {
 			if (closestObj != selectedObj) {
 				if (selectedObj) {
@@ -249,8 +240,17 @@ void OnPoseUpdateUntimed(float deltaTime)
 	}
 
 	if (pullObj && !(pullObj->flags & TESForm::kFlagIsDeleted) && pullObj->loadedState && pullObj->loadedState->node) {
-		auto relObjPos = pullObj->pos - handPos;
-		if (VectorLength(relObjPos) < 30) {
+		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
+
+		auto collisionObj = (bhkCollisionObject *)(pullObj->loadedState->node->unk040);
+		auto translation = collisionObj->body->hkBody->motion.m_motionState.m_transform.m_translation;
+
+		NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
+		NiPoint3 hkHandPos = handPos * havokWorldScale;
+
+		auto relObjPos = hkObjPos - hkHandPos;
+
+		if (VectorLength(relObjPos) < 30.0f * havokWorldScale) {
 			_MESSAGE("Equipping");
 			// Pickup the item
 			Activate(vmRegistry, 0, pullObj, player, false);
@@ -281,7 +281,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 			NiPoint3 horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * w; // desired horizontal position relative to hand
 
-			NiPoint3 deltaPos = NiPoint3(horiz.x, horiz.y, h) - relObjPos; // or + handPos - pullObj.pos instead of - relObjPos
+			NiPoint3 deltaPos = NiPoint3(horiz.x, horiz.y, h) - relObjPos;
 
 			// Basic hand motions
 			NiTransform inversePlayerTransform;
@@ -326,11 +326,12 @@ void OnPoseUpdateUntimed(float deltaTime)
 			*/
 
 			// New velocity technique
-			auto collisionObj = (bhkCollisionObject *)(pullObj->loadedState->node->unk040);
 			auto velocity = collisionObj->body->hkBody->motion.m_linearVelocity;
+			
+			_MESSAGE("%.2f %.2f %.2f", pullObj->pos.x * havokWorldScale - translation.x, pullObj->pos.y * havokWorldScale - translation.y, pullObj->pos.z * havokWorldScale - translation.z);
 
 			if (pullDesired) {
-				float newMagnitude = VectorLength(relObjPos) * 0.1f;
+				float newMagnitude = (VectorLength(relObjPos) * 0.1f) / havokWorldScale;
 				newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
 				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
@@ -346,7 +347,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 				selectedObj = nullptr;
 			}
 			else {
-				float newMagnitude = VectorLength(deltaPos) * 0.05f;
+				float newMagnitude = (VectorLength(deltaPos) * 0.05f) / havokWorldScale;
 				newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
 				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
