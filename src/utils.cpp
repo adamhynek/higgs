@@ -44,9 +44,8 @@ bool IsSelectable(TESForm *form)
 	case kFormType_Potion:
 	case kFormType_SoulGem:
 	case kFormType_Key: // unverified - TODO
-	//case kFormType_Arrow: // Now this one could be fun - catch fired arrows out of the air? Could this work for spell projectiles too? Does it work at all? TODO
-	//case kFormType_Projectile: // Will highlight stuck arrows fine, but setting their havok velocity does nothing :(
-	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
+	case kFormType_Projectile: // For arrows stuck in i.e. a wall. Requires some fiddling to actually interact with physics.
+	//case kFormType_Light: // Works for torch, but don't want arbitrary lights to be selectable
 		return true;
 	default:
 		return false;

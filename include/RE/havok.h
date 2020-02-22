@@ -464,7 +464,7 @@ struct hkpMotion
 	hkVector4 m_deactivationRefPosition[2]; // 100
 	UInt32 m_deactivationRefOrientation[2]; // 120
 	void * m_savedMotion; // 128 - hkpMaxSizeMotion * - can be null
-	UInt16 m_savedQualityTypeIndex; // 130 - 0 if above pointer is null?
+	UInt16 m_savedQualityTypeIndex; // 130
 	UInt16 m_gravityFactor; // 132
 	UInt32 pad134;
 	UInt64 pad138;

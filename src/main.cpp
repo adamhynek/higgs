@@ -191,10 +191,11 @@ void OnPoseUpdateUntimed(float deltaTime)
 		float closestDistance = (std::numeric_limits<float>::max)();
 
 		for (auto pair : cdPointCollector.m_hits) {
-			auto ref = FindCollidableRef(reinterpret_cast<hkpCollidable *>(pair.second));
+			auto collidable = reinterpret_cast<hkpCollidable *>(pair.second);
+			auto ref = FindCollidableRef(collidable);
 			if (ref) {
 				TESForm *baseForm = ref->baseForm;
-				if (baseForm && IsSelectable(baseForm)) {
+				if (baseForm && IsSelectable(baseForm)) {					
 					// Get distance from the hit on the collidable to the ray
 					NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
 					NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
@@ -271,6 +272,14 @@ void OnPoseUpdateUntimed(float deltaTime)
 		if (pullObj) { // (Could be nulled out above)
 			if (!prevPullObj) {
 				initialPullObjRelativePosition = relObjPos;
+				auto baseForm = pullObj->baseForm;
+				if (baseForm->formType == kFormType_Projectile) {
+					// Projectiles have 'Fixed' motion type by default, making them unmovable
+					SetMotionTypeFunctor(vmRegistry, 0, pullObj, 3, true);
+					// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
+					// This particular value is copied from a 'forsworn arrow' when dropped with a quantity of 1
+					collisionObj->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x06c00006;
+				}
 			}
 
 			// Determine the position where we want the object to be
@@ -327,8 +336,6 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 			// New velocity technique
 			auto velocity = collisionObj->body->hkBody->motion.m_linearVelocity;
-			
-			_MESSAGE("%.2f %.2f %.2f", pullObj->pos.x * havokWorldScale - translation.x, pullObj->pos.y * havokWorldScale - translation.y, pullObj->pos.z * havokWorldScale - translation.z);
 
 			if (pullDesired) {
 				float newMagnitude = (VectorLength(relObjPos) * 0.1f) / havokWorldScale;
@@ -394,7 +401,7 @@ extern "C" {
 	{
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
-			_MESSAGE("[CRITICAL] Could not get modinfo for this mod");
+			_MESSAGE("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
 			return;
 		}
 
