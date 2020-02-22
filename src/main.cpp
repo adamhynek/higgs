@@ -279,6 +279,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 					// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
 					// This particular value is copied from a 'forsworn arrow' when dropped with a quantity of 1
 					collisionObj->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x06c00006;
+					collisionObj->body->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
 				}
 			}
 
