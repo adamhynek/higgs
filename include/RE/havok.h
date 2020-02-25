@@ -349,6 +349,19 @@ struct hkpCdBodyPairCollector
 	hkBool m_earlyOut; // 08
 };
 
+// Function that compares 2 filter infos is at reloc<0xE2BA10>
+
+struct hkpCollisionFilter
+{
+	void * vtbl; // 00
+	// These 3 inherited from hkReferencedObject
+	UInt16 m_memSizeAndFlags; // 08
+	SInt16 m_referenceCount; // 0A
+	UInt32 pad0C; // 0C
+
+	// more...
+};
+
 struct hkpCollisionInput
 {
 
@@ -406,7 +419,7 @@ struct ahkpWorld
 	void * m_broadPhaseBorderListener; // B8
 	void * m_multithreadedSimulationJobData; // C0
 	hkpProcessCollisionInput * m_collisionInput; // C8
-	void * m_collisionFilter;  // D0
+	hkpCollisionFilter * m_collisionFilter;  // D0
 	void * m_collisionDispatcher; // D8
 	void * m_convexListFilter; // E0
 

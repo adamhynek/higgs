@@ -62,6 +62,11 @@ hkpWorldRayCastInput rayCastInput;
 TESObjectREFR *pullObj = nullptr;
 TESObjectREFR *prevPullObj = nullptr;
 TESObjectREFR *selectedObj = nullptr;
+hkpCollidable *selectedColl = nullptr;
+hkpCollidable *pullColl = nullptr;
+bool isPullObjInFlightProjectile = false;
+bool isPullObjImpactedProjectile = false;
+float inFlightProjectileOriginalSpeed = 0;
 
 NiPoint3 initialPullObjRelativePosition(0, 0, 0);
 NiPoint3 prevHandPosLocal(0, 0, 0); // Relative to hmd
@@ -179,19 +184,23 @@ void OnPoseUpdateUntimed(float deltaTime)
 		bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
 		cdPointCollector.reset();
 		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+		UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
+		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0; // We want to hit _anything_, including in-flight projectiles
 		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
-		sphereShape->m_radius = 0.3f;
+		sphereShape->m_radius = 0.5f;
 		linearCastInput.m_to = { hitPosition.x, hitPosition.y, hitPosition.z, 0 };
 		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
+		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
 		sphereShape->m_radius = radiusBefore;
 
 		// Process result of cast
 		bool isSelected = false;
 		TESObjectREFR *closestObj = nullptr;
+		hkpCollidable *closestColl = nullptr;
 		float closestDistance = (std::numeric_limits<float>::max)();
 
 		for (auto pair : cdPointCollector.m_hits) {
-			auto collidable = reinterpret_cast<hkpCollidable *>(pair.second);
+			auto collidable = static_cast<hkpCollidable *>(pair.second);
 			auto ref = FindCollidableRef(collidable);
 			if (ref) {
 				TESForm *baseForm = ref->baseForm;
@@ -202,6 +211,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 					float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
 					if (dist < closestDistance) {
 						closestObj = ref;
+						closestColl = collidable;
 						closestDistance = dist;
 					}
 				}
@@ -214,6 +224,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 					EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
 				}
 				selectedObj = closestObj;
+				selectedColl = closestColl;
 				EffectShader_Play(vmRegistry, 0, g_itemSelectedShader, selectedObj, -1.0f);
 			}
 			isSelected = true;
@@ -228,6 +239,25 @@ void OnPoseUpdateUntimed(float deltaTime)
 		if (g_triggerPressed) {
 			// Pick up the item
 			pullObj = selectedObj;
+			pullColl = selectedColl;
+
+			if (pullObj) {
+				isPullObjInFlightProjectile = false;
+				isPullObjImpactedProjectile = false;
+				auto baseForm = pullObj->baseForm;
+				if (baseForm->formType == kFormType_Projectile) {
+					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					auto impactData = (void **)((UInt64)pullObj + 0x98);
+					if (*impactData) {
+						// If the projectile has impact data, then it has well, impacted something
+						isPullObjImpactedProjectile = true;
+					}
+					else {
+						isPullObjInFlightProjectile = true;
+						inFlightProjectileOriginalSpeed = VectorLength(*velocity);
+					}
+				}
+			}
 		}
 	}
 
@@ -236,6 +266,19 @@ void OnPoseUpdateUntimed(float deltaTime)
 		if (selectedObj) {
 			EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
 		}
+		if (pullObj && isPullObjInFlightProjectile) {
+			// In-flight projectile
+			if (pullObj->loadedState) {
+				auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+
+				// Derotate by whatever we need to to make it actually face us...
+				auto rot = pullObj->loadedState->node->m_localTransform.rot;
+				rot = MatrixFromAxisAngle({rot.data[0][0], rot.data[1][0], rot.data[2][0]}, -90 * 0.0174533) * rot;
+				NiPoint3 forward = { rot.data[0][2], rot.data[1][2], rot.data[2][2] };
+
+				*velocity = forward * inFlightProjectileOriginalSpeed;
+			}
+		}
 		pullObj = nullptr;
 		selectedObj = nullptr;
 	}
@@ -243,8 +286,15 @@ void OnPoseUpdateUntimed(float deltaTime)
 	if (pullObj && !(pullObj->flags & TESForm::kFlagIsDeleted) && pullObj->loadedState && pullObj->loadedState->node) {
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
-		auto collisionObj = (bhkCollisionObject *)(pullObj->loadedState->node->unk040);
-		auto translation = collisionObj->body->hkBody->motion.m_motionState.m_transform.m_translation;
+		hkpMotion *motion = nullptr;
+		if (pullObj->loadedState->node->unk040) {
+			auto collObj = (bhkCollisionObject *)pullObj->loadedState->node->unk040;
+			motion = &collObj->body->hkBody->motion;
+		}
+		else {
+			motion = reinterpret_cast<hkpMotion *>((UInt64)pullColl->m_motion - offsetof(hkpMotion, m_motionState));
+		}
+		auto translation = motion->m_motionState.m_transform.m_translation;
 
 		NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
@@ -272,14 +322,19 @@ void OnPoseUpdateUntimed(float deltaTime)
 		if (pullObj) { // (Could be nulled out above)
 			if (!prevPullObj) {
 				initialPullObjRelativePosition = relObjPos;
-				auto baseForm = pullObj->baseForm;
-				if (baseForm->formType == kFormType_Projectile) {
-					// Projectiles have 'Fixed' motion type by default, making them unmovable
-					SetMotionTypeFunctor(vmRegistry, 0, pullObj, 3, true);
-					// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
-					// This particular value is copied from a 'forsworn arrow' when dropped with a quantity of 1
-					collisionObj->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x06c00006;
-					collisionObj->body->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
+
+				if (isPullObjImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+					auto collObj = (bhkCollisionObject *)pullObj->loadedState->node->unk040;
+					if (collObj) {
+						// Do not use pullColl here, it's not the right collidable to set collision for
+						auto collidable = &collObj->body->hkBody->m_collidable;
+						// Projectiles have 'Fixed' motion type by default, making them unmovable
+						SetMotionTypeFunctor(vmRegistry, 0, pullObj, 3, true);
+						// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
+						// This particular value is copied from a 'forsworn arrow' when dropped with a quantity of 1
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo = 0x06c00006;
+						collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
+					}
 				}
 			}
 
@@ -336,31 +391,101 @@ void OnPoseUpdateUntimed(float deltaTime)
 			*/
 
 			// New velocity technique
-			auto velocity = collisionObj->body->hkBody->motion.m_linearVelocity;
-
 			if (pullDesired) {
-				float newMagnitude = (VectorLength(relObjPos) * 0.1f) / havokWorldScale;
-				newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
-				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
+				if (isPullObjInFlightProjectile) {
+					// In-flight projectile
+					NiPoint3 dir = VectorNormalized(-relObjPos);
 
-				ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-				collisionObj->body->hkBody->motion.m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, velocity.w };
+					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					*velocity = dir * inFlightProjectileOriginalSpeed;
+
+					NiPoint3 forward = dir;
+
+					NiPoint3 worldUpAlongForward = forward * DotProduct({ 0, 0, 1 }, forward); // Project world up vector onto our forward vector
+					NiPoint3 up = VectorNormalized(NiPoint3(0, 0, 1) - worldUpAlongForward);
+					NiPoint3 right = CrossProduct(forward, up);
+
+					pullObj->loadedState->node->m_localTransform.rot.data[0][0] = up.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][0] = up.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][0] = up.z;
+
+					pullObj->loadedState->node->m_localTransform.rot.data[0][1] = right.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][1] = right.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][1] = right.z;
+
+					pullObj->loadedState->node->m_localTransform.rot.data[0][2] = forward.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][2] = forward.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][2] = forward.z;
+
+					// Rotate by whatever we need to to make it actually face us...
+					pullObj->loadedState->node->m_localTransform.rot = MatrixFromAxisAngle(up, 90 * 0.0174533) * pullObj->loadedState->node->m_localTransform.rot;
+				}
+				else {
+					// Everything else
+					float newMagnitude = (VectorLength(relObjPos) * 0.1f) / havokWorldScale;
+					newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
+					NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
+
+					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+				}
 			}
 			else if (pushDesired) {
 				NiPoint3 dir = VectorNormalized(relObjPos);
-				float magnitude = 80.0f;
-				ApplyHavokImpulse(vmRegistry, 0, pullObj, dir.x, dir.y, dir.z, magnitude);
-				EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, pullObj);
+
+				if (isPullObjInFlightProjectile) {
+					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					*velocity = dir * inFlightProjectileOriginalSpeed;
+
+					NiPoint3 forward = dir;
+
+					NiPoint3 worldUpAlongForward = forward * DotProduct({ 0, 0, 1 }, forward); // Project world up vector onto our forward vector
+					NiPoint3 up = VectorNormalized(NiPoint3(0, 0, 1) - worldUpAlongForward);
+					NiPoint3 right = CrossProduct(forward, up);
+
+					pullObj->loadedState->node->m_localTransform.rot.data[0][0] = up.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][0] = up.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][0] = up.z;
+
+					pullObj->loadedState->node->m_localTransform.rot.data[0][1] = right.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][1] = right.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][1] = right.z;
+
+					pullObj->loadedState->node->m_localTransform.rot.data[0][2] = forward.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][2] = forward.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][2] = forward.z;
+
+					// Rotate by whatever we need to to make it actually face us...
+					pullObj->loadedState->node->m_localTransform.rot = MatrixFromAxisAngle(up, 90 * 0.0174533) * pullObj->loadedState->node->m_localTransform.rot;
+				}
+				else {
+					float magnitude = 80.0f;
+					ApplyHavokImpulse(vmRegistry, 0, pullObj, dir.x, dir.y, dir.z, magnitude);
+					EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, pullObj);
+				}
+
 				pullObj = nullptr;
 				selectedObj = nullptr;
 			}
 			else {
-				float newMagnitude = (VectorLength(deltaPos) * 0.05f) / havokWorldScale;
-				newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
-				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+				if (isPullObjInFlightProjectile) {
+					// In-flight projectile
+					float newMagnitude = (VectorLength(deltaPos) * 5.0f) / havokWorldScale;
+					newMagnitude = min(newMagnitude, 10.0f / havokWorldScale); // Cap at some reasonable value
+					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-				ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-				collisionObj->body->hkBody->motion.m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, velocity.w };
+					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					*velocity = newVelocity;
+				}
+				else {
+					// Everything else
+					float newMagnitude = (VectorLength(deltaPos) * 0.05f) / havokWorldScale;
+					newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
+					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+
+					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+				}
 			}
 		}
 	}
