@@ -288,7 +288,9 @@ struct hkpWorldRayCastInput
 	hkBool m_enableShapeCollectionFilter; // 20
 	UInt32 m_filterInfo; // 24
 
-	inline hkpWorldRayCastInput() : m_enableShapeCollectionFilter(false), m_filterInfo(0) {}
+	inline hkpWorldRayCastInput(UInt32 filterInfo = 0, hkBool enableShapeCollectionFilter = false)
+		: m_enableShapeCollectionFilter(enableShapeCollectionFilter), m_filterInfo(filterInfo)
+	{}
 };
 
 struct hkpWorldRayCaster
@@ -362,6 +364,19 @@ struct hkpCollisionFilter
 	// more...
 };
 
+struct bhkCollisionFilter
+{
+	char todo[0x50]; // 00
+	UInt32 bipedBitfields[18]; // 50 - could be more than 18, I'm not exactly sure. The max is 32 (5 bits)
+	UInt64 unk[39]; // 98
+	UInt64 layerBitfields[56]; // 1D0
+	UInt64 todo2[10]; // 390
+	char * layerNames[56]; // 3E0
+};
+static_assert(offsetof(bhkCollisionFilter, bipedBitfields) == 0x50);
+static_assert(offsetof(bhkCollisionFilter, layerBitfields) == 0x1D0);
+static_assert(offsetof(bhkCollisionFilter, layerNames) == 0x3E0);
+
 struct hkpCollisionInput
 {
 
@@ -430,7 +445,7 @@ static_assert(offsetof(ahkpWorld, m_broadPhaseDispatcher) == 0xA0);
 struct bhkWorld
 {
 	void * vtbl; // 00
-	// These 2 inherited from NiRefObject, I _think_
+	// These 2 inherited from NiRefObject
 	volatile SInt32	m_uiRefCount;	// 08
 	UInt32	pad0C;	// 0C
 
