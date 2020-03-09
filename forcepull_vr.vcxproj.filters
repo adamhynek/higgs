@@ -74,5 +74,8 @@
     <ClInclude Include="include\utils.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\hooks.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

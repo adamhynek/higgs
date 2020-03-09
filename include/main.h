@@ -66,3 +66,7 @@ RelocAddr<_hkpWorld_GetPenetrations> hkpWorld_GetPenetrations(0x00AB6AA0);
 
 typedef TESObjectREFR* (*_FindCollidableRef)(hkpCollidable * a_collidable);
 RelocAddr<_FindCollidableRef> FindCollidableRef(0x003B4940);
+
+typedef bhkWorld* (*_GetWorld)(TESObjectCELL *cell);
+RelocAddr<_GetWorld> GetWorld(0x276A90);
+

@@ -201,6 +201,7 @@
     <ClInclude Include="include\api\utils\OpenVRUtils.h" />
     <ClInclude Include="include\api\VRHookAPI.h" />
     <ClInclude Include="include\api\VRManagerAPI.h" />
+    <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\physics.h" />
     <ClInclude Include="include\RE\havok.h" />

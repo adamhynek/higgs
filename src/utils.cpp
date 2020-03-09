@@ -74,11 +74,33 @@ bool IsSelectable(TESForm *form)
 	case kFormType_ScrollItem:
 	case kFormType_Potion:
 	case kFormType_SoulGem:
+	case kFormType_MovableStatic:
 	case kFormType_Key: // unverified - TODO
-	case kFormType_Projectile: // For arrows stuck in i.e. a wall. Requires some fiddling to actually interact with physics.
-	//case kFormType_Light: // Works for torch, but don't want arbitrary lights to be selectable
+	case kFormType_Projectile: // Arrows stuck in a wall, projectiles mid air...
+	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
+	//case kFormType_Flora: // Coin bags, but also mushrooms and stuff you can't actually move
 		return true;
 	default:
 		return false;
+	}
+}
+
+void updateTransformTree(NiAVObject * root)
+{
+	NiAVObject::ControllerUpdateContext ctx;
+	ctx.flags = 0; // set to 1 if you want to force it to update old world transforms again but you probably shouldnt
+	ctx.delta = 0;
+
+	root->UpdateWorldData(&ctx);
+
+	auto node = root->GetAsNiNode();
+
+	if (node)
+	{
+		for (int i = 0; i < node->m_children.m_arrayBufLen; ++i)
+		{
+			auto child = node->m_children.m_data[i];
+			if (child) updateTransformTree(child);
+		}
 	}
 }

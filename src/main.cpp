@@ -6,16 +6,21 @@
 #include <fstream>
 #include <chrono>
 #include <limits>
+#include <atomic>
 #include "common/IDebugLog.h"  // IDebugLog
 #include "skse64_common/skse_version.h"  // RUNTIME_VERSION
 #include "skse64/PluginAPI.h"  // SKSEInterface, PluginInfo
 #include "skse64/GameRTTI.h"
 #include "skse64/GameSettings.h"
 #include "skse64/NiNodes.h"
+#include "skse64/NiObjects.h"
 #include "skse64/NiExtraData.h"
 #include "skse64/GameData.h"
 #include "skse64/GameForms.h"
 #include "skse64/PapyrusActor.h"
+#include "skse64_common/SafeWrite.h"
+#include "skse64_common/BranchTrampoline.h"
+#include "xbyak/xbyak.h"
 
 #include <ShlObj.h>  // CSIDL_MYDOCUMENTS
 
@@ -34,12 +39,9 @@
 // It's the number of meters per skyrim unit
 RelocAddr<float *> HAVOK_WORLD_SCALE_ADDR(0x15B78F4);
 
-// Address of pointer that points to the bhkWorld pointer
-RelocAddr<bhkWorld ***> BHKWORLD(0x1f850d0);
-
 // Alternatively, 0x30008E0 + 0x78
 // Even better, (*0x2FC60C0) + 0x78
-// Address of pointer to bhkSimpleShapePhantom that tracks the right hand - maybe not actually the right hand?
+// Address of pointer to bhkSimpleShapePhantom that tracks the right hand - more or less
 RelocAddr<bhkSimpleShapePhantom **> SPHERE_SHAPE_ADDR(0x3000958);
 
 
@@ -53,6 +55,8 @@ OpenVRHookManagerAPI *g_openvrHook = nullptr;
 
 VMClassRegistry *vmRegistry = nullptr;
 
+SKSETrampolineInterface *g_trampoline = nullptr;
+
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
 hkpLinearCastInput linearCastInput;
@@ -64,6 +68,7 @@ TESObjectREFR *prevPullObj = nullptr;
 TESObjectREFR *selectedObj = nullptr;
 hkpCollidable *selectedColl = nullptr;
 hkpCollidable *pullColl = nullptr;
+bool isPullObjActor = false;
 bool isPullObjInFlightProjectile = false;
 bool isPullObjImpactedProjectile = false;
 float inFlightProjectileOriginalSpeed = 0;
@@ -96,6 +101,166 @@ TESObjectREFR *debugTargetActivator = nullptr;
 bool g_debug = false; // Set to true to fire a spell (visual only) in the direction that the cast happens
 
 TESEffectShader *g_itemSelectedShader = nullptr;
+TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
+TESEffectShader *g_currentSelectedShader = nullptr;
+
+
+//auto hookLoc = RelocAddr<uintptr_t>(0x75CC09); // - UpdateImpl
+//auto hookLoc = RelocAddr<uintptr_t>(0xC77B91); // - CellAnimations - actual Cell Animations is at 0x649610
+//auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - Actual CellAnimations <- this one is actually correct, but doesnt work for arrows
+auto hookLoc = RelocAddr<uintptr_t>(0x77033C);
+//auto hookLoc = RelocAddr<uintptr_t>(0xC79E15); // - CellAnimations
+char hookedCode[5];
+//auto hookedFunc = RelocAddr<uintptr_t>(0x76FD10); // - UpdateImpl
+//auto hookedFunc = RelocAddr<uintptr_t>(0xC77AA0); // - CellAnimations
+//auto hookedFunc = RelocAddr<uintptr_t>(0x648960); // - Actual CellAnimations
+auto hookedFunc = RelocAddr<uintptr_t>(0x77E1F0);
+
+uintptr_t hookedFuncAddr = 0;
+bool isArrowHooked = false;
+typedef void(*_UpdateImpl)(Projectile *_this, float a_delta);
+
+
+void HookFunc(Projectile *_this)
+{
+	if (_this == pullObj && isPullObjInFlightProjectile && _this->loadedState) {
+		//pullObj->rot = { 1, 0, 0 };
+
+		NiPoint3 forward = VectorNormalized({1, 1, 1});
+
+		NiPoint3 worldUpAlongForward = forward * DotProduct({ 0, 0, 1 }, forward); // Project world up vector onto our forward vector
+		NiPoint3 up = VectorNormalized(NiPoint3(0, 0, 1) - worldUpAlongForward);
+		NiPoint3 right = CrossProduct(forward, up);
+
+		_this->loadedState->node->m_localTransform.rot.data[0][0] = up.x;
+		_this->loadedState->node->m_localTransform.rot.data[1][0] = up.y;
+		_this->loadedState->node->m_localTransform.rot.data[2][0] = up.z;
+
+		_this->loadedState->node->m_localTransform.rot.data[0][1] = right.x;
+		_this->loadedState->node->m_localTransform.rot.data[1][1] = right.y;
+		_this->loadedState->node->m_localTransform.rot.data[2][1] = right.z;
+
+		_this->loadedState->node->m_localTransform.rot.data[0][2] = forward.x;
+		_this->loadedState->node->m_localTransform.rot.data[1][2] = forward.y;
+		_this->loadedState->node->m_localTransform.rot.data[2][2] = forward.z;
+
+		// Rotate by whatever we need to to make it actually face us...
+		//pullObj->loadedState->node->m_localTransform.rot = MatrixFromAxisAngle(up, 90 * 0.0174533) * pullObj->loadedState->node->m_localTransform.rot;
+
+		//updateTransformTree(_this->loadedState->node);
+	}
+}
+
+
+void Hook_Commit(void)
+{
+	struct Code : Xbyak::CodeGenerator {
+		Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+		{
+			Xbyak::Label jumpBack, tmpStore1;
+
+			// Save args
+			mov(rax, tmpStore1);
+			mov(ptr[rax], rcx);
+
+			// Call original function
+			mov(rax, hookedFuncAddr);
+			call(rax);
+
+			// Restore args
+			mov(rax, tmpStore1);
+			mov(rcx, ptr[rax]);
+
+			// Just push all regs that could possibly be modified in a function
+			push(rax);
+			push(rcx);
+			push(rdx);
+			push(r8);
+			push(r9);
+			push(r10);
+			push(r11);
+			sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+			movsd(ptr[rsp], xmm0);
+			movsd(ptr[rsp + 0x10], xmm1);
+			movsd(ptr[rsp + 0x20], xmm2);
+			movsd(ptr[rsp + 0x30], xmm3);
+			movsd(ptr[rsp + 0x40], xmm4);
+			movsd(ptr[rsp + 0x50], xmm5);
+
+			// Call our damn function
+			mov(rax, (uintptr_t)HookFunc);
+			call(rax);
+
+			movsd(xmm0, ptr[rsp]);
+			movsd(xmm1, ptr[rsp + 0x10]);
+			movsd(xmm2, ptr[rsp + 0x20]);
+			movsd(xmm3, ptr[rsp + 0x30]);
+			movsd(xmm4, ptr[rsp + 0x40]);
+			movsd(xmm5, ptr[rsp + 0x50]);
+			add(rsp, 0x68);
+			pop(r11);
+			pop(r10);
+			pop(r9);
+			pop(r8);
+			pop(rdx);
+			pop(rcx);
+			pop(rax);
+
+			// Jump back to whence we came (+ the size of the initial branch instruction)
+			jmp(ptr[rip + jumpBack]);
+
+			L(jumpBack);
+			dq(hookLoc.GetUIntPtr() + 5);
+			L(tmpStore1);
+			dq(0);
+		}
+	};
+
+	void * codeBuf = g_localTrampoline.StartAlloc();
+	Code code(codeBuf);
+	g_localTrampoline.EndAlloc(code.getCurr());
+
+	g_branchTrampoline.Write5Branch(hookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+}
+
+
+bool TryHook()
+{
+	// This should be sized to the actual amount used by your trampoline
+	static const size_t TRAMPOLINE_SIZE = 256;
+
+	if (g_trampoline) {
+		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
+		if (!branch) {
+			_ERROR("couldn't acquire branch trampoline from SKSE. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+
+		g_branchTrampoline.SetBase(TRAMPOLINE_SIZE, branch);
+
+		void* local = g_trampoline->AllocateFromLocalPool(g_pluginHandle, TRAMPOLINE_SIZE);
+		if (!local) {
+			_ERROR("couldn't acquire codegen buffer from SKSE. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+
+		g_localTrampoline.SetBase(TRAMPOLINE_SIZE, local);
+	}
+	else {
+		if (!g_branchTrampoline.Create(TRAMPOLINE_SIZE)) {
+			_ERROR("couldn't create branch trampoline. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+		if (!g_localTrampoline.Create(TRAMPOLINE_SIZE, nullptr))
+		{
+			_ERROR("couldn't create codegen buffer. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+	}
+
+	Hook_Commit();
+	return true;
+}
 
 
 // Called on each update (about 90-100 calls per second)
@@ -143,7 +308,6 @@ void OnPoseUpdateUntimed(float deltaTime)
 	static BSFixedString rClavicleStr("NPC R Clavicle [RClv]");
 	NiAVObject *rightClavicle = player->GetNiRootNode(0)->GetObjectByName(&rClavicleStr.data);
 	// TODO: Use delta between consecutive clavicle->hand vectors for hand motions?
-
 	
 	// Fire a spell at the direction that the cast happens, so that you can visually see and adjust
 	if (g_debug) {
@@ -167,7 +331,14 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 		NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
 
-		bhkWorld *world = **BHKWORLD;
+		bhkWorld *world = GetWorld(cell);
+		if (!world) {
+			_MESSAGE("Could not get havok world from player cell");
+			return;
+		}
+
+		// TODO: Do raycast only if hand is pointing within some fov of where we're looking.
+		// This will prevent accidentally grabbing something behind you or to the side.
 
 		// First, raycast in the pointing direction
 		// TODO: Make raycast ignore plants and shit?
@@ -202,18 +373,27 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 		for (auto pair : cdPointCollector.m_hits) {
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
-			auto ref = FindCollidableRef(collidable);
+			TESObjectREFR *ref = FindCollidableRef(collidable);
 			if (ref) {
 				TESForm *baseForm = ref->baseForm;
-				if (baseForm && IsSelectable(baseForm)) {					
-					// Get distance from the hit on the collidable to the ray
-					NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
-					NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
-					float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
-					if (dist < closestDistance) {
-						closestObj = ref;
-						closestColl = collidable;
-						closestDistance = dist;
+				if (baseForm) {
+					auto actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
+					if (actor || IsSelectable(baseForm)) {
+						if (actor) {
+							if (!ref->IsDead(1)) {
+								// For actors, only select them if they're dead
+								continue;
+							}
+						}
+						// Get distance from the hit on the collidable to the ray
+						NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
+						NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
+						float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+						if (dist < closestDistance) {
+							closestObj = ref;
+							closestColl = collidable;
+							closestDistance = dist;
+						}
 					}
 				}
 			}
@@ -222,18 +402,25 @@ void OnPoseUpdateUntimed(float deltaTime)
 		if (closestObj) {
 			if (closestObj != selectedObj) {
 				if (selectedObj) {
-					EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+					EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
 				}
 				selectedObj = closestObj;
 				selectedColl = closestColl;
-				EffectShader_Play(vmRegistry, 0, g_itemSelectedShader, selectedObj, -1.0f);
+
+				if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+					g_currentSelectedShader = g_itemSelectedShaderOffLimits;
+				}
+				else {
+					g_currentSelectedShader = g_itemSelectedShader;
+				}
+				EffectShader_Play(vmRegistry, 0, g_currentSelectedShader, selectedObj, -1.0f);
 			}
 			isSelected = true;
 			lastSelectedTime = currentTime;
 		}
 
 		if (!isSelected && selectedObj && currentTime - lastSelectedTime > g_selectedLeewayTime) {
-			EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+			EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
 			selectedObj = nullptr;
 		}
 
@@ -261,6 +448,12 @@ void OnPoseUpdateUntimed(float deltaTime)
 						inFlightProjectileOriginalSpeed = VectorLength(*velocity);
 					}
 				}
+
+				isPullObjActor = false;
+				auto actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
+				if (actor) {
+					isPullObjActor = true;
+				}
 			}
 		}
 	}
@@ -269,7 +462,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 		g_triggerReleased = false;
 
 		if (selectedObj) {
-			EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, selectedObj);
+			EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
 			selectedObj = nullptr;
 		}
 		if (pullObj) {
@@ -292,10 +485,10 @@ void OnPoseUpdateUntimed(float deltaTime)
 		}
 	}
 
+	// TODO: Instead of pointer to pullObj, use a refhandle. That will prevent crashes when the game deallocates the object
 	if (pullObj && !(pullObj->flags & TESForm::kFlagIsDeleted)) {
 		bool cancel = false;
-		// loadedState can be an invalid pointer for projectiles soon after fired
-		// Need to check waitingToInitialize3D(0x1DC) on missileprojectiles before accessing them
+		// Only try to access loadedState after 3d is loaded for the projectile
 		if (isPullObjInFlightProjectile) {
 			bool waitingToInitialize3D = *(bool *)((UInt64)pullObj + 0x1dc);
 			if (waitingToInitialize3D) {
@@ -340,6 +533,15 @@ void OnPoseUpdateUntimed(float deltaTime)
 					}
 				}
 				else if (isPullObjInFlightProjectile) {
+					if (!isArrowHooked) {
+						isArrowHooked = true;
+						//Hook_Commit();
+						//bool result = SafeWriteCall(hookLoc, (uintptr_t)&UpdateImplHooked);
+						//if (!result) _MESSAGE("Hook failed");
+						//UInt64 *vtbl = *((UInt64 **)((UInt64)pullObj));
+						//vtbl[0xAC] = (UInt64)(&UpdateImplHooked);
+					}
+
 					// If the player grabs a projectile in flight, make them the shooter and actor cause
 					UInt32 playerHandle = GetOrCreateRefrHandle(player);
 					auto shooter = (UInt32 *)((UInt64)pullObj + 0x120);
@@ -391,8 +593,8 @@ void OnPoseUpdateUntimed(float deltaTime)
 				}
 			}
 
-			if (pullDesired && !isPullObjInFlightProjectile) {
-				// If it's an in-flight projectile, no pull effect
+			if (pullDesired && !isPullObjInFlightProjectile && !isPullObjActor && pullObj->baseForm->formType != kFormType_MovableStatic) {
+				// If it's an in-flight projectile or dead body, no pull effect
 				float newMagnitude = (VectorLength(relObjPos) * 0.1f) / havokWorldScale;
 				newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
 				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
@@ -450,7 +652,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 				else {
 					float magnitude = 80.0f;
 					ApplyHavokImpulse(vmRegistry, 0, pullObj, dir.x, dir.y, dir.z, magnitude);
-					EffectShader_Stop(vmRegistry, 0, g_itemSelectedShader, pullObj);
+					EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, pullObj);
 				}
 
 				pullObj = nullptr;
@@ -530,6 +732,19 @@ extern "C" {
 		}
 		else {
 			_MESSAGE("Failed to get slected item shader form");
+			return;
+		}
+
+		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x4EB5));
+		if (shaderForm) {
+			g_itemSelectedShaderOffLimits = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
+			if (!g_itemSelectedShaderOffLimits) {
+				_MESSAGE("Failed to cast selected item off limits shader form");
+				return;
+			}
+		}
+		else {
+			_MESSAGE("Failed to get slected item off limits shader form");
 			return;
 		}
 
@@ -668,6 +883,18 @@ extern "C" {
 		else {
 			_WARNING("[WARNING] Failed to read config options. Using defaults instead.");
 		}
+
+		hookedFuncAddr = hookedFunc.GetUIntPtr(); // before trampolines
+
+		g_trampoline = (SKSETrampolineInterface *)skse->QueryInterface(kInterface_Trampoline);
+		if (!g_trampoline) {
+			_ERROR("couldn't get trampoline interface");
+		}
+		if (!TryHook()) {
+			_ERROR("Failed to perform hook");
+		}
+
+
 
 		// wait for PapyrusVR init (during PostPostLoad SKSE Message)
 

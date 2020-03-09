@@ -434,13 +434,16 @@ struct ahkpWorld
 	void * m_broadPhaseBorderListener; // B8
 	void * m_multithreadedSimulationJobData; // C0
 	hkpProcessCollisionInput * m_collisionInput; // C8
-	hkpCollisionFilter * m_collisionFilter;  // D0
+	bhkCollisionFilter * m_collisionFilter;  // D0
 	void * m_collisionDispatcher; // D8
 	void * m_convexListFilter; // E0
 
 	// way more... todo
 };
 static_assert(offsetof(ahkpWorld, m_broadPhaseDispatcher) == 0xA0);
+
+// Address of pointer that points to the bhkWorld pointer
+// RelocAddr<bhkWorld ***> BHKWORLD(0x1f850d0); - world for _tamriel outside_ is here - does not work for interiors
 
 struct bhkWorld
 {
@@ -542,7 +545,7 @@ struct bhkCollisionObject
 	UInt32	pad0C;	// 0C
 
 	NiNode * node; // 10 - points back to the NiNode pointing to this
-	UInt64 unk18; // == 0x81?
+	UInt64 unk18; // == 0x81? bit 3 is set => we should update rotation of NiNode?
 	bhkRigidBodyT * body; // 20
 	// more?
 };
@@ -575,7 +578,7 @@ struct hkpShapePhantom
 	// Missing a vfunc... must have added one in a later havok version? - TODO
 };
 
-struct hkpSimpleShapePhantom : public hkpShapePhantom
+struct hkpSimpleShapePhantom : hkpShapePhantom
 {
 	//void * vtbl; // 00
 	// These 3 inherited from hkReferencedObject

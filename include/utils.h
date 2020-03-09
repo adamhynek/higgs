@@ -19,3 +19,5 @@ NiAVObject * GetHighestParent(NiAVObject *node);
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
 bool IsSelectable(TESForm *form);
+
+void updateTransformTree(NiAVObject * root);
