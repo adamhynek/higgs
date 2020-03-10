@@ -1,3 +1,4 @@
+#include <chrono>
 #include "utils.h"
 
 
@@ -46,6 +47,31 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	result.data[2][2] = cosTheta + a.z*a.z*(1 - cosTheta);
 
 	return result;
+}
+
+NiPoint3 MatrixToEulerAngles(NiMatrix33 &m)
+{
+	NiPoint3 output(0, 0, 0);
+	float fY = asin(((float)(SInt32)(-m.arr[2] * 1000000)) / 1000000);
+	float fCY = cos(fY);
+	float fCYTest = ((float)(SInt32)(fCY * 100)) / 100;
+	float fTX, fTY;
+	if (fCY && abs(fCY) >= 0.00000011920929 && fCYTest) {
+		fTX = m.arr[8] / fCY;
+		fTY = m.arr[5] / fCY;
+		output.x = atan2(fTY, fTX);
+		fTX = m.arr[0] / fCY;
+		fTY = m.arr[1] / fCY;
+		output.z = atan2(fTY, fTX);
+	}
+	else {
+		output.x = 0;
+		fTX = m.arr[4]; // Setting X to zero simplifies this element to: 0*sinY*sinZ + 1*cosZ
+		fTY = m.arr[3]; // Setting X to zero simplifies this element to: 0*sinY*cosZ - 1*sinZ
+		output.z = -atan2(fTY, fTX); // atan(sinZ/cosZ)
+	}
+	output.y = fY;
+	return output;
 }
 
 NiAVObject * GetHighestParent(NiAVObject *node)
@@ -103,4 +129,9 @@ void updateTransformTree(NiAVObject * root)
 			if (child) updateTransformTree(child);
 		}
 	}
+}
+
+long long GetTime()
+{
+	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }

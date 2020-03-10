@@ -63,15 +63,18 @@ hkpLinearCastInput linearCastInput;
 RayHitCollector rayHitCollector;
 hkpWorldRayCastInput rayCastInput(0x02420028); // 'ItemPicker' collision layer; player collision group
 
-TESObjectREFR *pullObj = nullptr;
+//TESObjectREFR *pullObj = nullptr;
+UInt32 pullObjHandle = 0;
+//TESObjectREFR *selectedObj = nullptr;
+UInt32 selectedObjHandle = 0;
 TESObjectREFR *prevPullObj = nullptr;
-TESObjectREFR *selectedObj = nullptr;
 hkpCollidable *selectedColl = nullptr;
 hkpCollidable *pullColl = nullptr;
 bool isPullObjActor = false;
 bool isPullObjInFlightProjectile = false;
 bool isPullObjImpactedProjectile = false;
 float inFlightProjectileOriginalSpeed = 0;
+NiMatrix33 inFlightOriginalRotation;
 
 NiPoint3 initialPullObjRelativePosition(0, 0, 0);
 NiPoint3 prevHandPosLocal(0, 0, 0); // Relative to hmd
@@ -79,75 +82,38 @@ NiPoint3 prevHandPosLocal(0, 0, 0); // Relative to hmd
 bool pullDesired = false;
 bool pushDesired = false;
 
-long long lastDebugCastTime = 0;
 long long lastSelectedTime = 0;
+long long triggerPressedTime = 0; // The timestamp when the trigger was pressed
 
-long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
+const long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
+const long long g_triggerPressedLeewayTime = 500; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
 
 bool isLoaded = false;
 bool isLastUpdateValid = false;
 bool g_triggerPressed = false;
 bool g_triggerReleased = false;
 
-//UInt32 spellFormId = 0x1C789; // fireball
-//UInt32 spellFormId = 0x2B96C; // ice spike
-//UInt32 spellFormId = 0x2dd29; // lightning bolt
-//UInt32 spellFormId = 0x00012fcd; // flames
-//UInt32 spellFormId = 0x0001A4CC; // telekinesis
-SpellItem *g_debugSpell = nullptr;
-TESObjectREFR *debugSourceActivator = nullptr;
-TESObjectREFR *debugTargetActivator = nullptr;
-
-bool g_debug = false; // Set to true to fire a spell (visual only) in the direction that the cast happens
-
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 TESEffectShader *g_currentSelectedShader = nullptr;
 
 
-//auto hookLoc = RelocAddr<uintptr_t>(0x75CC09); // - UpdateImpl
-//auto hookLoc = RelocAddr<uintptr_t>(0xC77B91); // - CellAnimations - actual Cell Animations is at 0x649610
 //auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - Actual CellAnimations <- this one is actually correct, but doesnt work for arrows
 auto hookLoc = RelocAddr<uintptr_t>(0x77033C);
-//auto hookLoc = RelocAddr<uintptr_t>(0xC79E15); // - CellAnimations
-char hookedCode[5];
-//auto hookedFunc = RelocAddr<uintptr_t>(0x76FD10); // - UpdateImpl
-//auto hookedFunc = RelocAddr<uintptr_t>(0xC77AA0); // - CellAnimations
 //auto hookedFunc = RelocAddr<uintptr_t>(0x648960); // - Actual CellAnimations
 auto hookedFunc = RelocAddr<uintptr_t>(0x77E1F0);
 
 uintptr_t hookedFuncAddr = 0;
-bool isArrowHooked = false;
 typedef void(*_UpdateImpl)(Projectile *_this, float a_delta);
 
 
 void HookFunc(Projectile *_this)
 {
-	if (_this == pullObj && isPullObjInFlightProjectile && _this->loadedState) {
-		//pullObj->rot = { 1, 0, 0 };
-
-		NiPoint3 forward = VectorNormalized({1, 1, 1});
-
-		NiPoint3 worldUpAlongForward = forward * DotProduct({ 0, 0, 1 }, forward); // Project world up vector onto our forward vector
-		NiPoint3 up = VectorNormalized(NiPoint3(0, 0, 1) - worldUpAlongForward);
-		NiPoint3 right = CrossProduct(forward, up);
-
-		_this->loadedState->node->m_localTransform.rot.data[0][0] = up.x;
-		_this->loadedState->node->m_localTransform.rot.data[1][0] = up.y;
-		_this->loadedState->node->m_localTransform.rot.data[2][0] = up.z;
-
-		_this->loadedState->node->m_localTransform.rot.data[0][1] = right.x;
-		_this->loadedState->node->m_localTransform.rot.data[1][1] = right.y;
-		_this->loadedState->node->m_localTransform.rot.data[2][1] = right.z;
-
-		_this->loadedState->node->m_localTransform.rot.data[0][2] = forward.x;
-		_this->loadedState->node->m_localTransform.rot.data[1][2] = forward.y;
-		_this->loadedState->node->m_localTransform.rot.data[2][2] = forward.z;
-
-		// Rotate by whatever we need to to make it actually face us...
-		//pullObj->loadedState->node->m_localTransform.rot = MatrixFromAxisAngle(up, 90 * 0.0174533) * pullObj->loadedState->node->m_localTransform.rot;
-
-		//updateTransformTree(_this->loadedState->node);
+	NiPointer<TESObjectREFR> pullObj;
+	if (LookupREFRByHandle(pullObjHandle, pullObj)) {
+		if (pullObj == _this && isPullObjInFlightProjectile && _this->loadedState) {
+			_this->loadedState->node->m_localTransform.rot = inFlightOriginalRotation;
+		}
 	}
 }
 
@@ -282,7 +248,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 	isLastUpdateValid = false;
 
 
-	long long currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	long long currentTime = GetTime();
 
 
 	static BSFixedString rHandStr("NPC R Hand [RHnd]");
@@ -303,27 +269,17 @@ void OnPoseUpdateUntimed(float deltaTime)
 	NiTransform inversePlayerTransform;
 	hmdNode->m_worldTransform.Invert(inversePlayerTransform);
 
+	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][2], hmdNode->m_worldTransform.rot.data[1][2], hmdNode->m_worldTransform.rot.data[2][2] };
+
 	NiPoint3 handPosLocal = inversePlayerTransform * handPos;
 
 	static BSFixedString rClavicleStr("NPC R Clavicle [RClv]");
 	NiAVObject *rightClavicle = player->GetNiRootNode(0)->GetObjectByName(&rClavicleStr.data);
 	// TODO: Use delta between consecutive clavicle->hand vectors for hand motions?
-	
-	// Fire a spell at the direction that the cast happens, so that you can visually see and adjust
-	if (g_debug) {
-		UInt32 nullHandle = *g_invalidRefHandle;
-		NiPoint3 rot(0, 0, 0);
-		MoveRefrToPosition(debugSourceActivator, &nullHandle, player->parentCell, CALL_MEMBER_FN(player, GetWorldspace)(), &handPos, &rot);
 
-		NiPoint3 targetPos = handPos + castDirection;
-		MoveRefrToPosition(debugTargetActivator, &nullHandle, player->parentCell, CALL_MEMBER_FN(player, GetWorldspace)(), &targetPos, &rot);
-		if (currentTime - lastDebugCastTime > 500) { // in ms
-			lastDebugCastTime = currentTime;
-			Cast(vmRegistry, 0, g_debugSpell, debugSourceActivator, debugTargetActivator);
-		}
-	}
+	NiPointer<TESObjectREFR> pullObj;
 
-	if (!pullObj) {
+	if (!LookupREFRByHandle(pullObjHandle, pullObj)) {
 		// Convert hand position from skyrim coords to havok coords
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
@@ -336,9 +292,6 @@ void OnPoseUpdateUntimed(float deltaTime)
 			_MESSAGE("Could not get havok world from player cell");
 			return;
 		}
-
-		// TODO: Do raycast only if hand is pointing within some fov of where we're looking.
-		// This will prevent accidentally grabbing something behind you or to the side.
 
 		// First, raycast in the pointing direction
 		// TODO: Make raycast ignore plants and shit?
@@ -367,13 +320,14 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 		// Process result of cast
 		bool isSelected = false;
-		TESObjectREFR *closestObj = nullptr;
+		//TESObjectREFR *closestObj = nullptr;
+		NiPointer<TESObjectREFR> closestObj;
 		hkpCollidable *closestColl = nullptr;
 		float closestDistance = (std::numeric_limits<float>::max)();
 
 		for (auto pair : cdPointCollector.m_hits) {
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
-			TESObjectREFR *ref = FindCollidableRef(collidable);
+			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 			if (ref) {
 				TESForm *baseForm = ref->baseForm;
 				if (baseForm) {
@@ -399,46 +353,52 @@ void OnPoseUpdateUntimed(float deltaTime)
 			}
 		}
 
+		// Select the new thing
 		if (closestObj) {
-			if (closestObj != selectedObj) {
+			NiPointer<TESObjectREFR> selectedObj;
+			if (!LookupREFRByHandle(selectedObjHandle, selectedObj) ||  closestObj != selectedObj) {
 				if (selectedObj) {
+					// Deselect the old thing if something else was selected
 					EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
 				}
-				selectedObj = closestObj;
+				selectedObjHandle = GetOrCreateRefrHandle(closestObj.m_pObject);
 				selectedColl = closestColl;
 
-				if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+				if (CALL_MEMBER_FN(closestObj, IsOffLimits)()) {
 					g_currentSelectedShader = g_itemSelectedShaderOffLimits;
 				}
 				else {
 					g_currentSelectedShader = g_itemSelectedShader;
 				}
-				EffectShader_Play(vmRegistry, 0, g_currentSelectedShader, selectedObj, -1.0f);
+				EffectShader_Play(vmRegistry, 0, g_currentSelectedShader, closestObj, -1.0f);
 			}
 			isSelected = true;
 			lastSelectedTime = currentTime;
 		}
 
-		if (!isSelected && selectedObj && currentTime - lastSelectedTime > g_selectedLeewayTime) {
+		// If time has run out and nothing is selected, deselect whatever is selected
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObjHandle, selectedObj) && !isSelected && currentTime - lastSelectedTime > g_selectedLeewayTime) {
 			EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
-			selectedObj = nullptr;
+			selectedObjHandle = *g_invalidRefHandle;
 		}
 
-		if (g_triggerPressed) {
-			// Pick up the item
-			pullObj = selectedObj;
-			pullColl = selectedColl;
+		if (g_triggerPressed && currentTime - triggerPressedTime <= g_triggerPressedLeewayTime) {
+			if (LookupREFRByHandle(selectedObjHandle, selectedObj)) {
+				// Pick up the item
 
-			if (pullObj) {
+				pullColl = selectedColl;
+				pullObjHandle = selectedObjHandle;
+
 				// Set to false only here, so that you can hold the trigger until the cast hits something valid
 				g_triggerPressed = false;
 
 				isPullObjInFlightProjectile = false;
 				isPullObjImpactedProjectile = false;
-				auto baseForm = pullObj->baseForm;
+				auto baseForm = selectedObj->baseForm;
 				if (baseForm && baseForm->formType == kFormType_Projectile) {
-					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
-					auto impactData = *(void **)((UInt64)pullObj + 0x98);
+					auto velocity = (NiPoint3 *)((UInt64)selectedObj.m_pObject + 0xfc);
+					auto impactData = *(void **)((UInt64)selectedObj.m_pObject + 0x98);
 					if (impactData) {
 						// If the projectile has impact data, then it has well, impacted something
 						isPullObjImpactedProjectile = true;
@@ -450,7 +410,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 				}
 
 				isPullObjActor = false;
-				auto actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
+				auto actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 				if (actor) {
 					isPullObjActor = true;
 				}
@@ -461,36 +421,34 @@ void OnPoseUpdateUntimed(float deltaTime)
 	if (g_triggerReleased) {
 		g_triggerReleased = false;
 
-		if (selectedObj) {
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObjHandle, selectedObj)) {
 			EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
-			selectedObj = nullptr;
+			selectedObjHandle = *g_invalidRefHandle;
 		}
-		if (pullObj) {
+		if (LookupREFRByHandle(pullObjHandle, pullObj)) {
 			if (isPullObjInFlightProjectile) {
 				// In-flight projectile
 				if (pullObj->loadedState) {
-					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					auto velocity = (NiPoint3 *)((UInt64)pullObj.m_pObject + 0xfc);
 
-					// Derotate by whatever we need to to make it actually face us...
 					auto rot = pullObj->loadedState->node->m_localTransform.rot;
-					rot = MatrixFromAxisAngle({ rot.data[0][0], rot.data[1][0], rot.data[2][0] }, -90 * 0.0174533) * rot;
-					NiPoint3 forward = { rot.data[0][2], rot.data[1][2], rot.data[2][2] };
+					NiPoint3 forward = { rot.data[0][1], rot.data[1][1], rot.data[2][1] };
 
 					*velocity = forward * inFlightProjectileOriginalSpeed;
 				}
 			}
 			// Drop the item
-			pullObj = nullptr;
+			pullObjHandle = *g_invalidRefHandle;
 			pullDesired = false;
 		}
 	}
 
-	// TODO: Instead of pointer to pullObj, use a refhandle. That will prevent crashes when the game deallocates the object
-	if (pullObj && !(pullObj->flags & TESForm::kFlagIsDeleted)) {
+	if (LookupREFRByHandle(pullObjHandle, pullObj) && !(pullObj->flags & TESForm::kFlagIsDeleted)) {
 		bool cancel = false;
 		// Only try to access loadedState after 3d is loaded for the projectile
 		if (isPullObjInFlightProjectile) {
-			bool waitingToInitialize3D = *(bool *)((UInt64)pullObj + 0x1dc);
+			bool waitingToInitialize3D = *(bool *)((UInt64)pullObj.m_pObject + 0x1dc);
 			if (waitingToInitialize3D) {
 				cancel = true;
 			}
@@ -533,38 +491,41 @@ void OnPoseUpdateUntimed(float deltaTime)
 					}
 				}
 				else if (isPullObjInFlightProjectile) {
-					if (!isArrowHooked) {
-						isArrowHooked = true;
-						//Hook_Commit();
-						//bool result = SafeWriteCall(hookLoc, (uintptr_t)&UpdateImplHooked);
-						//if (!result) _MESSAGE("Hook failed");
-						//UInt64 *vtbl = *((UInt64 **)((UInt64)pullObj));
-						//vtbl[0xAC] = (UInt64)(&UpdateImplHooked);
-					}
-
 					// If the player grabs a projectile in flight, make them the shooter and actor cause
 					UInt32 playerHandle = GetOrCreateRefrHandle(player);
-					auto shooter = (UInt32 *)((UInt64)pullObj + 0x120);
+					auto shooter = (UInt32 *)((UInt64)pullObj.m_pObject + 0x120);
 					*shooter = playerHandle;
 
-					auto actorCause = *(UInt32 **)((UInt64)pullObj + 0x118);
+					auto actorCause = *(UInt32 **)((UInt64)pullObj.m_pObject + 0x118);
 					UInt32 handle = *actorCause;
 					*actorCause = playerHandle;
 
 					// Need to set collision to same as if the player cast it, so that it collides with the _original_ caster (probably an enemy)
-					auto phantom = *(bhkSimpleShapePhantom**)((UInt64)pullObj + 0xE0);
+					auto phantom = *(bhkSimpleShapePhantom**)((UInt64)pullObj.m_pObject + 0xE0);
 					phantom->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF; // clear out the collision group
 					phantom->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= 0x02420000; // set the group to player group
+
+					// Save the rotation when we catch it
+					inFlightOriginalRotation = pullObj->loadedState->node->m_localTransform.rot;
 				}
 			}
 
 			// Determine the position where we want the object to be
-			float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+			// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
 			float w = VectorLength(NiPoint3(initialPullObjRelativePosition.x, initialPullObjRelativePosition.y, 0)); // horizontal distance from hand to object
-			float h = w * tanf(theta); // desired height relative to horizontal from hand
-			//float delta_h = h - relObjPos.z;
-
-			NiPoint3 horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * w; // desired horizontal position relative to hand
+			float h;
+			NiPoint3 horiz;
+			if (fabs(castDirection.z) <= 0.85f) {
+				float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+				h = w * tanf(theta); // desired height relative to horizontal from hand
+				horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * w; // desired horizontal position relative to hand
+			}
+			else {
+				// Handle degenerate case and clamp
+				h = w * tanf(asinf(copysignf(0.85f, castDirection.z))); // desired height relative to horizontal from hand
+				float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+				horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanf(theta)); // desired horizontal position relative to hand
+			}
 
 			NiPoint3 deltaPos = NiPoint3(horiz.x, horiz.y, h) - relObjPos;
 
@@ -615,8 +576,8 @@ void OnPoseUpdateUntimed(float deltaTime)
 							papyrusActor::EquipItemEx(player, weapon, 1, false, false);
 						}
 					}
-					pullObj = nullptr;
-					selectedObj = nullptr;
+					pullObjHandle = *g_invalidRefHandle;
+					selectedObjHandle = *g_invalidRefHandle;
 					pullDesired = false;
 					pushDesired = false;
 				}
@@ -625,7 +586,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 				NiPoint3 dir = VectorNormalized(relObjPos);
 
 				if (isPullObjInFlightProjectile) {
-					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					auto velocity = (NiPoint3 *)((UInt64)pullObj.m_pObject + 0xfc);
 					*velocity = dir * inFlightProjectileOriginalSpeed;
 
 					NiPoint3 forward = dir;
@@ -634,29 +595,40 @@ void OnPoseUpdateUntimed(float deltaTime)
 					NiPoint3 up = VectorNormalized(NiPoint3(0, 0, 1) - worldUpAlongForward);
 					NiPoint3 right = CrossProduct(forward, up);
 
-					pullObj->loadedState->node->m_localTransform.rot.data[0][0] = up.x;
-					pullObj->loadedState->node->m_localTransform.rot.data[1][0] = up.y;
-					pullObj->loadedState->node->m_localTransform.rot.data[2][0] = up.z;
+					pullObj->loadedState->node->m_localTransform.rot.data[0][0] = right.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][0] = right.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][0] = right.z;
 
-					pullObj->loadedState->node->m_localTransform.rot.data[0][1] = right.x;
-					pullObj->loadedState->node->m_localTransform.rot.data[1][1] = right.y;
-					pullObj->loadedState->node->m_localTransform.rot.data[2][1] = right.z;
+					pullObj->loadedState->node->m_localTransform.rot.data[0][1] = forward.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][1] = forward.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][1] = forward.z;
 
-					pullObj->loadedState->node->m_localTransform.rot.data[0][2] = forward.x;
-					pullObj->loadedState->node->m_localTransform.rot.data[1][2] = forward.y;
-					pullObj->loadedState->node->m_localTransform.rot.data[2][2] = forward.z;
+					pullObj->loadedState->node->m_localTransform.rot.data[0][2] = up.x;
+					pullObj->loadedState->node->m_localTransform.rot.data[1][2] = up.y;
+					pullObj->loadedState->node->m_localTransform.rot.data[2][2] = up.z;
 
-					// Rotate by whatever we need to to make it actually face us...
-					pullObj->loadedState->node->m_localTransform.rot = MatrixFromAxisAngle(up, 90 * 0.0174533) * pullObj->loadedState->node->m_localTransform.rot;
+					// Set Z rotation only - it's the only one the game cares about for projectiles anyways
+					NiPoint3 zeroRotationVec(0, 1, 0);
+					NiPoint3 worldRightVec(1, 0, 0);
+					NiPoint3 forwardFlattened = VectorNormalized({ forward.x, forward.y, 0 });
+					float angleFromZero = acosf(DotProduct(forwardFlattened, zeroRotationVec));
+
+					// Angle above is always positive - need to negate it depending on which way we 'wind' around Z
+					if (DotProduct(forwardFlattened, worldRightVec) < 0) {
+						angleFromZero *= -1;
+					}
+
+					pullObj->rot.z = angleFromZero;
 				}
 				else {
 					float magnitude = 80.0f;
 					ApplyHavokImpulse(vmRegistry, 0, pullObj, dir.x, dir.y, dir.z, magnitude);
-					EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, pullObj);
 				}
 
-				pullObj = nullptr;
-				selectedObj = nullptr;
+				EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, pullObj);
+
+				pullObjHandle = *g_invalidRefHandle;
+				selectedObjHandle = *g_invalidRefHandle;
 			}
 			else {
 				// No push or pull - just hold it where we want it
@@ -666,7 +638,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 					newMagnitude = min(newMagnitude, 10.0f / havokWorldScale); // Cap at some reasonable value
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-					auto velocity = (NiPoint3 *)((UInt64)pullObj + 0xfc);
+					auto velocity = (NiPoint3 *)((UInt64)pullObj.m_pObject + 0xfc);
 					*velocity = newVelocity;
 				}
 				else {
@@ -703,6 +675,7 @@ void OnButtonEvent(PapyrusVR::VREventType eventType, PapyrusVR::EVRButtonId butt
 
 	if (buttonId == PapyrusVR::EVRButtonId::k_EButton_SteamVR_Trigger && device == PapyrusVR::VRDevice::VRDevice_RightController) {		
 		if (eventType == PapyrusVR::VREventType::VREventType_Pressed) {
+			triggerPressedTime = GetTime();
 			g_triggerPressed = true;
 			g_triggerReleased = false;
 		}
@@ -716,6 +689,8 @@ void OnButtonEvent(PapyrusVR::VREventType eventType, PapyrusVR::EVRButtonId butt
 extern "C" {	
 	void OnDataLoaded()
 	{
+		pullObjHandle = *g_invalidRefHandle;
+
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
 			_MESSAGE("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
@@ -748,36 +723,6 @@ extern "C" {
 			return;
 		}
 
-		UInt32 spellFormId = GetFullFormID(modInfo, 0xd65);
-		TESForm *spellForm = LookupFormByID(spellFormId);
-		if (spellForm) {
-			g_debugSpell = DYNAMIC_CAST(spellForm, TESForm, SpellItem);
-			if (!g_debugSpell) {
-				_MESSAGE("Failed to cast spell form to spellitem");
-				return;
-			}
-		}
-		else {
-			_MESSAGE("Failed to get spell form");
-			return;
-		}
-
-		UInt32 sourceActivatorFormId = GetFullFormID(modInfo, 0x2906);
-		UInt32 targetActivatorFormId = GetFullFormID(modInfo, 0x2907);
-		TESForm *sourceActivatorForm = LookupFormByID(sourceActivatorFormId);
-		TESForm *targetActivatorForm = LookupFormByID(targetActivatorFormId);
-		if (sourceActivatorForm && targetActivatorForm) {
-			debugSourceActivator = DYNAMIC_CAST(sourceActivatorForm, TESForm, TESObjectREFR);
-			debugTargetActivator = DYNAMIC_CAST(targetActivatorForm, TESForm, TESObjectREFR);
-			if (!debugSourceActivator || !debugTargetActivator) {
-				_MESSAGE("Failed to cast source or target activators");
-				return;
-			}
-		}
-		else {
-			_MESSAGE("Failed to get source or target activator forms");
-			return;
-		}
 		_MESSAGE("Successfully loaded all forms");
 	}
 
