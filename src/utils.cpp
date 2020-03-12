@@ -135,3 +135,49 @@ long long GetTime()
 {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
+
+
+namespace Config {
+	const std::string & GetConfigPath()
+	{
+		static std::string s_configPath;
+
+		if (s_configPath.empty()) {
+			std::string	runtimePath = GetRuntimeDirectory();
+			if (!runtimePath.empty()) {
+				s_configPath = runtimePath + "Data\\SKSE\\Plugins\\forcepull_vr.ini";
+
+				_MESSAGE("config path = %s", s_configPath.c_str());
+			}
+		}
+
+		return s_configPath;
+	}
+
+	std::string GetConfigOption(const char * section, const char * key)
+	{
+		std::string	result;
+
+		const std::string & configPath = GetConfigPath();
+		if (!configPath.empty()) {
+			char	resultBuf[256];
+			resultBuf[0] = 0;
+
+			UInt32	resultLen = GetPrivateProfileString(section, key, NULL, resultBuf, sizeof(resultBuf), configPath.c_str());
+
+			result = resultBuf;
+		}
+
+		return result;
+	}
+
+	bool GetConfigOptionFloat(const char *section, const char *key, float *out)
+	{
+		std::string	data = GetConfigOption(section, key);
+		if (data.empty())
+			return false;
+
+		*out = std::stof(data);
+		return true;
+	}
+}

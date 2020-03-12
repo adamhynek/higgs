@@ -63,6 +63,13 @@ hkpLinearCastInput linearCastInput;
 RayHitCollector rayHitCollector;
 hkpWorldRayCastInput rayCastInput(0x02420028); // 'ItemPicker' collision layer; player collision group
 
+// Config params
+float handAdjustX = 0;
+float handAdjustY = 0;
+float handAdjustZ = 0;
+
+NiPoint3 g_handAdjust = { -0.2, -1, 0.4 };
+
 //TESObjectREFR *pullObj = nullptr;
 UInt32 pullObjHandle = 0;
 //TESObjectREFR *selectedObj = nullptr;
@@ -98,9 +105,9 @@ TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 TESEffectShader *g_currentSelectedShader = nullptr;
 
 
-//auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - Actual CellAnimations <- this one is actually correct, but doesnt work for arrows
+//auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - CellAnimations <- this one is actually correct, but doesnt work for arrows
 auto hookLoc = RelocAddr<uintptr_t>(0x77033C);
-//auto hookedFunc = RelocAddr<uintptr_t>(0x648960); // - Actual CellAnimations
+//auto hookedFunc = RelocAddr<uintptr_t>(0x648960); // - CellAnimations
 auto hookedFunc = RelocAddr<uintptr_t>(0x77E1F0);
 
 uintptr_t hookedFuncAddr = 0;
@@ -259,9 +266,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 	}
 	NiPoint3 handPos = rightHand->m_worldTransform.pos;
 
-	NiPoint3 handAdjust = { -0.2, -1, 0.4 }; // A bit down (negative up), a lot left (negative right) and a bit forward
-	handAdjust = VectorNormalized(handAdjust);
-	NiPoint3 castDirection = rightHand->m_worldTransform.rot * handAdjust;
+	NiPoint3 castDirection = rightHand->m_worldTransform.rot * g_handAdjust;
 
 	static BSFixedString hmdNodeStr("HmdNode");
 	NiAVObject *hmdNode = GetHighestParent(player->loadedState->node)->GetObjectByName(&hmdNodeStr.data);
@@ -312,7 +317,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 		UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0; // We want to hit _anything_, including in-flight projectiles
 		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
-		sphereShape->m_radius = 0.4f;
+		sphereShape->m_radius = 0.3f;
 		linearCastInput.m_to = { hitPosition.x, hitPosition.y, hitPosition.z, 0 };
 		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
@@ -810,6 +815,18 @@ extern "C" {
 
 	bool ReadConfigOptions()
 	{
+		if (!Config::GetConfigOptionFloat("Default", "HandAdjustX", &handAdjustX)) return false;
+		if (!Config::GetConfigOptionFloat("Default", "HandAdjustY", &handAdjustY)) return false;
+		if (!Config::GetConfigOptionFloat("Default", "HandAdjustZ", &handAdjustZ)) return false;
+
+		NiPoint3 handAdjust = { handAdjustX, handAdjustY, handAdjustZ };
+		if (VectorLength(handAdjust) > 0.0001f) {
+			g_handAdjust = VectorNormalized(handAdjust);
+		}
+		else {
+			_WARNING("Supplied hand adjust vector is too small - using default.");
+		}
+
 		return true;
 	}
 
