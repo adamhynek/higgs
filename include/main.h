@@ -10,26 +10,8 @@
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 
-typedef void(*_DeleteFunctor)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr);
-RelocAddr<_DeleteFunctor> DeleteFunctor(0x009CE380);
-
-// untested
-typedef char(*_DropObjectFunctor)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESForm* akObject, int aiCount);
-RelocAddr<_DropObjectFunctor> DropObjectFunctor(0x009CE580);
-
 typedef bool(*_SetMotionTypeFunctor)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, int motionType, bool allowActivate);
 RelocAddr<_SetMotionTypeFunctor> SetMotionTypeFunctor(0x009D1FF0);
-
-// untested
-typedef char(*_SetPositionFunctor)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, float x, float y, float z);
-RelocAddr<_SetPositionFunctor> SetPositionFunctor(0x009D2280);
-
-// untested
-typedef char(*_SetAngle)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, float x, float y, float z);
-RelocAddr<_SetAngle> SetAngle(0x009D18F0);
-
-typedef float(*_GetHeadingAngle)(VMClassRegistry * registry, uint32_t stackID, TESObjectREFR *source, TESObjectREFR *target);
-RelocAddr <_GetHeadingAngle> GetHeadingAngle(0x009CEBB0);
 
 typedef void(*_ApplyHavokImpulse)(VMClassRegistry * registry, uint32_t stackID, TESObjectREFR *target, float afX, float afY, float afZ, float magnitude);
 RelocAddr <_ApplyHavokImpulse> ApplyHavokImpulse(0x009CDE90);

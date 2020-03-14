@@ -28,6 +28,7 @@
 #include "version.h"
 #include "physics.h"
 #include "utils.h"
+#include "config.h"
 
 // Headers under api/ folder
 #include "api/PapyrusVRAPI.h"
@@ -64,9 +65,12 @@ RayHitCollector rayHitCollector;
 hkpWorldRayCastInput rayCastInput(0x02420028); // 'ItemPicker' collision layer; player collision group
 
 // Config params
-float handAdjustX = 0;
-float handAdjustY = 0;
-float handAdjustZ = 0;
+float g_castDistance = 5.0f;
+float g_castRadius = 0.3f;
+float g_handActivateDistance = 30.0f;
+float g_requiredCastDotProduct = cosf(50.0f * 0.0174533);
+long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
+bool g_equipWeapons = false;
 
 NiPoint3 g_handAdjust = { -0.2, -1, 0.4 };
 
@@ -92,17 +96,21 @@ bool pushDesired = false;
 long long lastSelectedTime = 0;
 long long triggerPressedTime = 0; // The timestamp when the trigger was pressed
 
-const long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
-const long long g_triggerPressedLeewayTime = 500; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
+// Need to disable this feature due to input blocking
+long long g_triggerPressedLeewayTime = 300; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
 
 bool isLoaded = false;
 bool isLastUpdateValid = false;
 bool g_triggerPressed = false;
 bool g_triggerReleased = false;
+bool g_didTriggerPressGrabObject = false;
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 TESEffectShader *g_currentSelectedShader = nullptr;
+
+const int numPrevPos = 5; // length of previous kept hand positions
+NiPoint3 rightHandPositions[numPrevPos]; // previous n hand positions
 
 
 //auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - CellAnimations <- this one is actually correct, but doesnt work for arrows
@@ -266,6 +274,12 @@ void OnPoseUpdateUntimed(float deltaTime)
 	}
 	NiPoint3 handPos = rightHand->m_worldTransform.pos;
 
+	// Update positions array to this frame
+	for (int i = numPrevPos - 1; i >= 1; i--) {
+		rightHandPositions[i] = rightHandPositions[i - 1];
+	}
+	rightHandPositions[0] = handPos;
+
 	NiPoint3 castDirection = rightHand->m_worldTransform.rot * g_handAdjust;
 
 	static BSFixedString hmdNodeStr("HmdNode");
@@ -274,7 +288,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 	NiTransform inversePlayerTransform;
 	hmdNode->m_worldTransform.Invert(inversePlayerTransform);
 
-	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][2], hmdNode->m_worldTransform.rot.data[1][2], hmdNode->m_worldTransform.rot.data[2][2] };
+	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][1], hmdNode->m_worldTransform.rot.data[1][1], hmdNode->m_worldTransform.rot.data[2][1] };
 
 	NiPoint3 handPosLocal = inversePlayerTransform * handPos;
 
@@ -288,7 +302,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 		// Convert hand position from skyrim coords to havok coords
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
-		NiPoint3 hkTargetPos = hkHandPos + castDirection * 5;
+		NiPoint3 hkTargetPos = hkHandPos + castDirection * g_castDistance;
 
 		NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
 
@@ -317,7 +331,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 		UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0; // We want to hit _anything_, including in-flight projectiles
 		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
-		sphereShape->m_radius = 0.3f;
+		sphereShape->m_radius = g_castRadius;
 		linearCastInput.m_to = { hitPosition.x, hitPosition.y, hitPosition.z, 0 };
 		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
@@ -359,7 +373,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 		}
 
 		// Select the new thing
-		if (closestObj) {
+		if (closestObj && DotProduct(castDirection, hmdForward) >= g_requiredCastDotProduct) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObjHandle, selectedObj) ||  closestObj != selectedObj) {
 				if (selectedObj) {
@@ -397,6 +411,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 				// Set to false only here, so that you can hold the trigger until the cast hits something valid
 				g_triggerPressed = false;
+				g_didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
 
 				isPullObjInFlightProjectile = false;
 				isPullObjImpactedProjectile = false;
@@ -425,6 +440,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 	if (g_triggerReleased) {
 		g_triggerReleased = false;
+		g_didTriggerPressGrabObject = false;
 
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObjHandle, selectedObj)) {
@@ -569,13 +585,13 @@ void OnPoseUpdateUntimed(float deltaTime)
 				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
 				// If close enough to hand, pick it up
-				if (VectorLength(relObjPos) < 30.0f * havokWorldScale) {
+				if (VectorLength(relObjPos) < g_handActivateDistance * havokWorldScale) {
 					_MESSAGE("Equipping");
 					// Pickup the item
 					Activate(vmRegistry, 0, pullObj, player, false);
 					// If the item is a weapon, equip it too
 					auto baseForm = pullObj->baseForm;
-					if (baseForm && baseForm->formType == kFormType_Weapon) {
+					if (g_equipWeapons && baseForm && baseForm->formType == kFormType_Weapon) {
 						auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
 						if (weapon) {
 							papyrusActor::EquipItemEx(player, weapon, 1, false, false);
@@ -691,6 +707,64 @@ void OnButtonEvent(PapyrusVR::VREventType eventType, PapyrusVR::EVRButtonId butt
 	}
 }
 
+bool triggerPressed = false;
+bool unsheatheDesired = false;
+bool OnControllerStateChanged(vr::TrackedDeviceIndex_t unControllerDeviceIndex, const vr::VRControllerState_t* pControllerState, uint32_t unControllerStateSize, vr::VRControllerState_t* pOutputControllerState)
+{
+	// TODO: Deal with left handed mode
+	vr::ETrackedControllerRole rightControllerRole = vr::ETrackedControllerRole::TrackedControllerRole_RightHand;
+	vr::TrackedDeviceIndex_t rightController = g_openvrHook->GetVRSystem()->GetTrackedDeviceIndexForControllerRole(rightControllerRole);
+	if (unControllerDeviceIndex == rightController) {
+		bool triggerPressedBefore = triggerPressed;
+		// Check if the trigger is pressed
+		if (pOutputControllerState->ulButtonPressed & vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_SteamVR_Trigger)) {
+			triggerPressed = true;
+			if (g_didTriggerPressGrabObject) {
+				// If something is grabbed, disable the trigger
+				pOutputControllerState->ulButtonPressed &= ~vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_SteamVR_Trigger);
+				if (!triggerPressedBefore) {
+					// but still propagate the trigger to _us_
+					OnButtonEvent(PapyrusVR::VREventType::VREventType_Pressed, PapyrusVR::EVRButtonId::k_EButton_SteamVR_Trigger, PapyrusVR::VRDevice::VRDevice_RightController);
+				}
+			}
+			else {
+				if (!triggerPressedBefore) {
+					// Trigger pressed but not object is grabbed (yet?). Do not unsheathe weapons until leeway time has passed.
+					PlayerCharacter *pc = *g_thePlayer;
+					if (pc && !pc->actorState.IsWeaponDrawn() && !IsInMenuMode(vmRegistry, 0)) {
+						unsheatheDesired = true;
+					}
+				}
+			}
+		}
+		else {
+			triggerPressed = false;
+		}
+
+		if (unsheatheDesired) {
+			long long currentTime = GetTime();
+			if (currentTime - triggerPressedTime <= g_triggerPressedLeewayTime) {
+				// Suppress trigger press
+				pOutputControllerState->ulButtonPressed &= ~vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_SteamVR_Trigger);
+			}
+			else {
+				unsheatheDesired = false;
+				// Do the unsheathing, only if we didn't grab something
+				if (!g_didTriggerPressGrabObject) {
+					PlayerCharacter *pc = *g_thePlayer;
+					if (pc && !pc->actorState.IsWeaponDrawn() && !IsInMenuMode(vmRegistry, 0)) {
+						// Vtbl offset for DrawSheatheWeapon is wrong in skse vr
+						typedef void(*_DrawSheatheWeapon)(Actor *actor, bool draw);
+						UInt64 *vtbl = *((UInt64 **)pc);
+						((_DrawSheatheWeapon)(vtbl[0xA8]))(pc, true);
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
 extern "C" {	
 	void OnDataLoaded()
 	{
@@ -757,6 +831,7 @@ extern "C" {
 				// Registers for PoseUpdates
 				g_papyrusvrManager->RegisterVRUpdateListener(OnPoseUpdate);
 				g_papyrusvrManager->RegisterVRButtonListener(OnButtonEvent);
+				g_openvrHook->RegisterControllerStateCB(OnControllerStateChanged);
 			}
 		}
 	}
@@ -815,9 +890,10 @@ extern "C" {
 
 	bool ReadConfigOptions()
 	{
-		if (!Config::GetConfigOptionFloat("Default", "HandAdjustX", &handAdjustX)) return false;
-		if (!Config::GetConfigOptionFloat("Default", "HandAdjustY", &handAdjustY)) return false;
-		if (!Config::GetConfigOptionFloat("Default", "HandAdjustZ", &handAdjustZ)) return false;
+		float handAdjustX, handAdjustY, handAdjustZ;
+		if (!Config::GetConfigOptionFloat("Settings", "HandAdjustX", &handAdjustX)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "HandAdjustY", &handAdjustY)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "HandAdjustZ", &handAdjustZ)) return false;
 
 		NiPoint3 handAdjust = { handAdjustX, handAdjustY, handAdjustZ };
 		if (VectorLength(handAdjust) > 0.0001f) {
@@ -826,6 +902,24 @@ extern "C" {
 		else {
 			_WARNING("Supplied hand adjust vector is too small - using default.");
 		}
+
+		if (!Config::GetConfigOptionFloat("Settings", "CastRadius", &g_castRadius)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "CastDistance", &g_castDistance)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "HandActivateDistance", &g_handActivateDistance)) return false;
+
+		float castDirectionRequiredHalfAngle;
+		if (!Config::GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
+		g_requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
+
+		int selectedFadeTime;
+		if (!Config::GetConfigOptionInt("Settings", "SelectedFadeTime", &selectedFadeTime)) return false;
+		g_selectedLeewayTime = selectedFadeTime;
+
+		int triggerPreemptTime;
+		if (!Config::GetConfigOptionInt("Settings", "TriggerPreemptTime", &triggerPreemptTime)) return false;
+		g_triggerPressedLeewayTime = triggerPreemptTime;
+
+		if (!Config::GetConfigOptionBool("Settings", "EquipWeapons", &g_equipWeapons)) return false;
 
 		return true;
 	}
@@ -856,7 +950,9 @@ extern "C" {
 			_ERROR("Failed to perform hook");
 		}
 
-
+		for (int i = 0; i < numPrevPos; i++) {
+			rightHandPositions[i] = {0, 0, 0};
+		}
 
 		// wait for PapyrusVR init (during PostPostLoad SKSE Message)
 

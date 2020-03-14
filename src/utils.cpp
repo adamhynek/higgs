@@ -100,7 +100,7 @@ bool IsSelectable(TESForm *form)
 	case kFormType_ScrollItem:
 	case kFormType_Potion:
 	case kFormType_SoulGem:
-	case kFormType_MovableStatic:
+	//case kFormType_MovableStatic: - a lot of them work, but stuff like campfires are not actually movable
 	case kFormType_Key: // unverified - TODO
 	case kFormType_Projectile: // Arrows stuck in a wall, projectiles mid air...
 	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
@@ -136,48 +136,7 @@ long long GetTime()
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-
-namespace Config {
-	const std::string & GetConfigPath()
-	{
-		static std::string s_configPath;
-
-		if (s_configPath.empty()) {
-			std::string	runtimePath = GetRuntimeDirectory();
-			if (!runtimePath.empty()) {
-				s_configPath = runtimePath + "Data\\SKSE\\Plugins\\forcepull_vr.ini";
-
-				_MESSAGE("config path = %s", s_configPath.c_str());
-			}
-		}
-
-		return s_configPath;
-	}
-
-	std::string GetConfigOption(const char * section, const char * key)
-	{
-		std::string	result;
-
-		const std::string & configPath = GetConfigPath();
-		if (!configPath.empty()) {
-			char	resultBuf[256];
-			resultBuf[0] = 0;
-
-			UInt32	resultLen = GetPrivateProfileString(section, key, NULL, resultBuf, sizeof(resultBuf), configPath.c_str());
-
-			result = resultBuf;
-		}
-
-		return result;
-	}
-
-	bool GetConfigOptionFloat(const char *section, const char *key, float *out)
-	{
-		std::string	data = GetConfigOption(section, key);
-		if (data.empty())
-			return false;
-
-		*out = std::stof(data);
-		return true;
-	}
+void PrintVector(NiPoint3 &p)
+{
+	_MESSAGE("%.2f, %.2f, %.2f", p.x, p.y, p.z);
 }
