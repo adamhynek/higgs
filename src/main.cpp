@@ -86,7 +86,7 @@ BSFixedString rolloverNodeStr("WSActivateRollover");
 
 NiPoint3 initialPullObjRelativePosition(0, 0, 0);
 float initialHandHorizontalDistance = 0;
-NiPoint3 prevHandPosLocal(0, 0, 0); // Relative to hmd
+NiPoint3 prevHandPosRoomspace(0, 0, 0); // Hand position in room space
 
 bool pullDesired = false;
 bool pushDesired = false;
@@ -290,18 +290,16 @@ void OnPoseUpdateUntimed()
 
 	NiPoint3 hmdPos = hmdNode->m_worldTransform.pos;
 
-	NiTransform inversePlayerTransform;
-	hmdNode->m_worldTransform.Invert(inversePlayerTransform);
-
 	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][1], hmdNode->m_worldTransform.rot.data[1][1], hmdNode->m_worldTransform.rot.data[2][1] };
 
-	NiPoint3 handPosLocal = inversePlayerTransform * handPos;
+	static BSFixedString rightWandStr("RightWandNode");
+	NiAVObject *rightWandNode = player->loadedState->node->m_parent->GetObjectByName(&rightWandStr.data);
+	NiPoint3 handPosRoomspace = rightWandNode->m_localTransform.pos;
 
 	static BSFixedString rClavicleStr("NPC R Clavicle [RClv]");
 	static BSFixedString rUpperArmStr("NPC R UpperArm [RUar]");
 	NiAVObject *rightUpperArm = player->GetNiRootNode(0)->GetObjectByName(&rUpperArmStr.data);
 	NiPoint3 upperArmPos = rightUpperArm->m_worldTransform.pos;
-	// TODO: Use delta between consecutive clavicle->hand vectors for hand motions?
 
 	NiPointer<TESObjectREFR> pullObj;
 
@@ -569,12 +567,14 @@ void OnPoseUpdateUntimed()
 
 			// Basic hand motions
 
-			NiPoint3 deltaHandPos = handPosLocal - prevHandPosLocal; // in hmd space
+			NiPoint3 deltaHandPos = handPosRoomspace - prevHandPosRoomspace; // in room space
 
-			NiPoint3 spellDirectionLocal = hmdNode->m_worldTransform.rot.Transpose() * castDirection; // transpose == inverse, since rotation matrix is orthogonal
+			// Get whatever transform takes the wand position from room space to skyrim worldspace
+			NiMatrix33 localToWorldTransform = rightWandNode->m_worldTransform.rot * rightWandNode->m_localTransform.rot.Transpose();
+			NiPoint3 deltaWorld = localToWorldTransform * deltaHandPos;
 
-			if (VectorLength(deltaHandPos) < 5.0f) { // Don't do anything if some weird jump happens
-				float handSpeedInSpellDirection = DotProduct(deltaHandPos, spellDirectionLocal);
+			if (VectorLength(deltaWorld) < 5.0f) { // Don't do anything if some weird jump happens
+				float handSpeedInSpellDirection = DotProduct(deltaWorld, castDirection);
 				if (handSpeedInSpellDirection < -1.0f) {
 					pullDesired = true;
 					_MESSAGE("Pull");
@@ -748,7 +748,7 @@ void OnPoseUpdateUntimed()
 
 
 	prevPullObj = pullObj;
-	prevHandPosLocal = handPosLocal;
+	prevHandPosRoomspace = handPosRoomspace;
 
 	isLastUpdateValid = true;
 }
