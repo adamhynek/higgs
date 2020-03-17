@@ -18,6 +18,7 @@
 #include "skse64/GameData.h"
 #include "skse64/GameForms.h"
 #include "skse64/PapyrusActor.h"
+#include "skse64/GameVR.h"
 #include "skse64_common/SafeWrite.h"
 #include "skse64_common/BranchTrampoline.h"
 #include "xbyak/xbyak.h"
@@ -30,33 +31,27 @@
 #include "utils.h"
 #include "config.h"
 
-// Headers under api/ folder
-#include "api/PapyrusVRAPI.h"
-#include "api/VRManagerAPI.h"
-#include "api/utils/OpenVRUtils.h"
-
 
 // Multiply skyrim coords by this to get havok coords
 // It's the number of meters per skyrim unit
-RelocAddr<float *> HAVOK_WORLD_SCALE_ADDR(0x15B78F4);
+RelocPtr<float> HAVOK_WORLD_SCALE_ADDR(0x15B78F4);
 
 // Alternatively, 0x30008E0 + 0x78
 // Even better, (*0x2FC60C0) + 0x78
 // Address of pointer to bhkSimpleShapePhantom that tracks the right hand - more or less
-RelocAddr<bhkSimpleShapePhantom **> SPHERE_SHAPE_ADDR(0x3000958);
+RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR(0x3000958);
+
+RelocPtr<UInt32 *> SELECTED_HANDLES(0x2FC60C0);
 
 
 // SKSE / SkyrimVRTools globals
 static PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
 static SKSEMessagingInterface *g_messaging = nullptr;
 
-PapyrusVRAPI *g_papyrusvr = nullptr;
-PapyrusVR::VRManagerAPI *g_papyrusvrManager = nullptr;
-OpenVRHookManagerAPI *g_openvrHook = nullptr;
-
 VMClassRegistry *vmRegistry = nullptr;
 
 SKSETrampolineInterface *g_trampoline = nullptr;
+SKSEVRInterface *g_vrInterface = nullptr;
 
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
@@ -72,7 +67,7 @@ float g_requiredCastDotProduct = cosf(50.0f * 0.0174533);
 long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
 bool g_equipWeapons = false;
 
-NiPoint3 g_handAdjust = { -0.2, -1, 0.4 };
+NiPoint3 g_handAdjust = { -0.018, -0.965, 0.261 };
 
 //TESObjectREFR *pullObj = nullptr;
 UInt32 pullObjHandle = 0;
@@ -87,7 +82,10 @@ bool isPullObjImpactedProjectile = false;
 float inFlightProjectileOriginalSpeed = 0;
 NiMatrix33 inFlightOriginalRotation;
 
+BSFixedString rolloverNodeStr("WSActivateRollover");
+
 NiPoint3 initialPullObjRelativePosition(0, 0, 0);
+float initialHandHorizontalDistance = 0;
 NiPoint3 prevHandPosLocal(0, 0, 0); // Relative to hmd
 
 bool pullDesired = false;
@@ -111,6 +109,10 @@ TESEffectShader *g_currentSelectedShader = nullptr;
 
 const int numPrevPos = 5; // length of previous kept hand positions
 NiPoint3 rightHandPositions[numPrevPos]; // previous n hand positions
+
+bool hasSavedRollover = false;
+NiPoint3 normalRolloverPosition;
+NiMatrix33 normalRolloverRotation;
 
 
 //auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - CellAnimations <- this one is actually correct, but doesnt work for arrows
@@ -202,6 +204,8 @@ void Hook_Commit(void)
 	g_localTrampoline.EndAlloc(code.getCurr());
 
 	g_branchTrampoline.Write5Branch(hookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+	_MESSAGE("Arrow update hook complete");
 }
 
 
@@ -245,7 +249,7 @@ bool TryHook()
 
 
 // Called on each update (about 90-100 calls per second)
-void OnPoseUpdateUntimed(float deltaTime)
+void OnPoseUpdateUntimed()
 {
 	if (!isLoaded) return;
 
@@ -261,7 +265,6 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 	bool wasLastUpdateValid = isLastUpdateValid;
 	isLastUpdateValid = false;
-
 
 	long long currentTime = GetTime();
 
@@ -283,7 +286,9 @@ void OnPoseUpdateUntimed(float deltaTime)
 	NiPoint3 castDirection = rightHand->m_worldTransform.rot * g_handAdjust;
 
 	static BSFixedString hmdNodeStr("HmdNode");
-	NiAVObject *hmdNode = GetHighestParent(player->loadedState->node)->GetObjectByName(&hmdNodeStr.data);
+	NiAVObject *hmdNode = player->loadedState->node->m_parent->GetObjectByName(&hmdNodeStr.data);
+
+	NiPoint3 hmdPos = hmdNode->m_worldTransform.pos;
 
 	NiTransform inversePlayerTransform;
 	hmdNode->m_worldTransform.Invert(inversePlayerTransform);
@@ -293,7 +298,9 @@ void OnPoseUpdateUntimed(float deltaTime)
 	NiPoint3 handPosLocal = inversePlayerTransform * handPos;
 
 	static BSFixedString rClavicleStr("NPC R Clavicle [RClv]");
-	NiAVObject *rightClavicle = player->GetNiRootNode(0)->GetObjectByName(&rClavicleStr.data);
+	static BSFixedString rUpperArmStr("NPC R UpperArm [RUar]");
+	NiAVObject *rightUpperArm = player->GetNiRootNode(0)->GetObjectByName(&rUpperArmStr.data);
+	NiPoint3 upperArmPos = rightUpperArm->m_worldTransform.pos;
 	// TODO: Use delta between consecutive clavicle->hand vectors for hand motions?
 
 	NiPointer<TESObjectREFR> pullObj;
@@ -301,6 +308,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 	if (!LookupREFRByHandle(pullObjHandle, pullObj)) {
 		// Convert hand position from skyrim coords to havok coords
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
+		NiPoint3 hkHmdPos = hmdPos * havokWorldScale;
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
 		NiPoint3 hkTargetPos = hkHandPos + castDirection * g_castDistance;
 
@@ -339,10 +347,10 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 		// Process result of cast
 		bool isSelected = false;
-		//TESObjectREFR *closestObj = nullptr;
 		NiPointer<TESObjectREFR> closestObj;
 		hkpCollidable *closestColl = nullptr;
 		float closestDistance = (std::numeric_limits<float>::max)();
+		NiPoint3 closestHit;
 
 		for (auto pair : cdPointCollector.m_hits) {
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
@@ -359,13 +367,15 @@ void OnPoseUpdateUntimed(float deltaTime)
 							}
 						}
 						// Get distance from the hit on the collidable to the ray
-						NiPoint3 handToHit = NiPoint3(pair.first.x, pair.first.y, pair.first.z) - hkHandPos;
+						NiPoint3 hit = { pair.first.x, pair.first.y, pair.first.z };
+						NiPoint3 handToHit = hit - hkHandPos;
 						NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
 						float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
 						if (dist < closestDistance) {
 							closestObj = ref;
 							closestColl = collidable;
 							closestDistance = dist;
+							closestHit = hit;
 						}
 					}
 				}
@@ -373,7 +383,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 		}
 
 		// Select the new thing
-		if (closestObj && DotProduct(castDirection, hmdForward) >= g_requiredCastDotProduct) {
+		if (closestObj && DotProduct(VectorNormalized(closestHit - hkHmdPos), hmdForward) >= g_requiredCastDotProduct) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObjHandle, selectedObj) ||  closestObj != selectedObj) {
 				if (selectedObj) {
@@ -461,6 +471,11 @@ void OnPoseUpdateUntimed(float deltaTime)
 			}
 			// Drop the item
 			pullObjHandle = *g_invalidRefHandle;
+			if (hasSavedRollover) {
+				NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
+				rolloverNode->m_localTransform.pos = normalRolloverPosition;
+				rolloverNode->m_localTransform.rot = normalRolloverRotation;
+			}
 			pullDesired = false;
 		}
 	}
@@ -493,11 +508,15 @@ void OnPoseUpdateUntimed(float deltaTime)
 
 			auto relObjPos = hkObjPos - hkHandPos;
 
+			// Use this to find a nice vector from the palm
+			NiPoint3 handObjDirection = rightHand->m_worldTransform.rot.Transpose() * VectorNormalized(relObjPos);
+
 			if (!prevPullObj) {
 				pushDesired = false;
 				pullDesired = false;
 
 				initialPullObjRelativePosition = relObjPos;
+				initialHandHorizontalDistance = VectorLength(handPos - upperArmPos);
 
 				if (isPullObjImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
 					auto collObj = (bhkCollisionObject *)pullObj->loadedState->node->unk040;
@@ -548,13 +567,7 @@ void OnPoseUpdateUntimed(float deltaTime)
 				horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanf(theta)); // desired horizontal position relative to hand
 			}
 
-			NiPoint3 deltaPos = NiPoint3(horiz.x, horiz.y, h) - relObjPos;
-
 			// Basic hand motions
-			NiTransform inversePlayerTransform;
-			hmdNode->m_worldTransform.Invert(inversePlayerTransform);
-
-			NiPoint3 handPosLocal = inversePlayerTransform * handPos;
 
 			NiPoint3 deltaHandPos = handPosLocal - prevHandPosLocal; // in hmd space
 
@@ -598,6 +611,11 @@ void OnPoseUpdateUntimed(float deltaTime)
 						}
 					}
 					pullObjHandle = *g_invalidRefHandle;
+					if (hasSavedRollover) {
+						NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
+						rolloverNode->m_localTransform.pos = normalRolloverPosition;
+						rolloverNode->m_localTransform.rot = normalRolloverRotation;
+					}
 					selectedObjHandle = *g_invalidRefHandle;
 					pullDesired = false;
 					pushDesired = false;
@@ -649,10 +667,25 @@ void OnPoseUpdateUntimed(float deltaTime)
 				EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, pullObj);
 
 				pullObjHandle = *g_invalidRefHandle;
+				if (hasSavedRollover) {
+					NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
+					rolloverNode->m_localTransform.pos = normalRolloverPosition;
+					rolloverNode->m_localTransform.rot = normalRolloverRotation;
+				}
 				selectedObjHandle = *g_invalidRefHandle;
 			}
 			else {
 				// No push or pull - just hold it where we want it
+
+				NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
+
+				// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
+				float handHorizontalDistance = VectorLength(handPos - upperArmPos);
+				float handDistanceRatio = (handHorizontalDistance - 20.0f) / (initialHandHorizontalDistance - 20.0f);
+				desiredPos *= handDistanceRatio;
+
+				NiPoint3 deltaPos = desiredPos - relObjPos;
+
 				if (isPullObjInFlightProjectile) {
 					// In-flight projectile
 					float newMagnitude = (VectorLength(deltaPos) * 5.0f) / havokWorldScale;
@@ -664,6 +697,44 @@ void OnPoseUpdateUntimed(float deltaTime)
 				}
 				else {
 					// Everything else
+					//if (VectorLength(relObjPos) < 100.0f * havokWorldScale) {
+						// If it's close enough, give the hud prompt to pick it up as well
+
+						// First, change rotation/position of the hud prompt
+						NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
+
+						if (!hasSavedRollover) {
+							hasSavedRollover = true;
+							normalRolloverPosition = rolloverNode->m_localTransform.pos;
+							normalRolloverRotation = rolloverNode->m_localTransform.rot;
+						}
+
+						rolloverNode->m_localTransform.pos = {5, -6, 0};
+
+						// Right vector points to the right of the text
+						rolloverNode->m_localTransform.rot.data[0][0] = 0;
+						rolloverNode->m_localTransform.rot.data[1][0] = -cosf(30 * 0.0174533);
+						rolloverNode->m_localTransform.rot.data[2][0] = -sinf(30 * 0.0174533);
+
+						// Forward vector points into the text
+						rolloverNode->m_localTransform.rot.data[0][1] = -1;
+						rolloverNode->m_localTransform.rot.data[1][1] = 0;
+						rolloverNode->m_localTransform.rot.data[2][1] = 0;
+
+						// Up vector points up from the text
+						rolloverNode->m_localTransform.rot.data[0][2] = 0;
+						rolloverNode->m_localTransform.rot.data[1][2] = sinf(30 * 0.0174533);
+						rolloverNode->m_localTransform.rot.data[2][2] = -cosf(30 * 0.0174533);
+
+						// Now set all the places I could find that get set to the handle of the pointed at object usually
+						if (SELECTED_HANDLES) {
+							UInt32 *selectedHandles = *SELECTED_HANDLES;
+							selectedHandles[2] = pullObjHandle;
+							selectedHandles[5] = pullObjHandle;
+							selectedHandles[8] = pullObjHandle;
+						}
+					//}
+
 					float newMagnitude = (VectorLength(deltaPos) * 0.05f) / havokWorldScale;
 					newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
@@ -682,54 +753,43 @@ void OnPoseUpdateUntimed(float deltaTime)
 	isLastUpdateValid = true;
 }
 
-void OnPoseUpdate(float Deltatime)
+bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
 	//long long currentTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-	OnPoseUpdateUntimed(Deltatime);
+	OnPoseUpdateUntimed();
 	//long long timeElapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - currentTime;
 	//_MESSAGE("%d", timeElapsed);
+	return true;
 }
 
-void OnButtonEvent(PapyrusVR::VREventType eventType, PapyrusVR::EVRButtonId buttonId, PapyrusVR::VRDevice device)
-{
-	// This function runs before OnPoseUpdate, so there are no race conditions	
-
-	if (buttonId == PapyrusVR::EVRButtonId::k_EButton_SteamVR_Trigger && device == PapyrusVR::VRDevice::VRDevice_RightController) {		
-		if (eventType == PapyrusVR::VREventType::VREventType_Pressed) {
-			triggerPressedTime = GetTime();
-			g_triggerPressed = true;
-			g_triggerReleased = false;
-		}
-		else if (eventType == PapyrusVR::VREventType::VREventType_Released) {
-			g_triggerReleased = true;
-			g_triggerPressed = false;
-		}
-	}
-}
 
 bool triggerPressed = false;
 bool unsheatheDesired = false;
-bool OnControllerStateChanged(vr::TrackedDeviceIndex_t unControllerDeviceIndex, const vr::VRControllerState_t* pControllerState, uint32_t unControllerStateSize, vr::VRControllerState_t* pOutputControllerState)
+void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, uint32_t unControllerStateSize, bool& state)
 {
 	// TODO: Deal with left handed mode
-	vr::ETrackedControllerRole rightControllerRole = vr::ETrackedControllerRole::TrackedControllerRole_RightHand;
-	vr::TrackedDeviceIndex_t rightController = g_openvrHook->GetVRSystem()->GetTrackedDeviceIndexForControllerRole(rightControllerRole);
+	vr_src::ETrackedControllerRole rightControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand;
+	vr_src::TrackedDeviceIndex_t rightController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(rightControllerRole);
 	if (unControllerDeviceIndex == rightController) {
 		bool triggerPressedBefore = triggerPressed;
+
 		// Check if the trigger is pressed
-		if (pOutputControllerState->ulButtonPressed & vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_SteamVR_Trigger)) {
+		if (pControllerState->ulButtonPressed & vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger)) {
 			triggerPressed = true;
+
+			if (!triggerPressedBefore) {
+				triggerPressedTime = GetTime();
+				g_triggerPressed = true;
+				g_triggerReleased = false;
+			}
+
 			if (g_didTriggerPressGrabObject) {
 				// If something is grabbed, disable the trigger
-				pOutputControllerState->ulButtonPressed &= ~vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_SteamVR_Trigger);
-				if (!triggerPressedBefore) {
-					// but still propagate the trigger to _us_
-					OnButtonEvent(PapyrusVR::VREventType::VREventType_Pressed, PapyrusVR::EVRButtonId::k_EButton_SteamVR_Trigger, PapyrusVR::VRDevice::VRDevice_RightController);
-				}
+				pControllerState->ulButtonPressed &= ~vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
 			}
 			else {
 				if (!triggerPressedBefore) {
-					// Trigger pressed but not object is grabbed (yet?). Do not unsheathe weapons until leeway time has passed.
+					// Trigger pressed but object is not grabbed (yet?). Do not unsheathe weapons until leeway time has passed.
 					PlayerCharacter *pc = *g_thePlayer;
 					if (pc && !pc->actorState.IsWeaponDrawn() && !IsInMenuMode(vmRegistry, 0)) {
 						unsheatheDesired = true;
@@ -739,13 +799,18 @@ bool OnControllerStateChanged(vr::TrackedDeviceIndex_t unControllerDeviceIndex, 
 		}
 		else {
 			triggerPressed = false;
+
+			if (triggerPressedBefore) {
+				g_triggerReleased = true;
+				g_triggerPressed = false;
+			}
 		}
 
 		if (unsheatheDesired) {
 			long long currentTime = GetTime();
 			if (currentTime - triggerPressedTime <= g_triggerPressedLeewayTime) {
 				// Suppress trigger press
-				pOutputControllerState->ulButtonPressed &= ~vr::ButtonMaskFromId(vr::EVRButtonId::k_EButton_SteamVR_Trigger);
+				pControllerState->ulButtonPressed &= ~vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
 			}
 			else {
 				unsheatheDesired = false;
@@ -753,19 +818,15 @@ bool OnControllerStateChanged(vr::TrackedDeviceIndex_t unControllerDeviceIndex, 
 				if (!g_didTriggerPressGrabObject) {
 					PlayerCharacter *pc = *g_thePlayer;
 					if (pc && !pc->actorState.IsWeaponDrawn() && !IsInMenuMode(vmRegistry, 0)) {
-						// Vtbl offset for DrawSheatheWeapon is wrong in skse vr
-						typedef void(*_DrawSheatheWeapon)(Actor *actor, bool draw);
-						UInt64 *vtbl = *((UInt64 **)pc);
-						((_DrawSheatheWeapon)(vtbl[0xA8]))(pc, true);
+						pc->DrawSheatheWeapon(true);
 					}
 				}
 			}
 		}
 	}
-	return true;
 }
 
-extern "C" {	
+extern "C" {
 	void OnDataLoaded()
 	{
 		pullObjHandle = *g_invalidRefHandle;
@@ -810,32 +871,6 @@ extern "C" {
 
 	}
 
-	// Listener for PapyrusVR Messages
-	void OnPapyrusVRMessage(SKSEMessagingInterface::Message* msg)
-	{
-		if (msg) {
-			if (msg->type == kPapyrusVR_Message_Init && msg->data) {
-				_MESSAGE("PapyrusVR Init Message recived with valid data, registering for pose update callback");
-				g_papyrusvr = (PapyrusVRAPI*)msg->data;
-				g_papyrusvrManager = g_papyrusvr->GetVRManager();
-				g_openvrHook = g_papyrusvr->GetOpenVRHook();
-
-				if (!g_papyrusvrManager) {
-					_MESSAGE("Could not get PapyrusVRManager");
-					return;
-				}
-				if (!g_openvrHook) {
-					_MESSAGE("Could not get OpenVRHook");
-					return;
-				}
-				// Registers for PoseUpdates
-				g_papyrusvrManager->RegisterVRUpdateListener(OnPoseUpdate);
-				g_papyrusvrManager->RegisterVRButtonListener(OnButtonEvent);
-				g_openvrHook->RegisterControllerStateCB(OnControllerStateChanged);
-			}
-		}
-	}
-
 	// Listener for SKSE Messages
 	void OnSKSEMessage(SKSEMessagingInterface::Message* msg)
 	{
@@ -845,10 +880,6 @@ extern "C" {
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_DataLoaded) {
 				OnDataLoaded();
-			}
-			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
-				_MESSAGE("SKSE PostLoad recived, registering for SkyrimVRTools messages");
-				g_messaging->RegisterListener(g_pluginHandle, "SkyrimVRTools", OnPapyrusVRMessage);
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PreLoadGame) {
 				_MESSAGE("SKSE PreLoadGame message received");
@@ -950,11 +981,17 @@ extern "C" {
 			_ERROR("Failed to perform hook");
 		}
 
+		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
+		if (!g_vrInterface) {
+			_ERROR("[CRITICAL] Couldn't get SKSE VR interface. You probably have an outdated SKSE version.");
+			return false;
+		}
+		g_vrInterface->RegisterForControllerState(g_pluginHandle, 0, ControllerStateCB);
+		g_vrInterface->RegisterForPoses(g_pluginHandle, 0, WaitPosesCB);
+
 		for (int i = 0; i < numPrevPos; i++) {
 			rightHandPositions[i] = {0, 0, 0};
 		}
-
-		// wait for PapyrusVR init (during PostPostLoad SKSE Message)
 
 		return true;
 	}

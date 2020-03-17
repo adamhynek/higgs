@@ -187,21 +187,12 @@
     <None Include="exports.def" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="include\api\PapyrusVRTypes.cpp" />
-    <ClCompile Include="include\api\utils\OpenVRUtils.cpp" />
     <ClCompile Include="src\config.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\api\openvr.h" />
-    <ClInclude Include="include\api\OpenVRTypes.h" />
-    <ClInclude Include="include\api\PapyrusVRAPI.h" />
-    <ClInclude Include="include\api\PapyrusVRTypes.h" />
-    <ClInclude Include="include\api\utils\OpenVRUtils.h" />
-    <ClInclude Include="include\api\VRHookAPI.h" />
-    <ClInclude Include="include\api\VRManagerAPI.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\main.h" />

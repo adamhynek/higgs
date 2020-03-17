@@ -52,3 +52,5 @@ RelocAddr<_FindCollidableRef> FindCollidableRef(0x003B4940);
 typedef bhkWorld* (*_GetWorld)(TESObjectCELL *cell);
 RelocAddr<_GetWorld> GetWorld(0x276A90);
 
+typedef void(*_ActivatePickRef)(PlayerCharacter *player);
+RelocAddr<_ActivatePickRef> ActivatePickRef(0x6CBCE0);
