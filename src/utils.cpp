@@ -87,6 +87,7 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 	return (modInfo->modIndex << 24) | formLower;
 }
 
+// This function is currently unused, in favor of just selecting by motion type
 bool IsSelectable(TESForm *form)
 {
 	switch (form->formType)
@@ -109,6 +110,32 @@ bool IsSelectable(TESForm *form)
 	default:
 		return false;
 	}
+}
+
+bool IsAllowedCollidable(hkpCollidable *collidable)
+{
+	auto motion = reinterpret_cast<hkpMotion *>((UInt64)collidable->m_motion - offsetof(hkpMotion, m_motionState));
+	// Motion types we allow are: Dynamic, SphereInertia, BoxInertia, ThinBoxInertia
+	return (motion->m_motionType == 1 || motion->m_motionType == 2 || motion->m_motionType == 3 || motion->m_motionType == 6);
+}
+
+NiAVObject * GetTorsoNode(Actor *actor)
+{
+	TESRace *race = actor->race;
+	BGSBodyPartData *partData = race->bodyPartData;
+	if (partData) {
+		auto torsoData = partData->part[0];
+		if (torsoData && torsoData->unk08.data) {
+			NiAVObject *actorNode = actor->GetNiNode();
+			if (actorNode) {
+				NiAVObject *torsoNode = actorNode->GetObjectByName(&torsoData->unk08.data);
+				if (torsoNode) {
+					return torsoNode;
+				}
+			}
+		}
+	}
+	return nullptr;
 }
 
 void updateTransformTree(NiAVObject * root)

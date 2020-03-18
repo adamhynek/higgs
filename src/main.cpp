@@ -111,8 +111,7 @@ const int numPrevPos = 5; // length of previous kept hand positions
 NiPoint3 rightHandPositions[numPrevPos]; // previous n hand positions
 
 bool hasSavedRollover = false;
-NiPoint3 normalRolloverPosition;
-NiMatrix33 normalRolloverRotation;
+NiTransform normalRolloverTransform;
 
 
 //auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - CellAnimations <- this one is actually correct, but doesnt work for arrows
@@ -354,27 +353,17 @@ void OnPoseUpdateUntimed()
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
 			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 			if (ref) {
-				TESForm *baseForm = ref->baseForm;
-				if (baseForm) {
-					auto actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
-					if (actor || IsSelectable(baseForm)) {
-						if (actor) {
-							if (!ref->IsDead(1)) {
-								// For actors, only select them if they're dead
-								continue;
-							}
-						}
-						// Get distance from the hit on the collidable to the ray
-						NiPoint3 hit = { pair.first.x, pair.first.y, pair.first.z };
-						NiPoint3 handToHit = hit - hkHandPos;
-						NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
-						float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
-						if (dist < closestDistance) {
-							closestObj = ref;
-							closestColl = collidable;
-							closestDistance = dist;
-							closestHit = hit;
-						}
+				if (IsAllowedCollidable(collidable) || (ref->baseForm && ref->baseForm->formType == kFormType_Projectile)) {
+					// Get distance from the hit on the collidable to the ray
+					NiPoint3 hit = { pair.first.x, pair.first.y, pair.first.z };
+					NiPoint3 handToHit = hit - hkHandPos;
+					NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
+					float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+					if (dist < closestDistance) {
+						closestObj = ref;
+						closestColl = collidable;
+						closestDistance = dist;
+						closestHit = hit;
 					}
 				}
 			}
@@ -389,7 +378,6 @@ void OnPoseUpdateUntimed()
 					EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, selectedObj);
 				}
 				selectedObjHandle = GetOrCreateRefrHandle(closestObj.m_pObject);
-				selectedColl = closestColl;
 
 				if (CALL_MEMBER_FN(closestObj, IsOffLimits)()) {
 					g_currentSelectedShader = g_itemSelectedShaderOffLimits;
@@ -399,6 +387,8 @@ void OnPoseUpdateUntimed()
 				}
 				EffectShader_Play(vmRegistry, 0, g_currentSelectedShader, closestObj, -1.0f);
 			}
+			selectedColl = closestColl; // Set selected collidable no matter what, as we can have objects with more than one collidable
+
 			isSelected = true;
 			lastSelectedTime = currentTime;
 		}
@@ -471,14 +461,13 @@ void OnPoseUpdateUntimed()
 			pullObjHandle = *g_invalidRefHandle;
 			if (hasSavedRollover) {
 				NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
-				rolloverNode->m_localTransform.pos = normalRolloverPosition;
-				rolloverNode->m_localTransform.rot = normalRolloverRotation;
+				rolloverNode->m_localTransform = normalRolloverTransform;
 			}
 			pullDesired = false;
 		}
 	}
 
-	if (LookupREFRByHandle(pullObjHandle, pullObj) && !(pullObj->flags & TESForm::kFlagIsDeleted)) {
+	if (LookupREFRByHandle(pullObjHandle, pullObj)) {
 		bool cancel = false;
 		// Only try to access loadedState after 3d is loaded for the projectile
 		if (isPullObjInFlightProjectile) {
@@ -613,8 +602,7 @@ void OnPoseUpdateUntimed()
 					pullObjHandle = *g_invalidRefHandle;
 					if (hasSavedRollover) {
 						NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
-						rolloverNode->m_localTransform.pos = normalRolloverPosition;
-						rolloverNode->m_localTransform.rot = normalRolloverRotation;
+						rolloverNode->m_localTransform = normalRolloverTransform;
 					}
 					selectedObjHandle = *g_invalidRefHandle;
 					pullDesired = false;
@@ -669,8 +657,7 @@ void OnPoseUpdateUntimed()
 				pullObjHandle = *g_invalidRefHandle;
 				if (hasSavedRollover) {
 					NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
-					rolloverNode->m_localTransform.pos = normalRolloverPosition;
-					rolloverNode->m_localTransform.rot = normalRolloverRotation;
+					rolloverNode->m_localTransform = normalRolloverTransform;
 				}
 				selectedObjHandle = *g_invalidRefHandle;
 			}
@@ -681,7 +668,7 @@ void OnPoseUpdateUntimed()
 
 				// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
 				float handHorizontalDistance = VectorLength(handPos - upperArmPos);
-				float handDistanceRatio = (handHorizontalDistance - 20.0f) / (initialHandHorizontalDistance - 20.0f);
+				float handDistanceRatio = (handHorizontalDistance - 10.0f) / (initialHandHorizontalDistance - 10.0f);
 				desiredPos *= handDistanceRatio;
 
 				NiPoint3 deltaPos = desiredPos - relObjPos;
@@ -700,16 +687,17 @@ void OnPoseUpdateUntimed()
 					//if (VectorLength(relObjPos) < 100.0f * havokWorldScale) {
 						// If it's close enough, give the hud prompt to pick it up as well
 
-						// First, change rotation/position of the hud prompt
+						// First, change rotation/position/scale of the hud prompt
 						NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
 
 						if (!hasSavedRollover) {
 							hasSavedRollover = true;
-							normalRolloverPosition = rolloverNode->m_localTransform.pos;
-							normalRolloverRotation = rolloverNode->m_localTransform.rot;
+							normalRolloverTransform = rolloverNode->m_localTransform;
 						}
 
 						rolloverNode->m_localTransform.pos = {5, -6, 0};
+
+						rolloverNode->m_localTransform.scale = 10.0f;
 
 						// Right vector points to the right of the text
 						rolloverNode->m_localTransform.rot.data[0][0] = 0;

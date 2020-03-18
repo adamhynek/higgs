@@ -2,6 +2,7 @@
 
 #include "skse64/NiNodes.h"
 #include "skse64/GameData.h"
+#include "RE/havok.h"
 
 
 float VectorLength(NiPoint3 vec);
@@ -21,6 +22,10 @@ NiAVObject * GetHighestParent(NiAVObject *node);
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
 bool IsSelectable(TESForm *form);
+
+bool IsAllowedCollidable(hkpCollidable *collidable);
+
+NiAVObject * GetTorsoNode(Actor *actor);
 
 void updateTransformTree(NiAVObject * root);
 
