@@ -45,13 +45,12 @@ RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR(0x3000958);
 RelocPtr<UInt32 *> SELECTED_HANDLES(0x2FC60C0);
 
 
-// SKSE / SkyrimVRTools globals
+// SKSE globals
 static PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
 static SKSEMessagingInterface *g_messaging = nullptr;
 
 VMClassRegistry *vmRegistry = nullptr;
 
-SKSETrampolineInterface *g_trampoline = nullptr;
 SKSEVRInterface *g_vrInterface = nullptr;
 
 // Gets callbacks from havok linear cast
@@ -85,10 +84,7 @@ TESObjectREFR *prevPullObj = nullptr;
 hkpCollidable *selectedColl = nullptr;
 hkpCollidable *pullColl = nullptr;
 bool isPullObjActor = false;
-bool isPullObjInFlightProjectile = false;
 bool isPullObjImpactedProjectile = false;
-float inFlightProjectileOriginalSpeed = 0;
-NiMatrix33 inFlightOriginalRotation;
 
 int leftHandedMode = 0;
 
@@ -104,7 +100,6 @@ bool pushDesired = false;
 long long lastSelectedTime = 0;
 long long triggerPressedTime = 0; // The timestamp when the trigger was pressed
 
-// Need to disable this feature due to input blocking
 long long g_triggerPressedLeewayTime = 300; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
 
 bool isLoaded = false;
@@ -122,139 +117,6 @@ NiPoint3 rightHandPositions[numPrevPos]; // previous n hand positions
 
 bool hasSavedRollover = false;
 NiTransform normalRolloverTransform;
-
-
-//auto hookLoc = RelocAddr<uintptr_t>(0x6496D3); // - CellAnimations <- this one is actually correct, but doesnt work for arrows
-auto hookLoc = RelocAddr<uintptr_t>(0x77033C);
-//auto hookedFunc = RelocAddr<uintptr_t>(0x648960); // - CellAnimations
-auto hookedFunc = RelocAddr<uintptr_t>(0x77E1F0);
-
-uintptr_t hookedFuncAddr = 0;
-typedef void(*_UpdateImpl)(Projectile *_this, float a_delta);
-
-
-void HookFunc(Projectile *_this)
-{
-	NiPointer<TESObjectREFR> pullObj;
-	if (LookupREFRByHandle(pullObjHandle, pullObj)) {
-		if (pullObj == _this && isPullObjInFlightProjectile && _this->loadedState) {
-			_this->loadedState->node->m_localTransform.rot = inFlightOriginalRotation;
-		}
-	}
-}
-
-
-void Hook_Commit(void)
-{
-	struct Code : Xbyak::CodeGenerator {
-		Code(void * buf) : Xbyak::CodeGenerator(256, buf)
-		{
-			Xbyak::Label jumpBack, tmpStore1;
-
-			// Save args
-			mov(rax, tmpStore1);
-			mov(ptr[rax], rcx);
-
-			// Call original function
-			mov(rax, hookedFuncAddr);
-			call(rax);
-
-			// Restore args
-			mov(rax, tmpStore1);
-			mov(rcx, ptr[rax]);
-
-			// Just push all regs that could possibly be modified in a function
-			push(rax);
-			push(rcx);
-			push(rdx);
-			push(r8);
-			push(r9);
-			push(r10);
-			push(r11);
-			sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-			movsd(ptr[rsp], xmm0);
-			movsd(ptr[rsp + 0x10], xmm1);
-			movsd(ptr[rsp + 0x20], xmm2);
-			movsd(ptr[rsp + 0x30], xmm3);
-			movsd(ptr[rsp + 0x40], xmm4);
-			movsd(ptr[rsp + 0x50], xmm5);
-
-			// Call our damn function
-			mov(rax, (uintptr_t)HookFunc);
-			call(rax);
-
-			movsd(xmm0, ptr[rsp]);
-			movsd(xmm1, ptr[rsp + 0x10]);
-			movsd(xmm2, ptr[rsp + 0x20]);
-			movsd(xmm3, ptr[rsp + 0x30]);
-			movsd(xmm4, ptr[rsp + 0x40]);
-			movsd(xmm5, ptr[rsp + 0x50]);
-			add(rsp, 0x68);
-			pop(r11);
-			pop(r10);
-			pop(r9);
-			pop(r8);
-			pop(rdx);
-			pop(rcx);
-			pop(rax);
-
-			// Jump back to whence we came (+ the size of the initial branch instruction)
-			jmp(ptr[rip + jumpBack]);
-
-			L(jumpBack);
-			dq(hookLoc.GetUIntPtr() + 5);
-			L(tmpStore1);
-			dq(0);
-		}
-	};
-
-	void * codeBuf = g_localTrampoline.StartAlloc();
-	Code code(codeBuf);
-	g_localTrampoline.EndAlloc(code.getCurr());
-
-	g_branchTrampoline.Write5Branch(hookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
-
-	_MESSAGE("Arrow update hook complete");
-}
-
-
-bool TryHook()
-{
-	// This should be sized to the actual amount used by your trampoline
-	static const size_t TRAMPOLINE_SIZE = 256;
-
-	if (g_trampoline) {
-		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
-		if (!branch) {
-			_ERROR("couldn't acquire branch trampoline from SKSE. this is fatal. skipping remainder of init process.");
-			return false;
-		}
-
-		g_branchTrampoline.SetBase(TRAMPOLINE_SIZE, branch);
-
-		void* local = g_trampoline->AllocateFromLocalPool(g_pluginHandle, TRAMPOLINE_SIZE);
-		if (!local) {
-			_ERROR("couldn't acquire codegen buffer from SKSE. this is fatal. skipping remainder of init process.");
-			return false;
-		}
-
-		g_localTrampoline.SetBase(TRAMPOLINE_SIZE, local);
-	}
-	else {
-		if (!g_branchTrampoline.Create(TRAMPOLINE_SIZE)) {
-			_ERROR("couldn't create branch trampoline. this is fatal. skipping remainder of init process.");
-			return false;
-		}
-		if (!g_localTrampoline.Create(TRAMPOLINE_SIZE, nullptr))
-		{
-			_ERROR("couldn't create codegen buffer. this is fatal. skipping remainder of init process.");
-			return false;
-		}
-	}
-
-	Hook_Commit();
-	return true;
-}
 
 
 // Called on each update (about 90-100 calls per second)
@@ -363,7 +225,14 @@ void OnPoseUpdateUntimed()
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
 			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 			if (ref) {
-				if (IsAllowedCollidable(collidable) || (ref->baseForm && ref->baseForm->formType == kFormType_Projectile)) {
+				if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
+					if (ref->baseForm->formType == kFormType_Projectile) {
+						auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
+						if (!impactData) {
+							// Only grab projectiles that are not mid flight
+							continue;
+						}
+					}
 					// Get distance from the hit on the collidable to the ray
 					NiPoint3 hit = { pair.first.x, pair.first.y, pair.first.z };
 					NiPoint3 handToHit = hit - hkHandPos;
@@ -421,19 +290,13 @@ void OnPoseUpdateUntimed()
 				g_triggerPressed = false;
 				g_didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
 
-				isPullObjInFlightProjectile = false;
 				isPullObjImpactedProjectile = false;
 				auto baseForm = selectedObj->baseForm;
 				if (baseForm && baseForm->formType == kFormType_Projectile) {
-					auto velocity = (NiPoint3 *)((UInt64)selectedObj.m_pObject + 0xfc);
 					auto impactData = *(void **)((UInt64)selectedObj.m_pObject + 0x98);
 					if (impactData) {
 						// If the projectile has impact data, then it has well, impacted something
 						isPullObjImpactedProjectile = true;
-					}
-					else {
-						isPullObjInFlightProjectile = true;
-						inFlightProjectileOriginalSpeed = VectorLength(*velocity);
 					}
 				}
 
@@ -456,17 +319,6 @@ void OnPoseUpdateUntimed()
 			selectedObjHandle = *g_invalidRefHandle;
 		}
 		if (LookupREFRByHandle(pullObjHandle, pullObj)) {
-			if (isPullObjInFlightProjectile) {
-				// In-flight projectile
-				if (pullObj->loadedState) {
-					auto velocity = (NiPoint3 *)((UInt64)pullObj.m_pObject + 0xfc);
-
-					auto rot = pullObj->loadedState->node->m_localTransform.rot;
-					NiPoint3 forward = { rot.data[0][1], rot.data[1][1], rot.data[2][1] };
-
-					*velocity = forward * inFlightProjectileOriginalSpeed;
-				}
-			}
 			// Drop the item
 			pullObjHandle = *g_invalidRefHandle;
 			if (hasSavedRollover) {
@@ -478,16 +330,7 @@ void OnPoseUpdateUntimed()
 	}
 
 	if (LookupREFRByHandle(pullObjHandle, pullObj)) {
-		bool cancel = false;
-		// Only try to access loadedState after 3d is loaded for the projectile
-		if (isPullObjInFlightProjectile) {
-			bool waitingToInitialize3D = *(bool *)((UInt64)pullObj.m_pObject + 0x1dc);
-			if (waitingToInitialize3D) {
-				cancel = true;
-			}
-		}
-
-		if (!cancel && pullObj->loadedState && pullObj->loadedState->node) {
+		if (pullObj->loadedState && pullObj->loadedState->node) {
 			float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
 			hkpMotion *motion = nullptr;
@@ -526,24 +369,6 @@ void OnPoseUpdateUntimed()
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo = 0x02420006; // player collision group, 'projectile' collision layer
 						collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
 					}
-				}
-				else if (isPullObjInFlightProjectile) {
-					// If the player grabs a projectile in flight, make them the shooter and actor cause
-					UInt32 playerHandle = GetOrCreateRefrHandle(player);
-					auto shooter = (UInt32 *)((UInt64)pullObj.m_pObject + 0x120);
-					*shooter = playerHandle;
-
-					auto actorCause = *(UInt32 **)((UInt64)pullObj.m_pObject + 0x118);
-					UInt32 handle = *actorCause;
-					*actorCause = playerHandle;
-
-					// Need to set collision to same as if the player cast it, so that it collides with the _original_ caster (probably an enemy)
-					auto phantom = *(bhkSimpleShapePhantom**)((UInt64)pullObj.m_pObject + 0xE0);
-					phantom->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF; // clear out the collision group
-					phantom->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= 0x02420000; // set the group to player group
-
-					// Save the rotation when we catch it
-					inFlightOriginalRotation = pullObj->loadedState->node->m_localTransform.rot;
 				}
 			}
 
@@ -587,7 +412,7 @@ void OnPoseUpdateUntimed()
 				}
 			}
 
-			if (pullDesired && !isPullObjInFlightProjectile && !isPullObjActor && pullObj->baseForm->formType != kFormType_MovableStatic) {
+			if (pullDesired && !isPullObjActor && pullObj->baseForm->formType != kFormType_MovableStatic) {
 				// If it's an in-flight projectile or dead body, no pull effect
 
 				float inverseMass = motion->m_inertiaAndMassInv.w;
@@ -625,64 +450,27 @@ void OnPoseUpdateUntimed()
 			else if (pushDesired) {
 				NiPoint3 dir = VectorNormalized(relObjPos);
 
-				if (isPullObjInFlightProjectile) {
-					auto velocity = (NiPoint3 *)((UInt64)pullObj.m_pObject + 0xfc);
-					*velocity = dir * inFlightProjectileOriginalSpeed;
+				float inverseMass = motion->m_inertiaAndMassInv.w;
 
-					NiPoint3 forward = dir;
-
-					NiPoint3 worldUpAlongForward = forward * DotProduct({ 0, 0, 1 }, forward); // Project world up vector onto our forward vector
-					NiPoint3 up = VectorNormalized(NiPoint3(0, 0, 1) - worldUpAlongForward);
-					NiPoint3 right = CrossProduct(forward, up);
-
-					pullObj->loadedState->node->m_localTransform.rot.data[0][0] = right.x;
-					pullObj->loadedState->node->m_localTransform.rot.data[1][0] = right.y;
-					pullObj->loadedState->node->m_localTransform.rot.data[2][0] = right.z;
-
-					pullObj->loadedState->node->m_localTransform.rot.data[0][1] = forward.x;
-					pullObj->loadedState->node->m_localTransform.rot.data[1][1] = forward.y;
-					pullObj->loadedState->node->m_localTransform.rot.data[2][1] = forward.z;
-
-					pullObj->loadedState->node->m_localTransform.rot.data[0][2] = up.x;
-					pullObj->loadedState->node->m_localTransform.rot.data[1][2] = up.y;
-					pullObj->loadedState->node->m_localTransform.rot.data[2][2] = up.z;
-
-					// Set Z rotation only - it's the only one the game cares about for projectiles anyways
-					NiPoint3 zeroRotationVec(0, 1, 0);
-					NiPoint3 worldRightVec(1, 0, 0);
-					NiPoint3 forwardFlattened = VectorNormalized({ forward.x, forward.y, 0 });
-					float angleFromZero = acosf(DotProduct(forwardFlattened, zeroRotationVec));
-
-					// Angle above is always positive - need to negate it depending on which way we 'wind' around Z
-					if (DotProduct(forwardFlattened, worldRightVec) < 0) {
-						angleFromZero *= -1;
-					}
-
-					pullObj->rot.z = angleFromZero;
-				}
-				else {
-					float inverseMass = motion->m_inertiaAndMassInv.w;
-
-					if (isPullObjActor && pullObj->loadedState && pullObj->loadedState->node) {
-						// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
-						Actor *actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
-						if (actor) {
-							float actorInvereMass = GetActorInverseMass(actor);
-							if (actorInvereMass >= 0) {
-								inverseMass = actorInvereMass;
-							}
-							else {
-								_WARNING("Could not get mass for actor");
-							}
+				if (isPullObjActor && pullObj->loadedState && pullObj->loadedState->node) {
+					// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
+					Actor *actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
+					if (actor) {
+						float actorInvereMass = GetActorInverseMass(actor);
+						if (actorInvereMass >= 0) {
+							inverseMass = actorInvereMass;
+						}
+						else {
+							_WARNING("Could not get mass for actor");
 						}
 					}
-
-					float newMagnitude = (pow(inverseMass, g_massExponent) * g_pushVelocityMultiplier) / havokWorldScale;
-					NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
-
-					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 				}
+
+				float newMagnitude = (pow(inverseMass, g_massExponent) * g_pushVelocityMultiplier) / havokWorldScale;
+				NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
+
+				ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
 				EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, pullObj);
 
@@ -705,86 +493,72 @@ void OnPoseUpdateUntimed()
 
 				NiPoint3 deltaPos = desiredPos - relObjPos;
 
-				if (isPullObjInFlightProjectile) {
-					// In-flight projectile
-					float newMagnitude = (VectorLength(deltaPos) * 5.0f) / havokWorldScale;
-					newMagnitude = min(newMagnitude, 10.0f / havokWorldScale); // Cap at some reasonable value
-					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+				// Give the hud with info about the object you're floating
+				if (pullObj->baseForm && pullObj->baseForm->formType != kFormType_MovableStatic && !isPullObjActor) { // We can't pick up movablestatics anyways
+					// First, change rotation/position/scale of the hud prompt
+					NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
 
-					auto velocity = (NiPoint3 *)((UInt64)pullObj.m_pObject + 0xfc);
-					*velocity = newVelocity;
+					if (!hasSavedRollover) {
+						hasSavedRollover = true;
+						normalRolloverTransform = rolloverNode->m_localTransform;
+					}
+
+					rolloverNode->m_localTransform.pos = g_rolloverOffset;
+
+					rolloverNode->m_localTransform.scale = 10.0f;
+
+					// Right vector points to the right of the text
+					rolloverNode->m_localTransform.rot.data[0][0] = 0;
+					rolloverNode->m_localTransform.rot.data[1][0] = -cosf(30 * 0.0174533);
+					rolloverNode->m_localTransform.rot.data[2][0] = -sinf(30 * 0.0174533);
+
+					// Forward vector points into the text
+					rolloverNode->m_localTransform.rot.data[0][1] = -1;
+					rolloverNode->m_localTransform.rot.data[1][1] = 0;
+					rolloverNode->m_localTransform.rot.data[2][1] = 0;
+
+					// Up vector points up from the text
+					rolloverNode->m_localTransform.rot.data[0][2] = 0;
+					rolloverNode->m_localTransform.rot.data[1][2] = sinf(30 * 0.0174533);
+					rolloverNode->m_localTransform.rot.data[2][2] = -cosf(30 * 0.0174533);
+
+					// Now set all the places I could find that get set to the handle of the pointed at object usually
+					if (SELECTED_HANDLES) {
+						UInt32 *selectedHandles = *SELECTED_HANDLES;
+						selectedHandles[2] = pullObjHandle;
+						selectedHandles[5] = pullObjHandle;
+						selectedHandles[8] = pullObjHandle;
+					}
 				}
-				else {
-					// Everything else
 
-					// Give the hud with info about the object you're floating
-					if (pullObj->baseForm && pullObj->baseForm->formType != kFormType_MovableStatic && !isPullObjActor) { // We can't pick up movablestatics anyways
-						// First, change rotation/position/scale of the hud prompt
-						NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
+				float inverseMass = motion->m_inertiaAndMassInv.w;
 
-						if (!hasSavedRollover) {
-							hasSavedRollover = true;
-							normalRolloverTransform = rolloverNode->m_localTransform;
+				if (isPullObjActor && pullObj->loadedState && pullObj->loadedState->node) {
+					// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
+					Actor *actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
+					if (actor) {
+						float actorInvereMass = GetActorInverseMass(actor);
+						if (actorInvereMass >= 0) {
+							inverseMass = actorInvereMass;
 						}
-
-						rolloverNode->m_localTransform.pos = g_rolloverOffset;
-
-						rolloverNode->m_localTransform.scale = 10.0f;
-
-						// Right vector points to the right of the text
-						rolloverNode->m_localTransform.rot.data[0][0] = 0;
-						rolloverNode->m_localTransform.rot.data[1][0] = -cosf(30 * 0.0174533);
-						rolloverNode->m_localTransform.rot.data[2][0] = -sinf(30 * 0.0174533);
-
-						// Forward vector points into the text
-						rolloverNode->m_localTransform.rot.data[0][1] = -1;
-						rolloverNode->m_localTransform.rot.data[1][1] = 0;
-						rolloverNode->m_localTransform.rot.data[2][1] = 0;
-
-						// Up vector points up from the text
-						rolloverNode->m_localTransform.rot.data[0][2] = 0;
-						rolloverNode->m_localTransform.rot.data[1][2] = sinf(30 * 0.0174533);
-						rolloverNode->m_localTransform.rot.data[2][2] = -cosf(30 * 0.0174533);
-
-						// Now set all the places I could find that get set to the handle of the pointed at object usually
-						if (SELECTED_HANDLES) {
-							UInt32 *selectedHandles = *SELECTED_HANDLES;
-							selectedHandles[2] = pullObjHandle;
-							selectedHandles[5] = pullObjHandle;
-							selectedHandles[8] = pullObjHandle;
+						else {
+							_WARNING("Could not get mass for actor");
 						}
 					}
-
-					float inverseMass = motion->m_inertiaAndMassInv.w;
-
-					if (isPullObjActor && pullObj->loadedState && pullObj->loadedState->node) {
-						// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
-						Actor *actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
-						if (actor) {
-							float actorInvereMass = GetActorInverseMass(actor);
-							if (actorInvereMass >= 0) {
-								inverseMass = actorInvereMass;
-							}
-							else {
-								_WARNING("Could not get mass for actor");
-							}
-						}
-					}
-
-					// Why sqrt(mass) instead of just mass? Because it feels better
-					float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, g_massExponent) * g_hoverVelocityMultiplier;
-
-					if (isPullObjActor) {
-						newMagnitude *= g_bodyVelocityMultiplier;
-					}
-
-					newMagnitude /= havokWorldScale;
-
-					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
-
-					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 				}
+
+				float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, g_massExponent) * g_hoverVelocityMultiplier;
+
+				if (isPullObjActor) {
+					newMagnitude *= g_bodyVelocityMultiplier;
+				}
+
+				newMagnitude /= havokWorldScale;
+
+				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+
+				ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 			}
 		}
 	}
@@ -1023,16 +797,6 @@ extern "C" {
 		}
 		else {
 			_WARNING("[WARNING] Failed to read config options. Using defaults instead.");
-		}
-
-		hookedFuncAddr = hookedFunc.GetUIntPtr(); // before trampolines
-
-		g_trampoline = (SKSETrampolineInterface *)skse->QueryInterface(kInterface_Trampoline);
-		if (!g_trampoline) {
-			_ERROR("couldn't get trampoline interface");
-		}
-		if (!TryHook()) {
-			_ERROR("Failed to perform hook");
 		}
 
 		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
