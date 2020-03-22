@@ -68,10 +68,14 @@ float g_requiredCastDotProduct = cosf(50.0f * 0.0174533);
 float g_hoverVelocityMultiplier = 0.15f;
 float g_pullVelocityMultiplier = 0.8f;
 float g_pushVelocityMultiplier = 0.8f;
+float g_bodyVelocityMultiplier = 0.5f;
+float g_massExponent = 0.5;
 long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
 bool g_equipWeapons = false;
 
 NiPoint3 g_handAdjust = { -0.018, -0.965, 0.261 };
+
+NiPoint3 g_rolloverOffset = { 7, -5, -2 };
 
 //TESObjectREFR *pullObj = nullptr;
 UInt32 pullObjHandle = 0;
@@ -588,7 +592,7 @@ void OnPoseUpdateUntimed()
 
 				float inverseMass = motion->m_inertiaAndMassInv.w;
 
-				float newMagnitude = (sqrtf(inverseMass) * g_pullVelocityMultiplier) / havokWorldScale;
+				float newMagnitude = (pow(inverseMass, g_massExponent) * g_pullVelocityMultiplier) / havokWorldScale;
 				newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
 				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
@@ -673,7 +677,7 @@ void OnPoseUpdateUntimed()
 						}
 					}
 
-					float newMagnitude = (sqrtf(inverseMass) * g_pushVelocityMultiplier) / havokWorldScale;
+					float newMagnitude = (pow(inverseMass, g_massExponent) * g_pushVelocityMultiplier) / havokWorldScale;
 					NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
 
 					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
@@ -723,7 +727,7 @@ void OnPoseUpdateUntimed()
 							normalRolloverTransform = rolloverNode->m_localTransform;
 						}
 
-						rolloverNode->m_localTransform.pos = { 5, -6, 0 };
+						rolloverNode->m_localTransform.pos = g_rolloverOffset;
 
 						rolloverNode->m_localTransform.scale = 10.0f;
 
@@ -768,7 +772,13 @@ void OnPoseUpdateUntimed()
 					}
 
 					// Why sqrt(mass) instead of just mass? Because it feels better
-					float newMagnitude = (VectorLength(deltaPos) * sqrtf(inverseMass) * g_hoverVelocityMultiplier) / havokWorldScale;
+					float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, g_massExponent) * g_hoverVelocityMultiplier;
+
+					if (isPullObjActor) {
+						newMagnitude *= g_bodyVelocityMultiplier;
+					}
+
+					newMagnitude /= havokWorldScale;
 
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
@@ -993,6 +1003,8 @@ extern "C" {
 		if (!Config::GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &g_hoverVelocityMultiplier)) return false;
 		if (!Config::GetConfigOptionFloat("Settings", "PullVelocityMultiplier", &g_pullVelocityMultiplier)) return false;
 		if (!Config::GetConfigOptionFloat("Settings", "PushVelocityMultiplier", &g_pushVelocityMultiplier)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "BodyVelocityMultiplier", &g_bodyVelocityMultiplier)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "MassExponent", &g_massExponent)) return false;
 
 		return true;
 	}
