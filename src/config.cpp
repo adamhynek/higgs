@@ -2,6 +2,17 @@
 #include "utils.h"
 
 
+static inline double vlibGetSetting(const char * name) {
+	Setting * setting = GetINISetting(name);
+	double value;
+	if (!setting)
+		return -1;
+	if (setting->GetDouble(&value))
+		return value;
+	return -1;
+}
+
+
 namespace Config {
 	const std::string & GetConfigPath()
 	{

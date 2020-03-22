@@ -30,6 +30,7 @@
 #include "physics.h"
 #include "utils.h"
 #include "config.h"
+#include "MenuChecker.h"
 
 
 // Multiply skyrim coords by this to get havok coords
@@ -64,6 +65,9 @@ float g_castDistance = 5.0f;
 float g_castRadius = 0.3f;
 float g_handActivateDistance = 30.0f;
 float g_requiredCastDotProduct = cosf(50.0f * 0.0174533);
+float g_hoverVelocityMultiplier = 0.15f;
+float g_pullVelocityMultiplier = 0.8f;
+float g_pushVelocityMultiplier = 0.8f;
 long long g_selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
 bool g_equipWeapons = false;
 
@@ -81,6 +85,8 @@ bool isPullObjInFlightProjectile = false;
 bool isPullObjImpactedProjectile = false;
 float inFlightProjectileOriginalSpeed = 0;
 NiMatrix33 inFlightOriginalRotation;
+
+int leftHandedMode = 0;
 
 BSFixedString rolloverNodeStr("WSActivateRollover");
 
@@ -252,7 +258,7 @@ void OnPoseUpdateUntimed()
 {
 	if (!isLoaded) return;
 
-	if (IsInMenuMode(vmRegistry, 0)) return;
+	if (MenuChecker::isGameStopped()) return;
 
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->loadedState || !player->loadedState->node)
@@ -276,12 +282,6 @@ void OnPoseUpdateUntimed()
 	}
 	NiPoint3 handPos = rightHand->m_worldTransform.pos;
 
-	// Update positions array to this frame
-	for (int i = numPrevPos - 1; i >= 1; i--) {
-		rightHandPositions[i] = rightHandPositions[i - 1];
-	}
-	rightHandPositions[0] = handPos;
-
 	NiPoint3 castDirection = rightHand->m_worldTransform.rot * g_handAdjust;
 
 	static BSFixedString hmdNodeStr("HmdNode");
@@ -294,6 +294,12 @@ void OnPoseUpdateUntimed()
 	static BSFixedString rightWandStr("RightWandNode");
 	NiAVObject *rightWandNode = player->loadedState->node->m_parent->GetObjectByName(&rightWandStr.data);
 	NiPoint3 handPosRoomspace = rightWandNode->m_localTransform.pos;
+
+	// Update positions array to this frame
+	for (int i = numPrevPos - 1; i >= 1; i--) {
+		rightHandPositions[i] = rightHandPositions[i - 1];
+	}
+	rightHandPositions[0] = handPosRoomspace;
 
 	static BSFixedString rClavicleStr("NPC R Clavicle [RClv]");
 	static BSFixedString rUpperArmStr("NPC R UpperArm [RUar]");
@@ -579,7 +585,10 @@ void OnPoseUpdateUntimed()
 
 			if (pullDesired && !isPullObjInFlightProjectile && !isPullObjActor && pullObj->baseForm->formType != kFormType_MovableStatic) {
 				// If it's an in-flight projectile or dead body, no pull effect
-				float newMagnitude = (VectorLength(relObjPos) * 0.1f) / havokWorldScale;
+
+				float inverseMass = motion->m_inertiaAndMassInv.w;
+
+				float newMagnitude = (sqrtf(inverseMass) * g_pullVelocityMultiplier) / havokWorldScale;
 				newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
 				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
@@ -648,8 +657,27 @@ void OnPoseUpdateUntimed()
 					pullObj->rot.z = angleFromZero;
 				}
 				else {
-					float magnitude = 80.0f;
-					ApplyHavokImpulse(vmRegistry, 0, pullObj, dir.x, dir.y, dir.z, magnitude);
+					float inverseMass = motion->m_inertiaAndMassInv.w;
+
+					if (isPullObjActor && pullObj->loadedState && pullObj->loadedState->node) {
+						// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
+						Actor *actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
+						if (actor) {
+							float actorInvereMass = GetActorInverseMass(actor);
+							if (actorInvereMass >= 0) {
+								inverseMass = actorInvereMass;
+							}
+							else {
+								_WARNING("Could not get mass for actor");
+							}
+						}
+					}
+
+					float newMagnitude = (sqrtf(inverseMass) * g_pushVelocityMultiplier) / havokWorldScale;
+					NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
+
+					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 				}
 
 				EffectShader_Stop(vmRegistry, 0, g_currentSelectedShader, pullObj);
@@ -684,9 +712,9 @@ void OnPoseUpdateUntimed()
 				}
 				else {
 					// Everything else
-					//if (VectorLength(relObjPos) < 100.0f * havokWorldScale) {
-						// If it's close enough, give the hud prompt to pick it up as well
 
+					// Give the hud with info about the object you're floating
+					if (pullObj->baseForm && pullObj->baseForm->formType != kFormType_MovableStatic && !isPullObjActor) { // We can't pick up movablestatics anyways
 						// First, change rotation/position/scale of the hud prompt
 						NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
 
@@ -695,7 +723,7 @@ void OnPoseUpdateUntimed()
 							normalRolloverTransform = rolloverNode->m_localTransform;
 						}
 
-						rolloverNode->m_localTransform.pos = {5, -6, 0};
+						rolloverNode->m_localTransform.pos = { 5, -6, 0 };
 
 						rolloverNode->m_localTransform.scale = 10.0f;
 
@@ -721,10 +749,27 @@ void OnPoseUpdateUntimed()
 							selectedHandles[5] = pullObjHandle;
 							selectedHandles[8] = pullObjHandle;
 						}
-					//}
+					}
 
-					float newMagnitude = (VectorLength(deltaPos) * 0.05f) / havokWorldScale;
-					newMagnitude = min(newMagnitude, 10.0f); // Cap at some reasonable value
+					float inverseMass = motion->m_inertiaAndMassInv.w;
+
+					if (isPullObjActor && pullObj->loadedState && pullObj->loadedState->node) {
+						// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
+						Actor *actor = DYNAMIC_CAST(pullObj, TESObjectREFR, Actor);
+						if (actor) {
+							float actorInvereMass = GetActorInverseMass(actor);
+							if (actorInvereMass >= 0) {
+								inverseMass = actorInvereMass;
+							}
+							else {
+								_WARNING("Could not get mass for actor");
+							}
+						}
+					}
+
+					// Why sqrt(mass) instead of just mass? Because it feels better
+					float newMagnitude = (VectorLength(deltaPos) * sqrtf(inverseMass) * g_hoverVelocityMultiplier) / havokWorldScale;
+
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
 					ApplyHavokImpulse(vmRegistry, 0, pullObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
@@ -779,7 +824,7 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 				if (!triggerPressedBefore) {
 					// Trigger pressed but object is not grabbed (yet?). Do not unsheathe weapons until leeway time has passed.
 					PlayerCharacter *pc = *g_thePlayer;
-					if (pc && !pc->actorState.IsWeaponDrawn() && !IsInMenuMode(vmRegistry, 0)) {
+					if (pc && !pc->actorState.IsWeaponDrawn() && !MenuChecker::isGameStopped()) {
 						unsheatheDesired = true;
 					}
 				}
@@ -805,7 +850,7 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 				// Do the unsheathing, only if we didn't grab something
 				if (!g_didTriggerPressGrabObject) {
 					PlayerCharacter *pc = *g_thePlayer;
-					if (pc && !pc->actorState.IsWeaponDrawn() && !IsInMenuMode(vmRegistry, 0)) {
+					if (pc && !pc->actorState.IsWeaponDrawn() && !MenuChecker::isGameStopped()) {
 						pc->DrawSheatheWeapon(true);
 					}
 				}
@@ -849,6 +894,11 @@ extern "C" {
 		else {
 			_MESSAGE("Failed to get slected item off limits shader form");
 			return;
+		}
+
+		MenuManager * menuManager = MenuManager::GetSingleton();
+		if (menuManager) {
+			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
 		}
 
 		_MESSAGE("Successfully loaded all forms");
@@ -939,6 +989,10 @@ extern "C" {
 		g_triggerPressedLeewayTime = triggerPreemptTime;
 
 		if (!Config::GetConfigOptionBool("Settings", "EquipWeapons", &g_equipWeapons)) return false;
+
+		if (!Config::GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &g_hoverVelocityMultiplier)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "PullVelocityMultiplier", &g_pullVelocityMultiplier)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "PushVelocityMultiplier", &g_pushVelocityMultiplier)) return false;
 
 		return true;
 	}

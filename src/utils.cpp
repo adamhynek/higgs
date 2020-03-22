@@ -158,6 +158,22 @@ void updateTransformTree(NiAVObject * root)
 	}
 }
 
+float GetActorInverseMass(Actor *actor)
+{
+	TESRace *race = actor->race;
+	if (race && race->bodyPartData && race->bodyPartData->part[0] && race->bodyPartData->part[0]->unk00) {
+		BSFixedString nodeWithMassName = race->bodyPartData->part[0]->unk00;
+		NiAVObject *nodeWithMass = actor->loadedState->node->GetObjectByName(&nodeWithMassName.data);
+		if (nodeWithMass) {
+			auto collWithMass = (bhkCollisionObject *)nodeWithMass->unk040;
+			if (collWithMass) {
+				return collWithMass->body->hkBody->motion.m_inertiaAndMassInv.w;
+			}
+		}
+	}
+	return -1.0f;
+}
+
 long long GetTime()
 {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();

@@ -29,6 +29,8 @@ NiAVObject * GetTorsoNode(Actor *actor);
 
 void updateTransformTree(NiAVObject * root);
 
+float GetActorInverseMass(Actor *actor);
+
 long long GetTime();
 
 void PrintVector(NiPoint3 &p);

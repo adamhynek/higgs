@@ -397,8 +397,8 @@ struct hkpSimulationIsland
 
 };
 
-// bhkWorld pointer is at reloc<0x1f850d0>
-// function that gets it (using a TESObjectCELL at rcx) is at reloc<276A90>
+// bhkWorld pointer (exteriors) is at reloc<0x1f850d0>
+// function that gets it from a TESObjectCELL is at reloc<276A90>
 
 struct ahkpWorld
 {
@@ -608,3 +608,106 @@ struct bhkSimpleShapePhantom
 
 	hkpSimpleShapePhantom * phantom; // 10
 };
+
+
+struct hkbStateMachine
+{
+	void * vtbl; // 00
+	// These 3 inherited from hkReferencedObject
+	UInt16 m_memSizeAndFlags; // 08
+	SInt16 m_referenceCount; // 0A
+	UInt32 pad0C; // 0C
+
+	// These from hkbBindable
+	void * m_variableBindingSet; // 10
+	hkArray m_cachedBindables; // 18
+	hkBool m_areBindablesCached;
+	hkBool m_hasEnableChanged;
+
+	// These from hkbNode
+	void * m_userData; // 30
+	char * m_name; // 38
+	UInt16 m_id; // 40
+	SInt8 m_cloneState;
+	UInt8 m_type;
+	void * m_nodeInfo; // 48
+
+	UInt8 unk50[0x90 - 0x50];
+
+	hkArray m_states; // 90
+	void * m_wildcardTransitions; // A0 - ptr to TransitionInfoArray
+	void * m_stateIdToIndexMap; // A8 - ptr to hkPointerMap<int, int>
+	hkArray m_activeTransitions; // B0
+	hkArray m_transitionFlags; // C0
+	hkArray m_wildcardTransitionFlags; // D0
+	hkArray m_delayedTransitions; // E0
+	float m_timeInState; // F0
+	float m_lastLocalTime; // F4
+	int m_previousStateId; // F8
+	int m_nextStartStateIndexOverride; // FC
+
+	// Not 100% on these ones
+	hkBool m_stateOrTransitionChanged; // 100
+	hkBool m_echoNextUpdate; // 101
+	hkBool m_hasEventlessWildcardTransitions; // 102
+};
+static_assert(offsetof(hkbStateMachine, m_states) == 0x90);
+static_assert(offsetof(hkbStateMachine, m_nextStartStateIndexOverride) == 0xFC);
+
+struct hkbBehaviorGraph
+{
+	void * vtbl; // 00
+	// These 3 inherited from hkReferencedObject
+	UInt16 m_memSizeAndFlags; // 08
+	SInt16 m_referenceCount; // 0A
+	UInt32 pad0C; // 0C
+
+	// These from hkbBindable
+	void * m_variableBindingSet; // 10
+	hkArray m_cachedBindables; // 18
+	hkBool m_areBindablesCached;
+	hkBool m_hasEnableChanged;
+
+	// These from hkbNode
+	void * m_userData; // 30
+	char * m_name; // 38
+	UInt16 m_id; // 40
+	SInt8 m_cloneState;
+	UInt8 m_type;
+	void * m_nodeInfo; // 48
+
+	hkArray m_uniqueIdPool; // 50
+	UInt64 pad60;
+	hkArray m_mirroredExternalIdMap; // 68
+	void * m_pseudoRandomGenerator; // 78
+	void * m_rootGenerator; // 80 - hkbStateMachine, at least for the player
+	void * m_data; // 88
+
+	UInt64 pad90;
+
+	// Dunno about these 3
+	hkbBehaviorGraph * m_template; // 98
+	void * m_rootGeneratorClone; // A0
+	hkArray * m_activeNodes; // A8 - ptr to array of hkbNodeInfo*
+
+	void * m_globalTransitionData; // B0
+	void * m_eventIdMap; // B8
+	void * m_attributeIdMap; // C0
+	void * m_variableIdMap; // C8
+	void * m_characterPropertyIdMap; // D0
+	void * m_variableValueSet; // D8
+
+	UInt64 unkE0;
+	UInt64 unkE8;
+	UInt64 unkF0;
+	UInt64 unkF8;
+	UInt64 unk100;
+	hkArray unk108;
+	hkArray unk118;
+	UInt32 unk120;
+	hkBool m_isActive; // 12C - I _think_ this is the right place
+};
+static_assert(offsetof(hkbBehaviorGraph, m_userData) == 0x30);
+static_assert(offsetof(hkbBehaviorGraph, m_rootGenerator) == 0x80);
+static_assert(offsetof(hkbBehaviorGraph, m_globalTransitionData) == 0xB0);
+static_assert(offsetof(hkbBehaviorGraph, m_isActive) == 0x12C);

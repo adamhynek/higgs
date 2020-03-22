@@ -189,6 +189,7 @@
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\MenuChecker.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\utils.cpp" />
   </ItemGroup>
@@ -196,6 +197,7 @@
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\main.h" />
+    <ClInclude Include="include\MenuChecker.h" />
     <ClInclude Include="include\physics.h" />
     <ClInclude Include="include\RE\havok.h" />
     <ClInclude Include="include\utils.h" />
