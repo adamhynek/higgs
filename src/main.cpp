@@ -74,7 +74,6 @@ bool g_equipWeapons = false;
 
 NiPoint3 g_handAdjust = { -0.018, -0.965, 0.261 };
 
-NiPoint3 g_rolloverOffset = { 7, -5, -2 };
 NiMatrix33 g_rolloverRotation; // Set on plugin load
 float g_rolloverScale = 10.0f;
 
@@ -89,8 +88,6 @@ bool g_isLoaded = false;
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
-TESEffectShader *g_itemSelectedShader2 = nullptr;
-TESEffectShader *g_itemSelectedShaderOffLimits2 = nullptr;
 
 const int numPrevPos = 5; // length of previous kept hand positions
 
@@ -98,6 +95,21 @@ bool g_hasSavedRumbleIntensity = false;
 float g_normalRumbleIntensity;
 bool g_hasSavedRollover = false;
 NiTransform g_normalRolloverTransform;
+
+struct SelectedObject
+{
+	UInt32 handle = 0;
+	hkpCollidable *collidable = nullptr;
+	TESEffectShader *appliedShader = nullptr;
+};
+
+struct GrabbedObject
+{
+	UInt32 handle = 0;
+	hkpCollidable *collidable = nullptr;
+	bool isActor = false;
+	bool isImpactedProjectile = false;
+};
 
 struct Grabber
 {
@@ -111,17 +123,12 @@ struct Grabber
 
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
-	bool isShaderPlaying = false;
 
 	NiPoint3 handPositions[numPrevPos]; // previous n hand positions
 
-	UInt32 grabbedObjHandle = 0;
-	UInt32 selectedObjHandle = 0;
+	SelectedObject selectedObject;
+	GrabbedObject grabbedObject;
 	TESObjectREFR *prevGrabbedObj = nullptr;
-	hkpCollidable *selectedColl = nullptr;
-	hkpCollidable *grabbedColl = nullptr;
-	bool isGrabbedObjActor = false;
-	bool isGrabbedObjImpactedProjectile = false;
 
 	NiPoint3 initialGrabbedObjRelativePosition = { 0, 0, 0 };
 	float initialHandHorizontalDistance = 0;
@@ -140,19 +147,87 @@ struct Grabber
 	bool triggerReleased = false; // True on falling edge of trigger press
 	bool didTriggerPressGrabObject = false;
 
-	TESEffectShader *currentSelectedShader = nullptr; // Shader currently applied to grabbed object	
-
-	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName)
-		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName) {};
+	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, NiPoint3 rolloverOffset)
+		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), rolloverOffset(rolloverOffset) {};
 
 	void PoseUpdate(const Grabber &other);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 	void SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj);
+	void Select(TESObjectREFR *obj, const SelectedObject &other);
+	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
+	void Grab(TESObjectREFR *obj);
+	void UnGrab();
 };
 
-Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode");
-Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode");
+Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", { 7, -5, -2 });
+Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", { -7, -7, -3 });
 
+
+void Grabber::Select(TESObjectREFR *obj, const SelectedObject &other)
+{
+	selectedObject.handle = GetOrCreateRefrHandle(obj);
+
+	if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+		selectedObject.appliedShader = itemSelectedShaderOffLimits;
+	}
+	else {
+		selectedObject.appliedShader = itemSelectedShader;
+	}
+
+	// Play effect shader only if the other hand doesn't have the shader already playing on the object
+	NiPointer<TESObjectREFR> otherSelectedObj;
+	UInt32 otherSelectedObjHandle = other.handle;
+	if (!LookupREFRByHandle(otherSelectedObjHandle, otherSelectedObj) || otherSelectedObj != obj) {
+		EffectShader_Play(vmRegistry, 0, selectedObject.appliedShader, obj, -1.0f);
+	}
+}
+
+void Grabber::Deselect(TESObjectREFR *obj, const SelectedObject &other)
+{
+	UInt32 otherHandle = other.handle;
+	NiPointer<TESObjectREFR> otherSelectedObj;
+	if (!LookupREFRByHandle(otherHandle, otherSelectedObj) || other.handle != selectedObject.handle) {
+		EffectShader_Stop(vmRegistry, 0, selectedObject.appliedShader, obj);
+		selectedObject.appliedShader = nullptr;
+	}
+
+	selectedObject.handle = *g_invalidRefHandle;
+	selectedObject.collidable = nullptr;
+}
+
+void Grabber::Grab(TESObjectREFR *obj)
+{
+	grabbedObject.collidable = selectedObject.collidable;
+	grabbedObject.handle = selectedObject.handle;
+
+	// Set to false only here, so that you can hold the trigger until the cast hits something valid
+	triggerPressed = false;
+	didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
+
+	grabbedObject.isImpactedProjectile = false;
+	auto baseForm = obj->baseForm;
+	if (baseForm && baseForm->formType == kFormType_Projectile) {
+		auto impactData = *(void **)((UInt64)obj + 0x98);
+		if (impactData) {
+			// If the projectile has impact data, then it has well, impacted something
+			grabbedObject.isImpactedProjectile = true;
+		}
+	}
+
+	grabbedObject.isActor = false;
+	auto actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
+	if (actor) {
+		grabbedObject.isActor = true;
+	}
+}
+
+void Grabber::UnGrab()
+{
+	grabbedObject.handle = *g_invalidRefHandle;
+	grabbedObject.collidable = nullptr;
+	grabbedObject.isActor = false;
+	grabbedObject.isImpactedProjectile = false;
+}
 
 // Called on each update (about 90-100 calls per second)
 void Grabber::PoseUpdate(const Grabber &other)
@@ -196,7 +271,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 	NiPointer<TESObjectREFR> grabbedObj;
 
-	if (!LookupREFRByHandle(grabbedObjHandle, grabbedObj)) {
+	if (!LookupREFRByHandle(grabbedObject.handle, grabbedObj)) {
 		// Convert hand position from skyrim coords to havok coords
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 		NiPoint3 hkHmdPos = hmdPos * havokWorldScale;
@@ -248,7 +323,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 		for (auto pair : cdPointCollector.m_hits) {
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
-			if (collidable == other.selectedColl) {
+			if (collidable == other.grabbedObject.collidable) {
 				continue;
 			}
 			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
@@ -280,24 +355,14 @@ void Grabber::PoseUpdate(const Grabber &other)
 		bool isSelected = false;
 		if (closestObj && DotProduct(VectorNormalized(closestHit - hkHmdPos), hmdForward) >= g_requiredCastDotProduct) {
 			NiPointer<TESObjectREFR> selectedObj;
-			if (!LookupREFRByHandle(selectedObjHandle, selectedObj) ||  closestObj != selectedObj) {
+			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) ||  closestObj != selectedObj) {
 				if (selectedObj) {
 					// Deselect the old thing if something else was selected
-					if (isShaderPlaying) {
-						EffectShader_Stop(vmRegistry, 0, currentSelectedShader, selectedObj);
-						isShaderPlaying = false;
-					}
+					Deselect(selectedObj, other.selectedObject);
 				}
-				selectedObjHandle = GetOrCreateRefrHandle(closestObj.m_pObject);
-
-				if (CALL_MEMBER_FN(closestObj, IsOffLimits)()) {
-					currentSelectedShader = itemSelectedShaderOffLimits;
-				}
-				else {
-					currentSelectedShader = itemSelectedShader;
-				}
+				Select(closestObj, other.selectedObject);
 			}
-			selectedColl = closestColl; // Set selected collidable no matter what, as we can have objects with more than one collidable
+			selectedObject.collidable = closestColl; // Set selected collidable no matter what, as we can have objects with more than one collidable
 
 			isSelected = true;
 			lastSelectedTime = currentTime;
@@ -305,53 +370,15 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 		// If time has run out and nothing is selected, deselect whatever is selected
 		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObjHandle, selectedObj) && !isSelected && currentTime - lastSelectedTime > g_selectedLeewayTime) {
-			if (isShaderPlaying) {
-				EffectShader_Stop(vmRegistry, 0, currentSelectedShader, selectedObj);
-				isShaderPlaying = false;
-			}
-			selectedObjHandle = *g_invalidRefHandle;
-			selectedColl = nullptr;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelected && currentTime - lastSelectedTime > g_selectedLeewayTime) {
+			Deselect(selectedObj, other.selectedObject);
 		}
 
 		if (triggerPressed && currentTime - triggerPressedTime <= g_triggerPressedLeewayTime) {
-			if (LookupREFRByHandle(selectedObjHandle, selectedObj)) {
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				// Pick up the item
-
-				grabbedColl = selectedColl;
-				grabbedObjHandle = selectedObjHandle;
-
-				// Set to false only here, so that you can hold the trigger until the cast hits something valid
-				triggerPressed = false;
-				didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
-
-				isGrabbedObjImpactedProjectile = false;
-				auto baseForm = selectedObj->baseForm;
-				if (baseForm && baseForm->formType == kFormType_Projectile) {
-					auto impactData = *(void **)((UInt64)selectedObj.m_pObject + 0x98);
-					if (impactData) {
-						// If the projectile has impact data, then it has well, impacted something
-						isGrabbedObjImpactedProjectile = true;
-					}
-				}
-
-				isGrabbedObjActor = false;
-				auto actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
-				if (actor) {
-					isGrabbedObjActor = true;
-				}
+				Grab(selectedObj);
 			}
-		}
-	}
-
-	// Play effect shader only if the other hand doesn't have its shader already playing on the object
-	NiPointer<TESObjectREFR> selectedObj;
-	if (LookupREFRByHandle(selectedObjHandle, selectedObj) && !isShaderPlaying) {
-		NiPointer<TESObjectREFR> otherSelectedObj;
-		UInt32 otherSelectedObjHandle = other.selectedObjHandle;
-		if (!LookupREFRByHandle(otherSelectedObjHandle, otherSelectedObj) || otherSelectedObj != selectedObj) {
-			EffectShader_Play(vmRegistry, 0, currentSelectedShader, selectedObj, -1.0f);
-			isShaderPlaying = true;
 		}
 	}
 
@@ -360,22 +387,17 @@ void Grabber::PoseUpdate(const Grabber &other)
 		didTriggerPressGrabObject = false;
 
 		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObjHandle, selectedObj)) {
-			if (isShaderPlaying) {
-				EffectShader_Stop(vmRegistry, 0, currentSelectedShader, selectedObj);
-				isShaderPlaying = false;
-			}
-			selectedObjHandle = *g_invalidRefHandle;
-			selectedColl = nullptr;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			Deselect(selectedObj, other.selectedObject);
 		}
-		if (LookupREFRByHandle(grabbedObjHandle, grabbedObj)) {
+		if (LookupREFRByHandle(grabbedObject.handle, grabbedObj)) {
 			// Drop the item
-			grabbedObjHandle = *g_invalidRefHandle;
+			UnGrab();
 			pullDesired = false;
 		}
 	}
 
-	if (LookupREFRByHandle(grabbedObjHandle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+	if (LookupREFRByHandle(grabbedObject.handle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
 		hkpMotion *motion;
@@ -384,7 +406,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			motion = &collObj->body->hkBody->motion;
 		}
 		else {
-			motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedColl->m_motion - offsetof(hkpMotion, m_motionState));
+			motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
 		}
 		hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
@@ -400,7 +422,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			initialGrabbedObjRelativePosition = relObjPos;
 			initialHandHorizontalDistance = VectorLength(handPos - upperArmPos);
 
-			if (isGrabbedObjImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+			if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
 				auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
 				if (collObj) {
 					// Do not use pullColl here, it's not the right collidable to set collision for
@@ -454,7 +476,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			}
 		}
 
-		if (pullDesired && !isGrabbedObjActor && grabbedObj->baseForm->formType != kFormType_MovableStatic) {
+		if (pullDesired && !grabbedObject.isActor && grabbedObj->baseForm->formType != kFormType_MovableStatic) {
 			// If it's an in-flight projectile or dead body, no pull effect
 
 			float inverseMass = motion->m_inertiaAndMassInv.w;
@@ -470,10 +492,8 @@ void Grabber::PoseUpdate(const Grabber &other)
 			if (VectorLength(relObjPos) < g_handActivateDistance * havokWorldScale) {
 				_MESSAGE("Equipping");
 
-				if (isShaderPlaying) {
-					EffectShader_Stop(vmRegistry, 0, currentSelectedShader, selectedObj);
-					isShaderPlaying = false;
-				}
+				Deselect(grabbedObj, other.selectedObject);
+				UnGrab();
 
 				// Pickup the item
 				Activate(vmRegistry, 0, grabbedObj, player, false);
@@ -486,9 +506,6 @@ void Grabber::PoseUpdate(const Grabber &other)
 					}
 				}
 
-				grabbedObjHandle = *g_invalidRefHandle;
-				selectedObjHandle = *g_invalidRefHandle;
-				selectedColl = nullptr;
 				pullDesired = false;
 				pushDesired = false;
 			}
@@ -498,7 +515,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 			float inverseMass = motion->m_inertiaAndMassInv.w;
 
-			if (isGrabbedObjActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
 				// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
 				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
 				if (actor) {
@@ -518,14 +535,8 @@ void Grabber::PoseUpdate(const Grabber &other)
 			ApplyHavokImpulse(vmRegistry, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
 			motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
-			if (isShaderPlaying) {
-				EffectShader_Stop(vmRegistry, 0, currentSelectedShader, grabbedObj);
-				isShaderPlaying = false;
-			}
-
-			grabbedObjHandle = *g_invalidRefHandle;
-			selectedObjHandle = *g_invalidRefHandle;
-			selectedColl = nullptr;
+			Deselect(grabbedObj, other.selectedObject);
+			UnGrab();
 		}
 		else {
 			// No push or pull - just hold it where we want it
@@ -541,7 +552,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 			float inverseMass = motion->m_inertiaAndMassInv.w;
 
-			if (isGrabbedObjActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
 				// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of the sort of root node
 				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
 				if (actor) {
@@ -557,7 +568,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 			float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, g_massExponent) * g_hoverVelocityMultiplier;
 
-			if (isGrabbedObjActor) {
+			if (grabbedObject.isActor) {
 				newMagnitude *= g_bodyVelocityMultiplier;
 			}
 
@@ -578,7 +589,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj)
 {
 	// Give the hud with info about the object you're floating
-	if (grabbedObj->baseForm && grabbedObj->baseForm->formType != kFormType_MovableStatic && !isGrabbedObjActor) { // We can't pick up movablestatics anyways
+	if (grabbedObj->baseForm && grabbedObj->baseForm->formType != kFormType_MovableStatic && !grabbedObject.isActor) { // We can't pick up movablestatics anyways
 		// First, change rotation/position/scale of the hud prompt
 
 		if (!g_hasSavedRollover) {
@@ -593,9 +604,9 @@ void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabb
 		// Now set all the places I could find that get set to the handle of the pointed at object usually
 		if (SELECTED_HANDLES) {
 			UInt32 *selectedHandles = *SELECTED_HANDLES;
-			selectedHandles[2] = grabbedObjHandle;
-			selectedHandles[5] = grabbedObjHandle;
-			selectedHandles[8] = grabbedObjHandle;
+			selectedHandles[2] = grabbedObject.handle;
+			selectedHandles[5] = grabbedObject.handle;
+			selectedHandles[8] = grabbedObject.handle;
 		}
 	}
 }
@@ -614,8 +625,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	g_leftGrabber.PoseUpdate(g_rightGrabber);
 
 	NiPointer<TESObjectREFR> rightGrabbedObj, leftGrabbedObj;
-	bool doesRightHaveGrab = LookupREFRByHandle(g_rightGrabber.grabbedObjHandle, rightGrabbedObj);
-	bool doesLeftHaveGrab = LookupREFRByHandle(g_leftGrabber.grabbedObjHandle, leftGrabbedObj);
+	bool doesRightHaveGrab = LookupREFRByHandle(g_rightGrabber.grabbedObject.handle, rightGrabbedObj);
+	bool doesLeftHaveGrab = LookupREFRByHandle(g_leftGrabber.grabbedObject.handle, leftGrabbedObj);
 
 	static BSFixedString rightWandStr("RightWandNode");
 	NiNode *rightWandNode = player->loadedState->node->m_parent->GetObjectByName(&rightWandStr.data)->GetAsNiNode();
@@ -770,8 +781,10 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 extern "C" {
 	void OnDataLoaded()
 	{
-		g_rightGrabber.grabbedObjHandle = *g_invalidRefHandle;
-		g_leftGrabber.grabbedObjHandle = *g_invalidRefHandle;
+		g_rightGrabber.selectedObject.handle = *g_invalidRefHandle;
+		g_rightGrabber.grabbedObject.handle = *g_invalidRefHandle;
+		g_leftGrabber.selectedObject.handle = *g_invalidRefHandle;
+		g_leftGrabber.grabbedObject.handle = *g_invalidRefHandle;
 
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
@@ -789,17 +802,6 @@ extern "C" {
 			_MESSAGE("Failed to cast selected item shader form");
 			return;
 		}
-
-		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x5EDA));
-		if (!shaderForm) {
-			_MESSAGE("Failed to get slected item shader form 2");
-			return;
-		}
-		g_itemSelectedShader2 = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
-		if (!g_itemSelectedShader2) {
-			_MESSAGE("Failed to cast selected item shader form 2");
-			return;
-		}
 		
 		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x4EB5));
 		if (!shaderForm) {
@@ -812,17 +814,6 @@ extern "C" {
 			return;
 		}
 		
-		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x5EDC));
-		if (!shaderForm) {
-			_MESSAGE("Failed to get slected item off limits shader form 2");
-			return;
-		}
-		g_itemSelectedShaderOffLimits2 = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
-		if (!g_itemSelectedShaderOffLimits2) {
-			_MESSAGE("Failed to cast selected item off limits shader form 2");
-			return;
-		}
-		
 		MenuManager * menuManager = MenuManager::GetSingleton();
 		if (menuManager) {
 			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
@@ -831,8 +822,8 @@ extern "C" {
 		g_rightGrabber.itemSelectedShader = g_itemSelectedShader;
 		g_rightGrabber.itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
-		g_leftGrabber.itemSelectedShader = g_itemSelectedShader2;
-		g_leftGrabber.itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits2;
+		g_leftGrabber.itemSelectedShader = g_itemSelectedShader;
+		g_leftGrabber.itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
 		_MESSAGE("Successfully loaded all forms");
 	}
@@ -976,14 +967,11 @@ extern "C" {
 		g_rolloverRotation.data[1][2] = sinf(30 * 0.0174533);
 		g_rolloverRotation.data[2][2] = -cosf(30 * 0.0174533);
 
-		g_rightGrabber.rolloverOffset = g_rolloverOffset;
 		g_rightGrabber.rolloverRotation = g_rolloverRotation;
 		g_rightGrabber.rolloverScale = g_rolloverScale;
 
-		// Flip right vector offset - TODO: proper offset
-		g_leftGrabber.rolloverOffset = { -g_rolloverOffset.x, g_rolloverOffset.y, g_rolloverOffset.z };
-		g_leftGrabber.rolloverRotation = g_rolloverRotation;
 		// Flip right/forward vectors
+		g_leftGrabber.rolloverRotation = g_rolloverRotation;
 		g_leftGrabber.rolloverRotation.data[0][0] = -g_leftGrabber.rolloverRotation.data[0][0];
 		g_leftGrabber.rolloverRotation.data[1][0] = -g_leftGrabber.rolloverRotation.data[1][0];
 		g_leftGrabber.rolloverRotation.data[2][0] = -g_leftGrabber.rolloverRotation.data[2][0];
