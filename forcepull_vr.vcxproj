@@ -188,16 +188,18 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
+    <ClCompile Include="src\grabber.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\MenuChecker.cpp" />
+    <ClCompile Include="src\menu_checker.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\config.h" />
+    <ClInclude Include="include\grabber.h" />
     <ClInclude Include="include\hooks.h" />
-    <ClInclude Include="include\main.h" />
-    <ClInclude Include="include\MenuChecker.h" />
+    <ClInclude Include="include\offsets.h" />
+    <ClInclude Include="include\menu_checker.h" />
     <ClInclude Include="include\physics.h" />
     <ClInclude Include="include\RE\havok.h" />
     <ClInclude Include="include\utils.h" />

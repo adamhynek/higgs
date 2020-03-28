@@ -1,4 +1,4 @@
-#include "MenuChecker.h"
+#include "menu_checker.h"
 
 // Big thanks to Shizof for this method of checking what menus are open
 namespace MenuChecker

@@ -27,14 +27,14 @@
     <ClCompile Include="src\config.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\MenuChecker.cpp">
+    <ClCompile Include="src\grabber.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\menu_checker.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\main.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\version.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -53,7 +53,13 @@
     <ClInclude Include="include\config.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\MenuChecker.h">
+    <ClInclude Include="include\grabber.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\offsets.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\menu_checker.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

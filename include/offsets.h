@@ -7,6 +7,18 @@
 #include "skse64/GameReferences.h"
 
 
+// Multiply skyrim coords by this to get havok coords
+// It's the number of meters per skyrim unit
+RelocPtr<float> HAVOK_WORLD_SCALE_ADDR(0x15B78F4);
+
+// Alternatively, 0x30008E0 + 0x78
+// Even better, (*0x2FC60C0) + 0x78
+// Address of pointer to bhkSimpleShapePhantom that tracks the right hand - more or less
+RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR(0x3000958);
+
+RelocPtr<UInt32 *> SELECTED_HANDLES(0x2FC60C0);
+
+
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 

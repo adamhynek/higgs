@@ -5,6 +5,9 @@
 #include "RE/havok.h"
 
 
+#define VM_REGISTRY (*g_skyrimVM)->GetClassRegistry()
+
+
 float VectorLength(NiPoint3 vec);
 
 NiPoint3 VectorNormalized(NiPoint3 vec);
