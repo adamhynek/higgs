@@ -200,7 +200,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 		}
 
 		// Select the new thing
-		bool isSelected = false;
+		bool isSelectedThisFrame = false;
 		if (closestObj && DotProduct(VectorNormalized(closestHit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) || closestObj != selectedObj) {
@@ -212,13 +212,13 @@ void Grabber::PoseUpdate(const Grabber &other)
 			}
 			selectedObject.collidable = closestColl; // Set selected collidable no matter what, as we can have objects with more than one collidable
 
-			isSelected = true;
+			isSelectedThisFrame = true;
 			lastSelectedTime = currentTime;
 		}
 
 		// If time has run out and nothing is selected, deselect whatever is selected
 		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelected && currentTime - lastSelectedTime > Config::options.selectedLeewayTime) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && currentTime - lastSelectedTime > Config::options.selectedLeewayTime) {
 			Deselect(selectedObj, other.selectedObject);
 		}
 
@@ -248,14 +248,8 @@ void Grabber::PoseUpdate(const Grabber &other)
 	if (LookupREFRByHandle(grabbedObject.handle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
-		hkpMotion *motion;
-		if (grabbedObj->loadedState->node->unk040) {
-			auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
-			motion = &collObj->body->hkBody->motion;
-		}
-		else {
-			motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
-		}
+		hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
+
 		hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
 		NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
@@ -364,7 +358,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			float inverseMass = motion->m_inertiaAndMassInv.w;
 
 			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-				// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of of the sort of root node
+				// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of the sort of root node
 				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
 				if (actor) {
 					float actorInvereMass = GetActorInverseMass(actor);

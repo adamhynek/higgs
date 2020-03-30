@@ -11,7 +11,7 @@ static BSFixedString hmdNodeStr("HmdNode");
 static CdPointCollector cdPointCollector;
 static hkpLinearCastInput linearCastInput;
 static RayHitCollector rayHitCollector;
-static hkpWorldRayCastInput rayCastInput(0x02420028); // 'ItemPicker' collision layer; player collision group
+static hkpWorldRayCastInput rayCastInput(0x02430028); // 'ItemPicker' collision layer; player collision group
 
 
 struct SelectedObject
@@ -31,6 +31,23 @@ struct GrabbedObject
 
 struct Grabber
 {
+	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, NiPoint3 rolloverOffset)
+		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), rolloverOffset(rolloverOffset)
+	{
+		for (int i = 0; i < numPrevPos; i++) {
+			handPositions[i] = { 0, 0, 0 };
+		}
+	};
+
+	void PoseUpdate(const Grabber &other);
+	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
+	void SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj);
+	void Select(TESObjectREFR *obj, const SelectedObject &other);
+	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
+	void Grab(TESObjectREFR *obj);
+	void UnGrab();
+
+
 	static const int numPrevPos = 5;
 
 	BSFixedString handNodeName;
@@ -66,20 +83,4 @@ struct Grabber
 	bool triggerPressed = false; // True on rising edge of trigger press
 	bool triggerReleased = false; // True on falling edge of trigger press
 	bool didTriggerPressGrabObject = false;
-
-	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, NiPoint3 rolloverOffset)
-		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), rolloverOffset(rolloverOffset)
-	{
-		for (int i = 0; i < numPrevPos; i++) {
-			handPositions[i] = { 0, 0, 0 };
-		}
-	};
-
-	void PoseUpdate(const Grabber &other);
-	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
-	void SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj);
-	void Select(TESObjectREFR *obj, const SelectedObject &other);
-	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
-	void Grab(TESObjectREFR *obj);
-	void UnGrab();
 };

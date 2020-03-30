@@ -193,7 +193,7 @@ extern "C" {
 			return;
 		}
 
-		TESForm *shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x3E90));
+		TESForm *shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F00));
 		if (!shaderForm) {
 			_MESSAGE("Failed to get slected item shader form");
 			return;
@@ -204,7 +204,7 @@ extern "C" {
 			return;
 		}
 		
-		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x4EB5));
+		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F01));
 		if (!shaderForm) {
 			_MESSAGE("Failed to get slected item off limits shader form");
 			return;
