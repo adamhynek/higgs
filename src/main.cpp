@@ -322,6 +322,11 @@ extern "C" {
 		if (!Config::GetConfigOptionFloat("Settings", "BodyVelocityMultiplier", &Config::options.bodyVelocityMultiplier)) return false;
 		if (!Config::GetConfigOptionFloat("Settings", "MassExponent", &Config::options.massExponent)) return false;
 
+		if (!Config::GetConfigOptionFloat("Settings", "RolloverScale", &Config::options.rolloverScale)) return false;
+
+		if (!Config::GetConfigOptionFloat("Settings", "MaxItemHeight", &Config::options.maxItemHeight)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "MaxBodyHeight", &Config::options.maxBodyHeight)) return false;
+
 		return true;
 	}
 

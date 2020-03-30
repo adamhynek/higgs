@@ -68,7 +68,7 @@ struct Grabber
 	TESObjectREFR *prevGrabbedObj = nullptr;
 
 	NiPoint3 initialGrabbedObjRelativePosition = { 0, 0, 0 };
-	float initialHandHorizontalDistance = 0;
+	float initialHandShoulderDistance = 0;
 	NiPoint3 prevHandPosRoomspace = { 0, 0, 0 };
 
 	bool pullDesired = false;

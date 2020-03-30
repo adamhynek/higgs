@@ -14,7 +14,10 @@ namespace Config {
 		float pullVelocityMultiplier = 0.9f;
 		float pushVelocityMultiplier = 0.9f;
 		float bodyVelocityMultiplier = 0.6f;
-		float massExponent = 0.5;
+		float massExponent = 0.55f;
+		float rolloverScale = 10.0f;
+		float maxItemHeight = 4.0f;
+		float maxBodyHeight = 1.2f;
 		long long selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
 		long long triggerPressedLeewayTime = 300; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
 		bool equipWeapons = false;

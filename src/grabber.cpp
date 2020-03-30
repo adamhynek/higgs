@@ -262,7 +262,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			pullDesired = false;
 
 			initialGrabbedObjRelativePosition = relObjPos;
-			initialHandHorizontalDistance = VectorLength(handPos - upperArmPos);
+			initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 
 			if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
 				auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
@@ -276,23 +276,6 @@ void Grabber::PoseUpdate(const Grabber &other)
 					collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
 				}
 			}
-		}
-
-		// Determine the position where we want the object to be
-		// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-		float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
-		float h;
-		NiPoint3 horiz;
-		if (fabs(castDirection.z) <= 0.85f) {
-			float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
-			h = w * tanf(theta); // desired height relative to horizontal from hand
-			horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * w; // desired horizontal position relative to hand
-		}
-		else {
-			// Handle degenerate case and clamp
-			h = w * tanf(asinf(copysignf(0.85f, castDirection.z))); // desired height relative to horizontal from hand
-			float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
-			horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanf(theta)); // desired horizontal position relative to hand
 		}
 
 		// Basic hand motions
@@ -383,11 +366,29 @@ void Grabber::PoseUpdate(const Grabber &other)
 		else {
 			// No push or pull - just hold it where we want it
 
+			// Determine the position where we want the object to be
+			// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
+			float maxHeight = grabbedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
+			NiPoint3 horiz;
+			float h;
+			if (castDirection.z <= 0.9999f) {
+				float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
+				float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+				float tanTheta = tanf(theta);
+				h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
+				horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
+			}
+			else {
+				// Degenerate case
+				h = maxHeight;
+				horiz = { 0, 0, 0 };
+			}
+			
 			NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
 
 			// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
-			float handHorizontalDistance = VectorLength(handPos - upperArmPos);
-			float handDistanceRatio = (handHorizontalDistance - 10.0f) / (initialHandHorizontalDistance - 10.0f);
+			float handShoulderDistance = VectorLength(handPos - upperArmPos);
+			float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
 			desiredPos *= handDistanceRatio;
 
 			NiPoint3 deltaPos = desiredPos - relObjPos;
@@ -493,7 +494,7 @@ void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabb
 		// First, change rotation/position/scale of the hud prompt
 		rolloverNode->m_localTransform.pos = rolloverOffset;
 		rolloverNode->m_localTransform.rot = rolloverRotation;
-		rolloverNode->m_localTransform.scale = rolloverScale;
+		rolloverNode->m_localTransform.scale = Config::options.rolloverScale;
 
 		// Now set all the places I could find that get set to the handle of the pointed at object usually
 		if (SELECTED_HANDLES) {
