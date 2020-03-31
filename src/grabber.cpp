@@ -150,7 +150,8 @@ void Grabber::PoseUpdate(const Grabber &other)
 		cdPointCollector.reset();
 		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 		UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
-		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C; // 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles
+		// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
+		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
 		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
 		sphereShape->m_radius = Config::options.castRadius;
 		hkVector4 translationBefore = sphere->phantom->m_motionState.m_transform.m_translation;
@@ -268,7 +269,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
 				auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
 				if (collObj) {
-					// Do not use grabbedObject.collidable here, as that's the _phantom_ on the projectile. We want the one attached to the 3D
+					// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 					auto collidable = &collObj->body->hkBody->m_collidable;
 					// Projectiles have 'Fixed' motion type by default, making them unmovable
 					SetMotionTypeFunctor(VM_REGISTRY, 0, grabbedObj, 3, true);
@@ -494,20 +495,27 @@ bool Grabber::ShouldDisplayRollover(const TESObjectREFR *grabbedObj)
 }
 
 
-void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj)
+void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj, bool isLeftHanded)
 {
 	// Give the hud with info about the object you're floating
 
 	// First, change rotation/position/scale of the hud prompt
 	rolloverNode->m_localTransform.pos = rolloverOffset;
 	rolloverNode->m_localTransform.rot = rolloverRotation;
-	rolloverNode->m_localTransform.scale = Config::options.rolloverScale;
+	rolloverNode->m_localTransform.scale = rolloverScale;
 
 	// Now set all the places I could find that get set to the handle of the pointed at object usually
-	if (SELECTED_HANDLES) {
-		UInt32 *selectedHandles = *SELECTED_HANDLES;
-		selectedHandles[2] = grabbedObject.handle;
-		selectedHandles[5] = grabbedObject.handle;
-		selectedHandles[8] = grabbedObject.handle;
+	UInt32 *selectedHandles = *SELECTED_HANDLES;
+	if (selectedHandles) {
+		if (isLeftHanded) {
+			selectedHandles[1] = grabbedObject.handle;
+			selectedHandles[4] = grabbedObject.handle;
+			selectedHandles[7] = grabbedObject.handle;
+		}
+		else {
+			selectedHandles[2] = grabbedObject.handle;
+			selectedHandles[5] = grabbedObject.handle;
+			selectedHandles[8] = grabbedObject.handle;
+		}
 	}
 }

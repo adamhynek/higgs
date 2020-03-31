@@ -42,7 +42,6 @@ SKSEVRInterface *g_vrInterface = nullptr;
 Config::Options Config::options;
 
 NiMatrix33 g_rolloverRotation; // Set on plugin load
-float g_rolloverScale = 10.0f;
 
 bool g_isLeftHanded = false;
 
@@ -110,13 +109,13 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 			if (rolloverNode) {
 				leftWandNode->AttachChild(rolloverNode, false);
 				rightWandNode->RemoveChild(rolloverNode);
-				g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj);
+				g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, g_isLeftHanded);
 			}
 			else {
 				rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 				rightWandNode->AttachChild(rolloverNode, false);
 				leftWandNode->RemoveChild(rolloverNode);
-				g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj);
+				g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, g_isLeftHanded);
 			}
 		}
 		else if (doesRightHaveValidGrab) {
@@ -127,7 +126,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				rightWandNode->AttachChild(rolloverNode, false);
 				leftWandNode->RemoveChild(rolloverNode);
 			}
-			g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj);
+			g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, g_isLeftHanded);
 		}
 		else if (doesLeftHaveValidGrab) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -137,7 +136,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				leftWandNode->AttachChild(rolloverNode, false);
 				rightWandNode->RemoveChild(rolloverNode);
 			}
-			g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj);
+			g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, g_isLeftHanded);
 		}
 	}
 	else {
@@ -167,6 +166,9 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, uint32_t unControllerStateSize, bool& state)
 {
+	Setting	* isLeftHandedSetting = GetINISetting("bLeftHandedMode:VRInput");
+	g_isLeftHanded = (bool)isLeftHandedSetting->data.u8;
+
 	vr_src::ETrackedControllerRole rightControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand;
 	vr_src::TrackedDeviceIndex_t rightController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(rightControllerRole);
 
@@ -254,8 +256,6 @@ extern "C" {
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoadGame || msg->type == SKSEMessagingInterface::kMessage_NewGame) {
 				_MESSAGE("SKSE PostLoadGame or NewGame message received, type: %d", msg->type);
 				g_isLoaded = true;
-				Setting	* isLeftHandedSetting = GetINISetting("bLeftHandedMode:VRInput");
-				g_isLeftHanded = (bool)isLeftHandedSetting->data.u8;
 			}
 		}
 	}
@@ -371,7 +371,7 @@ extern "C" {
 		g_rolloverRotation.data[2][2] = -cosf(30 * 0.0174533);
 
 		g_rightGrabber.rolloverRotation = g_rolloverRotation;
-		g_rightGrabber.rolloverScale = g_rolloverScale;
+		g_rightGrabber.rolloverScale = Config::options.rolloverScale;
 
 		// Flip right/forward vectors
 		g_leftGrabber.rolloverRotation = g_rolloverRotation;
@@ -381,7 +381,7 @@ extern "C" {
 		g_leftGrabber.rolloverRotation.data[0][1] = -g_leftGrabber.rolloverRotation.data[0][1];
 		g_leftGrabber.rolloverRotation.data[1][1] = -g_leftGrabber.rolloverRotation.data[1][1];
 		g_leftGrabber.rolloverRotation.data[2][1] = -g_leftGrabber.rolloverRotation.data[2][1];
-		g_leftGrabber.rolloverScale = g_rolloverScale;
+		g_leftGrabber.rolloverScale = Config::options.rolloverScale;
 
 		return true;
 	}
