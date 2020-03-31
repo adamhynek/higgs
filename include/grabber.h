@@ -11,7 +11,7 @@ static BSFixedString hmdNodeStr("HmdNode");
 static CdPointCollector cdPointCollector;
 static hkpLinearCastInput linearCastInput;
 static RayHitCollector rayHitCollector;
-static hkpWorldRayCastInput rayCastInput(0x02430028); // 'ItemPicker' collision layer; player collision group
+static hkpWorldRayCastInput rayCastInput(0x0243002C); // 'CustomPick2' collision layer; player collision group
 
 
 struct SelectedObject

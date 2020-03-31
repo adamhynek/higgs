@@ -150,7 +150,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 		cdPointCollector.reset();
 		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 		UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
-		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0; // We want to hit _anything_, including in-flight projectiles
+		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C; // 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles
 		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
 		sphereShape->m_radius = Config::options.castRadius;
 		hkVector4 translationBefore = sphere->phantom->m_motionState.m_transform.m_translation;
