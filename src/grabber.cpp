@@ -248,6 +248,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 	if (LookupREFRByHandle(grabbedObject.handle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
+		// This is a bit hacky...
 		hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
 
 		hkVector4 translation = motion->m_motionState.m_transform.m_translation;
@@ -267,7 +268,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 			if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
 				auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
 				if (collObj) {
-					// Do not use pullColl here, it's not the right collidable to set collision for
+					// Do not use grabbedObject.collidable here, as that's the _phantom_ on the projectile. We want the one attached to the 3D
 					auto collidable = &collObj->body->hkBody->m_collidable;
 					// Projectiles have 'Fixed' motion type by default, making them unmovable
 					SetMotionTypeFunctor(VM_REGISTRY, 0, grabbedObj, 3, true);
@@ -487,21 +488,26 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 }
 
 
+bool Grabber::ShouldDisplayRollover(const TESObjectREFR *grabbedObj)
+{
+	return (grabbedObj->baseForm && grabbedObj->baseForm->formType != kFormType_MovableStatic && !grabbedObject.isActor);
+}
+
+
 void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj)
 {
 	// Give the hud with info about the object you're floating
-	if (grabbedObj->baseForm && grabbedObj->baseForm->formType != kFormType_MovableStatic && !grabbedObject.isActor) { // We can't pick up movablestatics anyways
-		// First, change rotation/position/scale of the hud prompt
-		rolloverNode->m_localTransform.pos = rolloverOffset;
-		rolloverNode->m_localTransform.rot = rolloverRotation;
-		rolloverNode->m_localTransform.scale = Config::options.rolloverScale;
 
-		// Now set all the places I could find that get set to the handle of the pointed at object usually
-		if (SELECTED_HANDLES) {
-			UInt32 *selectedHandles = *SELECTED_HANDLES;
-			selectedHandles[2] = grabbedObject.handle;
-			selectedHandles[5] = grabbedObject.handle;
-			selectedHandles[8] = grabbedObject.handle;
-		}
+	// First, change rotation/position/scale of the hud prompt
+	rolloverNode->m_localTransform.pos = rolloverOffset;
+	rolloverNode->m_localTransform.rot = rolloverRotation;
+	rolloverNode->m_localTransform.scale = Config::options.rolloverScale;
+
+	// Now set all the places I could find that get set to the handle of the pointed at object usually
+	if (SELECTED_HANDLES) {
+		UInt32 *selectedHandles = *SELECTED_HANDLES;
+		selectedHandles[2] = grabbedObject.handle;
+		selectedHandles[5] = grabbedObject.handle;
+		selectedHandles[8] = grabbedObject.handle;
 	}
 }

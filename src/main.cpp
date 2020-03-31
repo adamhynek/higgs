@@ -101,7 +101,10 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 			g_normalRolloverTransform = rolloverNode->m_localTransform;
 		}
 
-		if (doesRightHaveGrab && doesLeftHaveGrab) {
+		bool doesRightHaveValidGrab = doesRightHaveGrab && g_rightGrabber.ShouldDisplayRollover(rightGrabbedObj);
+		bool doesLeftHaveValidGrab = doesLeftHaveGrab && g_leftGrabber.ShouldDisplayRollover(leftGrabbedObj);
+
+		if (doesRightHaveValidGrab && doesLeftHaveValidGrab) {
 			// Toggle rollover menu between hands
 			NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
 			if (rolloverNode) {
@@ -116,7 +119,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj);
 			}
 		}
-		else if (doesRightHaveGrab) {
+		else if (doesRightHaveValidGrab) {
 			NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
 			if (!rolloverNode) {
 				// Switch menu to right hand if it's on the left
@@ -126,7 +129,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 			}
 			g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj);
 		}
-		else if (doesLeftHaveGrab) {
+		else if (doesLeftHaveValidGrab) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 			if (!rolloverNode) {
 				// Switch menu to left hand if it's on the right

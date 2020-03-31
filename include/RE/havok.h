@@ -515,7 +515,11 @@ struct hkpRigidBody
 	struct bhkRigidBodyT * gameRigidBody; // 18 - user data - points back to below struct
 
 	hkpLinkedCollidable m_collidable; // 20
-	UInt64 todo[18]; // A0
+	UInt64 unkA0;
+	UInt64 unkA8;
+	UInt64 unkB0;
+	hkArray m_properties; // B8
+	UInt8 unkC8[0x130 - 0xC8]; // C8
 	hkpSimulationIsland * island; // 130 - I hope it's nice there
 	UInt64 unk138;
 	UInt64 unk140;
@@ -524,6 +528,7 @@ struct hkpRigidBody
 	hkpMotion motion; // 150
 	// more...
 };
+static_assert(offsetof(hkpRigidBody, m_properties) == 0xB8);
 static_assert(offsetof(hkpRigidBody, motion) == 0x150);
 
 struct bhkRigidBodyT

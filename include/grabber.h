@@ -41,6 +41,7 @@ struct Grabber
 
 	void PoseUpdate(const Grabber &other);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
+	bool ShouldDisplayRollover(const TESObjectREFR *grabbedObj);
 	void SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj);
 	void Select(TESObjectREFR *obj, const SelectedObject &other);
 	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
