@@ -1,4 +1,7 @@
 #include <chrono>
+
+#include "skse64/GameRTTI.h"
+
 #include "utils.h"
 
 
@@ -172,6 +175,63 @@ float GetActorInverseMass(Actor *actor)
 		}
 	}
 	return -1.0f;
+}
+
+bool IsTwoHanded(TESObjectWEAP *weap)
+{
+	switch (weap->gameData.type) {
+	case TESObjectWEAP::GameData::kType_2HA:
+	case TESObjectWEAP::GameData::kType_2HS:
+	case TESObjectWEAP::GameData::kType_CBow:
+	case TESObjectWEAP::GameData::kType_CrossBow:
+	case TESObjectWEAP::GameData::kType_Staff:
+	case TESObjectWEAP::GameData::kType_Staff2:
+	case TESObjectWEAP::GameData::kType_TwoHandAxe:
+	case TESObjectWEAP::GameData::kType_TwoHandSword:
+		return true;
+	default:
+		return false;
+	}
+}
+
+bool IsBow(TESObjectWEAP *weap)
+{
+	switch (weap->gameData.type) {
+	case TESObjectWEAP::GameData::kType_Bow:
+	case TESObjectWEAP::GameData::kType_Bow2:
+		return true;
+	default:
+		return false;
+	}
+}
+
+std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
+{
+	if (!actor->actorState.IsWeaponDrawn()) {
+		return std::make_pair(true, true);
+	}
+
+	TESForm *mainhandItem = actor->GetEquippedObject(false);
+	TESForm *offhandItem = actor->GetEquippedObject(true);
+
+	bool isMainValid = false, isOffhandValid = false;
+
+	if (!mainhandItem || mainhandItem->formType == kFormType_Spell) {
+		isMainValid = true;
+	}
+	TESObjectWEAP *weap = DYNAMIC_CAST(mainhandItem, TESForm, TESObjectWEAP);
+	if (weap) {
+		if (IsTwoHanded(weap)) {
+			return std::make_pair(false, true); // Main hand holds the weapon, offhand is 'free' in VR
+		}
+		else if (IsBow(weap)) {
+			return std::make_pair(true, false); // For bows, the main hand holds the arrow, offhand holds the bow
+		}
+	}
+	if (!offhandItem || offhandItem->formType == kFormType_Spell) {
+		isOffhandValid = true;
+	}
+	return std::make_pair(isMainValid, isOffhandValid);
 }
 
 long long GetTime()

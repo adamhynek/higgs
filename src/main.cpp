@@ -71,8 +71,13 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!player || !player->loadedState || !player->loadedState->node)
 		return true;
 
-	g_rightGrabber.PoseUpdate(g_leftGrabber);
-	g_leftGrabber.PoseUpdate(g_rightGrabber);
+	std::pair<bool, bool> validItems = { true, true };
+	if (!Config::options.ignoreWeaponChecks) {
+		validItems = AreEquippedItemsValid(player);
+	}
+
+	g_rightGrabber.PoseUpdate(g_leftGrabber, g_isLeftHanded ? validItems.second : validItems.first);
+	g_leftGrabber.PoseUpdate(g_rightGrabber, g_isLeftHanded ? validItems.first : validItems.second);
 
 	NiPointer<TESObjectREFR> rightGrabbedObj, leftGrabbedObj;
 	bool doesRightHaveGrab = LookupREFRByHandle(g_rightGrabber.grabbedObject.handle, rightGrabbedObj);
@@ -318,6 +323,7 @@ extern "C" {
 		Config::options.triggerPressedLeewayTime = triggerPreemptTime;
 
 		if (!Config::GetConfigOptionBool("Settings", "EquipWeapons", &Config::options.equipWeapons)) return false;
+		if (!Config::GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &Config::options.ignoreWeaponChecks)) return false;
 
 		if (!Config::GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &Config::options.hoverVelocityMultiplier)) return false;
 		if (!Config::GetConfigOptionFloat("Settings", "PullVelocityMultiplier", &Config::options.pullVelocityMultiplier)) return false;
@@ -337,7 +343,6 @@ extern "C" {
 	{	// Called by SKSE to load this plugin
 		_MESSAGE("ForcePullVR loaded");
 
-		// Registers for SKSE Messages (PapyrusVR probably still need to load, wait for SKSE message PostLoad)
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);

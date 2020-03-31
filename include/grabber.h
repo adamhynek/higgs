@@ -11,7 +11,9 @@ static BSFixedString hmdNodeStr("HmdNode");
 static CdPointCollector cdPointCollector;
 static hkpLinearCastInput linearCastInput;
 static RayHitCollector rayHitCollector;
-static hkpWorldRayCastInput rayCastInput(0x0243002C); // 'CustomPick2' collision layer; player collision group
+// 'ItemPicker' collision layer; player collision group
+// Why ItemPicker? It ignores stuff like weapons the player is holding
+static hkpWorldRayCastInput rayCastInput(0x02430028);
 
 
 struct SelectedObject
@@ -39,7 +41,7 @@ struct Grabber
 		}
 	};
 
-	void PoseUpdate(const Grabber &other);
+	void PoseUpdate(const Grabber &other, bool allowGrab);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 	bool ShouldDisplayRollover(const TESObjectREFR *grabbedObj);
 	void SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj, bool isLeftHanded);

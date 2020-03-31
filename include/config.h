@@ -20,6 +20,7 @@ namespace Config {
 		float maxBodyHeight = 1.2f;
 		long long selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
 		long long triggerPressedLeewayTime = 300; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
+		bool ignoreWeaponChecks = false;
 		bool equipWeapons = false;
 
 		NiPoint3 handAdjust = { -0.018, -0.965, 0.261 };

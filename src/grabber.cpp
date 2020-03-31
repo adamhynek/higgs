@@ -78,7 +78,7 @@ void Grabber::UnGrab()
 }
 
 
-void Grabber::PoseUpdate(const Grabber &other)
+void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 {
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->loadedState || !player->loadedState->node)
@@ -172,7 +172,7 @@ void Grabber::PoseUpdate(const Grabber &other)
 
 		for (auto pair : cdPointCollector.m_hits) {
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
-			if (collidable == other.grabbedObject.collidable) {
+			if (!allowGrab || collidable == other.grabbedObject.collidable) {
 				continue;
 			}
 			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
