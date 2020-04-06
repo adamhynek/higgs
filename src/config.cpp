@@ -1,5 +1,6 @@
 #include <chrono>
 #include "utils.h"
+#include "config.h"
 
 
 static inline double vlibGetSetting(const char * name) {
@@ -14,6 +15,57 @@ static inline double vlibGetSetting(const char * name) {
 
 
 namespace Config {
+	// Define extern options
+	Options options;
+
+	bool ReadConfigOptions()
+	{
+		float handAdjustX, handAdjustY, handAdjustZ;
+		if (!GetConfigOptionFloat("Settings", "HandAdjustX", &handAdjustX)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandAdjustY", &handAdjustY)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandAdjustZ", &handAdjustZ)) return false;
+
+		NiPoint3 handAdjust = { handAdjustX, handAdjustY, handAdjustZ };
+		if (VectorLength(handAdjust) > 0.0001f) {
+			options.handAdjust = VectorNormalized(handAdjust);
+		}
+		else {
+			_WARNING("Supplied hand adjust vector is too small - using default.");
+		}
+
+		if (!GetConfigOptionFloat("Settings", "CastRadius", &options.castRadius)) return false;
+		if (!GetConfigOptionFloat("Settings", "CastDistance", &options.castDistance)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandActivateDistance", &options.handActivateDistance)) return false;
+
+		float castDirectionRequiredHalfAngle;
+		if (!GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
+		options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
+
+		int selectedFadeTime;
+		if (!GetConfigOptionInt("Settings", "SelectedFadeTime", &selectedFadeTime)) return false;
+		options.selectedLeewayTime = selectedFadeTime;
+
+		int triggerPreemptTime;
+		if (!GetConfigOptionInt("Settings", "TriggerPreemptTime", &triggerPreemptTime)) return false;
+		options.triggerPressedLeewayTime = triggerPreemptTime;
+
+		if (!GetConfigOptionBool("Settings", "EquipWeapons", &options.equipWeapons)) return false;
+		if (!GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &options.ignoreWeaponChecks)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &options.hoverVelocityMultiplier)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullVelocityMultiplier", &options.pullVelocityMultiplier)) return false;
+		if (!Config::GetConfigOptionFloat("Settings", "PushVelocityMultiplier", &options.pushVelocityMultiplier)) return false;
+		if (!GetConfigOptionFloat("Settings", "MassExponent", &options.massExponent)) return false;
+		if (!GetConfigOptionFloat("Settings", "PushPullSpeedThreshold", &options.pushPullSpeedThreshold)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "MaxItemHeight", &options.maxItemHeight)) return false;
+		if (!GetConfigOptionFloat("Settings", "MaxBodyHeight", &options.maxBodyHeight)) return false;
+
+		return true;
+	}
+
 	const std::string & GetConfigPath()
 	{
 		static std::string s_configPath;

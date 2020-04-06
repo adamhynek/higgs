@@ -38,12 +38,7 @@ static SKSEMessagingInterface *g_messaging = nullptr;
 
 SKSEVRInterface *g_vrInterface = nullptr;
 
-// Config params
-Config::Options Config::options;
-
 NiMatrix33 g_rolloverRotation; // Set on plugin load
-
-bool g_isLeftHanded = false;
 
 BSFixedString rolloverNodeStr("WSActivateRollover");
 
@@ -76,8 +71,10 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		validItems = AreEquippedItemsValid(player);
 	}
 
-	g_rightGrabber.PoseUpdate(g_leftGrabber, g_isLeftHanded ? validItems.second : validItems.first);
-	g_leftGrabber.PoseUpdate(g_rightGrabber, g_isLeftHanded ? validItems.first : validItems.second);
+	bool isLeftHanded = *g_leftHandedMode;
+
+	g_rightGrabber.PoseUpdate(g_leftGrabber, isLeftHanded ? validItems.second : validItems.first);
+	g_leftGrabber.PoseUpdate(g_rightGrabber, isLeftHanded ? validItems.first : validItems.second);
 
 	NiPointer<TESObjectREFR> rightGrabbedObj, leftGrabbedObj;
 	bool doesRightHaveGrab = LookupREFRByHandle(g_rightGrabber.grabbedObject.handle, rightGrabbedObj);
@@ -114,13 +111,13 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 			if (rolloverNode) {
 				leftWandNode->AttachChild(rolloverNode, false);
 				rightWandNode->RemoveChild(rolloverNode);
-				g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, g_isLeftHanded);
+				g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, isLeftHanded);
 			}
 			else {
 				rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 				rightWandNode->AttachChild(rolloverNode, false);
 				leftWandNode->RemoveChild(rolloverNode);
-				g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, g_isLeftHanded);
+				g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, isLeftHanded);
 			}
 		}
 		else if (doesRightHaveValidGrab) {
@@ -131,7 +128,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				rightWandNode->AttachChild(rolloverNode, false);
 				leftWandNode->RemoveChild(rolloverNode);
 			}
-			g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, g_isLeftHanded);
+			g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, isLeftHanded);
 		}
 		else if (doesLeftHaveValidGrab) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -141,14 +138,14 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				leftWandNode->AttachChild(rolloverNode, false);
 				rightWandNode->RemoveChild(rolloverNode);
 			}
-			g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, g_isLeftHanded);
+			g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, isLeftHanded);
 		}
 	}
 	else {
 		// Nothing is grabbed
 
-		NiNode *mainWandNode = g_isLeftHanded ? leftWandNode : rightWandNode;
-		NiNode *offhandWandNode = g_isLeftHanded ? rightWandNode : leftWandNode;
+		NiNode *mainWandNode = isLeftHanded ? leftWandNode : rightWandNode;
+		NiNode *offhandWandNode = isLeftHanded ? rightWandNode : leftWandNode;
 		NiAVObject *rolloverNode = mainWandNode->GetObjectByName(&rolloverNodeStr.data);
 		if (!rolloverNode) {
 			rolloverNode = offhandWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -171,9 +168,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, uint32_t unControllerStateSize, bool& state)
 {
-	Setting	* isLeftHandedSetting = GetINISetting("bLeftHandedMode:VRInput");
-	g_isLeftHanded = (bool)isLeftHandedSetting->data.u8;
-
 	vr_src::ETrackedControllerRole rightControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand;
 	vr_src::TrackedDeviceIndex_t rightController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(rightControllerRole);
 
@@ -291,54 +285,6 @@ extern "C" {
 		return true;
 	}
 
-	bool ReadConfigOptions()
-	{
-		float handAdjustX, handAdjustY, handAdjustZ;
-		if (!Config::GetConfigOptionFloat("Settings", "HandAdjustX", &handAdjustX)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "HandAdjustY", &handAdjustY)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "HandAdjustZ", &handAdjustZ)) return false;
-
-		NiPoint3 handAdjust = { handAdjustX, handAdjustY, handAdjustZ };
-		if (VectorLength(handAdjust) > 0.0001f) {
-			Config::options.handAdjust = VectorNormalized(handAdjust);
-		}
-		else {
-			_WARNING("Supplied hand adjust vector is too small - using default.");
-		}
-
-		if (!Config::GetConfigOptionFloat("Settings", "CastRadius", &Config::options.castRadius)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "CastDistance", &Config::options.castDistance)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "HandActivateDistance", &Config::options.handActivateDistance)) return false;
-
-		float castDirectionRequiredHalfAngle;
-		if (!Config::GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
-		Config::options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
-
-		int selectedFadeTime;
-		if (!Config::GetConfigOptionInt("Settings", "SelectedFadeTime", &selectedFadeTime)) return false;
-		Config::options.selectedLeewayTime = selectedFadeTime;
-
-		int triggerPreemptTime;
-		if (!Config::GetConfigOptionInt("Settings", "TriggerPreemptTime", &triggerPreemptTime)) return false;
-		Config::options.triggerPressedLeewayTime = triggerPreemptTime;
-
-		if (!Config::GetConfigOptionBool("Settings", "EquipWeapons", &Config::options.equipWeapons)) return false;
-		if (!Config::GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &Config::options.ignoreWeaponChecks)) return false;
-
-		if (!Config::GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &Config::options.hoverVelocityMultiplier)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "PullVelocityMultiplier", &Config::options.pullVelocityMultiplier)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "PushVelocityMultiplier", &Config::options.pushVelocityMultiplier)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "BodyVelocityMultiplier", &Config::options.bodyVelocityMultiplier)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "MassExponent", &Config::options.massExponent)) return false;
-
-		if (!Config::GetConfigOptionFloat("Settings", "RolloverScale", &Config::options.rolloverScale)) return false;
-
-		if (!Config::GetConfigOptionFloat("Settings", "MaxItemHeight", &Config::options.maxItemHeight)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "MaxBodyHeight", &Config::options.maxBodyHeight)) return false;
-
-		return true;
-	}
-
 	bool SKSEPlugin_Load(const SKSEInterface * skse)
 	{	// Called by SKSE to load this plugin
 		_MESSAGE("ForcePullVR loaded");
@@ -347,7 +293,7 @@ extern "C" {
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);
 
-		if (ReadConfigOptions()) {
+		if (Config::ReadConfigOptions()) {
 			_MESSAGE("Successfully read config parameters");
 		}
 		else {

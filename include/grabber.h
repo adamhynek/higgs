@@ -13,26 +13,27 @@ static hkpLinearCastInput linearCastInput;
 static RayHitCollector rayHitCollector;
 // 'ItemPicker' collision layer; player collision group
 // Why ItemPicker? It ignores stuff like weapons the player is holding
-static hkpWorldRayCastInput rayCastInput(0x02430028);
+//static hkpWorldRayCastInput rayCastInput(0x02420028);
+static hkpWorldRayCastInput rayCastInput(0x00090028);
 
-
-struct SelectedObject
-{
-	UInt32 handle = 0;
-	hkpCollidable *collidable = nullptr;
-	TESEffectShader *appliedShader = nullptr;
-};
-
-struct GrabbedObject
-{
-	UInt32 handle = 0;
-	hkpCollidable *collidable = nullptr;
-	bool isActor = false;
-	bool isImpactedProjectile = false;
-};
 
 struct Grabber
 {
+	struct SelectedObject
+	{
+		UInt32 handle = 0;
+		hkpCollidable *collidable = nullptr;
+		TESEffectShader *appliedShader = nullptr;
+	};
+
+	struct GrabbedObject
+	{
+		UInt32 handle = 0;
+		hkpCollidable *collidable = nullptr;
+		bool isActor = false;
+		bool isImpactedProjectile = false;
+	};
+
 	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, NiPoint3 rolloverOffset)
 		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), rolloverOffset(rolloverOffset)
 	{
@@ -74,7 +75,11 @@ struct Grabber
 	float initialHandShoulderDistance = 0;
 	NiPoint3 prevHandPosRoomspace = { 0, 0, 0 };
 
+	float prevHandSpeedInSpellDirection = 0;
+
 	bool pullDesired = false;
+	float pullSpeed = 0;
+
 	bool pushDesired = false;
 
 	bool unsheatheDesired = false;

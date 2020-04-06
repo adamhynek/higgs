@@ -1,6 +1,11 @@
 #include <chrono>
+#include <list>
+#include <string>
+#include <sstream>
+#include <regex>
 
 #include "skse64/GameRTTI.h"
+#include "skse64/NiExtraData.h"
 
 #include "utils.h"
 
@@ -52,7 +57,7 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	return result;
 }
 
-NiPoint3 MatrixToEulerAngles(NiMatrix33 &m)
+NiPoint3 MatrixToEulerAngles(const NiMatrix33 &m)
 {
 	NiPoint3 output(0, 0, 0);
 	float fY = asin(((float)(SInt32)(-m.arr[2] * 1000000)) / 1000000);
@@ -91,7 +96,7 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 }
 
 // This function is currently unused, in favor of just selecting by motion type
-bool IsSelectable(TESForm *form)
+bool IsSelectable(const TESForm *form)
 {
 	switch (form->formType)
 	{
@@ -115,7 +120,7 @@ bool IsSelectable(TESForm *form)
 	}
 }
 
-bool IsAllowedCollidable(hkpCollidable *collidable)
+bool IsAllowedCollidable(const hkpCollidable *collidable)
 {
 	auto motion = reinterpret_cast<hkpMotion *>((UInt64)collidable->m_motion - offsetof(hkpMotion, m_motionState));
 	// Motion types we allow are: Dynamic, SphereInertia, BoxInertia, ThinBoxInertia
@@ -151,33 +156,15 @@ void updateTransformTree(NiAVObject * root)
 
 	auto node = root->GetAsNiNode();
 
-	if (node)
-	{
-		for (int i = 0; i < node->m_children.m_arrayBufLen; ++i)
-		{
+	if (node) {
+		for (int i = 0; i < node->m_children.m_arrayBufLen; ++i) {
 			auto child = node->m_children.m_data[i];
 			if (child) updateTransformTree(child);
 		}
 	}
 }
 
-float GetActorInverseMass(Actor *actor)
-{
-	TESRace *race = actor->race;
-	if (race && race->bodyPartData && race->bodyPartData->part[0] && race->bodyPartData->part[0]->unk00) {
-		BSFixedString nodeWithMassName = race->bodyPartData->part[0]->unk00;
-		NiAVObject *nodeWithMass = actor->loadedState->node->GetObjectByName(&nodeWithMassName.data);
-		if (nodeWithMass) {
-			auto collWithMass = (bhkCollisionObject *)nodeWithMass->unk040;
-			if (collWithMass) {
-				return collWithMass->body->hkBody->motion.m_inertiaAndMassInv.w;
-			}
-		}
-	}
-	return -1.0f;
-}
-
-bool IsTwoHanded(TESObjectWEAP *weap)
+bool IsTwoHanded(const TESObjectWEAP *weap)
 {
 	switch (weap->gameData.type) {
 	case TESObjectWEAP::GameData::kType_2HA:
@@ -194,7 +181,7 @@ bool IsTwoHanded(TESObjectWEAP *weap)
 	}
 }
 
-bool IsBow(TESObjectWEAP *weap)
+bool IsBow(const TESObjectWEAP *weap)
 {
 	switch (weap->gameData.type) {
 	case TESObjectWEAP::GameData::kType_Bow:
@@ -239,7 +226,159 @@ long long GetTime()
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-void PrintVector(NiPoint3 &p)
+void PrintVector(const NiPoint3 &p)
 {
 	_MESSAGE("%.2f, %.2f, %.2f", p.x, p.y, p.z);
+}
+
+bool VisitObjects(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth = 0)
+{
+	if (!parent) return false;
+	NiNode * node = parent->GetAsNiNode();
+	if (node) {
+		if (functor(parent, depth))
+			return true;
+
+		//auto children = NINODE_CHILDREN(node);
+		auto children = &node->m_children;
+		for (UInt32 i = 0; i < children->m_emptyRunStart; i++) {
+			NiAVObject * object = children->m_data[i];
+			if (object) {
+				if (VisitObjects(object, functor, depth + 1))
+					return true;
+			}
+		}
+	}
+	else if (functor(parent, depth))
+		return true;
+
+	return false;
+}
+
+std::string spaces(int n)
+{
+	auto s = std::string(n, ' ');
+	return s;
+}
+
+std::string PrintStuffToString(NiAVObject *avObj, int depth)
+{
+	std::stringstream avInfoStr;
+	avInfoStr << spaces(depth) << avObj->GetRTTI()->name;
+	if (avObj->m_name) {
+		avInfoStr << " " << avObj->m_name;
+	}
+	if (avObj->unk040) {
+		auto coll = (bhkCollisionObject *)avObj->unk040;
+		avInfoStr.precision(5);
+		avInfoStr << " m=" << (1.0f / coll->body->hkBody->motion.m_inertiaAndMassInv.w);
+	}
+	if (avObj->m_extraData && avObj->m_extraDataLen > 0) {
+		avInfoStr << " { ";
+		for (int i = 0; i < avObj->m_extraDataLen; i++) {
+			auto extraData = avObj->m_extraData[i];
+			auto boolExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiBooleanExtraData);
+			if (boolExtraData) {
+				avInfoStr << extraData->m_pcName << " (bool): " << boolExtraData->m_data << "; ";
+				continue;
+			}
+			auto intExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiIntegerExtraData);
+			if (intExtraData) {
+				avInfoStr << extraData->m_pcName << " (int): " << intExtraData->m_data << "; ";
+				continue;
+			}
+			auto stringExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiStringExtraData);
+			if (stringExtraData) {
+				avInfoStr << extraData->m_pcName << " (str): " << stringExtraData->m_pString << "; ";
+				continue;
+			}
+			auto floatExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiFloatExtraData);
+			if (floatExtraData) {
+				avInfoStr << extraData->m_pcName << " (flt): " << floatExtraData->m_data << "; ";
+				continue;
+			}
+			auto binaryExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiBinaryExtraData);
+			if (binaryExtraData) {
+				avInfoStr << extraData->m_pcName << " (bin): " << binaryExtraData->m_data << "; ";
+				continue;
+			}
+			auto floatsExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiFloatsExtraData);
+			if (floatsExtraData) {
+				std::stringstream extrasStr;
+				extrasStr << extraData->m_pcName << " (flts): ";
+				for (int j = 0; j < floatsExtraData->m_size; j++) {
+					if (j != 0)
+						extrasStr << ", ";
+					extrasStr << floatsExtraData->m_data[j];
+				}
+				avInfoStr << extrasStr.str() << "; ";
+				continue;
+			}
+			auto intsExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiIntegersExtraData);
+			if (intsExtraData) {
+				std::stringstream extrasStr;
+				extrasStr << extraData->m_pcName << " (ints): ";
+				for (int j = 0; j < intsExtraData->m_size; j++) {
+					if (j != 0)
+						extrasStr << ", ";
+					extrasStr << intsExtraData->m_data[j];
+				}
+				avInfoStr << extrasStr.str() << "; ";
+				continue;
+			}
+			auto strsExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiStringsExtraData);
+			if (strsExtraData) {
+				std::stringstream extrasStr;
+				extrasStr << extraData->m_pcName << " (strs): ";
+				for (int j = 0; j < strsExtraData->m_size; j++) {
+					if (j != 0)
+						extrasStr << ", ";
+					extrasStr << strsExtraData->m_data[j];
+				}
+				avInfoStr << extrasStr.str() << "; ";
+				continue;
+			}
+			auto vecExtraData = DYNAMIC_CAST(extraData, NiExtraData, NiVectorExtraData);
+			if (vecExtraData) {
+				std::stringstream extrasStr;
+				extrasStr << extraData->m_pcName << " (vec): ";
+				for (int j = 0; j < 4; j++) {
+					if (j != 0)
+						extrasStr << ", ";
+					extrasStr << vecExtraData->m_vector[j];
+				}
+				avInfoStr << extrasStr.str() << "; ";
+				continue;
+			}
+			auto fgAnimExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenAnimationData);
+			if (fgAnimExtraData) {
+				avInfoStr << extraData->m_pcName << " (facegen anim); ";
+				continue;
+			}
+			auto fgModelExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenModelExtraData);
+			if (fgModelExtraData) {
+				avInfoStr << extraData->m_pcName << " (facegen model); ";
+				continue;
+			}
+			auto fgBaseMorphExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenBaseMorphExtraData);
+			if (fgBaseMorphExtraData) {
+				avInfoStr << extraData->m_pcName << " (facegen basemorph); ";
+				continue;
+			}
+			avInfoStr << extraData->m_pcName << "; ";
+		}
+		avInfoStr << "}";
+	}
+
+	return std::regex_replace(avInfoStr.str(), std::regex("\\n"), " ");
+}
+
+bool printStuff(NiAVObject *avObj, int depth)
+{
+	gLog.Message(PrintStuffToString(avObj, depth).c_str());
+	return false;
+}
+
+void PrintSceneGraph(NiAVObject *node) {
+	VisitObjects(node, printStuff);
 }

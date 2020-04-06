@@ -114,6 +114,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 	}
 	handPositions[0] = handPosRoomspace;
 
+	NiPoint3 deltaHandPos = (handPositions[0] - handPositions[numPrevPos - 1]) / numPrevPos; // avg delta hand pos in room space
+
+	// Get whatever transform takes the wand position from room space to skyrim worldspace
+	NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
+	NiPoint3 deltaHandPosWorldspace = localToWorldTransform * deltaHandPos;
+	float handSpeedInSpellDirection = DotProduct(deltaHandPosWorldspace, castDirection);
+
 	NiAVObject *upperArmNode = player->GetNiRootNode(0)->GetObjectByName(&upperArmNodeName.data);
 	NiPoint3 upperArmPos = upperArmNode->m_worldTransform.pos;
 
@@ -282,24 +289,19 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 		// Basic hand motions
 
-		NiPoint3 deltaHandPos = handPosRoomspace - prevHandPosRoomspace; // in room space
+		pushDesired = false; // push should only be true for 1 frame
+		if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection)) {
+			// We've hit a local max in hand speeds
 
-		// Get whatever transform takes the wand position from room space to skyrim worldspace
-		NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
-		NiPoint3 deltaWorld = localToWorldTransform * deltaHandPos;
-
-		if (VectorLength(deltaWorld) < 5.0f) { // Don't do anything if some weird jump happens
-			float handSpeedInSpellDirection = DotProduct(deltaWorld, castDirection);
-			if (handSpeedInSpellDirection < -1.0f) {
-				pullDesired = true;
-				_MESSAGE("Pull");
-			}
-			else if (handSpeedInSpellDirection > 1.0f) {
+			// See if we passed the speed threshold. If we did, we want to push or pull.
+			if (prevHandSpeedInSpellDirection > Config::options.pushPullSpeedThreshold) {
 				pushDesired = true;
 				_MESSAGE("Push");
 			}
-			else {
-				pushDesired = false; // push should only be set in the frame that it happens (it's a 1-frame action)
+			else if (prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
+				pullSpeed = abs(prevHandSpeedInSpellDirection);
+				pullDesired = true;
+				_MESSAGE("Pull");
 			}
 		}
 
@@ -308,7 +310,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 			float inverseMass = motion->m_inertiaAndMassInv.w;
 
-			float newMagnitude = (pow(inverseMass, Config::options.massExponent) * Config::options.pullVelocityMultiplier) / havokWorldScale;
+			float newMagnitude = (pow(inverseMass, Config::options.massExponent) * pullSpeed * Config::options.pullVelocityMultiplier) / havokWorldScale;
 			newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
 			NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
@@ -343,20 +345,21 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			float inverseMass = motion->m_inertiaAndMassInv.w;
 
 			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-				// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of the sort of root node
+				// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
 				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
 				if (actor) {
-					float actorInvereMass = GetActorInverseMass(actor);
-					if (actorInvereMass >= 0) {
-						inverseMass = actorInvereMass;
+					float mass = GetMass(0, false, actor);
+					if (mass > 0) {
+						inverseMass = 1.0f / mass;
 					}
 					else {
-						_WARNING("Could not get mass for actor");
+						auto actorBase = DYNAMIC_CAST(actor->baseForm, TESForm, TESActorBase);
+						_WARNING("Could not get mass for actor: %s", actorBase->fullName.name.data);
 					}
 				}
 			}
 
-			float newMagnitude = (pow(inverseMass, Config::options.massExponent) * Config::options.pushVelocityMultiplier) / havokWorldScale;
+			float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
 			NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
 
 			ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
@@ -364,6 +367,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 			Deselect(grabbedObj, other.selectedObject);
 			UnGrab();
+
+			pushDesired = false;
 		}
 		else {
 			// No push or pull - just hold it where we want it
@@ -398,25 +403,21 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			float inverseMass = motion->m_inertiaAndMassInv.w;
 
 			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-				// For dead bodies, instead of the mass of the individual collidable we hit, use the mass of the sort of root node
+				// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
 				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
 				if (actor) {
-					float actorInvereMass = GetActorInverseMass(actor);
-					if (actorInvereMass >= 0) {
-						inverseMass = actorInvereMass;
+					float mass = GetMass(0, false, actor);
+					if (mass > 0) {
+						inverseMass = 1.0f / mass;
 					}
 					else {
-						_WARNING("Could not get mass for actor");
+						auto actorBase = DYNAMIC_CAST(actor->baseForm, TESForm, TESActorBase);
+						_WARNING("Could not get mass for actor: %s", actorBase->fullName.name.data);
 					}
 				}
 			}
 
 			float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.hoverVelocityMultiplier;
-
-			if (grabbedObject.isActor) {
-				newMagnitude *= Config::options.bodyVelocityMultiplier;
-			}
-
 			newMagnitude /= havokWorldScale;
 
 			NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
@@ -429,6 +430,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 	prevGrabbedObj = grabbedObj;
 	prevHandPosRoomspace = handPosRoomspace;
+	prevHandSpeedInSpellDirection = handSpeedInSpellDirection;
 }
 
 

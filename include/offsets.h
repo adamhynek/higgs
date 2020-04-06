@@ -66,3 +66,6 @@ RelocAddr<_GetWorld> GetWorld(0x276A90);
 
 typedef void(*_ActivatePickRef)(PlayerCharacter *player);
 RelocAddr<_ActivatePickRef> ActivatePickRef(0x6CBCE0);
+
+typedef float(*_GetMass)(float sum, bool firstPerson, TESObjectREFR *obj);
+RelocAddr<_GetMass> GetMass(0x9CED20);
