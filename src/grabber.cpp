@@ -234,6 +234,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				// Pick up the item
 				Grab(selectedObj);
+				grabbedTime = currentTime;
 			}
 		}
 	}

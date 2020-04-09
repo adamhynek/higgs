@@ -183,13 +183,8 @@ bool IsTwoHanded(const TESObjectWEAP *weap)
 
 bool IsBow(const TESObjectWEAP *weap)
 {
-	switch (weap->gameData.type) {
-	case TESObjectWEAP::GameData::kType_Bow:
-	case TESObjectWEAP::GameData::kType_Bow2:
-		return true;
-	default:
-		return false;
-	}
+	UInt8 type = weap->gameData.type;
+	return (type == TESObjectWEAP::GameData::kType_Bow || type == TESObjectWEAP::GameData::kType_Bow2);
 }
 
 std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)

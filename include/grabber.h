@@ -86,6 +86,7 @@ struct Grabber
 
 	long long lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
 	long long triggerPressedTime = 0; // Timestamp when the trigger was pressed
+	long long grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
 
 	bool triggerDown = false; // Whether the trigger was down last frame
 	bool triggerPressed = false; // True on rising edge of trigger press
