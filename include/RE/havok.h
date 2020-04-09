@@ -550,7 +550,7 @@ struct bhkCollisionObject
 	UInt32	pad0C;	// 0C
 
 	NiNode * node; // 10 - points back to the NiNode pointing to this
-	UInt64 unk18; // == 0x81? bit 3 is set => we should update rotation of NiNode?
+	UInt64 unk18; // bit 3 is set => we should update rotation of NiNode?
 	bhkRigidBodyT * body; // 20
 	// more?
 };

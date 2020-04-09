@@ -25,6 +25,8 @@ void Grabber::Select(TESObjectREFR *obj, const SelectedObject &other)
 	if (!LookupREFRByHandle(otherSelectedObjHandle, otherSelectedObj) || otherSelectedObj != obj) {
 		EffectShader_Play(VM_REGISTRY, 0, selectedObject.appliedShader, obj, -1.0f);
 	}
+
+	state = SELECTED;
 }
 
 
@@ -39,6 +41,8 @@ void Grabber::Deselect(TESObjectREFR *obj, const SelectedObject &other)
 
 	selectedObject.handle = *g_invalidRefHandle;
 	selectedObject.collidable = nullptr;
+
+	state = IDLE;
 }
 
 
@@ -66,6 +70,8 @@ void Grabber::Grab(TESObjectREFR *obj)
 	if (actor) {
 		grabbedObject.isActor = true;
 	}
+
+	state = GRABBED;
 }
 
 
@@ -75,6 +81,8 @@ void Grabber::UnGrab()
 	grabbedObject.collidable = nullptr;
 	grabbedObject.isActor = false;
 	grabbedObject.isImpactedProjectile = false;
+
+	state = IDLE;
 }
 
 
@@ -126,7 +134,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 	NiPointer<TESObjectREFR> grabbedObj;
 
-	if (!LookupREFRByHandle(grabbedObject.handle, grabbedObj)) {
+	if (state == IDLE || state == SELECTED) {
 		// Convert hand position from skyrim coords to havok coords
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 		NiPoint3 hkHmdPos = hmdPos * havokWorldScale;
@@ -207,7 +215,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			}
 		}
 
-		// Select the new thing
+		// Check if we should select something new. If yes, stay in SELECTED but select the new object
 		bool isSelectedThisFrame = false;
 		if (closestObj && DotProduct(VectorNormalized(closestHit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 			NiPointer<TESObjectREFR> selectedObj;
@@ -224,210 +232,216 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			lastSelectedTime = currentTime;
 		}
 
-		// If time has run out and nothing is selected, deselect whatever is selected
-		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && currentTime - lastSelectedTime > Config::options.selectedLeewayTime) {
-			Deselect(selectedObj, other.selectedObject);
-		}
-
-		if (triggerPressed && currentTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				// Pick up the item
-				Grab(selectedObj);
-				grabbedTime = currentTime;
+		if (state == SELECTED) {
+			// If time has run out and nothing is selected, deselect whatever is selected
+			NiPointer<TESObjectREFR> selectedObj;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && currentTime - lastSelectedTime > Config::options.selectedLeewayTime) {
+				Deselect(selectedObj, other.selectedObject);
 			}
-		}
-	}
 
-	if (triggerReleased) {
-		triggerReleased = false;
-		didTriggerPressGrabObject = false;
-
-		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			Deselect(selectedObj, other.selectedObject);
-		}
-		if (LookupREFRByHandle(grabbedObject.handle, grabbedObj)) {
-			// Drop the item
-			UnGrab();
-			pullDesired = false;
-		}
-	}
-
-	if (LookupREFRByHandle(grabbedObject.handle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
-
-		// This is a bit hacky...
-		hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
-
-		hkVector4 translation = motion->m_motionState.m_transform.m_translation;
-
-		NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
-		NiPoint3 hkHandPos = handPos * havokWorldScale;
-
-		NiPoint3 relObjPos = hkObjPos - hkHandPos;
-
-		if (!prevGrabbedObj) {
-			pushDesired = false;
-			pullDesired = false;
-
-			initialGrabbedObjRelativePosition = relObjPos;
-			initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
-
-			if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-				auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
-				if (collObj) {
-					// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
-					auto collidable = &collObj->body->hkBody->m_collidable;
-					// Projectiles have 'Fixed' motion type by default, making them unmovable
-					SetMotionTypeFunctor(VM_REGISTRY, 0, grabbedObj, 3, true);
-					// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo = 0x02420006; // player collision group, 'projectile' collision layer
-					collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
+			// Check if we should grab the object. If yes, grab and go to GRABBED
+			if (triggerPressed && currentTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
+				if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+					// Pick up the item
+					Grab(selectedObj);
+					grabbedTime = currentTime;
 				}
 			}
 		}
 
-		// Basic hand motions
+		if (triggerReleased) {
+			triggerReleased = false;
+			didTriggerPressGrabObject = false;
+		}
+	}
 
-		pushDesired = false; // push should only be true for 1 frame
-		if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection)) {
-			// We've hit a local max in hand speeds
+	if (state == GRABBED || state == PULLED) {
+		// Check if we should drop the object. If yes, go to IDLE
+		if (triggerReleased) {
+			triggerReleased = false;
+			didTriggerPressGrabObject = false;
 
-			// See if we passed the speed threshold. If we did, we want to push or pull.
-			if (prevHandSpeedInSpellDirection > Config::options.pushPullSpeedThreshold) {
-				pushDesired = true;
-				_MESSAGE("Push");
+			NiPointer<TESObjectREFR> selectedObj;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				Deselect(selectedObj, other.selectedObject);
 			}
-			else if (prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
-				pullSpeed = abs(prevHandSpeedInSpellDirection);
-				pullDesired = true;
-				_MESSAGE("Pull");
+			if (LookupREFRByHandle(grabbedObject.handle, grabbedObj)) {
+				// Drop the item
+				UnGrab();
 			}
 		}
 
-		if (pullDesired && !grabbedObject.isActor && grabbedObj->baseForm->formType != kFormType_MovableStatic) {
-			// If it's an in-flight projectile or dead body, no pull effect
+		if (LookupREFRByHandle(grabbedObject.handle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+			float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
-			float inverseMass = motion->m_inertiaAndMassInv.w;
+			// This is a bit hacky...
+			hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
 
-			float newMagnitude = (pow(inverseMass, Config::options.massExponent) * pullSpeed * Config::options.pullVelocityMultiplier) / havokWorldScale;
-			newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
-			NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
+			hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
-			ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-			motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+			NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
+			NiPoint3 hkHandPos = handPos * havokWorldScale;
 
-			// If close enough to hand, pick it up
-			if (VectorLength(relObjPos) < Config::options.handActivateDistance * havokWorldScale) {
-				_MESSAGE("Equipping");
+			NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-				Deselect(grabbedObj, other.selectedObject);
-				UnGrab();
+			if (!prevGrabbedObj) {
+				initialGrabbedObjRelativePosition = relObjPos;
+				initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 
-				// Pickup the item
-				Activate(VM_REGISTRY, 0, grabbedObj, player, false);
-				// If the item is a weapon, equip it too
-				auto baseForm = grabbedObj->baseForm;
-				if (Config::options.equipWeapons && baseForm && baseForm->formType == kFormType_Weapon) {
-					auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
-					if (weapon) {
-						papyrusActor::EquipItemEx(player, weapon, 1, false, false);
+				if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+					auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
+					if (collObj) {
+						// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
+						auto collidable = &collObj->body->hkBody->m_collidable;
+						// Projectiles have 'Fixed' motion type by default, making them unmovable
+						SetMotionTypeFunctor(VM_REGISTRY, 0, grabbedObj, 3, true);
+						// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo = 0x02420006; // player collision group, 'projectile' collision layer
+						collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
+					}
+				}
+			}
+
+			if (state == GRABBED) {
+				// Check if we should push or pull. If pull, go to PULLED. If push, push it and go to IDLE
+
+				bool push = false, pull = false;
+				if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection)) {
+					// We've hit a local max in hand speeds
+
+					// See if we passed the speed threshold. If we did, we want to push or pull.
+					if (prevHandSpeedInSpellDirection > Config::options.pushPullSpeedThreshold) {
+						push = true;
+					}
+					else if (prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
+						pull = true;
 					}
 				}
 
-				pullDesired = false;
-				pushDesired = false;
-			}
-		}
-		else if (pushDesired) {
-			NiPoint3 dir = VectorNormalized(relObjPos);
+				if (push) {
+					NiPoint3 dir = VectorNormalized(relObjPos);
 
-			float inverseMass = motion->m_inertiaAndMassInv.w;
+					float inverseMass = motion->m_inertiaAndMassInv.w;
 
-			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-				// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
-				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
-				if (actor) {
-					float mass = GetMass(0, false, actor);
-					if (mass > 0) {
-						inverseMass = 1.0f / mass;
+					if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+						// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
+						Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
+						if (actor) {
+							float mass = GetMass(0, false, actor);
+							if (mass > 0) {
+								inverseMass = 1.0f / mass;
+							}
+							else {
+								auto actorBase = DYNAMIC_CAST(actor->baseForm, TESForm, TESActorBase);
+								_WARNING("Could not get mass for actor: %s", actorBase->fullName.name.data);
+							}
+						}
+					}
+
+					float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
+					NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
+
+					ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+
+					Deselect(grabbedObj, other.selectedObject);
+					UnGrab();
+				}
+				else if (pull && !grabbedObject.isActor && grabbedObj->baseForm->formType != kFormType_MovableStatic) {
+					pullSpeed = abs(prevHandSpeedInSpellDirection);
+					state = PULLED;
+				}
+				else {
+					// Determine the position where we want the object to be
+					// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
+					float maxHeight = grabbedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
+					NiPoint3 horiz;
+					float h;
+					if (castDirection.z <= 0.9999f) {
+						float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
+						float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+						float tanTheta = tanf(theta);
+						h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
+						horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
 					}
 					else {
-						auto actorBase = DYNAMIC_CAST(actor->baseForm, TESForm, TESActorBase);
-						_WARNING("Could not get mass for actor: %s", actorBase->fullName.name.data);
+						// Degenerate case
+						h = maxHeight;
+						horiz = { 0, 0, 0 };
+					}
+
+					NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
+
+					// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
+					float handShoulderDistance = VectorLength(handPos - upperArmPos);
+					float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
+					desiredPos *= handDistanceRatio;
+
+					NiPoint3 deltaPos = desiredPos - relObjPos;
+
+					float inverseMass = motion->m_inertiaAndMassInv.w;
+
+					if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+						// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
+						Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
+						if (actor) {
+							float mass = GetMass(0, false, actor);
+							if (mass > 0) {
+								inverseMass = 1.0f / mass;
+							}
+							else {
+								auto actorBase = DYNAMIC_CAST(actor->baseForm, TESForm, TESActorBase);
+								_WARNING("Could not get mass for actor: %s", actorBase->fullName.name.data);
+							}
+						}
+					}
+
+					float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.hoverVelocityMultiplier;
+					newMagnitude /= havokWorldScale;
+
+					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+
+					ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+				}
+			}
+			if (state == PULLED) {
+				// If it's an in-flight projectile or dead body, no pull effect
+
+				float inverseMass = motion->m_inertiaAndMassInv.w;
+
+				float newMagnitude = (pow(inverseMass, Config::options.massExponent) * pullSpeed * Config::options.pullVelocityMultiplier) / havokWorldScale;
+				newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
+				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
+
+				ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+
+				// If close enough to hand, pick it up and go to IDLE
+				if (VectorLength(relObjPos) < Config::options.handActivateDistance * havokWorldScale) {
+					_MESSAGE("Equipping");
+
+					Deselect(grabbedObj, other.selectedObject);
+					UnGrab();
+
+					// Pickup the item
+					Activate(VM_REGISTRY, 0, grabbedObj, player, false);
+					// If the item is a weapon, equip it too
+					auto baseForm = grabbedObj->baseForm;
+					if (Config::options.equipWeapons && baseForm && baseForm->formType == kFormType_Weapon) {
+						auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
+						if (weapon) {
+							papyrusActor::EquipItemEx(player, weapon, 1, false, false);
+						}
 					}
 				}
 			}
-
-			float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
-			NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
-
-			ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-			motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
-
-			Deselect(grabbedObj, other.selectedObject);
-			UnGrab();
-
-			pushDesired = false;
 		}
 		else {
-			// No push or pull - just hold it where we want it
-
-			// Determine the position where we want the object to be
-			// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-			float maxHeight = grabbedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
-			NiPoint3 horiz;
-			float h;
-			if (castDirection.z <= 0.9999f) {
-				float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
-				float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
-				float tanTheta = tanf(theta);
-				h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
-				horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
-			}
-			else {
-				// Degenerate case
-				h = maxHeight;
-				horiz = { 0, 0, 0 };
-			}
-			
-			NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
-
-			// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
-			float handShoulderDistance = VectorLength(handPos - upperArmPos);
-			float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
-			desiredPos *= handDistanceRatio;
-
-			NiPoint3 deltaPos = desiredPos - relObjPos;
-
-			float inverseMass = motion->m_inertiaAndMassInv.w;
-
-			if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-				// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
-				Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
-				if (actor) {
-					float mass = GetMass(0, false, actor);
-					if (mass > 0) {
-						inverseMass = 1.0f / mass;
-					}
-					else {
-						auto actorBase = DYNAMIC_CAST(actor->baseForm, TESForm, TESActorBase);
-						_WARNING("Could not get mass for actor: %s", actorBase->fullName.name.data);
-					}
-				}
-			}
-
-			float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.hoverVelocityMultiplier;
-			newMagnitude /= havokWorldScale;
-
-			NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
-
-			ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
-			motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+			// Grabbed object doesn't exist - go back to IDLE
+			state = IDLE;
 		}
 	}
-
 
 	prevGrabbedObj = grabbedObj;
 	prevHandPosRoomspace = handPosRoomspace;
@@ -457,7 +471,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 			if (!triggerDownBefore) {
 				// Trigger pressed but object is not grabbed (yet?). Do not unsheathe weapons until leeway time has passed.
 				PlayerCharacter *pc = *g_thePlayer;
-				if (pc && !pc->actorState.IsWeaponDrawn() && !MenuChecker::isGameStopped()) {
+				if (pc && !pc->actorState.IsWeaponDrawn()) {
 					unsheatheDesired = true;
 				}
 			}
@@ -483,7 +497,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 			// Do the unsheathing, only if we didn't grab something
 			if (!didTriggerPressGrabObject) {
 				PlayerCharacter *pc = *g_thePlayer;
-				if (pc && !pc->actorState.IsWeaponDrawn() && !MenuChecker::isGameStopped()) {
+				if (pc && !pc->actorState.IsWeaponDrawn()) {
 					pc->DrawSheatheWeapon(true);
 				}
 			}

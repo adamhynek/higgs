@@ -34,6 +34,15 @@ struct Grabber
 		bool isImpactedProjectile = false;
 	};
 
+	enum State : int
+	{
+		IDLE, // not pointing at anything meaningful
+		SELECTED, // pointing at something meaningful
+		SELECTION_LOCKED, // player has locked in their selection
+		GRABBED, // player has grabbed the selected object
+		PULLED // player is pulling the object towards them
+	};
+
 	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, NiPoint3 rolloverOffset)
 		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), rolloverOffset(rolloverOffset)
 	{
@@ -53,6 +62,8 @@ struct Grabber
 
 
 	static const int numPrevPos = 5;
+
+	State state = IDLE;
 
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;
@@ -77,10 +88,7 @@ struct Grabber
 
 	float prevHandSpeedInSpellDirection = 0;
 
-	bool pullDesired = false;
 	float pullSpeed = 0;
-
-	bool pushDesired = false;
 
 	bool unsheatheDesired = false;
 
