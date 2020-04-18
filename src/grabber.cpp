@@ -1,3 +1,5 @@
+#include <numeric>
+
 #include "skse64/GameRTTI.h"
 #include "skse64/PapyrusActor.h"
 
@@ -93,30 +95,26 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		return;
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
+	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) * g_deltaTime;
 
-	// Update positions array to this frame
-	for (int i = numPrevPos - 1; i >= 1; i--) {
-		handPositions[i] = handPositions[i - 1];
+	// Update velocities array to this frame
+	for (int i = numPrevVel - 1; i >= 1; i--) {
+		handVelocities[i] = handVelocities[i - 1];
 	}
-	handPositions[0] = handPosRoomspace;
+	handVelocities[0] = handVelocityRoomspace;
 
-	// TODO: Use delta time to get framerate agnostic speed
-	NiPoint3 deltaHandPos = (handPositions[0] - handPositions[numPrevPos - 1]) / numPrevPos; // avg delta hand pos in room space
+	NiPoint3 avgVelocityRoomspace = std::accumulate(handVelocities, &handVelocities[numPrevVel - 1], NiPoint3()) / numPrevVel;
 
 	// Get whatever transform takes the wand position from room space to skyrim worldspace
 	NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
-	NiPoint3 deltaHandPosWorldspace = localToWorldTransform * deltaHandPos;
-	float handSpeedInSpellDirection = DotProduct(deltaHandPosWorldspace, castDirection);
+	NiPoint3 velocityWorldspace = localToWorldTransform * avgVelocityRoomspace;
+	float handSpeedInSpellDirection = DotProduct(velocityWorldspace, castDirection) * 90.0f; // divide by delta time of 11ms because that's where I derived the thresholds
 
 	if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
-		float deltaHandDirAngle = acosf(min(DotProduct(castDirection, prevHandDirection), 1.0f)) * 57.29578;
-		PrintToFile(std::to_string(deltaHandDirAngle), "hand_speed_r.txt");
-		//PrintToFile(std::to_string(VectorLength(castDirection)), "hand_length_r.txt");
+		PrintToFile(std::to_string(VectorLength(castDirection - prevHandDirection)), "hand_speed_r.txt");
 	}
 	if (std::string(handNodeName.data) == "NPC L Hand [LHnd]") {
-		float deltaHandDirAngle = acosf(min(DotProduct(castDirection, prevHandDirection), 1.0f)) * 57.29578;
-		PrintToFile(std::to_string(deltaHandDirAngle), "hand_speed_l.txt");
-		//PrintToFile(std::to_string(VectorLength(castDirection)), "hand_length_l.txt");
+		PrintToFile(std::to_string(VectorLength(castDirection - prevHandDirection)), "hand_speed_l.txt");
 	}
 
 	NiAVObject *upperArmNode = player->GetNiRootNode(0)->GetObjectByName(&upperArmNodeName.data);
@@ -382,8 +380,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 
 				if (push) {
-					NiPoint3 dir = VectorNormalized(relObjPos);
-
 					float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
 
 					if (selectedObject.isActor && selectedObj->loadedState && selectedObj->loadedState->node) {
@@ -402,7 +398,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 
 					float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
-					NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
+					NiPoint3 newVelocity = VectorNormalized(velocityWorldspace) * newMagnitude;
 
 					ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };

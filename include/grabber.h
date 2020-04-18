@@ -52,7 +52,7 @@ struct Grabber
 	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
 
 
-	static const int numPrevPos = 5;
+	static const int numPrevVel = 5;
 
 	State state = IDLE;
 
@@ -67,7 +67,7 @@ struct Grabber
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	NiPoint3 handPositions[numPrevPos]; // previous n hand positions
+	NiPoint3 handVelocities[numPrevVel]; // previous n hand velocities
 
 	SelectedObject selectedObject;
 	TESObjectREFR *prevGrabbedObj = nullptr;
