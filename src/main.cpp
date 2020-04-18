@@ -56,6 +56,7 @@ Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandN
 Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", { -7, -7, -3 });
 
 
+double lastFrameTime;
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
 	if (!g_isLoaded) return true;
@@ -66,6 +67,16 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!player || !player->loadedState || !player->loadedState->node)
 		return true;
 
+	NiAVObject *playerWorldObj = GetHighestParent(player->loadedState->node);
+	if (!playerWorldObj)
+		return true;
+
+	g_currentFrameTime = GetTime();
+	g_deltaTime = g_currentFrameTime - lastFrameTime;
+	lastFrameTime = g_currentFrameTime;
+
+	NiNode *playerWorldNode = playerWorldObj->GetAsNiNode();
+
 	std::pair<bool, bool> validItems = { true, true };
 	if (!Config::options.ignoreWeaponChecks) {
 		validItems = AreEquippedItemsValid(player);
@@ -73,20 +84,26 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 	bool isLeftHanded = *g_leftHandedMode;
 
-	g_rightGrabber.PoseUpdate(g_leftGrabber, isLeftHanded ? validItems.second : validItems.first);
-	g_leftGrabber.PoseUpdate(g_rightGrabber, isLeftHanded ? validItems.first : validItems.second);
+	g_rightGrabber.PoseUpdate(g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
+	g_leftGrabber.PoseUpdate(g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
 
-	NiPointer<TESObjectREFR> rightGrabbedObj, leftGrabbedObj;
-	bool doesRightHaveGrab = LookupREFRByHandle(g_rightGrabber.grabbedObject.handle, rightGrabbedObj);
-	bool doesLeftHaveGrab = LookupREFRByHandle(g_leftGrabber.grabbedObject.handle, leftGrabbedObj);
+	bool displayLeft = g_leftGrabber.ShouldDisplayRollover();
+	bool displayRight = g_rightGrabber.ShouldDisplayRollover();
 
 	static BSFixedString rightWandStr("RightWandNode");
-	NiNode *rightWandNode = player->loadedState->node->m_parent->GetObjectByName(&rightWandStr.data)->GetAsNiNode();
+	NiAVObject *rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
+	if (!rightWandObj) {
+		return true;
+	}
+	NiNode *rightWandNode = rightWandObj->GetAsNiNode();
 
 	static BSFixedString leftWandStr("LeftWandNode");
-	NiNode *leftWandNode = player->loadedState->node->m_parent->GetObjectByName(&leftWandStr.data)->GetAsNiNode();
+	NiAVObject *leftWandObj = playerWorldObj->GetObjectByName(&leftWandStr.data);
+	if (!leftWandObj)
+		return true;
+	NiNode *leftWandNode = leftWandObj->GetAsNiNode();
 
-	if (doesRightHaveGrab || doesLeftHaveGrab) {
+	if (displayRight || displayLeft) {
 		// Something is grabbed
 
 		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
@@ -97,17 +114,16 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		activateRumbleIntensitySetting->SetDouble(0);
 
 		if (!g_hasSavedRollover) {
-			g_hasSavedRollover = true;
-			NiAVObject *rolloverNode = player->loadedState->node->m_parent->GetObjectByName(&rolloverNodeStr.data);
-			g_normalRolloverTransform = rolloverNode->m_localTransform;
+			NiAVObject *rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
+			if (rolloverNode) {
+				g_normalRolloverTransform = rolloverNode->m_localTransform;
+				g_hasSavedRollover = true;
+			}
 		}
 
-		bool doesRightHaveValidGrab = doesRightHaveGrab && g_rightGrabber.ShouldDisplayRollover(rightGrabbedObj);
-		bool doesLeftHaveValidGrab = doesLeftHaveGrab && g_leftGrabber.ShouldDisplayRollover(leftGrabbedObj);
-
-		if (doesRightHaveValidGrab && doesLeftHaveValidGrab) {
+		if (displayRight && displayLeft) {
 			// Pick whichever hand grabbed last
-			if (g_leftGrabber.grabbedTime > g_rightGrabber.grabbedTime) {
+			if (g_leftGrabber.selectionLockedTime > g_rightGrabber.selectionLockedTime) {
 				NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 				if (!rolloverNode) {
 					// Switch menu to left hand if it's on the right
@@ -115,7 +131,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					leftWandNode->AttachChild(rolloverNode, false);
 					rightWandNode->RemoveChild(rolloverNode);
 				}
-				g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, isLeftHanded);
+				g_leftGrabber.SetupRollover(rolloverNode, isLeftHanded);
 			}
 			else {
 				NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -125,10 +141,10 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					rightWandNode->AttachChild(rolloverNode, false);
 					leftWandNode->RemoveChild(rolloverNode);
 				}
-				g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, isLeftHanded);
+				g_rightGrabber.SetupRollover(rolloverNode, isLeftHanded);
 			}
 		}
-		else if (doesRightHaveValidGrab) {
+		else if (displayRight) {
 			NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
 			if (!rolloverNode) {
 				// Switch menu to right hand if it's on the left
@@ -136,9 +152,9 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				rightWandNode->AttachChild(rolloverNode, false);
 				leftWandNode->RemoveChild(rolloverNode);
 			}
-			g_rightGrabber.SetupRollover(rolloverNode, rightGrabbedObj, isLeftHanded);
+			g_rightGrabber.SetupRollover(rolloverNode, isLeftHanded);
 		}
-		else if (doesLeftHaveValidGrab) {
+		else if (displayLeft) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 			if (!rolloverNode) {
 				// Switch menu to left hand if it's on the right
@@ -146,7 +162,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				leftWandNode->AttachChild(rolloverNode, false);
 				rightWandNode->RemoveChild(rolloverNode);
 			}
-			g_leftGrabber.SetupRollover(rolloverNode, leftGrabbedObj, isLeftHanded);
+			g_leftGrabber.SetupRollover(rolloverNode, isLeftHanded);
 		}
 	}
 	else {
@@ -196,10 +212,9 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 extern "C" {
 	void OnDataLoaded()
 	{
+		// Can't set these statically as the invalidrefhandle doesn't load until later
 		g_rightGrabber.selectedObject.handle = *g_invalidRefHandle;
-		g_rightGrabber.grabbedObject.handle = *g_invalidRefHandle;
 		g_leftGrabber.selectedObject.handle = *g_invalidRefHandle;
-		g_leftGrabber.grabbedObject.handle = *g_invalidRefHandle;
 
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
@@ -317,6 +332,8 @@ extern "C" {
 		}
 		g_vrInterface->RegisterForControllerState(g_pluginHandle, 0, ControllerStateCB);
 		g_vrInterface->RegisterForPoses(g_pluginHandle, 0, WaitPosesCB);
+
+		g_timer.Start();
 
 		// Right vector points to the right of the text
 		g_rolloverRotation.data[0][0] = 0;

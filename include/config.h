@@ -10,16 +10,19 @@ namespace Config {
 		float castRadius = 0.4f;
 		float handActivateDistance = 30.0f;
 		float requiredCastDotProduct = cosf(50.0f * 0.0174533);
+		float grabbedDotProductThreshold = cosf(15.0f * 0.0174533);
 		float hoverVelocityMultiplier = 0.17f;
 		float pullVelocityMultiplier = 0.9f;
 		float pushVelocityMultiplier = 0.9f;
 		float massExponent = 0.55f;
+		float inverseMassLimit = 0.1f;
 		float rolloverScale = 10.0f;
 		float maxItemHeight = 4.0f;
 		float maxBodyHeight = 1.5f;
 		float pushPullSpeedThreshold = 1.0f;
-		long long selectedLeewayTime = 250; // in ms, time to keep something selected after not pointing at it anymore
-		long long triggerPressedLeewayTime = 300; // in ms, time after pressing the trigger after which the trigger is considered not pressed anymore
+		double grabbedRampUpTime = 1.0f; // in s, time over which to ramp up speed after grabbing an object
+		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
+		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		bool ignoreWeaponChecks = false;
 		bool equipWeapons = false;
 
@@ -35,6 +38,7 @@ namespace Config {
 
 	std::string GetConfigOption(const char * section, const char * key);
 
+	bool GetConfigOptionDouble(const char *section, const char *key, double *out);
 	bool GetConfigOptionFloat(const char *section, const char *key, float *out);
 	bool GetConfigOptionInt(const char *section, const char *key, int *out);
 	bool GetConfigOptionBool(const char *section, const char *key, bool *out);

@@ -2,10 +2,16 @@
 
 #include "skse64/NiNodes.h"
 #include "skse64/GameData.h"
+#include "common/ITimer.h"
 #include "RE/havok.h"
 
 
 #define VM_REGISTRY (*g_skyrimVM)->GetClassRegistry()
+
+
+extern ITimer g_timer;
+extern double g_currentFrameTime;
+extern double g_deltaTime;
 
 
 float VectorLength(NiPoint3 vec);
@@ -22,14 +28,14 @@ NiAVObject * GetTorsoNode(Actor *actor);
 
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
-bool IsSelectable(const TESForm *form);
 bool IsAllowedCollidable(const hkpCollidable *collidable);
 
 bool IsTwoHanded(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
 std::pair<bool, bool> AreEquippedItemsValid(Actor *actor);
 
-long long GetTime();
+double GetTime();
 
 void PrintVector(const NiPoint3 &p);
 void PrintSceneGraph(NiAVObject *node);
+void PrintToFile(std::string entry, std::string filename);

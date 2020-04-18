@@ -26,6 +26,22 @@ void Grabber::Select(TESObjectREFR *obj, const SelectedObject &other)
 		EffectShader_Play(VM_REGISTRY, 0, selectedObject.appliedShader, obj, -1.0f);
 	}
 
+	selectedObject.isImpactedProjectile = false;
+	auto baseForm = obj->baseForm;
+	if (baseForm && baseForm->formType == kFormType_Projectile) {
+		auto impactData = *(void **)((UInt64)obj + 0x98);
+		if (impactData) {
+			// If the projectile has impact data, then it has well, impacted something
+			selectedObject.isImpactedProjectile = true;
+		}
+	}
+
+	selectedObject.isActor = false;
+	auto actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
+	if (actor) {
+		selectedObject.isActor = true;
+	}
+
 	state = SELECTED;
 }
 
@@ -46,47 +62,7 @@ void Grabber::Deselect(TESObjectREFR *obj, const SelectedObject &other)
 }
 
 
-void Grabber::Grab(TESObjectREFR *obj)
-{
-	grabbedObject.collidable = selectedObject.collidable;
-	grabbedObject.handle = selectedObject.handle;
-
-	// Set to false only here, so that you can hold the trigger until the cast hits something valid
-	triggerPressed = false;
-	didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
-
-	grabbedObject.isImpactedProjectile = false;
-	auto baseForm = obj->baseForm;
-	if (baseForm && baseForm->formType == kFormType_Projectile) {
-		auto impactData = *(void **)((UInt64)obj + 0x98);
-		if (impactData) {
-			// If the projectile has impact data, then it has well, impacted something
-			grabbedObject.isImpactedProjectile = true;
-		}
-	}
-
-	grabbedObject.isActor = false;
-	auto actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
-	if (actor) {
-		grabbedObject.isActor = true;
-	}
-
-	state = GRABBED;
-}
-
-
-void Grabber::UnGrab()
-{
-	grabbedObject.handle = *g_invalidRefHandle;
-	grabbedObject.collidable = nullptr;
-	grabbedObject.isActor = false;
-	grabbedObject.isImpactedProjectile = false;
-
-	state = IDLE;
-}
-
-
-void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
+void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode)
 {
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->loadedState || !player->loadedState->node)
@@ -96,9 +72,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 	if (!cell)
 		return;
 
-	long long currentTime = GetTime();
-
-
 	NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
 	if (!handNode)
 		return;
@@ -107,13 +80,18 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 	NiPoint3 castDirection = handNode->m_worldTransform.rot * Config::options.handAdjust;
 
-	NiAVObject *hmdNode = player->loadedState->node->m_parent->GetObjectByName(&hmdNodeStr.data);
+	NiAVObject *hmdNode = playerWorldNode->GetObjectByName(&hmdNodeStr.data);
+	if (!hmdNode)
+		return;
 
 	NiPoint3 hmdPos = hmdNode->m_worldTransform.pos;
 
 	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][1], hmdNode->m_worldTransform.rot.data[1][1], hmdNode->m_worldTransform.rot.data[2][1] };
 
-	NiAVObject *wandNode = player->loadedState->node->m_parent->GetObjectByName(&wandNodeName.data);
+	NiAVObject *wandNode = playerWorldNode->GetObjectByName(&wandNodeName.data);
+	if (!wandNode)
+		return;
+
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
 
 	// Update positions array to this frame
@@ -122,6 +100,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 	}
 	handPositions[0] = handPosRoomspace;
 
+	// TODO: Use delta time to get framerate agnostic speed
 	NiPoint3 deltaHandPos = (handPositions[0] - handPositions[numPrevPos - 1]) / numPrevPos; // avg delta hand pos in room space
 
 	// Get whatever transform takes the wand position from room space to skyrim worldspace
@@ -129,10 +108,22 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 	NiPoint3 deltaHandPosWorldspace = localToWorldTransform * deltaHandPos;
 	float handSpeedInSpellDirection = DotProduct(deltaHandPosWorldspace, castDirection);
 
-	NiAVObject *upperArmNode = player->GetNiRootNode(0)->GetObjectByName(&upperArmNodeName.data);
-	NiPoint3 upperArmPos = upperArmNode->m_worldTransform.pos;
+	if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
+		float deltaHandDirAngle = acosf(min(DotProduct(castDirection, prevHandDirection), 1.0f)) * 57.29578;
+		PrintToFile(std::to_string(deltaHandDirAngle), "hand_speed_r.txt");
+		//PrintToFile(std::to_string(VectorLength(castDirection)), "hand_length_r.txt");
+	}
+	if (std::string(handNodeName.data) == "NPC L Hand [LHnd]") {
+		float deltaHandDirAngle = acosf(min(DotProduct(castDirection, prevHandDirection), 1.0f)) * 57.29578;
+		PrintToFile(std::to_string(deltaHandDirAngle), "hand_speed_l.txt");
+		//PrintToFile(std::to_string(VectorLength(castDirection)), "hand_length_l.txt");
+	}
 
-	NiPointer<TESObjectREFR> grabbedObj;
+	NiAVObject *upperArmNode = player->GetNiRootNode(0)->GetObjectByName(&upperArmNodeName.data);
+	if (!upperArmNode)
+		return;
+
+	NiPoint3 upperArmPos = upperArmNode->m_worldTransform.pos;
 
 	if (state == IDLE || state == SELECTED) {
 		// Convert hand position from skyrim coords to havok coords
@@ -187,7 +178,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 		for (auto pair : cdPointCollector.m_hits) {
 			auto collidable = static_cast<hkpCollidable *>(pair.second);
-			if (!allowGrab || collidable == other.grabbedObject.collidable) {
+			if (!allowGrab || (other.HasExclusiveObject() && collidable == other.selectedObject.collidable)) {
 				continue;
 			}
 			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
@@ -229,23 +220,35 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			selectedObject.collidable = closestColl; // Set selected collidable no matter what, as we can have objects with more than one collidable
 
 			isSelectedThisFrame = true;
-			lastSelectedTime = currentTime;
+			lastSelectedTime = g_currentFrameTime;
 		}
 
 		if (state == SELECTED) {
 			// If time has run out and nothing is selected, deselect whatever is selected
 			NiPointer<TESObjectREFR> selectedObj;
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && currentTime - lastSelectedTime > Config::options.selectedLeewayTime) {
-				Deselect(selectedObj, other.selectedObject);
-			}
-
-			// Check if we should grab the object. If yes, grab and go to GRABBED
-			if (triggerPressed && currentTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
-				if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-					// Pick up the item
-					Grab(selectedObj);
-					grabbedTime = currentTime;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
+					Deselect(selectedObj, other.selectedObject);
 				}
+
+				// Check if we should grab the object. If yes, grab and go to GRABBED
+				if (triggerPressed && g_currentFrameTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
+					if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+						state = SELECTION_LOCKED;
+						selectionLockedTime = g_currentFrameTime;
+						initialHandDirection = castDirection;
+						// Set to false only here, so that you can hold the trigger until the cast hits something valid
+						triggerPressed = false;
+						didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
+					}
+					else {
+						// Selected object no longer exists
+						state = IDLE;
+					}
+				}
+			}
+			else {
+				state = IDLE;
 			}
 		}
 
@@ -255,6 +258,67 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 		}
 	}
 
+	if (state == SELECTION_LOCKED) {
+		if (triggerReleased) {
+			triggerReleased = false;
+			didTriggerPressGrabObject = false;
+
+			NiPointer<TESObjectREFR> selectedObj;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				Deselect(selectedObj, other.selectedObject);
+			}
+		}
+
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+//			if (!IsObjectPullable()) {
+//				// TODO: Check hand angle still
+//				state = GRABBED;
+//			}
+//			else {
+				hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)selectedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
+				NiPoint3 linearVelocity = { motion->m_angularVelocity.x, motion->m_linearVelocity.y, motion->m_linearVelocity.z };
+				NiPoint3 angularVelocity = { motion->m_angularVelocity.x, motion->m_angularVelocity.y, motion->m_angularVelocity.z };
+				// TODO: Config all these thresholds
+				if (VectorLength(linearVelocity) > 0.1f || VectorLength(angularVelocity) > 0.1f) {
+					state = GRABBED;
+					grabbedTime = g_currentFrameTime;
+				}
+				else {
+
+					// TODO: Deselect / go back to IDLE if object gets too far away. Do that for 'grabbed' state too? For movablestatic signs and such.
+
+					bool grab = false, pull = false;
+					if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection) && prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
+						if (IsObjectPullable()) {
+							pull = true;
+						}
+					}
+					if (!pull) {
+						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
+						if (DotProduct(castDirection, initialHandDirection) < Config::options.grabbedDotProductThreshold) {
+							grab = true;
+						}
+					}
+
+					if (pull) {
+						pullSpeed = abs(prevHandSpeedInSpellDirection);
+						grabbedTime = g_currentFrameTime;
+						state = PULLED;
+					}
+					else if (grab) {
+						state = GRABBED;
+						grabbedTime = g_currentFrameTime;
+					}
+				}
+//			}
+		}
+		else {
+			state = IDLE;
+		}
+	}
+
+	NiPointer<TESObjectREFR> selectedObj;
 	if (state == GRABBED || state == PULLED) {
 		// Check if we should drop the object. If yes, go to IDLE
 		if (triggerReleased) {
@@ -265,17 +329,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				Deselect(selectedObj, other.selectedObject);
 			}
-			if (LookupREFRByHandle(grabbedObject.handle, grabbedObj)) {
-				// Drop the item
-				UnGrab();
-			}
 		}
 
-		if (LookupREFRByHandle(grabbedObject.handle, grabbedObj) && grabbedObj->loadedState && grabbedObj->loadedState->node) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 			float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
 			// This is a bit hacky...
-			hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)grabbedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
+			hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)selectedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
 
 			hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
@@ -286,15 +346,16 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 			if (!prevGrabbedObj) {
 				initialGrabbedObjRelativePosition = relObjPos;
+				initialGrabbedObjWorldPosition = hkObjPos;
 				initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 
-				if (grabbedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-					auto collObj = (bhkCollisionObject *)grabbedObj->loadedState->node->unk040;
+				if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+					auto collObj = (bhkCollisionObject *)selectedObj->loadedState->node->unk040;
 					if (collObj) {
 						// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 						auto collidable = &collObj->body->hkBody->m_collidable;
 						// Projectiles have 'Fixed' motion type by default, making them unmovable
-						SetMotionTypeFunctor(VM_REGISTRY, 0, grabbedObj, 3, true);
+						SetMotionTypeFunctor(VM_REGISTRY, 0, selectedObj, 3, true);
 						// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo = 0x02420006; // player collision group, 'projectile' collision layer
 						collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
@@ -314,18 +375,20 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 						push = true;
 					}
 					else if (prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
-						pull = true;
+						if (IsObjectPullable()) {
+							pull = true;
+						}
 					}
 				}
 
 				if (push) {
 					NiPoint3 dir = VectorNormalized(relObjPos);
 
-					float inverseMass = motion->m_inertiaAndMassInv.w;
+					float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
 
-					if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-						// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
-						Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
+					if (selectedObject.isActor && selectedObj->loadedState && selectedObj->loadedState->node) {
+						// For dead bodies, instead of the mass of the individual collidable we hit, use the summed mass over the entire body
+						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
 							float mass = GetMass(0, false, actor);
 							if (mass > 0) {
@@ -341,20 +404,20 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 					float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
 					NiPoint3 newVelocity = VectorNormalized(relObjPos) * newMagnitude;
 
-					ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
-					Deselect(grabbedObj, other.selectedObject);
-					UnGrab();
+					Deselect(selectedObj, other.selectedObject);
 				}
-				else if (pull && !grabbedObject.isActor && grabbedObj->baseForm->formType != kFormType_MovableStatic) {
+				else if (pull) {
 					pullSpeed = abs(prevHandSpeedInSpellDirection);
+					grabbedTime = g_currentFrameTime;
 					state = PULLED;
 				}
 				else {
 					// Determine the position where we want the object to be
 					// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-					float maxHeight = grabbedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
+					float maxHeight = selectedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
 					NiPoint3 horiz;
 					float h;
 					if (castDirection.z <= 0.9999f) {
@@ -379,11 +442,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 
 					NiPoint3 deltaPos = desiredPos - relObjPos;
 
-					float inverseMass = motion->m_inertiaAndMassInv.w;
+					float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
 
-					if (grabbedObject.isActor && grabbedObj->loadedState && grabbedObj->loadedState->node) {
-						// For dead bodies, instead of the mass of the individual collidable we hit, the the summed mass over the entire body
-						Actor *actor = DYNAMIC_CAST(grabbedObj, TESObjectREFR, Actor);
+					if (selectedObject.isActor && selectedObj->loadedState && selectedObj->loadedState->node) {
+						// For dead bodies, instead of the mass of the individual collidable we hit, use the summed mass over the entire body
+						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
 							float mass = GetMass(0, false, actor);
 							if (mass > 0) {
@@ -396,38 +459,48 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 						}
 					}
 
-					float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.hoverVelocityMultiplier;
+					float rampUp = min((g_currentFrameTime - grabbedTime) / Config::options.grabbedRampUpTime, 1.0f); // 0 to 1 over some number of ms
+					float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.hoverVelocityMultiplier * rampUp;
 					newMagnitude /= havokWorldScale;
 
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-					ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 				}
 			}
 			if (state == PULLED) {
-				// If it's an in-flight projectile or dead body, no pull effect
+				// Pull object towards the hand
+				float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
 
-				float inverseMass = motion->m_inertiaAndMassInv.w;
+				//float newMagnitude = (pow(inverseMass, Config::options.massExponent) * pullSpeed * Config::options.pullVelocityMultiplier) / havokWorldScale;
+				//newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
+				//NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
-				float newMagnitude = (pow(inverseMass, Config::options.massExponent) * pullSpeed * Config::options.pullVelocityMultiplier) / havokWorldScale;
-				newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
-				NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
+				NiPoint3 midPoint = initialGrabbedObjWorldPosition + (hkHandPos - initialGrabbedObjWorldPosition) * 0.5f;
+				NiPoint3 inflectionPoint = midPoint + NiPoint3(0, 0, 0.5f);
+				float lerp = min((g_currentFrameTime - grabbedTime) / 1.5f, 1.0f);
+				NiPoint3 desiredPos = initialGrabbedObjWorldPosition + (hkHandPos - initialGrabbedObjWorldPosition) * lerp;
 
-				ApplyHavokImpulse(VM_REGISTRY, 0, grabbedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+				NiPoint3 deltaPos = desiredPos - hkObjPos;
+				float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent);// *Config::options.hoverVelocityMultiplier;
+				newMagnitude /= havokWorldScale;
+
+				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+
+				ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
 				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
 				// If close enough to hand, pick it up and go to IDLE
 				if (VectorLength(relObjPos) < Config::options.handActivateDistance * havokWorldScale) {
 					_MESSAGE("Equipping");
 
-					Deselect(grabbedObj, other.selectedObject);
-					UnGrab();
+					Deselect(selectedObj, other.selectedObject);
 
 					// Pickup the item
-					Activate(VM_REGISTRY, 0, grabbedObj, player, false);
+					Activate(VM_REGISTRY, 0, selectedObj, player, false);
 					// If the item is a weapon, equip it too
-					auto baseForm = grabbedObj->baseForm;
+					auto baseForm = selectedObj->baseForm;
 					if (Config::options.equipWeapons && baseForm && baseForm->formType == kFormType_Weapon) {
 						auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
 						if (weapon) {
@@ -443,9 +516,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab)
 		}
 	}
 
-	prevGrabbedObj = grabbedObj;
+	prevGrabbedObj = selectedObj;
 	prevHandPosRoomspace = handPosRoomspace;
 	prevHandSpeedInSpellDirection = handSpeedInSpellDirection;
+	prevHandDirection = castDirection;
 }
 
 
@@ -506,33 +580,54 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 }
 
 
-bool Grabber::ShouldDisplayRollover(const TESObjectREFR *grabbedObj)
+bool Grabber::IsObjectPullable()
 {
-	return (grabbedObj->baseForm && grabbedObj->baseForm->formType != kFormType_MovableStatic && !grabbedObject.isActor);
+	NiPointer<TESObjectREFR> selectedObj;
+	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+		return (selectedObj->baseForm && selectedObj->baseForm->formType != kFormType_MovableStatic && !selectedObject.isActor);
+	}
+	return false;
 }
 
 
-void Grabber::SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj, bool isLeftHanded)
+bool Grabber::HasExclusiveObject() const
 {
-	// Give the hud with info about the object you're floating
+	return state == GRABBED || state == PULLED || state == SELECTION_LOCKED;
+}
 
-	// First, change rotation/position/scale of the hud prompt
-	rolloverNode->m_localTransform.pos = rolloverOffset;
-	rolloverNode->m_localTransform.rot = rolloverRotation;
-	rolloverNode->m_localTransform.scale = rolloverScale;
 
-	// Now set all the places I could find that get set to the handle of the pointed at object usually
-	UInt32 *selectedHandles = *SELECTED_HANDLES;
-	if (selectedHandles) {
-		if (isLeftHanded) {
-			selectedHandles[1] = grabbedObject.handle;
-			selectedHandles[4] = grabbedObject.handle;
-			selectedHandles[7] = grabbedObject.handle;
-		}
-		else {
-			selectedHandles[2] = grabbedObject.handle;
-			selectedHandles[5] = grabbedObject.handle;
-			selectedHandles[8] = grabbedObject.handle;
+bool Grabber::ShouldDisplayRollover()
+{
+	if (state != GRABBED && state != PULLED && state != SELECTION_LOCKED) return false;
+
+	return IsObjectPullable();
+}
+
+
+void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)
+{
+	NiPointer<TESObjectREFR> selectedObj;
+	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+		// Give the hud with info about the object you're floating
+
+		// First, change rotation/position/scale of the hud prompt
+		rolloverNode->m_localTransform.pos = rolloverOffset;
+		rolloverNode->m_localTransform.rot = rolloverRotation;
+		rolloverNode->m_localTransform.scale = rolloverScale;
+
+		// Now set all the places I could find that get set to the handle of the pointed at object usually
+		UInt32 *selectedHandles = *SELECTED_HANDLES;
+		if (selectedHandles) {
+			if (isLeftHanded) {
+				selectedHandles[1] = selectedObject.handle;
+				selectedHandles[4] = selectedObject.handle;
+				selectedHandles[7] = selectedObject.handle;
+			}
+			else {
+				selectedHandles[2] = selectedObject.handle;
+				selectedHandles[5] = selectedObject.handle;
+				selectedHandles[8] = selectedObject.handle;
+			}
 		}
 	}
 }

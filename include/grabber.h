@@ -24,12 +24,6 @@ struct Grabber
 		UInt32 handle = 0;
 		hkpCollidable *collidable = nullptr;
 		TESEffectShader *appliedShader = nullptr;
-	};
-
-	struct GrabbedObject
-	{
-		UInt32 handle = 0;
-		hkpCollidable *collidable = nullptr;
 		bool isActor = false;
 		bool isImpactedProjectile = false;
 	};
@@ -46,19 +40,16 @@ struct Grabber
 	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, NiPoint3 rolloverOffset)
 		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), rolloverOffset(rolloverOffset)
 	{
-		for (int i = 0; i < numPrevPos; i++) {
-			handPositions[i] = { 0, 0, 0 };
-		}
 	};
 
-	void PoseUpdate(const Grabber &other, bool allowGrab);
+	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
-	bool ShouldDisplayRollover(const TESObjectREFR *grabbedObj);
-	void SetupRollover(NiAVObject *rolloverNode, const TESObjectREFR *grabbedObj, bool isLeftHanded);
+	bool ShouldDisplayRollover();
+	bool IsObjectPullable();
+	bool HasExclusiveObject() const;
+	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void Select(TESObjectREFR *obj, const SelectedObject &other);
 	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
-	void Grab(TESObjectREFR *obj);
-	void UnGrab();
 
 
 	static const int numPrevPos = 5;
@@ -79,12 +70,14 @@ struct Grabber
 	NiPoint3 handPositions[numPrevPos]; // previous n hand positions
 
 	SelectedObject selectedObject;
-	GrabbedObject grabbedObject;
 	TESObjectREFR *prevGrabbedObj = nullptr;
 
-	NiPoint3 initialGrabbedObjRelativePosition = { 0, 0, 0 };
+	NiPoint3 initialGrabbedObjRelativePosition;
+	NiPoint3 initialGrabbedObjWorldPosition;
+	NiPoint3 initialHandDirection;
 	float initialHandShoulderDistance = 0;
-	NiPoint3 prevHandPosRoomspace = { 0, 0, 0 };
+	NiPoint3 prevHandPosRoomspace;
+	NiPoint3 prevHandDirection;
 
 	float prevHandSpeedInSpellDirection = 0;
 
@@ -92,9 +85,10 @@ struct Grabber
 
 	bool unsheatheDesired = false;
 
-	long long lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
-	long long triggerPressedTime = 0; // Timestamp when the trigger was pressed
-	long long grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
+	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
+	double triggerPressedTime = 0; // Timestamp when the trigger was pressed
+	double selectionLockedTime = 0; // Timestamp when the currently grabbed object (if there is one) was locked for selection
+	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
 
 	bool triggerDown = false; // Whether the trigger was down last frame
 	bool triggerPressed = false; // True on rising edge of trigger press

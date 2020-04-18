@@ -41,13 +41,13 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
 		options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
 
-		int selectedFadeTime;
-		if (!GetConfigOptionInt("Settings", "SelectedFadeTime", &selectedFadeTime)) return false;
-		options.selectedLeewayTime = selectedFadeTime;
+		float grabbedAngleThreshold;
+		if (!GetConfigOptionFloat("Settings", "GrabAngleThreshold", &grabbedAngleThreshold)) return false;
+		options.grabbedDotProductThreshold = cosf(grabbedAngleThreshold * 0.0174533); // degrees to radians
 
-		int triggerPreemptTime;
-		if (!GetConfigOptionInt("Settings", "TriggerPreemptTime", &triggerPreemptTime)) return false;
-		options.triggerPressedLeewayTime = triggerPreemptTime;
+		if (!GetConfigOptionDouble("Settings", "SelectedFadeTime", &options.selectedLeewayTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "GrabbedRampUpTime", &options.grabbedRampUpTime)) return false;
 
 		if (!GetConfigOptionBool("Settings", "EquipWeapons", &options.equipWeapons)) return false;
 		if (!GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &options.ignoreWeaponChecks)) return false;
@@ -62,6 +62,8 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "MaxItemHeight", &options.maxItemHeight)) return false;
 		if (!GetConfigOptionFloat("Settings", "MaxBodyHeight", &options.maxBodyHeight)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "InverseMassLimit", &options.inverseMassLimit)) return false;
 
 		return true;
 	}
@@ -97,6 +99,16 @@ namespace Config {
 		}
 
 		return result;
+	}
+
+	bool GetConfigOptionDouble(const char *section, const char *key, double *out)
+	{
+		std::string	data = GetConfigOption(section, key);
+		if (data.empty())
+			return false;
+
+		*out = std::stod(data);
+		return true;
 	}
 
 	bool GetConfigOptionFloat(const char *section, const char *key, float *out)

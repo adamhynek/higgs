@@ -2,6 +2,8 @@
 #include <list>
 #include <string>
 #include <sstream>
+#include <iostream>
+#include <fstream>
 #include <regex>
 
 #include "skse64/GameRTTI.h"
@@ -93,31 +95,6 @@ NiAVObject * GetHighestParent(NiAVObject *node)
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 {
 	return (modInfo->modIndex << 24) | formLower;
-}
-
-// This function is currently unused, in favor of just selecting by motion type
-bool IsSelectable(const TESForm *form)
-{
-	switch (form->formType)
-	{
-	case kFormType_Weapon:
-	case kFormType_Misc:
-	case kFormType_Ingredient:
-	case kFormType_Armor:
-	case kFormType_Ammo:
-	case kFormType_Book:
-	case kFormType_ScrollItem:
-	case kFormType_Potion:
-	case kFormType_SoulGem:
-	//case kFormType_MovableStatic: - a lot of them work, but stuff like campfires are not actually movable
-	case kFormType_Key: // unverified - TODO
-	case kFormType_Projectile: // Arrows stuck in a wall, projectiles mid air...
-	//case kFormType_Light: // Torch, but don't want arbitrary lights to be selectable
-	//case kFormType_Flora: // Coin bags, but also mushrooms and stuff you can't actually move
-		return true;
-	default:
-		return false;
-	}
 }
 
 bool IsAllowedCollidable(const hkpCollidable *collidable)
@@ -216,9 +193,12 @@ std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
 	return std::make_pair(isMainValid, isOffhandValid);
 }
 
-long long GetTime()
+ITimer g_timer;
+double g_currentFrameTime;
+double g_deltaTime;
+double GetTime()
 {
-	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	return g_timer.GetElapsedTime();
 }
 
 void PrintVector(const NiPoint3 &p)
@@ -226,7 +206,7 @@ void PrintVector(const NiPoint3 &p)
 	_MESSAGE("%.2f, %.2f, %.2f", p.x, p.y, p.z);
 }
 
-bool VisitObjects(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth = 0)
+bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth = 0)
 {
 	if (!parent) return false;
 	NiNode * node = parent->GetAsNiNode();
@@ -239,7 +219,7 @@ bool VisitObjects(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> fun
 		for (UInt32 i = 0; i < children->m_emptyRunStart; i++) {
 			NiAVObject * object = children->m_data[i];
 			if (object) {
-				if (VisitObjects(object, functor, depth + 1))
+				if (VisitNodes(object, functor, depth + 1))
 					return true;
 			}
 		}
@@ -250,16 +230,10 @@ bool VisitObjects(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> fun
 	return false;
 }
 
-std::string spaces(int n)
-{
-	auto s = std::string(n, ' ');
-	return s;
-}
-
-std::string PrintStuffToString(NiAVObject *avObj, int depth)
+std::string PrintNodeToString(NiAVObject *avObj, int depth)
 {
 	std::stringstream avInfoStr;
-	avInfoStr << spaces(depth) << avObj->GetRTTI()->name;
+	avInfoStr << std::string(depth, ' ') << avObj->GetRTTI()->name;
 	if (avObj->m_name) {
 		avInfoStr << " " << avObj->m_name;
 	}
@@ -368,12 +342,21 @@ std::string PrintStuffToString(NiAVObject *avObj, int depth)
 	return std::regex_replace(avInfoStr.str(), std::regex("\\n"), " ");
 }
 
-bool printStuff(NiAVObject *avObj, int depth)
+bool PrintNodes(NiAVObject *avObj, int depth)
 {
-	gLog.Message(PrintStuffToString(avObj, depth).c_str());
+	gLog.Message(PrintNodeToString(avObj, depth).c_str());
 	return false;
 }
 
-void PrintSceneGraph(NiAVObject *node) {
-	VisitObjects(node, printStuff);
+void PrintSceneGraph(NiAVObject *node)
+{
+	VisitNodes(node, PrintNodes);
+}
+
+void PrintToFile(std::string entry, std::string filename)
+{
+	std::ofstream file;
+	file.open(filename);
+	file << entry << std::endl;
+	file.close();
 }
