@@ -408,6 +408,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				else if (pull) {
 					pullSpeed = abs(prevHandSpeedInSpellDirection);
 					grabbedTime = g_currentFrameTime;
+					initialGrabbedObjWorldPosition = hkObjPos;
 					state = PULLED;
 				}
 				else {
@@ -473,13 +474,20 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				//newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
 				//NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
-				NiPoint3 midPoint = initialGrabbedObjWorldPosition + (hkHandPos - initialGrabbedObjWorldPosition) * 0.5f;
-				NiPoint3 inflectionPoint = midPoint + NiPoint3(0, 0, 0.5f);
-				float lerp = min((g_currentFrameTime - grabbedTime) / 1.5f, 1.0f);
-				NiPoint3 desiredPos = initialGrabbedObjWorldPosition + (hkHandPos - initialGrabbedObjWorldPosition) * lerp;
+				float lerp = min((g_currentFrameTime - grabbedTime) / 0.75f, 1.0f);
+
+				NiPoint3 horizontalDelta = hkHandPos - initialGrabbedObjWorldPosition;
+				horizontalDelta.z = 0;
+				horizontalDelta *= lerp;
+
+				NiPoint2 leewayPoint = { 0.5f, max(hkHandPos.z, initialGrabbedObjWorldPosition.z) + 0.5f };
+				NiPoint3 coeffs = QuadraticFromPoints({ 0, initialGrabbedObjWorldPosition.z }, leewayPoint, { 1, hkHandPos.z });
+
+				NiPoint3 desiredPos = initialGrabbedObjWorldPosition + horizontalDelta;
+				desiredPos.z = coeffs.z + coeffs.y * lerp + coeffs.x * lerp * lerp;
 
 				NiPoint3 deltaPos = desiredPos - hkObjPos;
-				float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent);// *Config::options.hoverVelocityMultiplier;
+				float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.pullVelocityMultiplier;
 				newMagnitude /= havokWorldScale;
 
 				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;

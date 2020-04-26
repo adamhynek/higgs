@@ -19,7 +19,8 @@ NiPoint3 VectorNormalized(NiPoint3 vec);
 float DotProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta);
-NiPoint3 MatrixToEulerAngles(const NiMatrix33 &m);
+float Determinant33(const NiMatrix33 &m);
+NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3);
 
 NiAVObject * GetHighestParent(NiAVObject *node);
 void updateTransformTree(NiAVObject * root);

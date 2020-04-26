@@ -12,6 +12,14 @@
 #include "utils.h"
 
 
+ITimer g_timer;
+double g_currentFrameTime;
+double g_deltaTime;
+double GetTime()
+{
+	return g_timer.GetElapsedTime();
+}
+
 float VectorLength(NiPoint3 vec)
 {
 	return sqrtf(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
@@ -20,7 +28,7 @@ float VectorLength(NiPoint3 vec)
 NiPoint3 VectorNormalized(NiPoint3 vec)
 {
 	float length = VectorLength(vec);
-	return length ? vec / length : NiPoint3(0, 0, 0);
+	return length ? vec / length : NiPoint3();
 }
 
 float DotProduct(NiPoint3 vec1, NiPoint3 vec2)
@@ -59,29 +67,50 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	return result;
 }
 
-NiPoint3 MatrixToEulerAngles(const NiMatrix33 &m)
+float Determinant33(const NiMatrix33 &m)
 {
-	NiPoint3 output(0, 0, 0);
-	float fY = asin(((float)(SInt32)(-m.arr[2] * 1000000)) / 1000000);
-	float fCY = cos(fY);
-	float fCYTest = ((float)(SInt32)(fCY * 100)) / 100;
-	float fTX, fTY;
-	if (fCY && abs(fCY) >= 0.00000011920929 && fCYTest) {
-		fTX = m.arr[8] / fCY;
-		fTY = m.arr[5] / fCY;
-		output.x = atan2(fTY, fTX);
-		fTX = m.arr[0] / fCY;
-		fTY = m.arr[1] / fCY;
-		output.z = atan2(fTY, fTX);
+	float a = m.data[0][0];
+	float b = m.data[0][1];
+	float c = m.data[0][2];
+	float d = m.data[1][0];
+	float e = m.data[1][1];
+	float f = m.data[1][2];
+	float g = m.data[2][0];
+	float h = m.data[2][1];
+	float i = m.data[2][2];
+	return a * (e*i - f*h) - b * (d*i - f*g) + c * (d*h - e*g);
+}
+
+NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3)
+{
+	float x1sqr = p1.x*p1.x;
+	float x2sqr = p2.x*p2.x;
+	float x3sqr = p3.x*p3.x;
+
+	float inverseDet = x1sqr * (p2.x - p3.x) - p1.x * (x2sqr - x3sqr) + (x2sqr*p3.x - x3sqr*p2.x);
+	if (abs(inverseDet) <= 0.0001f) {
+		return NiPoint3();
 	}
-	else {
-		output.x = 0;
-		fTX = m.arr[4]; // Setting X to zero simplifies this element to: 0*sinY*sinZ + 1*cosZ
-		fTY = m.arr[3]; // Setting X to zero simplifies this element to: 0*sinY*cosZ - 1*sinZ
-		output.z = -atan2(fTY, fTX); // atan(sinZ/cosZ)
-	}
-	output.y = fY;
-	return output;
+	inverseDet = 1.0f / inverseDet;
+
+	NiMatrix33 i; // inverse
+
+	i.data[0][0] = p2.x - p3.x;
+	i.data[0][1] = p3.x - p1.x;
+	i.data[0][2] = p1.x - p2.x;
+
+	i.data[1][0] = x3sqr - x2sqr;
+	i.data[1][1] = x1sqr - x3sqr;
+	i.data[1][2] = x2sqr - x1sqr;
+
+	i.data[2][0] = x2sqr*p3.x - x3sqr*p2.x;
+	i.data[2][1] = x3sqr*p1.x - x1sqr*p3.x;
+	i.data[2][2] = x1sqr*p2.x - x2sqr*p1.x;
+
+	i = i * inverseDet;
+
+	NiPoint3 yVals = { p1.y, p2.y, p3.y };
+	return i * yVals;
 }
 
 NiAVObject * GetHighestParent(NiAVObject *node)
@@ -191,14 +220,6 @@ std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
 		isOffhandValid = true;
 	}
 	return std::make_pair(isMainValid, isOffhandValid);
-}
-
-ITimer g_timer;
-double g_currentFrameTime;
-double g_deltaTime;
-double GetTime()
-{
-	return g_timer.GetElapsedTime();
 }
 
 void PrintVector(const NiPoint3 &p)
