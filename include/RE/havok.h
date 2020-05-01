@@ -6,6 +6,7 @@
 
 
 typedef char hkBool;
+typedef SInt16 hkHalf;
 
 // All shape types. The dispatcher has only to implement at least the types that can be used as secondary types
 enum hkpShapeType
@@ -238,6 +239,16 @@ static_assert(sizeof(hkpCdBody) == 0x20);
 
 struct hkpCollidable : public hkpCdBody
 {
+	inline void* getOwner() const
+	{
+		return const_cast<char*>(reinterpret_cast<const char*>(this) + m_ownerOffset);
+	}
+
+	inline int getType() const
+	{
+		return m_broadPhaseHandle.m_type;
+	}
+
 	struct BoundingVolumeData
 	{
 		UInt32 m_min[3]; // 00
@@ -463,13 +474,14 @@ struct hkMotionState
 
 	hkVector4 m_deltaAngle; // 90
 	float m_objectRadius; // A0
-	float m_linearDamping; // A4
-	float m_angularDamping; // A8
+	hkHalf m_linearDamping; // A4
+	hkHalf m_angularDamping; // A6
+	hkHalf m_timeFactor; // A8
 	// These next 2 are hkUFloat8, 8-bit floats
-	UInt8 m_maxLinearVelocity; // AC
-	UInt8 m_maxAngularVelocity; // AD
-	UInt8 m_deactivationClass; // AE
-	UInt8 padAF;
+	UInt8 m_maxLinearVelocity; // AA
+	UInt8 m_maxAngularVelocity; // AB
+	UInt8 m_deactivationClass; // AC
+	UInt8 padAD[3];
 };
 static_assert(sizeof(hkMotionState) == 0xB0);
 
@@ -502,7 +514,24 @@ struct hkpMotion
 };
 static_assert(sizeof(hkpMotion) == 0x140);
 
-struct hkpRigidBody
+struct hkpWorldObject
+{
+	enum BroadPhaseType
+	{
+		BROAD_PHASE_INVALID,
+		BROAD_PHASE_ENTITY, // hkpEntity.
+		BROAD_PHASE_PHANTOM, // hkpPhantom.
+		BROAD_PHASE_BORDER, // hkpBroadPhaseBorder's objects (AABB phantoms).
+		BROAD_PHASE_MAX_ID
+	};
+};
+
+struct hkpEntity : hkpWorldObject
+{
+
+};
+
+struct hkpRigidBody : hkpEntity
 {
 	void * vtbl; // 00
 	// These 3 inherited from hkReferencedObject
@@ -716,3 +745,17 @@ static_assert(offsetof(hkbBehaviorGraph, m_userData) == 0x30);
 static_assert(offsetof(hkbBehaviorGraph, m_rootGenerator) == 0x80);
 static_assert(offsetof(hkbBehaviorGraph, m_globalTransitionData) == 0xB0);
 static_assert(offsetof(hkbBehaviorGraph, m_isActive) == 0x12C);
+
+inline hkpWorldObject* hkGetWorldObject(const hkpCollidable* collidable)
+{
+	return reinterpret_cast<hkpWorldObject*>(const_cast<void*>(collidable->getOwner()));
+}
+
+inline hkpRigidBody* hkpGetRigidBody(const hkpCollidable* collidable)
+{
+	if (collidable->getType() == hkpWorldObject::BROAD_PHASE_ENTITY)
+	{
+		return static_cast<hkpRigidBody*>(hkGetWorldObject(collidable));
+	}
+	return nullptr;
+}

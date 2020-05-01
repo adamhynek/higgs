@@ -95,7 +95,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		return;
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
-	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) * g_deltaTime;
+	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) / g_deltaTime;
 
 	// Update velocities array to this frame
 	for (int i = numPrevVel - 1; i >= 1; i--) {
@@ -107,15 +107,27 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	// Get whatever transform takes the wand position from room space to skyrim worldspace
 	NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
-	NiPoint3 velocityWorldspace = localToWorldTransform * avgVelocityRoomspace;
-	float handSpeedInSpellDirection = DotProduct(velocityWorldspace, castDirection) * 90.0f; // divide by delta time of 11ms because that's where I derived the thresholds
+	NiMatrix33 worldToLocalTransform = localToWorldTransform.Transpose();
 
-	if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
-		PrintToFile(std::to_string(VectorLength(castDirection - prevHandDirection)), "hand_speed_r.txt");
+	NiPoint3 velocityWorldspace = localToWorldTransform * avgVelocityRoomspace;
+	float handSpeedInSpellDirection = DotProduct(velocityWorldspace, castDirection);
+	float handSpeedInObjDirection = 0;
+
+	NiPoint3 handDirectionRoomspace = worldToLocalTransform * castDirection;
+	NiPoint3 deltaHandDirectionRoomspace = handDirectionRoomspace - prevHandDirectionRoomspace;
+	NiPoint3 handDirectionVelocityRoomspace = deltaHandDirectionRoomspace / g_deltaTime;
+
+	// Update velocities array to this frame
+	for (int i = numPrevVel - 1; i >= 1; i--) {
+		handDirectionVelocities[i] = handDirectionVelocities[i - 1];
 	}
-	if (std::string(handNodeName.data) == "NPC L Hand [LHnd]") {
-		PrintToFile(std::to_string(VectorLength(castDirection - prevHandDirection)), "hand_speed_l.txt");
-	}
+	handDirectionVelocities[0] = handDirectionVelocityRoomspace;
+
+	NiPoint3 avgDirectionVelocityRoomspace = std::accumulate(handDirectionVelocities, &handDirectionVelocities[numPrevVel - 1], NiPoint3()) / numPrevVel;
+
+	//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
+	//	PrintToFile(std::to_string(VectorLength(avgDirectionVelocityRoomspace)), "hand_dir_speed_r.txt");
+	//}
 
 	NiAVObject *upperArmNode = player->GetNiRootNode(0)->GetObjectByName(&upperArmNodeName.data);
 	if (!upperArmNode)
@@ -256,68 +268,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		}
 	}
 
-	if (state == SELECTION_LOCKED) {
-		if (triggerReleased) {
-			triggerReleased = false;
-			didTriggerPressGrabObject = false;
-
-			NiPointer<TESObjectREFR> selectedObj;
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				Deselect(selectedObj, other.selectedObject);
-			}
-		}
-
-		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-//			if (!IsObjectPullable()) {
-//				// TODO: Check hand angle still
-//				state = GRABBED;
-//			}
-//			else {
-				hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)selectedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
-				NiPoint3 linearVelocity = { motion->m_angularVelocity.x, motion->m_linearVelocity.y, motion->m_linearVelocity.z };
-				NiPoint3 angularVelocity = { motion->m_angularVelocity.x, motion->m_angularVelocity.y, motion->m_angularVelocity.z };
-				// TODO: Config all these thresholds
-				if (VectorLength(linearVelocity) > 0.1f || VectorLength(angularVelocity) > 0.1f) {
-					state = GRABBED;
-					grabbedTime = g_currentFrameTime;
-				}
-				else {
-
-					// TODO: Deselect / go back to IDLE if object gets too far away. Do that for 'grabbed' state too? For movablestatic signs and such.
-
-					bool grab = false, pull = false;
-					if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection) && prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
-						if (IsObjectPullable()) {
-							pull = true;
-						}
-					}
-					if (!pull) {
-						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
-						if (DotProduct(castDirection, initialHandDirection) < Config::options.grabbedDotProductThreshold) {
-							grab = true;
-						}
-					}
-
-					if (pull) {
-						pullSpeed = abs(prevHandSpeedInSpellDirection);
-						grabbedTime = g_currentFrameTime;
-						state = PULLED;
-					}
-					else if (grab) {
-						state = GRABBED;
-						grabbedTime = g_currentFrameTime;
-					}
-				}
-//			}
-		}
-		else {
-			state = IDLE;
-		}
-	}
-
 	NiPointer<TESObjectREFR> selectedObj;
-	if (state == GRABBED || state == PULLED) {
+	if (state == SELECTION_LOCKED || state == GRABBED || state == PULLED) {
 		// Check if we should drop the object. If yes, go to IDLE
 		if (triggerReleased) {
 			triggerReleased = false;
@@ -325,6 +277,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				if (selectedObject.hasSavedAngularDamping) {
+					hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)selectedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
+					motion->m_motionState.m_angularDamping = selectedObject.savedAngularDamping;
+					selectedObject.hasSavedAngularDamping = false;
+				}
+
 				Deselect(selectedObj, other.selectedObject);
 			}
 		}
@@ -342,7 +300,15 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-			if (!prevGrabbedObj) {
+			handSpeedInObjDirection = DotProduct(velocityWorldspace, VectorNormalized(relObjPos));
+			//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
+			//	PrintToFile(std::to_string(VectorLength(handDirectionVelocityRoomspace)), "hand_delta_dir_r.txt");
+			//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
+			//}
+
+			auto TransitionGrabbedPulled = [this, motion, relObjPos, hkObjPos, handPos, upperArmPos, selectedObj]()
+			{
+				grabbedTime = g_currentFrameTime;
 				initialGrabbedObjRelativePosition = relObjPos;
 				initialGrabbedObjWorldPosition = hkObjPos;
 				initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
@@ -359,23 +325,69 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						collidable->m_broadPhaseHandle.m_objectQualityType = 4; // Set to 'moving' quality instead of 'fixed'
 					}
 				}
+			};
+
+			auto TransitionGrabbed = [this, TransitionGrabbedPulled]
+			{
+				state = GRABBED;
+				TransitionGrabbedPulled();
+			};
+
+			auto TransitionPulled = [this, TransitionGrabbedPulled, motion]()
+			{
+				state = PULLED;
+				selectedObject.hasSavedAngularDamping = true;
+				selectedObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
+				motion->m_motionState.m_angularDamping = floatToHkHalf(2.0f);
+				TransitionGrabbedPulled();
+			};
+
+			if (state == SELECTION_LOCKED) {
+				// TODO: Deselect / go back to IDLE if object gets too far away. Do that for 'grabbed' state too? For movablestatic signs and such.
+				NiPoint3 linearVelocity = { motion->m_angularVelocity.x, motion->m_linearVelocity.y, motion->m_linearVelocity.z };
+				NiPoint3 angularVelocity = { motion->m_angularVelocity.x, motion->m_angularVelocity.y, motion->m_angularVelocity.z };
+				// TODO: Config all these thresholds
+				if (VectorLength(linearVelocity) > 0.1f || VectorLength(angularVelocity) > 0.1f) {
+					TransitionGrabbed();
+				}
+				else {
+					bool grab = false, pull = false;
+					if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pushPullSpeedThreshold) {
+						if (IsObjectPullable()) {
+							pull = true;
+						}
+					}
+					if (!pull) {
+						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
+						if (DotProduct(castDirection, initialHandDirection) < Config::options.grabbedDotProductThreshold) {
+							grab = true;
+						}
+					}
+
+					if (pull) {
+						TransitionPulled();
+					}
+					else if (grab) {
+						TransitionGrabbed();
+					}
+				}
 			}
 
 			if (state == GRABBED) {
 				// Check if we should push or pull. If pull, go to PULLED. If push, push it and go to IDLE
 
 				bool push = false, pull = false;
-				if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection)) {
+				if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pushPullSpeedThreshold) {
+					if (IsObjectPullable()) {
+						pull = true;
+					}
+				}
+				else if (abs(handSpeedInSpellDirection) < abs(prevHandSpeedInSpellDirection)) {
 					// We've hit a local max in hand speeds
 
 					// See if we passed the speed threshold. If we did, we want to push or pull.
 					if (prevHandSpeedInSpellDirection > Config::options.pushPullSpeedThreshold) {
 						push = true;
-					}
-					else if (prevHandSpeedInSpellDirection < -Config::options.pushPullSpeedThreshold) {
-						if (IsObjectPullable()) {
-							pull = true;
-						}
 					}
 				}
 
@@ -400,16 +412,16 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
 					NiPoint3 newVelocity = VectorNormalized(velocityWorldspace) * newMagnitude;
 
-					ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					hkpRigidBody *rb = hkpGetRigidBody(selectedObject.collidable);
+					if (rb) {
+						hkpEntity_activate(rb);
+					}
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
 					Deselect(selectedObj, other.selectedObject);
 				}
 				else if (pull) {
-					pullSpeed = abs(prevHandSpeedInSpellDirection);
-					grabbedTime = g_currentFrameTime;
-					initialGrabbedObjWorldPosition = hkObjPos;
-					state = PULLED;
+					TransitionPulled();
 				}
 				else {
 					// Determine the position where we want the object to be
@@ -462,10 +474,14 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-					ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+					hkpRigidBody *rb = hkpGetRigidBody(selectedObject.collidable);
+					if (rb) {
+						hkpEntity_activate(rb);
+					}
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 				}
 			}
+
 			if (state == PULLED) {
 				// Pull object towards the hand
 				float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
@@ -492,7 +508,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-				ApplyHavokImpulse(VM_REGISTRY, 0, selectedObj, 0, 0, 1, 0); // 0 force, just to 'activate' it
+				hkpRigidBody *rb = hkpGetRigidBody(selectedObject.collidable);
+				if (rb) {
+					hkpEntity_activate(rb);
+				}
 				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
 				// If close enough to hand, pick it up and go to IDLE
@@ -520,10 +539,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		}
 	}
 
-	prevGrabbedObj = selectedObj;
+	prevState = state;
 	prevHandPosRoomspace = handPosRoomspace;
 	prevHandSpeedInSpellDirection = handSpeedInSpellDirection;
-	prevHandDirection = castDirection;
+	prevHandSpeedInObjDirection = handSpeedInObjDirection;
+	prevHandDirectionRoomspace = handDirectionRoomspace;
 }
 
 

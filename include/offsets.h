@@ -58,6 +58,9 @@ RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast(0x00AB5EC0);
 typedef void(*_hkpWorld_GetPenetrations)(ahkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdBodyPairCollector* collector);
 RelocAddr<_hkpWorld_GetPenetrations> hkpWorld_GetPenetrations(0x00AB6AA0);
 
+typedef void(*_hkpEntity_activate)(hkpEntity *entity);
+RelocAddr<_hkpEntity_activate> hkpEntity_activate(0xAA7130);
+
 typedef TESObjectREFR* (*_FindCollidableRef)(hkpCollidable * a_collidable);
 RelocAddr<_FindCollidableRef> FindCollidableRef(0x003B4940);
 

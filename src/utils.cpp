@@ -20,20 +20,10 @@ double GetTime()
 	return g_timer.GetElapsedTime();
 }
 
-float VectorLength(NiPoint3 vec)
-{
-	return sqrtf(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
-}
-
 NiPoint3 VectorNormalized(NiPoint3 vec)
 {
 	float length = VectorLength(vec);
 	return length ? vec / length : NiPoint3();
-}
-
-float DotProduct(NiPoint3 vec1, NiPoint3 vec2)
-{
-	return vec1.x * vec2.x + vec1.y * vec2.y + vec1.z * vec2.z;
 }
 
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2)
@@ -380,4 +370,20 @@ void PrintToFile(std::string entry, std::string filename)
 	file.open(filename);
 	file << entry << std::endl;
 	file.close();
+}
+
+float hkHalfToFloat(hkHalf half)
+{
+	union {
+		int i;
+		float f;
+	} u;
+	u.i = (half << 16);
+	return u.f;
+}
+
+hkHalf floatToHkHalf(float f)
+{
+	int t = ((const int*)&f)[0];
+	return SInt16(t >> 16);
 }

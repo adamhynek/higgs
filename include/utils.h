@@ -14,9 +14,9 @@ extern double g_currentFrameTime;
 extern double g_deltaTime;
 
 
-float VectorLength(NiPoint3 vec);
+inline float VectorLength(NiPoint3 vec) { return sqrtf(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z); }
+inline float DotProduct(NiPoint3 vec1, NiPoint3 vec2) { return vec1.x*vec2.x + vec1.y*vec2.y + vec1.z*vec2.z; }
 NiPoint3 VectorNormalized(NiPoint3 vec);
-float DotProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta);
 float Determinant33(const NiMatrix33 &m);
@@ -40,3 +40,6 @@ double GetTime();
 void PrintVector(const NiPoint3 &p);
 void PrintSceneGraph(NiAVObject *node);
 void PrintToFile(std::string entry, std::string filename);
+
+float hkHalfToFloat(hkHalf half);
+hkHalf floatToHkHalf(float half);

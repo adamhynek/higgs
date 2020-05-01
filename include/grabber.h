@@ -26,6 +26,8 @@ struct Grabber
 		TESEffectShader *appliedShader = nullptr;
 		bool isActor = false;
 		bool isImpactedProjectile = false;
+		bool hasSavedAngularDamping = false;
+		hkHalf savedAngularDamping = 0;
 	};
 
 	enum State : int
@@ -55,6 +57,7 @@ struct Grabber
 	static const int numPrevVel = 5;
 
 	State state = IDLE;
+	State prevState = IDLE;
 
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;
@@ -68,20 +71,19 @@ struct Grabber
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
 	NiPoint3 handVelocities[numPrevVel]; // previous n hand velocities
+	NiPoint3 handDirectionVelocities[numPrevVel]; // previous n hand direction velocities
 
 	SelectedObject selectedObject;
-	TESObjectREFR *prevGrabbedObj = nullptr;
 
 	NiPoint3 initialGrabbedObjRelativePosition;
 	NiPoint3 initialGrabbedObjWorldPosition;
 	NiPoint3 initialHandDirection;
 	float initialHandShoulderDistance = 0;
 	NiPoint3 prevHandPosRoomspace;
-	NiPoint3 prevHandDirection;
+	NiPoint3 prevHandDirectionRoomspace;
 
 	float prevHandSpeedInSpellDirection = 0;
-
-	float pullSpeed = 0;
+	float prevHandSpeedInObjDirection = 0;
 
 	bool unsheatheDesired = false;
 
