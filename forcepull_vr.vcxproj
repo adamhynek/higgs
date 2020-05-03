@@ -191,6 +191,7 @@
     <ClCompile Include="src\grabber.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\menu_checker.cpp" />
+    <ClCompile Include="src\offsets.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\utils.cpp" />
   </ItemGroup>

@@ -30,4 +30,6 @@ struct CdBodyPairCollector : public hkpCdBodyPairCollector
 	CdBodyPairCollector();
 	void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) override;
 	void reset() override;
+
+	std::vector<hkpCdBody *> m_hits;
 };

@@ -10,6 +10,19 @@
 #include "menu_checker.h"
 
 
+BSFixedString hmdNodeStr("HmdNode");
+
+// Gets callbacks from havok linear cast
+CdPointCollector cdPointCollector;
+hkpLinearCastInput linearCastInput;
+RayHitCollector rayHitCollector;
+CdBodyPairCollector pairCollector;
+// 'ItemPicker' collision layer; player collision group
+// Why ItemPicker? It ignores stuff like weapons the player is holding
+//static hkpWorldRayCastInput rayCastInput(0x02420028);
+hkpWorldRayCastInput rayCastInput(0x00090028);
+
+
 void Grabber::Select(TESObjectREFR *obj, const SelectedObject &other)
 {
 	selectedObject.handle = GetOrCreateRefrHandle(obj);
@@ -80,7 +93,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	NiPoint3 handPos = handNode->m_worldTransform.pos;
 
-	NiPoint3 castDirection = handNode->m_worldTransform.rot * Config::options.handAdjust;
+	NiPoint3 castDirection = VectorNormalized(handNode->m_worldTransform.rot * Config::options.handAdjust);
 
 	NiAVObject *hmdNode = playerWorldNode->GetObjectByName(&hmdNodeStr.data);
 	if (!hmdNode)
@@ -93,6 +106,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	NiAVObject *wandNode = playerWorldNode->GetObjectByName(&wandNodeName.data);
 	if (!wandNode)
 		return;
+
+	bhkWorld *world = GetWorld(cell);
+	if (!world) {
+		_MESSAGE("Could not get havok world from player cell");
+		return;
+	}
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
 	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) / g_deltaTime;
@@ -135,6 +154,16 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	NiPoint3 upperArmPos = upperArmNode->m_worldTransform.pos;
 
+	bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
+	if (!sphere)
+		return;
+
+	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+	// Save sphere properties so we can change them and restore them later
+	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
+	float radiusBefore = sphereShape->m_radius;
+	hkVector4 translationBefore = sphere->phantom->m_motionState.m_transform.m_translation;
+
 	if (state == IDLE || state == SELECTED) {
 		// Convert hand position from skyrim coords to havok coords
 		float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
@@ -144,12 +173,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
 
-		bhkWorld *world = GetWorld(cell);
-		if (!world) {
-			_MESSAGE("Could not get havok world from player cell");
-			return;
-		}
-
 		// First, raycast in the pointing direction
 		rayHitCollector.reset();
 		rayCastInput.m_from = { hkHandPos.x, hkHandPos.y, hkHandPos.z, 0 };
@@ -158,22 +181,16 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		if (rayHitCollector.m_doesHitExist) {
 			// If raycast hit, we want to linearcast only up to the ray hit location
 			hitPosition = hkHandPos + (hkTargetPos - hkHandPos) * rayHitCollector.m_closestHitInfo.m_hitFraction;
-			//hitPosition += castDirection * 0.4f; // add a bit extra past the hit location
 		}
 
 		// Now, linearcast up to the point the raycast hit, or up to the limit if it's empty space
-		bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
-		cdPointCollector.reset();
-		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
-		UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
 		// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
-		float radiusBefore = sphereShape->m_radius; // save radius so we can restore it
 		sphereShape->m_radius = Config::options.castRadius;
-		hkVector4 translationBefore = sphere->phantom->m_motionState.m_transform.m_translation;
 		sphere->phantom->m_motionState.m_transform.m_translation = { hkHandPos.x, hkHandPos.y, hkHandPos.z, VectorLength(hkHandPos) };
 
 		linearCastInput.m_to = { hitPosition.x, hitPosition.y, hitPosition.z, 0 };
+		cdPointCollector.reset();
 		hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
@@ -228,6 +245,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				Select(closestObj, other.selectedObject);
 			}
 			selectedObject.collidable = closestColl; // Set selected collidable no matter what, as we can have objects with more than one collidable
+			hkpRigidBody *rb = hkpGetRigidBody(closestColl);
+			selectedObject.rigidBody = rb;
 
 			isSelectedThisFrame = true;
 			lastSelectedTime = g_currentFrameTime;
@@ -245,8 +264,20 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (triggerPressed && g_currentFrameTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
 					if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 						state = SELECTION_LOCKED;
+						hkVector4 translation = selectedObject.rigidBody->motion.m_motionState.m_transform.m_translation;
+						NiPoint3 hkHandPos = handPos * havokWorldScale;
+						NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
+						NiPoint3 relObjPos = hkObjPos - hkHandPos;
+
+						NiPoint3 forward = castDirection;
+						NiPoint3 worldUp = { 0, 0, 1 };
+						NiPoint3 right = CrossProduct(forward, worldUp);
+						NiPoint3 up = CrossProduct(right, forward);
+						initialObjPosRaySpace = {DotProduct(relObjPos, forward), DotProduct(relObjPos, right) , DotProduct(relObjPos, up) };
 						selectionLockedTime = g_currentFrameTime;
-						initialHandDirection = castDirection;
+						initialGrabbedObjRelativePosition = relObjPos;
+						initialGrabbedObjWorldPosition = hkObjPos;
+						initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
 						triggerPressed = false;
 						didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
@@ -278,8 +309,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (selectedObject.hasSavedAngularDamping) {
-					hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)selectedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
-					motion->m_motionState.m_angularDamping = selectedObject.savedAngularDamping;
+					selectedObject.rigidBody->motion.m_motionState.m_angularDamping = selectedObject.savedAngularDamping;
 					selectedObject.hasSavedAngularDamping = false;
 				}
 
@@ -290,8 +320,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 			float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
-			// This is a bit hacky...
-			hkpMotion *motion = reinterpret_cast<hkpMotion *>((UInt64)selectedObject.collidable->m_motion - offsetof(hkpMotion, m_motionState));
+			hkpMotion *motion = &selectedObject.rigidBody->motion;
 
 			hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
@@ -338,7 +367,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				state = PULLED;
 				selectedObject.hasSavedAngularDamping = true;
 				selectedObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
-				motion->m_motionState.m_angularDamping = floatToHkHalf(2.0f);
+				motion->m_motionState.m_angularDamping = floatToHkHalf(3.0f);
 				TransitionGrabbedPulled();
 			};
 
@@ -385,7 +414,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					if (!pull) {
 						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
-						if (DotProduct(VectorNormalized(desiredPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 2.0f) {
+						NiPoint3 forward = castDirection;
+						NiPoint3 worldUp = { 0, 0, 1 };
+						NiPoint3 right = CrossProduct(forward, worldUp);
+						NiPoint3 up = CrossProduct(right, forward);
+						NiPoint3 initialObjPos = forward * initialObjPosRaySpace.x + right * initialObjPosRaySpace.y + up * initialObjPosRaySpace.z;
+						_MESSAGE("%.2f", DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)));
+						if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 2.0f) {
 							grab = true;
 						}
 					}
@@ -438,10 +473,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					float newMagnitude = (pow(inverseMass, Config::options.massExponent) * prevHandSpeedInSpellDirection * Config::options.pushVelocityMultiplier) / havokWorldScale;
 					NiPoint3 newVelocity = VectorNormalized(velocityWorldspace) * newMagnitude;
 
-					hkpRigidBody *rb = hkpGetRigidBody(selectedObject.collidable);
-					if (rb) {
-						hkpEntity_activate(rb);
-					}
+					hkpEntity_activate(selectedObject.rigidBody);
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
 					Deselect(selectedObj, other.selectedObject);
@@ -473,24 +505,14 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-					hkpRigidBody *rb = hkpGetRigidBody(selectedObject.collidable);
-					if (rb) {
-						hkpEntity_activate(rb);
-					}
+					hkpEntity_activate(selectedObject.rigidBody);
 					motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 				}
 			}
 
 			if (state == PULLED) {
-				// Pull object towards the hand
 				float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
 
-				//float newMagnitude = (pow(inverseMass, Config::options.massExponent) * pullSpeed * Config::options.pullVelocityMultiplier) / havokWorldScale;
-				//newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
-				//NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
-
-				//NiPoint3 horizontalRelativePosition = initialGrabbedObjRelativePosition;
-				//horizontalRelativePosition.z = 0;
 				float distanceFactor = VectorLength(initialGrabbedObjRelativePosition) / 5.0f;
 				float duration = 0.375f + 0.375f * distanceFactor;
 				float height = 0.25f + 0.25f * distanceFactor;
@@ -512,27 +534,39 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
-				hkpRigidBody *rb = hkpGetRigidBody(selectedObject.collidable);
-				if (rb) {
-					hkpEntity_activate(rb);
-				}
+				hkpEntity_activate(selectedObject.rigidBody);
 				motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
 
-				// If close enough to hand, pick it up and go to IDLE
-				if (VectorLength(relObjPos) < Config::options.handActivateDistance * havokWorldScale) {
-					_MESSAGE("Equipping");
+				// Check if it's near our hand to pick it up. Needs to happen last since it picks up the object.
+				sphereShape->m_radius = 0.2;
+				sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x0009002C;
+				sphere->phantom->m_motionState.m_transform.m_translation = { hkHandPos.x, hkHandPos.y, hkHandPos.z, VectorLength(hkHandPos) };
 
-					Deselect(selectedObj, other.selectedObject);
+				pairCollector.reset();
+				hkpWorld_GetPenetrations(world->world, &sphere->phantom->m_collidable, world->world->m_collisionInput, &pairCollector);
 
-					// Pickup the item
-					Activate(VM_REGISTRY, 0, selectedObj, player, false);
-					// If the item is a weapon, equip it too
-					auto baseForm = selectedObj->baseForm;
-					if (Config::options.equipWeapons && baseForm && baseForm->formType == kFormType_Weapon) {
-						auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
-						if (weapon) {
-							papyrusActor::EquipItemEx(player, weapon, 1, false, false);
+				sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
+				sphereShape->m_radius = radiusBefore;
+				sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
+
+				// Process result of collision query
+				for (hkpCdBody *body : pairCollector.m_hits) {
+					if (body == selectedObject.collidable) {
+						_MESSAGE("Equipping");
+
+						Deselect(selectedObj, other.selectedObject);
+
+						// Pickup the item
+						Activate(VM_REGISTRY, 0, selectedObj, player, false);
+						// If the item is a weapon, equip it too
+						auto baseForm = selectedObj->baseForm;
+						if (Config::options.equipWeapons && baseForm && baseForm->formType == kFormType_Weapon) {
+							auto *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
+							if (weapon) {
+								papyrusActor::EquipItemEx(player, weapon, 1, false, false);
+							}
 						}
+						break;
 					}
 				}
 			}

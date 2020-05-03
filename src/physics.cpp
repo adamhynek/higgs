@@ -1,4 +1,5 @@
 #include "physics.h"
+#include "offsets.h"
 
 
 CdPointCollector::CdPointCollector()
@@ -38,6 +39,7 @@ CdBodyPairCollector::CdBodyPairCollector()
 void CdBodyPairCollector::reset()
 {
 	m_earlyOut = false;
+	m_hits.clear(); // TODO: Shrink to fit?
 }
 
 void CdBodyPairCollector::addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB)
@@ -46,11 +48,13 @@ void CdBodyPairCollector::addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody&
 	// - true if you want to get no more hits
 	// - false if you want to get more hits (which is the default)
 
-	const hkpCdBody *cdBody = &bodyB;
+	hkpCdBody *cdBody = const_cast<hkpCdBody *>(&bodyB);
 	while (cdBody->m_parent) {
 		cdBody = cdBody->m_parent;
 	}
-	_MESSAGE("Hit: %x", cdBody->m_shape ? cdBody->m_shape->m_type : HK_SHAPE_INVALID);
+	//_MESSAGE("Hit: %x", cdBody->m_shape ? cdBody->m_shape->m_type : HK_SHAPE_INVALID);
+
+	m_hits.push_back(cdBody);
 }
 
 RayHitCollector::RayHitCollector()

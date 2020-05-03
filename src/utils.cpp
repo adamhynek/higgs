@@ -73,6 +73,7 @@ float Determinant33(const NiMatrix33 &m)
 
 NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3)
 {
+	// Fit a quadratic to the 3 given points, and return the coefficients of x^2, x^1, x^0
 	float x1sqr = p1.x*p1.x;
 	float x2sqr = p2.x*p2.x;
 	float x3sqr = p3.x*p3.x;
@@ -118,7 +119,11 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 
 bool IsAllowedCollidable(const hkpCollidable *collidable)
 {
-	auto motion = reinterpret_cast<hkpMotion *>((UInt64)collidable->m_motion - offsetof(hkpMotion, m_motionState));
+	hkpRigidBody *rb = hkpGetRigidBody(collidable);
+	if (!rb)
+		return false;
+
+	auto motion = &rb->motion;
 	// Motion types we allow are: Dynamic, SphereInertia, BoxInertia, ThinBoxInertia
 	return (motion->m_motionType == 1 || motion->m_motionType == 2 || motion->m_motionType == 3 || motion->m_motionType == 6);
 }
