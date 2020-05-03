@@ -342,8 +342,34 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				TransitionGrabbedPulled();
 			};
 
+			// Determine the position where we want the object to be
+			// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
+			float maxHeight = selectedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
+			NiPoint3 horiz;
+			float h;
+			if (castDirection.z <= 0.9999f) {
+				float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
+				float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+				float tanTheta = tanf(theta);
+				h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
+				horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
+			}
+			else {
+				// Degenerate case
+				h = maxHeight;
+				horiz = { 0, 0, 0 };
+			}
+
+			NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
+
+			// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
+			float handShoulderDistance = VectorLength(handPos - upperArmPos);
+			float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
+			desiredPos *= handDistanceRatio;
+
+			NiPoint3 deltaPos = desiredPos - relObjPos;
+
 			if (state == SELECTION_LOCKED) {
-				// TODO: Deselect / go back to IDLE if object gets too far away. Do that for 'grabbed' state too? For movablestatic signs and such.
 				NiPoint3 linearVelocity = { motion->m_angularVelocity.x, motion->m_linearVelocity.y, motion->m_linearVelocity.z };
 				NiPoint3 angularVelocity = { motion->m_angularVelocity.x, motion->m_angularVelocity.y, motion->m_angularVelocity.z };
 				// TODO: Config all these thresholds
@@ -359,7 +385,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					if (!pull) {
 						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
-						if (DotProduct(castDirection, initialHandDirection) < Config::options.grabbedDotProductThreshold) {
+						if (DotProduct(VectorNormalized(desiredPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 2.0f) {
 							grab = true;
 						}
 					}
@@ -424,33 +450,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					TransitionPulled();
 				}
 				else {
-					// Determine the position where we want the object to be
-					// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-					float maxHeight = selectedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
-					NiPoint3 horiz;
-					float h;
-					if (castDirection.z <= 0.9999f) {
-						float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
-						float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
-						float tanTheta = tanf(theta);
-						h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
-						horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
-					}
-					else {
-						// Degenerate case
-						h = maxHeight;
-						horiz = { 0, 0, 0 };
-					}
-
-					NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
-
-					// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
-					float handShoulderDistance = VectorLength(handPos - upperArmPos);
-					float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
-					desiredPos *= handDistanceRatio;
-
-					NiPoint3 deltaPos = desiredPos - relObjPos;
-
 					float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
 
 					if (selectedObject.isActor && selectedObj->loadedState && selectedObj->loadedState->node) {
@@ -490,13 +489,18 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				//newMagnitude = min(newMagnitude, 12.0f); // Cap at some reasonable value
 				//NiPoint3 newVelocity = VectorNormalized(-relObjPos) * newMagnitude;
 
-				float lerp = min((g_currentFrameTime - grabbedTime) / 0.75f, 1.0f);
+				//NiPoint3 horizontalRelativePosition = initialGrabbedObjRelativePosition;
+				//horizontalRelativePosition.z = 0;
+				float distanceFactor = VectorLength(initialGrabbedObjRelativePosition) / 5.0f;
+				float duration = 0.375f + 0.375f * distanceFactor;
+				float height = 0.25f + 0.25f * distanceFactor;
+				float lerp = min((g_currentFrameTime - grabbedTime) / duration, 1.0f);
 
 				NiPoint3 horizontalDelta = hkHandPos - initialGrabbedObjWorldPosition;
 				horizontalDelta.z = 0;
 				horizontalDelta *= lerp;
 
-				NiPoint2 leewayPoint = { 0.5f, max(hkHandPos.z, initialGrabbedObjWorldPosition.z) + 0.5f };
+				NiPoint2 leewayPoint = { 0.5f, max(hkHandPos.z, initialGrabbedObjWorldPosition.z) + height };
 				NiPoint3 coeffs = QuadraticFromPoints({ 0, initialGrabbedObjWorldPosition.z }, leewayPoint, { 1, hkHandPos.z });
 
 				NiPoint3 desiredPos = initialGrabbedObjWorldPosition + horizontalDelta;
@@ -585,7 +589,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	}
 
 	if (unsheatheDesired) {
-		long long currentTime = GetTime();
+		double currentTime = GetTime();
 		if (currentTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
 			// Suppress trigger press
 			pControllerState->ulButtonPressed &= ~vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
