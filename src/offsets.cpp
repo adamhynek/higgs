@@ -42,8 +42,20 @@ RelocAddr<_hkpEntity_activate> hkpEntity_activate(0xAA7130);
 
 RelocAddr<_FindCollidableRef> FindCollidableRef(0x003B4940);
 
+RelocAddr<_FindCollidableNode> FindCollidableNode(0xE01FE0);
+
 RelocAddr<_GetWorld> GetWorld(0x276A90);
 
 RelocAddr<_ActivatePickRef> ActivatePickRef(0x6CBCE0);
 
 RelocAddr<_GetMass> GetMass(0x9CED20);
+
+RelocAddr<_AddRemoveConstraintFunctor> AddRemoveConstraintFunctor(0x9AB270);
+
+//BipedAnim_RemoveAllParts(0x1D6530);
+
+// 1st arg: ptr to BipedAnim. 2nd arg: ptr to NiNode
+//CreateArmorNode(0x1DB680);
+
+
+//115111

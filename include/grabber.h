@@ -17,6 +17,9 @@ struct Grabber
 		bool isImpactedProjectile = false;
 		bool hasSavedAngularDamping = false;
 		hkHalf savedAngularDamping = 0;
+		TESForm *hitForm = nullptr;
+		NiPointer<NiAVObject> shaderNode = nullptr;
+		NiAVObject *hitNode = nullptr;
 	};
 
 	enum State : int
@@ -39,7 +42,7 @@ struct Grabber
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
-	void Select(TESObjectREFR *obj, const SelectedObject &other);
+	void Select(TESObjectREFR *obj, const SelectedObject &other, hkpCollidable *coll);
 	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
 
 

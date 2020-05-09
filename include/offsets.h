@@ -62,6 +62,9 @@ extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;
 typedef TESObjectREFR* (*_FindCollidableRef)(hkpCollidable * a_collidable);
 extern RelocAddr<_FindCollidableRef> FindCollidableRef;
 
+typedef NiAVObject* (*_FindCollidableNode)(hkpCollidable * a_collidable);
+extern RelocAddr<_FindCollidableNode> FindCollidableNode;
+
 typedef bhkWorld* (*_GetWorld)(TESObjectCELL *cell);
 extern RelocAddr<_GetWorld> GetWorld;
 
@@ -70,3 +73,6 @@ extern RelocAddr<_ActivatePickRef> ActivatePickRef;
 
 typedef float(*_GetMass)(float sum, bool firstPerson, TESObjectREFR *obj);
 extern RelocAddr<_GetMass> GetMass;
+
+typedef void(*_AddRemoveConstraintFunctor)(__int64 a1, void *a2);
+extern RelocAddr<_AddRemoveConstraintFunctor> AddRemoveConstraintFunctor;

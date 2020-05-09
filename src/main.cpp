@@ -37,6 +37,7 @@ static PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
 static SKSEMessagingInterface *g_messaging = nullptr;
 
 SKSEVRInterface *g_vrInterface = nullptr;
+SKSETrampolineInterface *g_trampoline = nullptr;
 
 NiMatrix33 g_rolloverRotation; // Set on plugin load
 
@@ -54,6 +55,124 @@ NiTransform g_normalRolloverTransform;
 
 Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", { 7, -5, -2 });
 Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", { -7, -7, -3 });
+
+
+auto hookLoc = RelocAddr<uintptr_t>(0x2AE398);
+auto hookedFunc = RelocAddr<uintptr_t>(0x2AEAD0);
+
+uintptr_t hookedFuncAddr = 0;
+
+
+OwnedController *shaderController;
+void HookFunc(OwnedController *cont) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
+{
+	if (isStartingShader) {
+		shaderController = cont;
+	}
+}
+
+
+void Hook_Commit(void)
+{
+	struct Code : Xbyak::CodeGenerator {
+		Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+		{
+			Xbyak::Label jumpBack;
+
+			push(rax);
+			push(rcx);
+			push(rdx);
+			push(r8);
+			push(r9);
+			push(r10);
+			push(r11);
+			sub(rsp, 0x60); // Need to keep the stack SIXTEEN BYTE ALIGNED
+			movsd(ptr[rsp], xmm0);
+			movsd(ptr[rsp + 0x10], xmm1);
+			movsd(ptr[rsp + 0x20], xmm2);
+			movsd(ptr[rsp + 0x30], xmm3);
+			movsd(ptr[rsp + 0x40], xmm4);
+			movsd(ptr[rsp + 0x50], xmm5);
+
+			// Call our hook
+			mov(rax, (uintptr_t)HookFunc);
+			call(rax);
+
+			movsd(xmm0, ptr[rsp]);
+			movsd(xmm1, ptr[rsp + 0x10]);
+			movsd(xmm2, ptr[rsp + 0x20]);
+			movsd(xmm3, ptr[rsp + 0x30]);
+			movsd(xmm4, ptr[rsp + 0x40]);
+			movsd(xmm5, ptr[rsp + 0x50]);
+			add(rsp, 0x60);
+			pop(r11);
+			pop(r10);
+			pop(r9);
+			pop(r8);
+			pop(rdx);
+			pop(rcx);
+			pop(rax);
+
+			// Original code
+			mov(rax, hookedFuncAddr);
+			call(rax);
+
+			// Jump back to whence we came (+ the size of the initial branch instruction)
+			jmp(ptr[rip + jumpBack]);
+
+			L(jumpBack);
+			dq(hookLoc.GetUIntPtr() + 5);
+		}
+	};
+
+	void * codeBuf = g_localTrampoline.StartAlloc();
+	Code code(codeBuf);
+	g_localTrampoline.EndAlloc(code.getCurr());
+
+	g_branchTrampoline.Write5Branch(hookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+	_MESSAGE("Hook complete");
+}
+
+
+
+bool TryHook()
+{
+	// This should be sized to the actual amount used by your trampoline
+	static const size_t TRAMPOLINE_SIZE = 256;
+
+	if (g_trampoline) {
+		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
+		if (!branch) {
+			_ERROR("couldn't acquire branch trampoline from SKSE. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+
+		g_branchTrampoline.SetBase(TRAMPOLINE_SIZE, branch);
+
+		void* local = g_trampoline->AllocateFromLocalPool(g_pluginHandle, TRAMPOLINE_SIZE);
+		if (!local) {
+			_ERROR("couldn't acquire codegen buffer from SKSE. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+
+		g_localTrampoline.SetBase(TRAMPOLINE_SIZE, local);
+	}
+	else {
+		if (!g_branchTrampoline.Create(TRAMPOLINE_SIZE)) {
+			_ERROR("couldn't create branch trampoline. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+		if (!g_localTrampoline.Create(TRAMPOLINE_SIZE, nullptr))
+		{
+			_ERROR("couldn't create codegen buffer. this is fatal. skipping remainder of init process.");
+			return false;
+		}
+	}
+
+	Hook_Commit();
+	return true;
+}
 
 
 double lastFrameTime;
@@ -332,6 +451,18 @@ extern "C" {
 		}
 		g_vrInterface->RegisterForControllerState(g_pluginHandle, 0, ControllerStateCB);
 		g_vrInterface->RegisterForPoses(g_pluginHandle, 0, WaitPosesCB);
+
+		hookedFuncAddr = hookedFunc.GetUIntPtr(); // before trampolines
+
+		g_trampoline = (SKSETrampolineInterface *)skse->QueryInterface(kInterface_Trampoline);
+		if (!g_trampoline) {
+			_ERROR("couldn't get trampoline interface");
+		}
+		if (!TryHook()) {
+			_ERROR("Failed to perform hook");
+		}
+
+
 
 		g_timer.Start();
 

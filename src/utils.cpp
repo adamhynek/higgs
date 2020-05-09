@@ -364,9 +364,19 @@ bool PrintNodes(NiAVObject *avObj, int depth)
 	return false;
 }
 
+std::ofstream _file;
+bool DumpNodes(NiAVObject *avObj, int depth)
+{
+	_file << PrintNodeToString(avObj, depth).c_str() << std::endl;
+	return false;
+}
+
 void PrintSceneGraph(NiAVObject *node)
 {
-	VisitNodes(node, PrintNodes);
+	_file.open("scenegraph.log");
+	//VisitNodes(node, PrintNodes);
+	VisitNodes(node, DumpNodes);
+	_file.close();
 }
 
 void PrintToFile(std::string entry, std::string filename)

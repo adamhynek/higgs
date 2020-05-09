@@ -43,3 +43,20 @@ void PrintToFile(std::string entry, std::string filename);
 
 float hkHalfToFloat(hkHalf half);
 hkHalf floatToHkHalf(float half);
+
+
+struct OwnedController
+{
+	void *vtbl; // 00
+	UInt32 targetHandle; // 08
+	UInt32 unk0C;
+	TESEffectShader *shader; // 10
+	BGSArtObject *artObject; // 18
+	UInt32 unkHandle; // 20
+	UInt32 unk24;
+	NiPointer<NiAVObject> attachRoot; // 28
+};
+static_assert(sizeof(OwnedController) == 0x30);
+
+extern OwnedController *shaderController;
+extern volatile bool isStartingShader;
