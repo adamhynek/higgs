@@ -57,17 +57,17 @@ Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandN
 Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", { -7, -7, -3 });
 
 
-auto hookLoc = RelocAddr<uintptr_t>(0x2AE398);
-auto hookedFunc = RelocAddr<uintptr_t>(0x2AEAD0);
+auto hookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
+auto hookedFunc = RelocAddr<uintptr_t>(0x564DD0);
 
 uintptr_t hookedFuncAddr = 0;
 
 
-OwnedController *shaderController;
-void HookFunc(OwnedController *cont) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
+ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
+void HookFunc(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
 {
-	if (isStartingShader) {
-		shaderController = cont;
+	if (g_shaderReferenceToSet) {
+		*g_shaderReferenceToSet = ref;
 	}
 }
 

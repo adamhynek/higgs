@@ -3,6 +3,7 @@
 #include "skse64/InternalVR.h"
 #include "RE/havok.h"
 #include "physics.h"
+#include "utils.h"
 
 
 struct Grabber
@@ -12,14 +13,13 @@ struct Grabber
 		UInt32 handle = 0;
 		hkpCollidable *collidable = nullptr;
 		hkpRigidBody *rigidBody = nullptr;
-		TESEffectShader *appliedShader = nullptr;
 		bool isActor = false;
 		bool isImpactedProjectile = false;
 		bool hasSavedAngularDamping = false;
 		hkHalf savedAngularDamping = 0;
 		TESForm *hitForm = nullptr;
 		NiPointer<NiAVObject> shaderNode = nullptr;
-		NiAVObject *hitNode = nullptr;
+		NiPointer<NiAVObject> hitNode = nullptr;
 	};
 
 	enum State : int
@@ -45,6 +45,8 @@ struct Grabber
 	void Select(TESObjectREFR *obj, const SelectedObject &other, hkpCollidable *coll);
 	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
 
+
+	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	static const int numPrevVel = 5;
 

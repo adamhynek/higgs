@@ -35,9 +35,6 @@ public:
 	bool Matches(TESForm* pForm) const { return m_form == pForm; }
 };
 
-const int equippedWeaponNodeNamesBase = 32;
-// nulls are handtohand (I don't think anything can really be equipped there?, and Staff and Crossbow, because I don't know them yet
-BSFixedString equippedWeaponNodeNames[] = {nullptr, "WeaponSword", "WeaponDagger", "WeaponAxe", "WeaponMace", "WeaponBack", "WeaponBow", nullptr, nullptr, "Quiver"};
 
 bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 {
@@ -77,26 +74,9 @@ bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 }
 
 
-volatile bool isStartingShader;
 void Grabber::Select(TESObjectREFR *obj, const SelectedObject &other, hkpCollidable *coll)
 {
 	selectedObject.handle = GetOrCreateRefrHandle(obj);
-
-	if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
-		selectedObject.appliedShader = itemSelectedShaderOffLimits;
-	}
-	else {
-		selectedObject.appliedShader = itemSelectedShader;
-	}
-
-	// Play effect shader only if the other hand doesn't have the shader already playing on the object
-	NiPointer<TESObjectREFR> otherSelectedObj;
-	UInt32 otherSelectedObjHandle = other.handle;
-	if (!LookupREFRByHandle(otherSelectedObjHandle, otherSelectedObj) || otherSelectedObj != obj) {
-		isStartingShader = true;
-		EffectShader_Play(VM_REGISTRY, 0, selectedObject.appliedShader, obj, -1.0f);
-		isStartingShader = false;
-	}
 
 	selectedObject.isImpactedProjectile = false;
 	auto baseForm = obj->baseForm;
@@ -120,12 +100,7 @@ void Grabber::Select(TESObjectREFR *obj, const SelectedObject &other, hkpCollida
 
 void Grabber::Deselect(TESObjectREFR *obj, const SelectedObject &other)
 {
-	UInt32 otherHandle = other.handle;
-	NiPointer<TESObjectREFR> otherSelectedObj;
-	if (!LookupREFRByHandle(otherHandle, otherSelectedObj) || other.handle != selectedObject.handle) {
-		EffectShader_Stop(VM_REGISTRY, 0, selectedObject.appliedShader, obj);
-		selectedObject.appliedShader = nullptr;
-	}
+	StopShader(selectedObject.handle, selectedObject.shaderNode);
 
 	selectedObject.handle = *g_invalidRefHandle;
 	selectedObject.collidable = nullptr;
@@ -295,6 +270,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		// Check if we should select something new. If yes, stay in SELECTED but select the new object
 		bool isSelectedThisFrame = false;
+		UInt32 prevSelectedHandle = selectedObject.handle;
 		if (closestObj && DotProduct(VectorNormalized(closestHit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) || closestObj != selectedObj) {
@@ -309,6 +285,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			// No matter what, figure out which node we should be playing a shader on, and switch to that one
 			NiAVObject *nodeOnWhichToPlayShader = nullptr;
 			Actor *actor = DYNAMIC_CAST(closestObj, TESObjectREFR, Actor);
+
 			if (actor) {
 				NiAVObject *hitNode = FindCollidableNode(closestColl);
 				if (hitNode) {
@@ -318,10 +295,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						if (bipedData) {
 							int hitIndex = -1;
 							TESForm *hitForm = nullptr;
-							for (int i = 0; i < equippedWeaponNodeNamesBase; i++) {
-								NiAVObject *armorGeomNode = bipedData->unk10[i].object;
-								if (armorGeomNode) {
-									bool isArmorHit = IsNodeWithinArmor(armorGeomNode, hitNode);
+							for (int i = 0; i < equippedWeaponSlotBase; i++) {
+								// For skinned armor, the nodes are not attached to the skeleton. Find nodes the armor is skinned to and see if one of them was hit
+								NiAVObject *geomNode = bipedData->unk10[i].object;
+								if (geomNode) {
+									bool isArmorHit = IsNodeWithinArmor(geomNode, hitNode);
 									if (isArmorHit) {
 										if (i != 2 || hitIndex == -1) {
 											hitIndex = i;
@@ -330,44 +308,36 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									}
 								}
 							}
-							for (int i = equippedWeaponNodeNamesBase; i < 42; i++) {
-								NiAVObject *armorGeomNode = bipedData->unk10[i].object;
-								if (armorGeomNode) {
-									BSFixedString equippedWeaponNodeName = equippedWeaponNodeNames[i - equippedWeaponNodeNamesBase];
-									if (equippedWeaponNodeName) {
-										NiAVObject *equippedWeaponNode = actor->loadedState->node->GetObjectByName(&equippedWeaponNodeName.data);
-										if (equippedWeaponNode) {
-											if (hitNode == equippedWeaponNode->m_parent) {
-												hitIndex = i;
-												hitForm = bipedData->unk10[i].armor;
-												break;
-											}
+							for (int i = equippedWeaponSlotBase; i < 42; i++) {
+								// For equipped weapons, the nodes are attached to the skeleton. Find the nearest parent that has collision and see if it was hit
+								NiAVObject *geomNode = bipedData->unk10[i].object;
+								bool hasCollision = false;
+								if (geomNode) {
+									NiAVObject *nodeWithCollision = geomNode;
+									while (nodeWithCollision) {
+										if (nodeWithCollision->unk040) {
+											hasCollision = true;
+											break;
 										}
+										nodeWithCollision = nodeWithCollision->m_parent;
+									}
+									if (hasCollision && nodeWithCollision == hitNode) {
+										hitIndex = i;
+										hitForm = bipedData->unk10[i].armor;
+										break;
 									}
 								}
 							}
-							if (hitForm != nullptr) {
+							if (hitForm) {
+								// Make sure the armor we hit is actually equipped. When nothing is equipped, there can still be 'naked' armor in the biped data that's not really equipped armor.
 								ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
 								if (containerChanges) {
 									MatchByForm matcher(hitForm);
 									EquipData equipData = containerChanges->FindEquipped(matcher);
 									TESForm *equippedForm = equipData.pForm;
 									if (equippedForm) {
-										if (hitIndex < equippedWeaponNodeNamesBase) {
-											// Armor hit
-											auto hitBipedData = &bipedData->unk10[hitIndex];
-											nodeOnWhichToPlayShader = hitBipedData->object;
-										}
-										else {
-											// Weapon hit
-											BSFixedString equippedWeaponNodeName = equippedWeaponNodeNames[hitIndex - equippedWeaponNodeNamesBase];
-											if (equippedWeaponNodeName) {
-												NiAVObject *equippedWeaponNode = actor->loadedState->node->GetObjectByName(&equippedWeaponNodeName.data);
-												if (equippedWeaponNode) {
-													nodeOnWhichToPlayShader = equippedWeaponNode;
-												}
-											}
-										}
+										auto hitBipedData = &bipedData->unk10[hitIndex];
+										nodeOnWhichToPlayShader = hitBipedData->object;
 										selectedObject.hitForm = equippedForm;
 										selectedObject.hitNode = hitNode;
 									}
@@ -381,16 +351,42 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			if (nodeOnWhichToPlayShader) {
-				if (nodeOnWhichToPlayShader != selectedObject.shaderNode) {
-					OwnedController *cont = shaderController;
-					cont->attachRoot = nodeOnWhichToPlayShader;
-					selectedObject.shaderNode = nodeOnWhichToPlayShader;
+				if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+					if (nodeOnWhichToPlayShader != selectedObject.shaderNode) {
+						// Play shader if other hand is not playing its shader on this node
+						TESEffectShader *shader;
+						if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+							shader = itemSelectedShaderOffLimits;
+						}
+						else {
+							shader = itemSelectedShader;
+						}
+
+						if (selectedObject.handle == prevSelectedHandle) {
+							// Shader stopping when selecting a new obj is handled in Deselect()
+							StopShader(selectedObject.handle, selectedObject.shaderNode);
+						}
+						PlayShader(selectedObject.handle, nodeOnWhichToPlayShader, shader);
+						selectedObject.shaderNode = nodeOnWhichToPlayShader;
+					}
 				}
 			}
-			else if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			else if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !selectedObject.shaderNode) {
 				// No node selected but refr is still selected
-				OwnedController *cont = shaderController;
-				cont->attachRoot = nullptr;
+				// Note: This only happens if no node was selected previously too. So the shader is 'sticky' if a node was previously selected.
+
+				if (selectedObject.handle != prevSelectedHandle) {
+					TESEffectShader *shader;
+					if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+						shader = itemSelectedShaderOffLimits;
+					}
+					else {
+						shader = itemSelectedShader;
+					}
+
+					PlayShader(selectedObject.handle, nullptr, shader);
+				}
+
 				selectedObject.shaderNode = nullptr;
 				selectedObject.hitNode = nullptr;
 				selectedObject.hitForm = nullptr;
@@ -540,10 +536,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 										// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
 										// Actor::RemoveItem is at 0x607F60
 
-										typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 										UInt64 *vtbl = *((UInt64 **)actor);
 										UInt32 droppedObjHandle = *g_invalidRefHandle;
-										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
+										NiPoint3 dropLoc = selectedObject.shaderNode->m_worldTransform.pos + NiPoint3(0, 0, 30); // move it up a bit
 										((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
 
 										NiPointer<TESObjectREFR> droppedObj;

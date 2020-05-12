@@ -58,5 +58,42 @@ struct OwnedController
 };
 static_assert(sizeof(OwnedController) == 0x30);
 
-extern OwnedController *shaderController;
-extern volatile bool isStartingShader;
+struct ShaderReferenceEffect : NiObject
+{
+	float		   lifetime;	 // 10
+	UInt32		   pad14;		 // 14
+	TESObjectCELL* cell;		 // 18
+	float		   age;			 // 20
+	bool		   initialized;	 // 24
+	UInt8		   pad25;		 // 25
+	UInt16		   pad26;		 // 26
+	UInt32		   effectID;	 // 28
+	UInt32		   pad2C;		 // 2C
+	OwnedController *controller; // 30
+	UInt32			   target;		   // 38
+	UInt32			   aimAtTarget;	   // 3C
+	bool					   finished;	   // 40
+	bool					   ownController;  // 41
+	UInt16					   pad42;		   // 42
+	UInt32					   pad44;		   // 44
+	// more...
+};
+static_assert(offsetof(ShaderReferenceEffect, controller) == 0x30);
+
+extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
+
+
+struct PlayingShader
+{
+	TESEffectShader *shader;
+	NiPointer<ShaderReferenceEffect> shaderReference;
+	UInt32 handle;
+	NiPointer<NiAVObject> node;
+
+	bool IsPlaying() const;
+};
+void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
+void StopShader(UInt32 objHandle, NiAVObject *node);
+
+
+typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
