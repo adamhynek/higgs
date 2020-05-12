@@ -64,7 +64,7 @@ uintptr_t hookedFuncAddr = 0;
 
 
 ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
-void HookFunc(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
+void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
 {
 	if (g_shaderReferenceToSet) {
 		*g_shaderReferenceToSet = ref;
@@ -95,7 +95,7 @@ void Hook_Commit(void)
 			movsd(ptr[rsp + 0x50], xmm5);
 
 			// Call our hook
-			mov(rax, (uintptr_t)HookFunc);
+			mov(rax, (uintptr_t)HookedShaderReferenceEffectCtor);
 			call(rax);
 
 			movsd(xmm0, ptr[rsp]);

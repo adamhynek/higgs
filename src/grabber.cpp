@@ -243,6 +243,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (!allowGrab || (other.HasExclusiveObject() && collidable == other.selectedObject.collidable)) {
 				continue;
 			}
+			if (!hkpGetRigidBody(collidable)) {
+				continue; // No rigidbody -> no movement :/
+			}
 			NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 			if (ref) {
 				if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
@@ -371,11 +374,24 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 				}
 			}
-			else if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !selectedObject.shaderNode) {
+			else if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				// No node selected but refr is still selected
-				// Note: This only happens if no node was selected previously too. So the shader is 'sticky' if a node was previously selected.
 
 				if (selectedObject.handle != prevSelectedHandle) {
+					TESEffectShader *shader;
+					if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+						shader = itemSelectedShaderOffLimits;
+					}
+					else {
+						shader = itemSelectedShader;
+					}
+
+					PlayShader(selectedObject.handle, nullptr, shader);
+				}
+				else if (selectedObject.shaderNode) {
+					// Node was selected before, but not now. Stop the shader on that node.
+					StopShader(selectedObject.handle, selectedObject.shaderNode);
+
 					TESEffectShader *shader;
 					if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
 						shader = itemSelectedShaderOffLimits;
@@ -536,9 +552,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 										// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
 										// Actor::RemoveItem is at 0x607F60
 
+										StopShader(selectedObject.handle, selectedObject.shaderNode);
+
 										UInt64 *vtbl = *((UInt64 **)actor);
 										UInt32 droppedObjHandle = *g_invalidRefHandle;
-										NiPoint3 dropLoc = selectedObject.shaderNode->m_worldTransform.pos + NiPoint3(0, 0, 30); // move it up a bit
+										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 30); // move it up a bit
 										((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
 
 										NiPointer<TESObjectREFR> droppedObj;
