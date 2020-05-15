@@ -44,8 +44,9 @@ void PrintToFile(std::string entry, std::string filename);
 float hkHalfToFloat(hkHalf half);
 hkHalf floatToHkHalf(float half);
 
-bool DoesNodeHaveNode(NiNode *node, NiAVObject *target);
+bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
+bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target);
 
 
 typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);

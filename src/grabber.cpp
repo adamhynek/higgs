@@ -37,44 +37,6 @@ public:
 };
 
 
-bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
-{
-	BSGeometry *geom = armorNode->GetAsBSGeometry();
-	if (geom) {
-		NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
-		if (skinInstance) {
-			NiSkinDataPtr skinData = skinInstance->m_spSkinData;
-			if (skinData) {
-				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
-				for (int i = 0; i < numBones; i++) {
-					NiAVObject *bone = skinInstance->m_ppkBones[i];
-					if (bone) {
-						if (bone == target) {
-							return true;
-						}
-					}
-				}
-			}
-		}
-		return false;
-	}
-	NiNode *node = armorNode->GetAsNiNode();
-	if (node) {
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				if (IsNodeWithinArmor(child, target)) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-	_WARNING("Armor node is not geometry and has no children: %", armorNode->m_name ? armorNode->m_name : "");
-	return false;
-}
-
-
 void Grabber::Select(TESObjectREFR *obj)
 {
 	selectedObject.handle = GetOrCreateRefrHandle(obj);
@@ -110,25 +72,7 @@ void Grabber::Deselect()
 	state = IDLE;
 }
 
-/*
-kHead = 0,
-kHair = 1,
-kBody = 2,
-kHands = 3,
-kForearms = 4,
-kAmulet = 5,
-kRing = 6,
-kFeet = 7,
-kCalves = 8,
-kShield = 9,
-kTail = 10,
-kLongHair = 11,
-kCirclet = 12,
-kEars = 13,
-kDecapitateHead = 20,
-kDecapitate = 21,
-kFX01 = 31,
-*/
+
 UInt32 priorities[] = {
 	3, // head
 	2, // hair
@@ -380,19 +324,27 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 								NiAVObject *geomNode = bipedData->unk10[i].object;
 								bool hasCollision = false;
 								if (geomNode) {
-									// TODO: Check if the weapon we hit is actually attached to the character or 'dropped'
-									NiAVObject *nodeWithCollision = geomNode;
-									while (nodeWithCollision) {
-										if (nodeWithCollision->unk040) {
-											hasCollision = true;
-											break;
-										}
-										nodeWithCollision = nodeWithCollision->m_parent;
-									}
-									if (hasCollision && nodeWithCollision == hitNode) {
+									if (DoesNodeHaveNode(geomNode, hitNode)) {
+										// We collided with the weapon, so it must not be attached to the character
 										hitIndex = i;
 										hitForm = bipedData->unk10[i].armor;
 										break;
+									}
+									else {
+										// Weapon is attached to the character - get the nearest parent node that does have collision
+										NiAVObject *nodeWithCollision = geomNode;
+										while (nodeWithCollision) {
+											if (nodeWithCollision->unk040) {
+												hasCollision = true;
+												break;
+											}
+											nodeWithCollision = nodeWithCollision->m_parent;
+										}
+										if (hasCollision && nodeWithCollision == hitNode) {
+											hitIndex = i;
+											hitForm = bipedData->unk10[i].armor;
+											break;
+										}
 									}
 								}
 							}
@@ -642,6 +594,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 										UInt64 *vtbl = *((UInt64 **)actor);
 										UInt32 droppedObjHandle = *g_invalidRefHandle;
+										// TODO: For dropped weapons, make the drop pos / rot equal to where it was before
 										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 30); // move it up a bit
 										((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
 

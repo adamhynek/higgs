@@ -8,6 +8,7 @@
 
 #include "skse64/GameRTTI.h"
 #include "skse64/NiExtraData.h"
+#include "skse64/NiGeometry.h"
 
 #include "utils.h"
 #include "offsets.h"
@@ -339,7 +340,7 @@ std::string PrintNodeToString(NiAVObject *avObj, int depth)
 			auto fgAnimExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenAnimationData);
 			if (fgAnimExtraData) {
 				avInfoStr << extraData->m_pcName << " (facegen anim); ";
-				continue;
+continue;
 			}
 			auto fgModelExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenModelExtraData);
 			if (fgModelExtraData) {
@@ -404,21 +405,20 @@ hkHalf floatToHkHalf(float f)
 	return SInt16(t >> 16);
 }
 
-bool DoesNodeHaveNode(NiNode *node, NiAVObject *target)
+bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 {
-	if (node == target) {
+	if (haystack == target) {
 		return true;
 	}
 
-	for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-		NiAVObject *child = node->m_children.m_data[i];
-		if (child) {
-			if (child == target) {
-				return true;
-			}
-			NiNode *childNode = child->GetAsNiNode();
-			if (childNode && DoesNodeHaveNode(childNode, target)) {
-				return true;
+	NiNode *node = haystack->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			NiAVObject *child = node->m_children.m_data[i];
+			if (child) {
+				if (DoesNodeHaveNode(child, target)) {
+					return true;
+				}
 			}
 		}
 	}
@@ -432,4 +432,41 @@ bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node)
 	}
 
 	return DoesNodeHaveNode(ref->loadedState->node, node);
+}
+
+bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
+{
+	BSGeometry *geom = armorNode->GetAsBSGeometry();
+	if (geom) {
+		NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
+		if (skinInstance) {
+			NiSkinDataPtr skinData = skinInstance->m_spSkinData;
+			if (skinData) {
+				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
+				for (int i = 0; i < numBones; i++) {
+					NiAVObject *bone = skinInstance->m_ppkBones[i];
+					if (bone) {
+						if (bone == target) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+	NiNode *node = armorNode->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				if (IsNodeWithinArmor(child, target)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	_WARNING("Armor node is not geometry and has no children: %", armorNode->m_name ? armorNode->m_name : "");
+	return false;
 }
