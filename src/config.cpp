@@ -49,7 +49,6 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabbedRampUpTime", &options.grabbedRampUpTime)) return false;
 
-		if (!GetConfigOptionBool("Settings", "EquipWeapons", &options.equipWeapons)) return false;
 		if (!GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &options.ignoreWeaponChecks)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &options.hoverVelocityMultiplier)) return false;

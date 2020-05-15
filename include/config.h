@@ -25,7 +25,6 @@ namespace Config {
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		bool ignoreWeaponChecks = false;
-		bool equipWeapons = false;
 
 		NiPoint3 handAdjust = { -0.018, -0.965, 0.261 };
 	};

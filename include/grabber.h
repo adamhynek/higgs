@@ -42,8 +42,8 @@ struct Grabber
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
-	void Select(TESObjectREFR *obj, const SelectedObject &other, hkpCollidable *coll);
-	void Deselect(TESObjectREFR *obj, const SelectedObject &other);
+	void Select(TESObjectREFR *obj);
+	void Deselect();
 
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
