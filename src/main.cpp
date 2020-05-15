@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "config.h"
 #include "menu_checker.h"
+#include "shaders.h"
 
 
 // SKSE globals
