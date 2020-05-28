@@ -144,6 +144,19 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	if (!wandNode)
 		return;
 
+	static BSFixedString comName("NPC COM [COM ]");
+	NiAVObject *comNode = player->GetNiRootNode(0)->GetObjectByName(&comName.data);
+	if (!comNode) {
+		_MESSAGE("No COM [COM] node on player");
+		return;
+	}
+	if (!comNode->unk040) {
+		_MESSAGE("COM node has no collision object");
+		return;
+	}
+
+	UInt16 playerCollisionGroup = ((bhkCollisionObject *)comNode->unk040)->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
+
 	bhkWorld *world = GetWorld(cell);
 	if (!world) {
 		_MESSAGE("Could not get havok world from player cell");
@@ -159,7 +172,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		hkpBoxShape_ctor(&handCollShape, { 0.05, 0.015, 0.075, 0 }, 0);
 		hkpRigidBodyCinfo_ctor(&handCollCInfo); // initialize with defaults
 		handCollCInfo.m_shape = &handCollShape;
-		handCollCInfo.m_collisionFilterInfo = 0x00090005; // player group, weapon layer
+		handCollCInfo.m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 0x5; // player group, weapon layer
 		handCollCInfo.m_collisionFilterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
 		handCollCInfo.m_motionType = MOTION_KEYFRAMED;
 		handCollCInfo.m_enableDeactivation = false;
@@ -579,6 +592,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 								allRayHitCollector.reset();
 								//NiPoint3 hkTargetPos = hkPalmNodePos + castDirection * (Config::options.grabRadius * 2);
 								NiPoint3 hkTargetPos = hkPalmNodePos + (ptPos - hkPalmNodePos) * 1.5;
+								rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
 								rayCastInput.m_from = NiPointToHkVector(hkPalmNodePos);
 								rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
 
@@ -963,7 +977,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					selectedObject.hasSavedCollisionFilterInfo = true;
 					selectedObject.savedCollisionFilterInfo = selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo;
 					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 0x00090000;
+					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;
 					// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
 					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 				}
@@ -1019,7 +1033,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.hasSavedCollisionFilterInfo = true;
 						selectedObject.savedCollisionFilterInfo = selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo;
 						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 0x00090000;
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;;
 						// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
 						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 					}
