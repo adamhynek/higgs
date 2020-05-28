@@ -9,7 +9,7 @@ typedef char hkBool;
 typedef SInt16 hkHalf;
 
 // All shape types. The dispatcher has only to implement at least the types that can be used as secondary types
-enum hkpShapeType
+enum hkpShapeType : UInt32
 {
 	//
 	// Shape types from HK_SHAPE_INVALID to HK_SHAPE_MAX_ID_SPU are supported on the SPU.
@@ -124,7 +124,117 @@ enum hkpShapeType
 	//	The end of the shape type list.
 	HK_SHAPE_MAX_ID,
 	// All shape flag, used by the hkpCollisionDispatcher.
-	HK_SHAPE_ALL = -1
+	HK_SHAPE_ALL = (UInt32)-1
+};
+
+enum MotionType : UInt8
+{
+	MOTION_INVALID,
+
+	// A fully-simulated, movable rigid body. At construction time the engine checks
+	// the input inertia and selects MOTION_SPHERE_INERTIA or MOTION_BOX_INERTIA as
+	// appropriate.
+	MOTION_DYNAMIC,
+
+	// Simulation is performed using a sphere inertia tensor. (A multiple of the
+	// Identity matrix). The highest value of the diagonal of the rigid body's
+	// inertia tensor is used as the spherical inertia.
+	MOTION_SPHERE_INERTIA,
+
+	// Simulation is performed using a box inertia tensor. The non-diagonal elements
+	// of the inertia tensor are set to zero. This is slower than the
+	// MOTION_SPHERE_INERTIA motions, however it can produce more accurate results,
+	// especially for long thin objects.
+	MOTION_BOX_INERTIA,
+
+	// Simulation is not performed as a normal rigid body. During a simulation step,
+	// the velocity of the rigid body is used to calculate the new position of the
+	// rigid body, however the velocity is NOT updated. The user can keyframe a rigid
+	// body by setting the velocity of the rigid body to produce the desired keyframe
+	// positions. The hkpKeyFrameUtility class can be used to simply apply keyframes
+	// in this way. The velocity of a keyframed rigid body is NOT changed by the
+	// application of impulses or forces. The keyframed rigid body has an infinite
+	// mass when viewed by the rest of the system.
+	MOTION_KEYFRAMED,
+
+	// This motion type is used for the static elements of a game scene, e.g., the
+	// landscape. Fixed rigid bodies are treated in a special way by the system. They
+	// have the same effect as a rigid body with a motion of type MOTION_KEYFRAMED
+	// and velocity 0, however they are much faster to use, incurring no simulation
+	// overhead, except in collision with moving bodies.
+	MOTION_FIXED,
+
+	// A box inertia motion which is optimized for thin boxes and has less stability problems
+	MOTION_THIN_BOX_INERTIA,
+
+	// A specialized motion used for character controllers
+	MOTION_CHARACTER,
+
+	MOTION_MAX_ID
+};
+
+enum hkpCollidableQualityType : SInt8
+{
+	// Invalid or unassigned type. If you add a hkpRigidBody to the hkpWorld,
+	// this type automatically gets converted to either
+	// HK_COLLIDABLE_QUALITY_FIXED, HK_COLLIDABLE_QUALITY_KEYFRAMED or HK_COLLIDABLE_QUALITY_DEBRIS
+	HK_COLLIDABLE_QUALITY_INVALID = -1,
+
+	// Use this for fixed bodies.
+	HK_COLLIDABLE_QUALITY_FIXED = 0,
+
+	// Use this for moving objects with infinite mass.
+	HK_COLLIDABLE_QUALITY_KEYFRAMED,
+
+	// Use this for all your debris objects.
+	HK_COLLIDABLE_QUALITY_DEBRIS,
+
+	// Use this for debris objects that should have simplified TOI collisions with fixed/landscape objects.
+	HK_COLLIDABLE_QUALITY_DEBRIS_SIMPLE_TOI,
+
+	// Use this for moving bodies, which should not leave the world,
+	// but you rather prefer those objects to tunnel through the world than
+	// dropping frames because the engine .
+	HK_COLLIDABLE_QUALITY_MOVING,
+
+	// Use this for all objects, which you cannot afford to tunnel through
+	// the world at all.
+	HK_COLLIDABLE_QUALITY_CRITICAL,
+
+	// Use this for very fast objects.
+	HK_COLLIDABLE_QUALITY_BULLET,
+
+	// For user. If you want to use this, you have to modify hkpCollisionDispatcher::initCollisionQualityInfo()
+	HK_COLLIDABLE_QUALITY_USER,
+
+	// Use this for rigid body character controllers.
+	HK_COLLIDABLE_QUALITY_CHARACTER,
+
+	// Use this for moving objects with infinite mass which should report contact points and TOI-collisions against all other bodies, including other fixed and keyframed bodies.
+	//
+	// Note that only non-TOI contact points are reported in collisions against debris-quality objects.
+	HK_COLLIDABLE_QUALITY_KEYFRAMED_REPORTING,
+
+	// End of this list
+	HK_COLLIDABLE_QUALITY_MAX
+};
+
+enum hkpUpdateCollisionFilterOnEntityMode
+{
+	// Do a full check
+	HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK,
+
+	// Recheck filter but only check for disabled entity-entity collisions which have been enabled before
+	HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY
+};
+
+enum hkpUpdateCollectionFilterMode
+{
+	// Assume that no single shapes in a shape collections changed their filter status
+	HK_UPDATE_COLLECTION_FILTER_IGNORE_SHAPE_COLLECTIONS,
+
+	// Recheck all subshapes in a shape collection
+	HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS
 };
 
 // Must be aligned to 16 bytes (128 bits) as it's a simd type
@@ -145,9 +255,22 @@ struct hkArray
 };
 static_assert(sizeof(hkArray) == 0x10);
 
+struct hkMatrix3
+{
+	// w of each column is just padding
+	hkVector4 m_col0;
+	hkVector4 m_col1;
+	hkVector4 m_col2;
+};
+
+struct hkRotation : hkMatrix3
+{
+
+};
+
 struct hkTransform
 {
-	float m_rotation[12]; // 00 - 3x4 matrix, 3 rows of hkVector4
+	hkRotation m_rotation; // 00
 	hkVector4 m_translation; // 30
 };
 static_assert(sizeof(hkTransform) == 0x40);
@@ -162,13 +285,19 @@ struct hkSweptTransform
 };
 static_assert(sizeof(hkSweptTransform) == 0x50);
 
-struct bhkBoxShape
+struct hkReferencedObject
 {
-	void * vtbl; // 00
-	// These 2 inherited from NiRefObject, I _think_
-	volatile SInt32	m_uiRefCount;	// 08
-	UInt32	pad0C;	// 0C
+	virtual ~hkReferencedObject() {};
+	virtual void getClassType() {};
+	virtual void calcContentStatistics() {};
 
+	UInt16 m_memSizeAndFlags; // 08
+	SInt16 m_referenceCount; // 0A
+	UInt32 pad0C;
+};
+
+struct bhkBoxShape : NiRefObject
+{
 	struct hkpBoxShape * hkBoxShape; // 10 - points to hkpBoxShape
 
 	UInt64 unk18; // == 0?
@@ -176,43 +305,24 @@ struct bhkBoxShape
 };
 static_assert(sizeof(bhkBoxShape) == 0x28);
 
-struct hkpShape
+struct hkpShape : hkReferencedObject
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	void * m_userData; // 10
-	UInt32 m_type; // 18
+	hkpShapeType m_type; // 18
 	UInt32 pad1C; // 1C
 };
 static_assert(sizeof(hkpShape) == 0x20);
-
-struct hkpBoxShape : public hkpShape
-{
-	// m_type == 4, m_userData points to bhkBoxShape
-	float m_radius; // 20
-	UInt32 pad24;
-	UInt64 unk28;
-	hkVector4 m_halfExtents; // 30 - I believe the value of w doesn't matter here
-};
-static_assert(sizeof(hkpBoxShape) == 0x40);
 
 struct hkpConvexShape : public hkpShape
 {
 	float m_radius; // 20
 };
 
-struct hkpShapeRayCastCollectorOutput
+struct hkpBoxShape : public hkpConvexShape
 {
-	hkVector4 m_normal;
-	float m_hitFraction;
-	int m_extraInfo;
-	int m_pad[2];
+	hkVector4 m_halfExtents; // 30 - I believe the value of w doesn't matter here
 };
-static_assert(sizeof(hkpShapeRayCastCollectorOutput) == 0x20);
+static_assert(sizeof(hkpBoxShape) == 0x40);
 
 struct hkpTypedBroadPhaseHandle
 {
@@ -221,7 +331,7 @@ struct hkpTypedBroadPhaseHandle
 
 	SInt8 m_type; // 04
 	SInt8 m_ownerOffset; // 05
-	SInt8 m_objectQualityType; // 06
+	hkpCollidableQualityType m_objectQualityType; // 06
 	UInt8 pad07;
 	UInt32 m_collisionFilterInfo; // 08
 };
@@ -281,6 +391,27 @@ struct hkpLinkedCollidable : public hkpCollidable
 };
 static_assert(sizeof(hkpLinkedCollidable) == 0x80);
 
+struct hkpShapeRayCastCollectorOutput
+{
+	inline void reset() {
+		m_hitFraction = 1.0f;
+		m_shapeKey = -1;
+		m_extraInfo = -1;
+	};
+
+	hkVector4 m_normal;
+	float m_hitFraction;
+	int m_extraInfo;
+	UInt32 m_shapeKey;
+	int m_pad;
+};
+
+struct hkpShapeRayCastOutput : public hkpShapeRayCastCollectorOutput
+{
+	UInt32 m_shapeKeys[8];
+	int m_shapeKeyIndex = -1;
+};
+
 class hkpRayHitCollector
 {
 public:
@@ -304,6 +435,14 @@ struct hkpWorldRayCastInput
 	{}
 };
 
+struct hkpShapeRayCastInput
+{
+	hkVector4 m_from;
+	hkVector4 m_to;
+	UInt32 m_filterInfo = 0;
+	void * m_rayShapeCollectionFilter = nullptr;
+};
+
 struct hkpWorldRayCaster
 {
 	void * vtbl; // 00
@@ -322,16 +461,17 @@ struct hkContactPoint
 
 	hkVector4 m_position; // 00
 	hkVector4 m_separatingNormal; // 10
-	hkVector4 m_separatingNormal_again; // 20 - It appears to be here twice for some reason - maybe sometimes it's different?
 };
-static_assert(sizeof(hkContactPoint) == 0x30);
+static_assert(sizeof(hkContactPoint) == 0x20);
 
 struct hkpCdPoint
 {
 	hkContactPoint m_contact; // 00
+	hkVector4 m_unweldedNormal; // 20
 	hkpCdBody * m_cdBodyA; // 30
-	hkpCdBody * m_cdBodyB; // 40
+	hkpCdBody * m_cdBodyB; // 38
 };
+static_assert(sizeof(hkpCdPoint) == 0x40);
 
 struct hkpCdPointCollector
 {
@@ -362,22 +502,21 @@ struct hkpCdBodyPairCollector
 	hkBool m_earlyOut; // 08
 };
 
+struct hkpRayShapeCollectionFilter : hkReferencedObject
+{
+
+};
+
 // Function that compares 2 filter infos is at reloc<0xE2BA10>
 
-struct hkpCollisionFilter
+struct hkpCollisionFilter : hkpRayShapeCollectionFilter
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	// more...
 };
 
-struct bhkCollisionFilter
+struct bhkCollisionFilter : hkpCollisionFilter
 {
-	char todo[0x50]; // 00
+	char todo[0x40]; // 10
 	UInt32 bipedBitfields[18]; // 50 - could be more than 18, I'm not exactly sure. The max is 32 (5 bits)
 	UInt64 unk[39]; // 98
 	UInt64 layerBitfields[56]; // 1D0
@@ -390,8 +529,21 @@ static_assert(offsetof(bhkCollisionFilter, layerNames) == 0x3E0);
 
 struct hkpCollisionInput
 {
-
+	struct hkpCollisionDispatcher * m_dispatcher; // 00
+	UInt32 m_weldClosestPoints; // 08
+	UInt32 m_forceAcceptContactPoints; // 0C
+	float m_tolerance; // 10
+	UInt32 pad14;
+	hkpCollisionFilter * m_filter; // 18
+	struct hkpConvexListFilter * m_convexListFilter; // 20
+	UInt32 m_createPredictiveAgents; // 28
+	UInt32 pad2C;
+	// Aabb32Info
+	hkVector4 m_bitOffsetLow; // 30
+	hkVector4 m_bitOffsetHigh; // 40
+	hkVector4 m_bitScale; // 50
 };
+static_assert(sizeof(hkpCollisionInput) == 0x60);
 
 struct hkpProcessCollisionInput : public hkpCollisionInput
 {
@@ -408,17 +560,54 @@ struct hkpSimulationIsland
 
 };
 
+struct hkpCollisionDispatcher : hkReferencedObject
+{
+	enum {
+		HK_MAX_RESPONSE_TYPE = 8,
+		HK_MAX_SHAPE_TYPE = 32,
+		HK_MAX_AGENT2_TYPES = 64,
+		HK_MAX_AGENT3_TYPES = 18,
+		HK_MAX_COLLISION_QUALITIES = 8
+	};
+
+	typedef void (*GetClosestPointsFunc)   (const hkpCdBody *bodyA, const hkpCdBody *bodyB, const hkpCollisionInput *input, hkpCdPointCollector *output);
+
+	struct AgentFuncs
+	{
+		void * m_createFunc;
+		void * m_getPenetrationsFunc;
+		GetClosestPointsFunc m_getClosestPointFunc;
+		void * m_linearCastFunc;
+		hkBool m_isFlipped;
+		hkBool m_isPredictive;
+	};
+
+	inline GetClosestPointsFunc getGetClosestPointsFunc(hkpShapeType typeA, hkpShapeType typeB) const
+	{
+		int idx = m_agent2Types[typeA][typeB];
+		return m_agent2Func[idx].m_getClosestPointFunc;
+	}
+
+	void * m_defaultCollisionAgent;
+
+	void * m_contactMgrFactory[HK_MAX_RESPONSE_TYPE][HK_MAX_RESPONSE_TYPE];
+
+	__declspec(align(16)) UInt32 m_hasAlternateType[HK_MAX_SHAPE_TYPE];
+
+	int	m_numAgent2Types;
+	__declspec(align(16)) UInt8 m_agent2Types[HK_MAX_SHAPE_TYPE][HK_MAX_SHAPE_TYPE];
+	UInt8 m_agent2TypesPred[HK_MAX_SHAPE_TYPE][HK_MAX_SHAPE_TYPE];
+	AgentFuncs m_agent2Func[HK_MAX_AGENT2_TYPES];
+
+	// more...
+};
+static_assert(offsetof(hkpCollisionDispatcher, m_numAgent2Types) == 0x2A0);
+
 // bhkWorld pointer (exteriors) is at reloc<0x1f850d0>
 // function that gets it from a TESObjectCELL is at reloc<276A90>
 
-struct ahkpWorld
+struct ahkpWorld : hkReferencedObject
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	hkpSimulation * m_simulation; // 10 - hkpContinuousSimulation
 	UInt64 unk18; // pointer to string? (??)
 	hkVector4 m_gravity; // 20
@@ -446,7 +635,7 @@ struct ahkpWorld
 	void * m_multithreadedSimulationJobData; // C0
 	hkpProcessCollisionInput * m_collisionInput; // C8
 	bhkCollisionFilter * m_collisionFilter;  // D0
-	void * m_collisionDispatcher; // D8
+	hkpCollisionDispatcher * m_collisionDispatcher; // D8
 	void * m_convexListFilter; // E0
 
 	// way more... todo
@@ -456,13 +645,8 @@ static_assert(offsetof(ahkpWorld, m_broadPhaseDispatcher) == 0xA0);
 // Address of pointer that points to the bhkWorld pointer
 // RelocAddr<bhkWorld ***> BHKWORLD(0x1f850d0); - world for _tamriel outside_ is here - does not work for interiors
 
-struct bhkWorld
+struct bhkWorld : NiRefObject
 {
-	void * vtbl; // 00
-	// These 2 inherited from NiRefObject
-	volatile SInt32	m_uiRefCount;	// 08
-	UInt32	pad0C;	// 0C
-
 	ahkpWorld * world; // 10
 };
 static_assert(offsetof(bhkWorld, world) == 0x10);
@@ -485,15 +669,14 @@ struct hkMotionState
 };
 static_assert(sizeof(hkMotionState) == 0xB0);
 
-struct hkpMotion
+struct hkpMotion : hkReferencedObject
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
+	// vfunc 12 is setposition
+	// 13 is setrotation
+	// 14 is setpositionandrotation
+	// 15 is settransform
 
-	UInt8 m_motionType; // 10
+	MotionType m_motionType; // 10
 	UInt8 m_deactivationIntegrateCounter; // 11
 	UInt16 m_deactivationNumInactiveFrames[2]; // 12
 	UInt16 pad16;
@@ -514,7 +697,41 @@ struct hkpMotion
 };
 static_assert(sizeof(hkpMotion) == 0x140);
 
-struct hkpWorldObject
+struct hkpRigidBodyCinfo
+{
+	UInt32 m_collisionFilterInfo;
+	const hkpShape* m_shape;
+	void * m_localFrame;
+	UInt8 m_collisionResponse;
+	UInt16 m_contactPointCallbackDelay;
+	hkVector4 m_position;
+	hkVector4 m_rotation; // Quaternion
+	hkVector4 m_linearVelocity;
+	hkVector4 m_angularVelocity;
+	hkMatrix3 m_inertiaTensor;
+	hkVector4 m_centerOfMass;
+	float m_mass;
+	float m_linearDamping;
+	float m_angularDamping;
+	float m_timeFactor;
+	float m_gravityFactor;
+	float m_friction;
+	float m_rollingFrictionMultiplier;
+	float m_restitution;
+	float m_maxLinearVelocity;
+	float m_maxAngularVelocity;
+	float m_allowedPenetrationDepth;
+	MotionType m_motionType;
+	hkBool m_enableDeactivation;
+	UInt8 m_solverDeactivation;
+	hkpCollidableQualityType m_qualityType;
+	UInt8 m_autoRemoveLevel;
+	UInt8 m_responseModifierFlags;
+	SInt8 m_numShapeKeysInContactPointProperties;
+	hkBool m_forceCollideOntoPpu;
+};
+
+struct hkpWorldObject : hkReferencedObject
 {
 	enum BroadPhaseType
 	{
@@ -533,15 +750,9 @@ struct hkpEntity : hkpWorldObject
 
 struct hkpRigidBody : hkpEntity
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	ahkpWorld * world; // 10
 
-	struct bhkRigidBodyT * gameRigidBody; // 18 - user data - points back to below struct
+	struct bhkRigidBody * gameRigidBody; // 18 - user data - points back to below struct
 
 	hkpLinkedCollidable m_collidable; // 20
 	UInt64 unkA0;
@@ -556,41 +767,44 @@ struct hkpRigidBody : hkpEntity
 
 	hkpMotion motion; // 150
 	// more...
+	char unk[0x2D0 - 0x290]; // 290
 };
 static_assert(offsetof(hkpRigidBody, m_properties) == 0xB8);
 static_assert(offsetof(hkpRigidBody, motion) == 0x150);
+static_assert(sizeof(hkpRigidBody) == 0x2D0); // 2D0 is how much the game allocates for a rigidbody
 
-struct bhkRigidBodyT
+struct bhkEntity : NiRefObject
 {
-	void * vtbl; // 00
-	// These 2 inherited from NiRefObject
-	volatile SInt32	m_uiRefCount;	// 08
-	UInt32	pad0C;	// 0C
 
-	hkpRigidBody * hkBody; // 10 - points to above struct
-	// more?
 };
 
-struct bhkCollisionObject
+struct bhkRigidBody : bhkEntity
 {
-	void * vtbl; // 00
-	// These 2 inherited from NiRefObject
-	volatile SInt32	m_uiRefCount;	// 08
-	UInt32	pad0C;	// 0C
+	hkpRigidBody * hkBody; // 10
+	UInt16 flags; // 18 - flags? if or'd with 0x20 (bit 5), it makes havok sim more stable
+	UInt64 unk20; // at least first byte are some flags?
+	void *constraints; // 28
+	UInt64 unk30;
+	UInt32 numConstraints; // 38
+};
+static_assert(offsetof(bhkRigidBody, numConstraints) == 0x38);
 
+struct bhkRigidBodyT : bhkRigidBody
+{
+
+};
+
+struct bhkCollisionObject : NiRefObject
+{
 	NiNode * node; // 10 - points back to the NiNode pointing to this
 	UInt64 unk18; // bit 3 is set => we should update rotation of NiNode?
-	bhkRigidBodyT * body; // 20
+	bhkRigidBody * body; // 20
 	// more?
 };
 static_assert(offsetof(bhkCollisionObject, body) == 0x20);
 
-struct hkpShapePhantom
+struct hkpShapePhantom : hkReferencedObject
 {
-	// From hkReferencedObject
-	virtual ~hkpShapePhantom();
-	virtual void getClassType();
-	virtual void calcContentStatistics();
 	// From hkpWorldObject
 	virtual void setShape();
 	virtual void getMotionState();
@@ -614,12 +828,6 @@ struct hkpShapePhantom
 
 struct hkpSimpleShapePhantom : hkpShapePhantom
 {
-	//void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	ahkpWorld * world; // 10
 
 	void * userData; // 18
@@ -634,24 +842,14 @@ struct hkpSimpleShapePhantom : hkpShapePhantom
 };
 static_assert(offsetof(hkpSimpleShapePhantom, m_motionState) == 0xF0);
 
-struct bhkSimpleShapePhantom
+struct bhkSimpleShapePhantom : NiRefObject
 {
-	void * vtbl; // 00
-	volatile SInt32	m_uiRefCount;	// 08
-	UInt32	pad0C;	// 0C
-
 	hkpSimpleShapePhantom * phantom; // 10
 };
 
 
-struct hkbStateMachine
+struct hkbStateMachine : hkReferencedObject
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	// These from hkbBindable
 	void * m_variableBindingSet; // 10
 	hkArray m_cachedBindables; // 18
@@ -688,14 +886,8 @@ struct hkbStateMachine
 static_assert(offsetof(hkbStateMachine, m_states) == 0x90);
 static_assert(offsetof(hkbStateMachine, m_nextStartStateIndexOverride) == 0xFC);
 
-struct hkbBehaviorGraph
+struct hkbBehaviorGraph : hkReferencedObject
 {
-	void * vtbl; // 00
-	// These 3 inherited from hkReferencedObject
-	UInt16 m_memSizeAndFlags; // 08
-	SInt16 m_referenceCount; // 0A
-	UInt32 pad0C; // 0C
-
 	// These from hkbBindable
 	void * m_variableBindingSet; // 10
 	hkArray m_cachedBindables; // 18
@@ -759,3 +951,8 @@ inline hkpRigidBody* hkpGetRigidBody(const hkpCollidable* collidable)
 	}
 	return nullptr;
 }
+
+
+typedef void(*_hkpMotion_setPositionAndRotation)(hkpMotion *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
+typedef void(*_hkpMotion_setTransform)(hkpMotion *_this, const hkTransform& transform);
+typedef hkBool(*_hkpShape_castRayImpl)(hkpShape *_this, const hkpShapeRayCastInput& input, hkpShapeRayCastOutput& output);

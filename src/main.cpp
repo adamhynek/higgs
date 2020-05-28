@@ -54,8 +54,8 @@ float g_normalRumbleIntensity;
 bool g_hasSavedRollover = false;
 NiTransform g_normalRolloverTransform;
 
-Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", { 7, -5, -2 });
-Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", { -7, -7, -3 });
+Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 });
+Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
 
 
 auto hookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
@@ -176,7 +176,6 @@ bool TryHook()
 }
 
 
-double lastFrameTime;
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
 	if (!g_isLoaded) return true;
@@ -187,15 +186,24 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!player || !player->loadedState || !player->loadedState->node)
 		return true;
 
-	NiAVObject *playerWorldObj = GetHighestParent(player->loadedState->node);
-	if (!playerWorldObj)
+	NiAVObject *rootObj = GetHighestParent(player->loadedState->node);
+	if (!rootObj)
 		return true;
 
 	g_currentFrameTime = GetTime();
-	g_deltaTime = g_currentFrameTime - lastFrameTime;
-	lastFrameTime = g_currentFrameTime;
+
+	NiNode *rootNode = rootObj->GetAsNiNode();
+	if (!rootNode)
+		return true;
+
+	static BSFixedString playerWorldNodeName("PlayerWorldNode");
+	NiAVObject *playerWorldObj = rootNode->GetObjectByName(&playerWorldNodeName.data);
+	if (!playerWorldObj)
+		return true;
 
 	NiNode *playerWorldNode = playerWorldObj->GetAsNiNode();
+	if (!playerWorldNode)
+		return true;
 
 	std::pair<bool, bool> validItems = { true, true };
 	if (!Config::options.ignoreWeaponChecks) {

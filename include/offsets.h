@@ -16,6 +16,8 @@ extern RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR;
 
 extern RelocPtr<UInt32 *> SELECTED_HANDLES;
 
+extern RelocPtr<float> g_deltaTime;
+
 
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 extern RelocAddr<_IsInMenuMode> IsInMenuMode;
@@ -28,6 +30,9 @@ extern RelocAddr <_ApplyHavokImpulse> ApplyHavokImpulse;
 
 typedef bool(*_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
 extern RelocAddr<_Activate> Activate;
+
+typedef void(*_SetPosition)(VMClassRegistry *registry, UInt32 stackId, TESObjectREFR *ref, float afX, float afY, float afZ);
+extern RelocAddr<_SetPosition> SetPosition;
 
 typedef TESObjectREFR* (*_TranslateTo)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* obj, float afX, float afY, float afZ, float afAngleX, float afAngleY, float afAngleZ, float afSpeed, float afMaxRotationSpeed);
 extern RelocAddr<_TranslateTo> TranslateTo;
@@ -56,8 +61,41 @@ extern RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast;
 typedef void(*_hkpWorld_GetPenetrations)(ahkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdBodyPairCollector* collector);
 extern RelocAddr<_hkpWorld_GetPenetrations> hkpWorld_GetPenetrations;
 
+typedef void(*_hkpWorld_GetClosestPoints)(ahkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdPointCollector* collector);
+extern RelocAddr<_hkpWorld_GetClosestPoints> hkpWorld_GetClosestPoints;
+
+typedef hkpEntity* (*_hkpWorld_AddEntity)(ahkpWorld *world, hkpEntity* entity, int initialActivationState);
+extern RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity;
+
+typedef void(*_hkpWorld_UpdateCollisionFilterOnEntity)(ahkpWorld *world, hkpEntity* entity, hkpUpdateCollisionFilterOnEntityMode updateMode, hkpUpdateCollectionFilterMode updateShapeCollectionFilter);
+extern RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity;
+
 typedef void(*_hkpEntity_activate)(hkpEntity *entity);
 extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;
+
+typedef void(*_hkpEntity_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
+extern RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation;
+
+typedef void(*_hkpEntity_setTransform)(hkpEntity *_this, const hkTransform& transform);
+extern RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform;
+
+typedef void(*_hkpRigidBody_ctor)(hkpRigidBody *_this, hkpRigidBodyCinfo& info);
+extern RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor;
+
+typedef void(*_hkpRigidBodyCinfo_ctor)(hkpRigidBodyCinfo *_this);
+extern RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor;
+
+typedef hkpBoxShape* (*_hkpBoxShape_ctor)(hkpBoxShape *_this, const hkVector4& halfExtents, float radius);
+extern RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor;
+
+typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, UInt64 newState, UInt64 preferredActivationState, UInt64 collisionFilterUpdateMode);
+extern RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType;
+
+typedef void(*_bhkRigidBody_setMotionType)(bhkRigidBody *_this, UInt64 newState, UInt64 preferredActivationState, UInt64 collisionFilterUpdateMode);
+extern RelocAddr<_bhkRigidBody_setMotionType> bhkRigidBody_setMotionType;
+
+typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
+extern RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation;
 
 typedef TESObjectREFR* (*_FindCollidableRef)(hkpCollidable * a_collidable);
 extern RelocAddr<_FindCollidableRef> FindCollidableRef;
@@ -74,5 +112,24 @@ extern RelocAddr<_ActivatePickRef> ActivatePickRef;
 typedef float(*_GetMass)(float sum, bool firstPerson, TESObjectREFR *obj);
 extern RelocAddr<_GetMass> GetMass;
 
+typedef void(*_StartGrabObject)(PlayerCharacter *_this, UInt64 isRightHand);
+extern RelocAddr<_StartGrabObject> StartGrabObject;
+
 typedef void(*_AddRemoveConstraintFunctor)(__int64 a1, void *a2);
 extern RelocAddr<_AddRemoveConstraintFunctor> AddRemoveConstraintFunctor;
+
+typedef void(*_AddHavokBallAndSocketConstraint)(VMClassRegistry *registry, UInt32 stackId, UInt64 unk, TESObjectREFR *refA, const char **refANode, TESObjectREFR *refB, const char **refBNode,
+	float afRefALocalOffsetX, float afRefALocalOffsetY, float afRefALocalOffsetZ, float afRefBLocalOffsetX, float afRefBLocalOffsetY, float afRefBLocalOffsetZ);
+extern RelocAddr<_AddHavokBallAndSocketConstraint> AddHavokBallAndSocketConstraint;
+
+typedef void(*_RemoveHavokConstraints)(VMClassRegistry *registry, UInt32 stackId, UInt64 unk, TESObjectREFR *refA, const char **refANode, TESObjectREFR *refB, const char **refBNode);
+extern RelocAddr<_RemoveHavokConstraints> RemoveHavokConstraints;
+
+typedef void(*_TESObjectREFR_SetPosition)(TESObjectREFR *_this, NiPoint3 &newPos);
+extern RelocAddr<_TESObjectREFR_SetPosition> TESObjectREFR_SetPosition;
+
+typedef void(*_TESObjectREFR_SetRotation)(TESObjectREFR *_this, NiPoint3 &newRot);
+extern RelocAddr<_TESObjectREFR_SetRotation> TESObjectREFR_SetRotation;
+
+typedef void(*_NiAVObject_UpdateObjectUpwards)(NiAVObject *_this, NiAVObject::ControllerUpdateContext *ctx);
+extern RelocAddr<_NiAVObject_UpdateObjectUpwards> NiAVObject_UpdateObjectUpwards;

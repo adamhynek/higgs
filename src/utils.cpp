@@ -16,7 +16,7 @@
 
 ITimer g_timer;
 double g_currentFrameTime;
-double g_deltaTime;
+//double g_deltaTime;
 double GetTime()
 {
 	return g_timer.GetElapsedTime();
@@ -57,6 +57,13 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	result.data[2][2] = cosTheta + a.z*a.z*(1 - cosTheta);
 
 	return result;
+}
+
+void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat)
+{
+	hkMat.m_col0 = { niMat.data[0][0], niMat.data[1][0], niMat.data[2][0], 0 };
+	hkMat.m_col1 = { niMat.data[0][1], niMat.data[1][1], niMat.data[2][1], 0 };
+	hkMat.m_col2 = { niMat.data[0][2], niMat.data[1][2], niMat.data[2][2], 0 };
 }
 
 float Determinant33(const NiMatrix33 &m)
@@ -149,20 +156,16 @@ NiAVObject * GetTorsoNode(Actor *actor)
 	return nullptr;
 }
 
-void updateTransformTree(NiAVObject * root)
+void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx)
 {
-	NiAVObject::ControllerUpdateContext ctx;
-	ctx.flags = 0; // set to 1 if you want to force it to update old world transforms again but you probably shouldnt
-	ctx.delta = 0;
-
-	root->UpdateWorldData(&ctx);
+	root->UpdateWorldData(ctx);
 
 	auto node = root->GetAsNiNode();
 
 	if (node) {
 		for (int i = 0; i < node->m_children.m_arrayBufLen; ++i) {
 			auto child = node->m_children.m_data[i];
-			if (child) updateTransformTree(child);
+			if (child) updateTransformTree(child, ctx);
 		}
 	}
 }
