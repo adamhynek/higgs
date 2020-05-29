@@ -147,7 +147,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	static BSFixedString comName("NPC COM [COM ]");
 	NiAVObject *comNode = player->GetNiRootNode(0)->GetObjectByName(&comName.data);
 	if (!comNode) {
-		_MESSAGE("No COM [COM] node on player");
+		_MESSAGE("No COM [COM ] node on player");
 		return;
 	}
 	if (!comNode->unk040) {
@@ -168,11 +168,25 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	if (world->world != savedWorld) {
 		savedWorld = world->world;
 
+		// Create our own layer in the first ununsed vanilla layer (56)
+		bhkCollisionFilter *worldFilter = world->world->m_collisionFilter;
+		UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield
+		bitfield |= ((UInt64)1 << 56); // collide with ourselves
+		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
+		worldFilter->layerBitfields[56] = bitfield;
+		worldFilter->layerNames[56] = "L_HANDCOLLISION";
+		// Set whether other layers should collide with our new layer
+		for (int i = 0; i < 56; i++) {
+			if ((bitfield >> i) & 1) {
+				worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
+			}
+		}
+
 		// Add collision object for the hand
 		hkpBoxShape_ctor(&handCollShape, { 0.05, 0.015, 0.075, 0 }, 0);
 		hkpRigidBodyCinfo_ctor(&handCollCInfo); // initialize with defaults
 		handCollCInfo.m_shape = &handCollShape;
-		handCollCInfo.m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 0x5; // player group, weapon layer
+		handCollCInfo.m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
 		handCollCInfo.m_collisionFilterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
 		handCollCInfo.m_motionType = MOTION_KEYFRAMED;
 		handCollCInfo.m_enableDeactivation = false;
@@ -182,6 +196,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		hkpWorld_AddEntity(world->world, &handCollBody, 1);
 	}
 
+	// TODO: Compute angular velocity to set from current / desired rotation, instead of using settransform to set rotation
 	//hkTransform handCollTransform;
 	hkTransform handCollTransform = handCollBody.motion.m_motionState.m_transform;
 	//handCollTransform.m_translation = NiPointToHkVector(handNode->m_worldTransform.pos * havokWorldScale);
@@ -681,15 +696,14 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					if (selectedObject.hasSavedMotionType) {
 						selectedObject.hasSavedMotionType = false;
-						// Will make object collide with object held in other hand when dropping
-						selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL;
+						selectedObject.hasSavedCollisionFilterInfo = false;
+						// Restore only the original layer first, so it collides with everything except the player
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (selectedObject.savedCollisionFilterInfo & 0x7f);
+						selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
 						hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
 
-						if (selectedObject.hasSavedCollisionFilterInfo) {
-							selectedObject.hasSavedCollisionFilterInfo = false;
-							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = selectedObject.savedCollisionFilterInfo;
-						}
-
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = selectedObject.savedCollisionFilterInfo;
 						selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
 						hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
 					}
@@ -729,7 +743,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
 				//}
 
-				auto TransitionGrabbedPulled = [this, motion, relObjPos, hkObjPos, handPos, upperArmPos, selectedObj]()
+				auto TransitionGrabbedPulled = [this, motion, relObjPos, hkObjPos, handPos, upperArmPos, selectedObj, playerCollisionGroup]()
 				{
 					grabbedTime = g_currentFrameTime;
 					initialGrabbedObjRelativePosition = relObjPos;
@@ -741,11 +755,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						if (collObj) {
 							// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 							auto collidable = &collObj->body->hkBody->m_collidable;
+							// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 6; // player collision group, 'projectile' collision layer
 							// Projectiles have 'Fixed' motion type by default, making them unmovable
 							hkpRigidBody_setMotionType(collObj->body->hkBody, MOTION_DYNAMIC, 1, 0);
-							// Projectiles also do not interact with collision usually. We need to change the filter to make them interact.
-							collidable->m_broadPhaseHandle.m_collisionFilterInfo = 0x02420006; // player collision group, 'projectile' collision layer
-							collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_MOVING; // Set to 'moving' quality instead of 'fixed'
 						}
 					}
 				};
@@ -976,8 +989,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (!selectedObject.hasSavedCollisionFilterInfo) {
 					selectedObject.hasSavedCollisionFilterInfo = true;
 					selectedObject.savedCollisionFilterInfo = selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo;
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
+					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF; // clear out collision group
 					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;
+					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
 					// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
 					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 				}
@@ -1033,7 +1048,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.hasSavedCollisionFilterInfo = true;
 						selectedObject.savedCollisionFilterInfo = selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo;
 						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;;
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
 						// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
 						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 					}

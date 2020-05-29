@@ -519,9 +519,9 @@ struct bhkCollisionFilter : hkpCollisionFilter
 	char todo[0x40]; // 10
 	UInt32 bipedBitfields[18]; // 50 - could be more than 18, I'm not exactly sure. The max is 32 (5 bits)
 	UInt64 unk[39]; // 98
-	UInt64 layerBitfields[56]; // 1D0
-	UInt64 todo2[10]; // 390
-	char * layerNames[56]; // 3E0
+	UInt64 layerBitfields[64]; // 1D0 - only 56 are valid in vanilla
+	UInt64 todo2[2]; // 3D0
+	char * layerNames[64]; // 3E0 - only 56 are non-null
 };
 static_assert(offsetof(bhkCollisionFilter, bipedBitfields) == 0x50);
 static_assert(offsetof(bhkCollisionFilter, layerBitfields) == 0x1D0);
