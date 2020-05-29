@@ -61,9 +61,9 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 
 void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat)
 {
-	hkMat.m_col0 = { niMat.data[0][0], niMat.data[1][0], niMat.data[2][0], 0 };
-	hkMat.m_col1 = { niMat.data[0][1], niMat.data[1][1], niMat.data[2][1], 0 };
-	hkMat.m_col2 = { niMat.data[0][2], niMat.data[1][2], niMat.data[2][2], 0 };
+	hkMat.setCols({ niMat.data[0][0], niMat.data[1][0], niMat.data[2][0], 0 },
+		{ niMat.data[0][1], niMat.data[1][1], niMat.data[2][1], 0 },
+		{ niMat.data[0][2], niMat.data[1][2], niMat.data[2][2], 0 });
 }
 
 float Determinant33(const NiMatrix33 &m)
@@ -132,9 +132,9 @@ bool IsAllowedCollidable(const hkpCollidable *collidable)
 	if (!rb)
 		return false;
 
-	auto motion = &rb->motion;
+	auto motion = &rb->m_motion;
 	// Motion types we allow are: Dynamic, SphereInertia, BoxInertia, ThinBoxInertia
-	return (motion->m_motionType == 1 || motion->m_motionType == 2 || motion->m_motionType == 3 || motion->m_motionType == 6);
+	return (motion->m_type == 1 || motion->m_type == 2 || motion->m_type == 3 || motion->m_type == 6);
 }
 
 NiAVObject * GetTorsoNode(Actor *actor)
@@ -261,7 +261,7 @@ std::string PrintNodeToString(NiAVObject *avObj, int depth)
 	if (avObj->unk040) {
 		auto coll = (bhkCollisionObject *)avObj->unk040;
 		avInfoStr.precision(5);
-		avInfoStr << " m=" << (1.0f / coll->body->hkBody->motion.m_inertiaAndMassInv.w);
+		avInfoStr << " m=" << (1.0f / coll->body->hkBody->m_motion.getMassInv().getReal());
 	}
 	if (avObj->m_extraData && avObj->m_extraDataLen > 0) {
 		avInfoStr << " { ";
@@ -392,6 +392,7 @@ void PrintToFile(std::string entry, std::string filename)
 	file.close();
 }
 
+/*
 float hkHalfToFloat(hkHalf half)
 {
 	union {
@@ -407,6 +408,7 @@ hkHalf floatToHkHalf(float f)
 	int t = ((const int*)&f)[0];
 	return SInt16(t >> 16);
 }
+*/
 
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 {

@@ -12,19 +12,25 @@
 #include "menu_checker.h"
 #include "shaders.h"
 
+#include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
+#include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
+#include <Physics/Collide/Agent3/Machine/Nn/hkpLinkedCollidable.h>
+
+#include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
+
 
 BSFixedString hmdNodeStr("HmdNode");
 
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
-hkpLinearCastInput linearCastInput;
+_hkpLinearCastInput linearCastInput;
 RayHitCollector rayHitCollector;
 AllRayHitCollector allRayHitCollector;
 CdBodyPairCollector pairCollector;
 // 'ItemPicker' collision layer; player collision group
 // Why ItemPicker? It ignores stuff like weapons the player is holding
 //static hkpWorldRayCastInput rayCastInput(0x02420028);
-hkpWorldRayCastInput rayCastInput(0x00090028);
+_hkpWorldRayCastInput rayCastInput;
 
 
 // Copied from PapyrusActor.cpp
@@ -169,7 +175,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		savedWorld = world->world;
 
 		// Create our own layer in the first ununsed vanilla layer (56)
-		bhkCollisionFilter *worldFilter = world->world->m_collisionFilter;
+		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
 		UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield
 		bitfield |= ((UInt64)1 << 56); // collide with ourselves
 		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
@@ -188,9 +194,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		handCollCInfo.m_shape = &handCollShape;
 		handCollCInfo.m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
 		handCollCInfo.m_collisionFilterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
-		handCollCInfo.m_motionType = MOTION_KEYFRAMED;
+		handCollCInfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
 		handCollCInfo.m_enableDeactivation = false;
-		handCollCInfo.m_solverDeactivation = 1; // off
+		handCollCInfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 
 		hkpRigidBody_ctor(&handCollBody, handCollCInfo);
 		hkpWorld_AddEntity(world->world, &handCollBody, 1);
@@ -198,12 +204,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	// TODO: Compute angular velocity to set from current / desired rotation, instead of using settransform to set rotation
 	//hkTransform handCollTransform;
-	hkTransform handCollTransform = handCollBody.motion.m_motionState.m_transform;
+	hkTransform handCollTransform = handCollBody.m_motion.m_motionState.getTransform();
 	//handCollTransform.m_translation = NiPointToHkVector(handNode->m_worldTransform.pos * havokWorldScale);
-	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, handCollTransform.m_rotation);
+	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, handCollTransform.getRotation());
 	hkpEntity_setTransform(&handCollBody, handCollTransform);
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
-	handCollBody.motion.m_linearVelocity = NiPointToHkVector((desiredPos - HkVectorToNiPoint(handCollBody.motion.m_motionState.m_transform.m_translation)) / *g_deltaTime);
+	handCollBody.m_motion.m_linearVelocity = NiPointToHkVector((desiredPos - HkVectorToNiPoint(handCollBody.m_motion.m_motionState.m_transform.m_translation)) / *g_deltaTime);
 
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
@@ -254,8 +260,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
 	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
-	float radiusBefore = sphereShape->m_radius;
-	hkVector4 translationBefore = sphere->phantom->m_motionState.m_transform.m_translation;
+	float radiusBefore = sphereShape->getRadius();
+	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
 	if (state == IDLE || state == SELECTED_CLOSE || state == SELECTED_FAR) {
 		bool isSelectedNear = false;
@@ -268,7 +274,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		NiAVObject *palmNode = player->GetNiRootNode(1)->GetObjectByName(&palmNodeName.data);
 		NiPoint3 hkPalmNodePos = palmNode->m_worldTransform.pos * havokWorldScale;
 
-		sphereShape->m_radius = Config::options.grabRadius;
+		sphereShape->m_radius = (Config::options.grabRadius);
 		sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2c;// 0x0009002C;
 		sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
 
@@ -326,8 +332,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			// First, raycast in the pointing direction
 			rayHitCollector.reset();
-			rayCastInput.m_from = { hkHandPos.x, hkHandPos.y, hkHandPos.z, 0 };
-			rayCastInput.m_to = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z, 0 };
+			rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
+			rayCastInput.m_from = NiPointToHkVector(hkHandPos);
+			rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
 			hkpWorld_CastRay(world->world, &rayCastInput, &rayHitCollector);
 			if (rayHitCollector.m_doesHitExist) {
 				// If raycast hit, we want to linearcast only up to the ray hit location
@@ -338,9 +345,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
 			sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
 			sphereShape->m_radius = Config::options.castRadius;
-			sphere->phantom->m_motionState.m_transform.m_translation = { hkHandPos.x, hkHandPos.y, hkHandPos.z, VectorLength(hkHandPos) };
+			sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkHandPos);
 
-			linearCastInput.m_to = { hitPosition.x, hitPosition.y, hitPosition.z, 0 };
+			linearCastInput.m_to = NiPointToHkVector(hitPosition);
 			cdPointCollector.reset();
 			hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 
@@ -369,7 +376,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							}
 						}
 						// Get distance from the hit on the collidable to the ray
-						NiPoint3 hit = { pair.second.m_position.x, pair.second.m_position.y, pair.second.m_position.z };
+						NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
 						NiPoint3 handToHit = hit - hkHandPos;
 						NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
 						float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
@@ -577,9 +584,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (triggerPressed && g_currentFrameTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
 					if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 						if (state == SELECTED_FAR) {
-							hkVector4 translation = selectedObject.rigidBody->motion.m_motionState.m_transform.m_translation;
+							hkVector4 translation = selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_translation;
 							NiPoint3 hkHandPos = handPos * havokWorldScale;
-							NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
+							NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 							NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
 							NiPoint3 forward = castDirection;
@@ -598,7 +605,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							if (n) {
 								StopShader(selectedObject.handle, selectedObject.shaderNode);
 
-								NiPoint3 ptPos = HkVectorToNiPoint(closestPoint.m_position);
+								NiPoint3 ptPos = HkVectorToNiPoint(closestPoint.getPosition());
 								//NiPoint3 normal = HkVectorToNiPoint(closestPoint.m_separatingNormal); // vec from sphere center to point
 
 								// First, raycast in the pointing direction
@@ -641,7 +648,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									_MESSAGE("%.2f", DotProduct(rayNormal, castDirection));
 								}
 
-								NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->motion.m_motionState.m_transform.m_translation);
+								NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_translation);
 								NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
 								NiPoint3 desiredPos = palmNode->m_worldTransform.pos + (ptToCenter / havokWorldScale); // in skyrim coords
 								NiTransform desiredTransform = n->m_worldTransform;
@@ -683,7 +690,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (selectedObject.hasSavedAngularDamping) {
-					selectedObject.rigidBody->motion.m_motionState.m_angularDamping = selectedObject.savedAngularDamping;
+					selectedObject.rigidBody->m_motion.m_motionState.m_angularDamping = selectedObject.savedAngularDamping;
 					selectedObject.hasSavedAngularDamping = false;
 				}
 
@@ -718,7 +725,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					if (state == HELD) {
 						//selectedObject.rigidBody->motion.m_linearVelocity = NiPointToHkVector((localToWorldTransform * handVelocityRoomspace) * *HAVOK_WORLD_SCALE_ADDR);
 						// Boost the velocity a bit
-						selectedObject.rigidBody->motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.5f * *HAVOK_WORLD_SCALE_ADDR);
+						selectedObject.rigidBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.5f * *HAVOK_WORLD_SCALE_ADDR);
 					}
 				}
 				Deselect();
@@ -729,11 +736,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		if (state == SELECTION_LOCKED || state == GRABBED) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-				hkpMotion *motion = &selectedObject.rigidBody->motion;
+				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
 
 				hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
-				NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
+				NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 
 				NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
@@ -758,7 +765,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 6; // player collision group, 'projectile' collision layer
 							// Projectiles have 'Fixed' motion type by default, making them unmovable
-							hkpRigidBody_setMotionType(collObj->body->hkBody, MOTION_DYNAMIC, 1, 0);
+							hkpRigidBody_setMotionType(collObj->body->hkBody, hkpMotion::MotionType::MOTION_DYNAMIC, 1, 0);
 						}
 					}
 				};
@@ -778,7 +785,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					selectedObject.hasSavedAngularDamping = true;
 					selectedObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
-					motion->m_motionState.m_angularDamping = floatToHkHalf(3.0f);
+					motion->m_motionState.m_angularDamping = hkHalf(3.0f);
 					if (selectedObject.hitForm) {
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
@@ -854,8 +861,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				NiPoint3 deltaPos = desiredPos - relObjPos;
 
 				if (state == SELECTION_LOCKED) {
-					NiPoint3 linearVelocity = { motion->m_angularVelocity.x, motion->m_linearVelocity.y, motion->m_linearVelocity.z };
-					NiPoint3 angularVelocity = { motion->m_angularVelocity.x, motion->m_angularVelocity.y, motion->m_angularVelocity.z };
+					NiPoint3 linearVelocity = HkVectorToNiPoint(motion->m_linearVelocity);
+					NiPoint3 angularVelocity = HkVectorToNiPoint(motion->m_angularVelocity);
 					// TODO: Config all these thresholds
 					if (VectorLength(linearVelocity) > 0.1f || VectorLength(angularVelocity) > 0.1f) {
 						TransitionGrabbed();
@@ -907,7 +914,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 
 					if (push) {
-						float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
+						float inverseMass = min(motion->getMassInv(), Config::options.inverseMassLimit);
 
 						if (selectedObject.isActor && selectedObj->loadedState && selectedObj->loadedState->node) {
 							// For dead bodies, instead of the mass of the individual collidable we hit, use the summed mass over the entire body
@@ -928,7 +935,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						NiPoint3 newVelocity = VectorNormalized(velocityWorldspace) * newMagnitude;
 
 						hkpEntity_activate(selectedObject.rigidBody);
-						motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+						motion->m_linearVelocity = NiPointToHkVector(newVelocity);
 
 						StopShader(selectedObject.handle, selectedObject.shaderNode);
 						Deselect();
@@ -937,7 +944,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						TransitionPulled();
 					}
 					else {
-						float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
+						float inverseMass = min(motion->getMassInv(), Config::options.inverseMassLimit);
 
 						if (selectedObject.isActor && selectedObj->loadedState && selectedObj->loadedState->node) {
 							// For dead bodies, instead of the mass of the individual collidable we hit, use the summed mass over the entire body
@@ -962,7 +969,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
 
 						hkpEntity_activate(selectedObject.rigidBody);
-						motion->m_linearVelocity = { newVelocity.x, newVelocity.y, newVelocity.z, motion->m_linearVelocity.w };
+						motion->m_linearVelocity = NiPointToHkVector(newVelocity);
 						//NiPoint3 desiredWorld = (hkHandPos + desiredPos) / havokWorldScale;
 						//TESObjectREFR_SetPosition(selectedObj, desiredWorld);
 						//UInt64 *vtbl = *((UInt64 **)selectedObj.m_pObject);
@@ -997,14 +1004,14 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 				}
 
-				hkpMotion *motion = &selectedObject.rigidBody->motion;
+				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
 
 				hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 
-				NiPoint3 hkObjPos = { translation.x, translation.y, translation.z };
+				NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 				NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-				float inverseMass = min(motion->m_inertiaAndMassInv.w, Config::options.inverseMassLimit);
+				float inverseMass = min(motion->getMassInv(), Config::options.inverseMassLimit);
 
 				float distanceFactor = VectorLength(initialGrabbedObjRelativePosition) / 5.0f;
 				float duration = 0.375f + 0.375f * distanceFactor;
@@ -1034,14 +1041,14 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		if (state == HELD) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-				hkpMotion *motion = &selectedObject.rigidBody->motion;
+				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
 					if (!selectedObject.hasSavedMotionType) {
 						selectedObject.hasSavedMotionType = true;
-						selectedObject.savedMotionType = motion->m_motionType;
+						selectedObject.savedMotionType = motion->m_type;
 						selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
-						hkpRigidBody_setMotionType(selectedObject.rigidBody, MOTION_KEYFRAMED, 1, 1);
+						hkpRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, 1, 1);
 					}
 
 					if (!selectedObject.hasSavedCollisionFilterInfo) {

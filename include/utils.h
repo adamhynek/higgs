@@ -20,7 +20,7 @@ NiPoint3 VectorNormalized(NiPoint3 vec);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta);
 void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat);
-inline NiPoint3 HkVectorToNiPoint(hkVector4 &vec) { return { vec.x, vec.y, vec.z }; };
+inline NiPoint3 HkVectorToNiPoint(const hkVector4 &vec) { return { vec.getQuad().m128_f32[0], vec.getQuad().m128_f32[1], vec.getQuad().m128_f32[2] }; };
 inline hkVector4 NiPointToHkVector(NiPoint3 &pt) { return { pt.x, pt.y, pt.z, 0 }; };
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3);
@@ -44,8 +44,8 @@ void PrintVector(const NiPoint3 &p);
 void PrintSceneGraph(NiAVObject *node);
 void PrintToFile(std::string entry, std::string filename);
 
-float hkHalfToFloat(hkHalf half);
-hkHalf floatToHkHalf(float half);
+//float hkHalfToFloat(hkHalf half);
+//hkHalf floatToHkHalf(float half);
 
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);

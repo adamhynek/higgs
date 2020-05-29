@@ -4,7 +4,16 @@
 #include "skse64/PapyrusVM.h"
 #include "skse64/GameReferences.h"
 
+#include <Common/Base/hkBase.h>
+#include <Physics/Collide/Filter/hkpCollisionFilter.h>
+#include <Physics/Dynamics/Entity/hkpRigidBody.h>
+#include <Physics/Dynamics/Phantom/hkpSimpleShapePhantom.h>
+#include <Physics/Collide/Agent/hkpProcessCollisionInput.h>
+#include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
+#include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
+#include <Physics/Collide/Shape/Query/hkpShapeRayCastCollectorOutput.h>
 
+/*
 typedef char hkBool;
 typedef SInt16 hkHalf;
 
@@ -246,15 +255,15 @@ __declspec(align(16)) struct hkVector4
 	float w;
 };
 static_assert(sizeof(hkVector4) == 0x10);
-
-struct hkArray
+*/
+struct _hkArray
 {
 	void * m_data;
 	int m_size;
 	int m_capacityAndFlags;
 };
-static_assert(sizeof(hkArray) == 0x10);
-
+static_assert(sizeof(_hkArray) == 0x10);
+/*
 struct hkMatrix3
 {
 	// w of each column is just padding
@@ -284,10 +293,10 @@ struct hkSweptTransform
 	hkVector4 m_centerOfMassLocal; // 40 - Often all 0's
 };
 static_assert(sizeof(hkSweptTransform) == 0x50);
-
-struct hkReferencedObject
+*/
+struct _hkReferencedObject
 {
-	virtual ~hkReferencedObject() {};
+	virtual ~_hkReferencedObject() {};
 	virtual void getClassType() {};
 	virtual void calcContentStatistics() {};
 
@@ -298,14 +307,14 @@ struct hkReferencedObject
 
 struct bhkBoxShape : NiRefObject
 {
-	struct hkpBoxShape * hkBoxShape; // 10 - points to hkpBoxShape
+	hkpBoxShape * hkBoxShape; // 10 - points to hkpBoxShape
 
 	UInt64 unk18; // == 0?
 	UInt64 unk20;
 };
 static_assert(sizeof(bhkBoxShape) == 0x28);
 
-struct hkpShape : hkReferencedObject
+struct _hkpShape : _hkReferencedObject
 {
 	void * m_userData; // 10
 	hkpShapeType m_type; // 18
@@ -313,18 +322,18 @@ struct hkpShape : hkReferencedObject
 };
 static_assert(sizeof(hkpShape) == 0x20);
 
-struct hkpConvexShape : public hkpShape
+struct _hkpConvexShape : public _hkpShape
 {
 	float m_radius; // 20
 };
 
-struct hkpBoxShape : public hkpConvexShape
+struct _hkpBoxShape : public _hkpConvexShape
 {
 	hkVector4 m_halfExtents; // 30 - I believe the value of w doesn't matter here
 };
-static_assert(sizeof(hkpBoxShape) == 0x40);
+static_assert(sizeof(_hkpBoxShape) == 0x40);
 
-struct hkpTypedBroadPhaseHandle
+struct _hkpTypedBroadPhaseHandle
 {
 	// Inherited from hkpBroadPhaseHandle
 	UInt32 m_id; // 00
@@ -335,9 +344,9 @@ struct hkpTypedBroadPhaseHandle
 	UInt8 pad07;
 	UInt32 m_collisionFilterInfo; // 08
 };
-static_assert(sizeof(hkpTypedBroadPhaseHandle) == 0x0C);
+static_assert(sizeof(_hkpTypedBroadPhaseHandle) == 0x0C);
 
-struct hkpCdBody
+struct _hkpCdBody
 {
 	hkpShape * m_shape; // 00
 	UInt32 m_shapeKey; // 08
@@ -345,9 +354,9 @@ struct hkpCdBody
 	void * m_motion; // 10
 	hkpCdBody * m_parent; // 18
 };
-static_assert(sizeof(hkpCdBody) == 0x20);
+static_assert(sizeof(_hkpCdBody) == 0x20);
 
-struct hkpCollidable : public hkpCdBody
+struct _hkpCollidable : public _hkpCdBody
 {
 	inline void* getOwner() const
 	{
@@ -378,20 +387,20 @@ struct hkpCollidable : public hkpCdBody
 	SInt8 m_ownerOffset; // 20
 	SInt8 m_forceCollideOntoPpu; // 21
 	SInt16 m_shapeSizeOnSpu; // 22
-	hkpTypedBroadPhaseHandle m_broadPhaseHandle; // 24
+	_hkpTypedBroadPhaseHandle m_broadPhaseHandle; // 24
 	BoundingVolumeData m_boundingVolumeData; // 30
 	float m_allowedPenetrationDepth; // 68
 	UInt32 pad6C;
 };
-static_assert(sizeof(hkpCollidable) == 0x70);
+static_assert(sizeof(_hkpCollidable) == 0x70);
 
-struct hkpLinkedCollidable : public hkpCollidable
+struct _hkpLinkedCollidable : public _hkpCollidable
 {
-	hkArray m_collisionEntries; // 70
+	_hkArray m_collisionEntries; // 70
 };
-static_assert(sizeof(hkpLinkedCollidable) == 0x80);
+static_assert(sizeof(_hkpLinkedCollidable) == 0x80);
 
-struct hkpShapeRayCastCollectorOutput
+struct _hkpShapeRayCastCollectorOutput
 {
 	inline void reset() {
 		m_hitFraction = 1.0f;
@@ -406,43 +415,43 @@ struct hkpShapeRayCastCollectorOutput
 	int m_pad;
 };
 
-struct hkpShapeRayCastOutput : public hkpShapeRayCastCollectorOutput
+struct _hkpShapeRayCastOutput : public _hkpShapeRayCastCollectorOutput
 {
 	UInt32 m_shapeKeys[8];
 	int m_shapeKeyIndex = -1;
 };
 
-class hkpRayHitCollector
+class _hkpRayHitCollector
 {
 public:
-	virtual void addRayHit(const hkpCdBody * cdBody, const hkpShapeRayCastCollectorOutput * hitInfo) = 0;
-	virtual inline ~hkpRayHitCollector() { }
+	virtual void addRayHit(const hkpCdBody& cdBody, const _hkpShapeRayCastCollectorOutput& hitInfo) = 0;
+	virtual inline ~_hkpRayHitCollector() { }
 
 public:
 	//void *vtbl; // 00
 	float m_earlyOutHitFraction; // 08
 };
 
-struct hkpWorldRayCastInput
+struct _hkpWorldRayCastInput
 {
 	hkVector4 m_from; // 00
 	hkVector4 m_to; // 10
 	hkBool m_enableShapeCollectionFilter; // 20
 	UInt32 m_filterInfo; // 24
 
-	inline hkpWorldRayCastInput(UInt32 filterInfo = 0, hkBool enableShapeCollectionFilter = false)
+	inline _hkpWorldRayCastInput(UInt32 filterInfo = 0, hkBool enableShapeCollectionFilter = false)
 		: m_enableShapeCollectionFilter(enableShapeCollectionFilter), m_filterInfo(filterInfo)
 	{}
 };
 
-struct hkpShapeRayCastInput
+struct _hkpShapeRayCastInput
 {
 	hkVector4 m_from;
 	hkVector4 m_to;
 	UInt32 m_filterInfo = 0;
 	void * m_rayShapeCollectionFilter = nullptr;
 };
-
+/*
 struct hkpWorldRayCaster
 {
 	void * vtbl; // 00
@@ -472,10 +481,10 @@ struct hkpCdPoint
 	hkpCdBody * m_cdBodyB; // 38
 };
 static_assert(sizeof(hkpCdPoint) == 0x40);
-
-struct hkpCdPointCollector
+*/
+struct _hkpCdPointCollector
 {
-	virtual inline ~hkpCdPointCollector() {}
+	virtual inline ~_hkpCdPointCollector() {}
 	virtual void addCdPoint(const hkpCdPoint& point) = 0;
 	virtual inline void reset() { m_earlyOutDistance = 1.0f; }
 
@@ -483,25 +492,25 @@ struct hkpCdPointCollector
 	float m_earlyOutDistance; // 08
 };
 
-struct hkpLinearCastInput
+struct _hkpLinearCastInput
 {
 	hkVector4 m_to; // 00
 	float m_maxExtraPenetration; // 10
 	float m_startPointTolerance; // 14
 
-	inline hkpLinearCastInput() : m_maxExtraPenetration(0.01f), m_startPointTolerance(0.01f) {}
+	inline _hkpLinearCastInput() : m_maxExtraPenetration(0.01f), m_startPointTolerance(0.01f) {}
 };
 
-struct hkpCdBodyPairCollector
+struct _hkpCdBodyPairCollector
 {
-	virtual inline ~hkpCdBodyPairCollector() {}
+	virtual inline ~_hkpCdBodyPairCollector() {}
 	virtual void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) = 0;
 	virtual inline void reset() { m_earlyOut = false; }
 
 	//void * vtbl; // 00
 	hkBool m_earlyOut; // 08
 };
-
+/*
 struct hkpRayShapeCollectionFilter : hkReferencedObject
 {
 
@@ -513,10 +522,11 @@ struct hkpCollisionFilter : hkpRayShapeCollectionFilter
 {
 	// more...
 };
+*/
 
 struct bhkCollisionFilter : hkpCollisionFilter
 {
-	char todo[0x40]; // 10
+	UInt64 unk48;
 	UInt32 bipedBitfields[18]; // 50 - could be more than 18, I'm not exactly sure. The max is 32 (5 bits)
 	UInt64 unk[39]; // 98
 	UInt64 layerBitfields[64]; // 1D0 - only 56 are valid in vanilla
@@ -527,6 +537,7 @@ static_assert(offsetof(bhkCollisionFilter, bipedBitfields) == 0x50);
 static_assert(offsetof(bhkCollisionFilter, layerBitfields) == 0x1D0);
 static_assert(offsetof(bhkCollisionFilter, layerNames) == 0x3E0);
 
+/*
 struct hkpCollisionInput
 {
 	struct hkpCollisionDispatcher * m_dispatcher; // 00
@@ -641,16 +652,18 @@ struct ahkpWorld : hkReferencedObject
 	// way more... todo
 };
 static_assert(offsetof(ahkpWorld, m_broadPhaseDispatcher) == 0xA0);
+*/
 
 // Address of pointer that points to the bhkWorld pointer
 // RelocAddr<bhkWorld ***> BHKWORLD(0x1f850d0); - world for _tamriel outside_ is here - does not work for interiors
 
 struct bhkWorld : NiRefObject
 {
-	ahkpWorld * world; // 10
+	hkpWorld * world; // 10
 };
 static_assert(offsetof(bhkWorld, world) == 0x10);
 
+/*
 struct hkMotionState
 {
 	hkTransform m_transform; // 00
@@ -668,15 +681,15 @@ struct hkMotionState
 	UInt8 padAD[3];
 };
 static_assert(sizeof(hkMotionState) == 0xB0);
-
-struct hkpMotion : hkReferencedObject
+*/
+struct _hkpMotion : _hkReferencedObject
 {
 	// vfunc 12 is setposition
 	// 13 is setrotation
 	// 14 is setpositionandrotation
 	// 15 is settransform
 
-	MotionType m_motionType; // 10
+	hkpMotion::MotionType m_motionType; // 10
 	UInt8 m_deactivationIntegrateCounter; // 11
 	UInt16 m_deactivationNumInactiveFrames[2]; // 12
 	UInt16 pad16;
@@ -697,10 +710,10 @@ struct hkpMotion : hkReferencedObject
 };
 static_assert(sizeof(hkpMotion) == 0x140);
 
-struct hkpRigidBodyCinfo
+struct _hkpRigidBodyCinfo
 {
 	UInt32 m_collisionFilterInfo;
-	const hkpShape* m_shape;
+	const _hkpShape* m_shape;
 	void * m_localFrame;
 	UInt8 m_collisionResponse;
 	UInt16 m_contactPointCallbackDelay;
@@ -721,7 +734,7 @@ struct hkpRigidBodyCinfo
 	float m_maxLinearVelocity;
 	float m_maxAngularVelocity;
 	float m_allowedPenetrationDepth;
-	MotionType m_motionType;
+	hkpMotion::MotionType m_motionType;
 	hkBool m_enableDeactivation;
 	UInt8 m_solverDeactivation;
 	hkpCollidableQualityType m_qualityType;
@@ -731,7 +744,7 @@ struct hkpRigidBodyCinfo
 	hkBool m_forceCollideOntoPpu;
 };
 
-struct hkpWorldObject : hkReferencedObject
+struct _hkpWorldObject : _hkReferencedObject
 {
 	enum BroadPhaseType
 	{
@@ -743,35 +756,36 @@ struct hkpWorldObject : hkReferencedObject
 	};
 };
 
-struct hkpEntity : hkpWorldObject
+struct _hkpEntity : _hkpWorldObject
 {
 
 };
 
-struct hkpRigidBody : hkpEntity
+struct _hkpRigidBody : _hkpEntity
 {
-	ahkpWorld * world; // 10
+	hkpWorld * world; // 10
 
 	struct bhkRigidBody * gameRigidBody; // 18 - user data - points back to below struct
 
-	hkpLinkedCollidable m_collidable; // 20
+	_hkpLinkedCollidable m_collidable; // 20
 	UInt64 unkA0;
 	UInt64 unkA8;
 	UInt64 unkB0;
-	hkArray m_properties; // B8
+	_hkArray m_properties; // B8
 	UInt8 unkC8[0x130 - 0xC8]; // C8
 	hkpSimulationIsland * island; // 130 - I hope it's nice there
 	UInt64 unk138;
 	UInt64 unk140;
 	UInt64 unk148;
 
-	hkpMotion motion; // 150
+	_hkpMotion m_motion; // 150
 	// more...
 	char unk[0x2D0 - 0x290]; // 290
 };
 static_assert(offsetof(hkpRigidBody, m_properties) == 0xB8);
-static_assert(offsetof(hkpRigidBody, motion) == 0x150);
+static_assert(offsetof(hkpRigidBody, m_motion) == 0x150);
 static_assert(sizeof(hkpRigidBody) == 0x2D0); // 2D0 is how much the game allocates for a rigidbody
+
 
 struct bhkEntity : NiRefObject
 {
@@ -803,6 +817,7 @@ struct bhkCollisionObject : NiRefObject
 };
 static_assert(offsetof(bhkCollisionObject, body) == 0x20);
 
+/*
 struct hkpShapePhantom : hkReferencedObject
 {
 	// From hkpWorldObject
@@ -842,12 +857,14 @@ struct hkpSimpleShapePhantom : hkpShapePhantom
 };
 static_assert(offsetof(hkpSimpleShapePhantom, m_motionState) == 0xF0);
 
+*/
+
 struct bhkSimpleShapePhantom : NiRefObject
 {
 	hkpSimpleShapePhantom * phantom; // 10
 };
 
-
+/*
 struct hkbStateMachine : hkReferencedObject
 {
 	// These from hkbBindable
@@ -938,6 +955,9 @@ static_assert(offsetof(hkbBehaviorGraph, m_rootGenerator) == 0x80);
 static_assert(offsetof(hkbBehaviorGraph, m_globalTransitionData) == 0xB0);
 static_assert(offsetof(hkbBehaviorGraph, m_isActive) == 0x12C);
 
+*/
+
+/*
 inline hkpWorldObject* hkGetWorldObject(const hkpCollidable* collidable)
 {
 	return reinterpret_cast<hkpWorldObject*>(const_cast<void*>(collidable->getOwner()));
@@ -956,3 +976,4 @@ inline hkpRigidBody* hkpGetRigidBody(const hkpCollidable* collidable)
 typedef void(*_hkpMotion_setPositionAndRotation)(hkpMotion *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
 typedef void(*_hkpMotion_setTransform)(hkpMotion *_this, const hkTransform& transform);
 typedef hkBool(*_hkpShape_castRayImpl)(hkpShape *_this, const hkpShapeRayCastInput& input, hkpShapeRayCastOutput& output);
+*/

@@ -5,6 +5,8 @@
 #include "physics.h"
 #include "utils.h"
 
+#include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
+
 
 struct Grabber
 {
@@ -16,12 +18,12 @@ struct Grabber
 		bool isActor = false;
 		bool isImpactedProjectile = false;
 		bool hasSavedAngularDamping = false;
-		hkHalf savedAngularDamping = 0;
+		hkHalf savedAngularDamping;
 		bool hasSavedCollisionFilterInfo = false;
 		UInt32 savedCollisionFilterInfo = 0;
 		bool hasSavedMotionType = false;
-		MotionType savedMotionType = MOTION_INVALID;
-		hkpCollidableQualityType savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
+		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
+		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		TESForm *hitForm = nullptr;
 		NiPointer<NiAVObject> shaderNode = nullptr;
 		NiPointer<NiAVObject> hitNode = nullptr;
@@ -59,11 +61,11 @@ struct Grabber
 	State state = IDLE;
 	State prevState = IDLE;
 
-	ahkpWorld *savedWorld = nullptr;
+	hkpWorld *savedWorld = nullptr;
 
-	hkpBoxShape handCollShape;
-	hkpRigidBodyCinfo handCollCInfo;
-	hkpRigidBody handCollBody;
+	_hkpBoxShape handCollShape;
+	_hkpRigidBodyCinfo handCollCInfo;
+	_hkpRigidBody handCollBody;
 
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;
