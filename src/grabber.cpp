@@ -204,9 +204,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	// TODO: Compute angular velocity to set from current / desired rotation, instead of using settransform to set rotation
 	//hkTransform handCollTransform;
-	hkTransform handCollTransform = handCollBody.m_motion.m_motionState.getTransform();
+	hkTransform handCollTransform = handCollBody.m_motion.m_motionState.m_transform;
 	//handCollTransform.m_translation = NiPointToHkVector(handNode->m_worldTransform.pos * havokWorldScale);
-	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, handCollTransform.getRotation());
+	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, handCollTransform.m_rotation);
 	hkpEntity_setTransform(&handCollBody, handCollTransform);
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
 	handCollBody.m_motion.m_linearVelocity = NiPointToHkVector((desiredPos - HkVectorToNiPoint(handCollBody.m_motion.m_motionState.m_transform.m_translation)) / *g_deltaTime);

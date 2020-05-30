@@ -682,6 +682,7 @@ struct hkMotionState
 };
 static_assert(sizeof(hkMotionState) == 0xB0);
 */
+
 struct _hkpMotion : _hkReferencedObject
 {
 	// vfunc 12 is setposition
