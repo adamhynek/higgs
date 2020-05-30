@@ -7,6 +7,7 @@
 #include "skse64/GameReferences.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
+#include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 
 
 // Multiply skyrim coords by this to get havok coords
@@ -89,6 +90,13 @@ extern RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor;
 
 typedef hkpBoxShape* (*_hkpBoxShape_ctor)(hkpBoxShape *_this, const hkVector4& halfExtents, float radius);
 extern RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor;
+
+typedef void(*_hkpKeyFrameUtility_applyHardKeyFrame)(const hkVector4& nextPosition, const hkQuaternion& nextOrientation, hkReal invDeltaTime, hkpRigidBody* body);
+extern RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrame;
+extern RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrameAsynchronously;
+
+typedef void(*_hkpKeyFrameUtility_applySoftKeyFrame)(const hkpKeyFrameUtility::KeyFrameInfo& keyFrameInfo, hkpKeyFrameUtility::AccelerationInfo& accelInfo, hkReal deltaTime, hkReal invDeltaTime, hkpRigidBody* body);
+extern RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_applySoftKeyFrame;
 
 typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, UInt64 newState, UInt64 preferredActivationState, UInt64 collisionFilterUpdateMode);
 extern RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType;

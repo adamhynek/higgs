@@ -16,8 +16,6 @@
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
 #include <Physics/Collide/Agent3/Machine/Nn/hkpLinkedCollidable.h>
 
-#include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
-
 
 BSFixedString hmdNodeStr("HmdNode");
 
@@ -202,14 +200,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		hkpWorld_AddEntity(world->world, handCollBody, 1);
 	}
 
-	// TODO: Compute angular velocity to set from current / desired rotation, instead of using settransform to set rotation
-	//hkTransform handCollTransform;
-	hkTransform handCollTransform = handCollBody->m_motion.m_motionState.m_transform;
-	//handCollTransform.m_translation = NiPointToHkVector(handNode->m_worldTransform.pos * havokWorldScale);
-	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, handCollTransform.m_rotation);
-	hkpEntity_setTransform(handCollBody, handCollTransform);
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
-	handCollBody->m_motion.m_linearVelocity = NiPointToHkVector((desiredPos - HkVectorToNiPoint(handCollBody->m_motion.m_motionState.m_transform.m_translation)) / *g_deltaTime);
+	hkRotation desiredRot;
+	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
+	hkQuaternion desiredQuat;
+	desiredQuat.setFromRotationSimd(desiredRot);
+	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;

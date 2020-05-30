@@ -60,6 +60,11 @@ RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor(0xAC5FE0); // just set
 
 RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor(0xA93600);
 
+RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrame(0xAF6DD0);
+RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrameAsynchronously(0xAF7100);
+
+RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_applySoftKeyFrame(0xAF6AF0);
+
 RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType(0xAA9530); // bhkRigidBody_setMotionType is at E08040
 
 RelocAddr<_bhkRigidBody_setMotionType> bhkRigidBody_setMotionType(0xE08040);

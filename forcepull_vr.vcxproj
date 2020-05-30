@@ -87,7 +87,7 @@
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\adamh\Documents\hk2010_2_0_r1\Source</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;D:\Steam\steamapps\common\SkyrimVR\src\sksevr\x64\Release</LibraryPath>
+    <LibraryPath>C:\Users\adamh\Documents\hk2010_2_0_r1\Lib\win32_net_9-0\release_multithreaded;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;D:\Steam\steamapps\common\SkyrimVR\src\sksevr\x64\Release</LibraryPath>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Users\adamh\Documents\hk2010_2_0_r1\Source</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -181,7 +181,7 @@
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib;hkpUtilities.lib</AdditionalDependencies>
       <OutputFile>D:\Steam\steamapps\common\SkyrimVR\Data\SKSE\Plugins\$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
