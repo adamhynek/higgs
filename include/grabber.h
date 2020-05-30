@@ -47,6 +47,7 @@ struct Grabber
 		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
 		handCollCInfo = (hkpRigidBodyCinfo *)malloc(sizeof(hkpRigidBodyCinfo));
 		handCollBody = (hkpRigidBody *)malloc(sizeof(hkpRigidBody));
+		handCollBody->m_world = nullptr; // a bit weird, but we want to make sure it's 0 for when we check it
 	};
 
 	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
@@ -64,8 +65,6 @@ struct Grabber
 
 	State state = IDLE;
 	State prevState = IDLE;
-
-	hkpWorld *savedWorld = nullptr;
 
 	hkpBoxShape *handCollShape;
 	hkpRigidBodyCinfo *handCollCInfo;

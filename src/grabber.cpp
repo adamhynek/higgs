@@ -169,9 +169,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
 
-	if (world->world != savedWorld) {
-		savedWorld = world->world;
-
+	if (world->world != handCollBody->m_world) {
 		// Create our own layer in the first ununsed vanilla layer (56)
 		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
 		UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield
@@ -198,6 +196,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		hkpRigidBody_ctor(handCollBody, handCollCInfo);
 		hkpWorld_AddEntity(world->world, handCollBody, 1);
+		_MESSAGE("Adding collision for hand");
 	}
 
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
