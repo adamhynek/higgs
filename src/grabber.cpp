@@ -23,14 +23,14 @@ BSFixedString hmdNodeStr("HmdNode");
 
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
-_hkpLinearCastInput linearCastInput;
+hkpLinearCastInput linearCastInput;
 RayHitCollector rayHitCollector;
 AllRayHitCollector allRayHitCollector;
 CdBodyPairCollector pairCollector;
 // 'ItemPicker' collision layer; player collision group
 // Why ItemPicker? It ignores stuff like weapons the player is holding
 //static hkpWorldRayCastInput rayCastInput(0x02420028);
-_hkpWorldRayCastInput rayCastInput;
+hkpWorldRayCastInput rayCastInput;
 
 
 // Copied from PapyrusActor.cpp
@@ -189,27 +189,27 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		}
 
 		// Add collision object for the hand
-		hkpBoxShape_ctor(&handCollShape, { 0.05, 0.015, 0.075, 0 }, 0);
-		hkpRigidBodyCinfo_ctor(&handCollCInfo); // initialize with defaults
-		handCollCInfo.m_shape = &handCollShape;
-		handCollCInfo.m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
-		handCollCInfo.m_collisionFilterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
-		handCollCInfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
-		handCollCInfo.m_enableDeactivation = false;
-		handCollCInfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
+		hkpBoxShape_ctor(handCollShape, { 0.05, 0.015, 0.075, 0 }, 0);
+		hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
+		handCollCInfo->m_shape = handCollShape;
+		handCollCInfo->m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+		handCollCInfo->m_collisionFilterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+		handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+		handCollCInfo->m_enableDeactivation = false;
+		handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 
-		hkpRigidBody_ctor(&handCollBody, handCollCInfo);
-		hkpWorld_AddEntity(world->world, &handCollBody, 1);
+		hkpRigidBody_ctor(handCollBody, handCollCInfo);
+		hkpWorld_AddEntity(world->world, handCollBody, 1);
 	}
 
 	// TODO: Compute angular velocity to set from current / desired rotation, instead of using settransform to set rotation
 	//hkTransform handCollTransform;
-	hkTransform handCollTransform = handCollBody.m_motion.m_motionState.m_transform;
+	hkTransform handCollTransform = handCollBody->m_motion.m_motionState.m_transform;
 	//handCollTransform.m_translation = NiPointToHkVector(handNode->m_worldTransform.pos * havokWorldScale);
 	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, handCollTransform.m_rotation);
-	hkpEntity_setTransform(&handCollBody, handCollTransform);
+	hkpEntity_setTransform(handCollBody, handCollTransform);
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
-	handCollBody.m_motion.m_linearVelocity = NiPointToHkVector((desiredPos - HkVectorToNiPoint(handCollBody.m_motion.m_motionState.m_transform.m_translation)) / *g_deltaTime);
+	handCollBody->m_motion.m_linearVelocity = NiPointToHkVector((desiredPos - HkVectorToNiPoint(handCollBody->m_motion.m_motionState.m_transform.m_translation)) / *g_deltaTime);
 
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;

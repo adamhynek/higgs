@@ -54,19 +54,19 @@ extern RelocAddr<_EffectShader_Play> EffectShader_Play;
 typedef void(*_EffectShader_Stop)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target);
 extern RelocAddr<_EffectShader_Stop> EffectShader_Stop;
 
-typedef void(*_hkpWorld_CastRay)(hkpWorld *world, _hkpWorldRayCastInput *input, _hkpRayHitCollector *collector);
+typedef void(*_hkpWorld_CastRay)(hkpWorld *world, hkpWorldRayCastInput *input, hkpRayHitCollector *collector);
 extern RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay;
 
-typedef void(*_hkpWorld_LinearCast)(hkpWorld *world, const hkpCollidable* collA, const _hkpLinearCastInput* input, _hkpCdPointCollector* castCollector, _hkpCdPointCollector* startCollector);
+typedef void(*_hkpWorld_LinearCast)(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector);
 extern RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast;
 
-typedef void(*_hkpWorld_GetPenetrations)(hkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, _hkpCdBodyPairCollector* collector);
+typedef void(*_hkpWorld_GetPenetrations)(hkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdBodyPairCollector* collector);
 extern RelocAddr<_hkpWorld_GetPenetrations> hkpWorld_GetPenetrations;
 
-typedef void(*_hkpWorld_GetClosestPoints)(hkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, _hkpCdPointCollector* collector);
+typedef void(*_hkpWorld_GetClosestPoints)(hkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdPointCollector* collector);
 extern RelocAddr<_hkpWorld_GetClosestPoints> hkpWorld_GetClosestPoints;
 
-typedef hkpEntity* (*_hkpWorld_AddEntity)(hkpWorld *world, _hkpEntity* entity, int initialActivationState);
+typedef hkpEntity* (*_hkpWorld_AddEntity)(hkpWorld *world, hkpEntity* entity, int initialActivationState);
 extern RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity;
 
 typedef void(*_hkpWorld_UpdateCollisionFilterOnEntity)(hkpWorld *world, hkpEntity* entity, hkpUpdateCollisionFilterOnEntityMode updateMode, hkpUpdateCollectionFilterMode updateShapeCollectionFilter);
@@ -78,16 +78,16 @@ extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;
 typedef void(*_hkpEntity_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
 extern RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation;
 
-typedef void(*_hkpEntity_setTransform)(_hkpEntity *_this, const hkTransform& transform);
+typedef void(*_hkpEntity_setTransform)(hkpEntity *_this, const hkTransform& transform);
 extern RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform;
 
-typedef void(*_hkpRigidBody_ctor)(_hkpRigidBody *_this, _hkpRigidBodyCinfo& info);
+typedef void(*_hkpRigidBody_ctor)(hkpRigidBody *_this, hkpRigidBodyCinfo *info);
 extern RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor;
 
-typedef void(*_hkpRigidBodyCinfo_ctor)(_hkpRigidBodyCinfo *_this);
+typedef void(*_hkpRigidBodyCinfo_ctor)(hkpRigidBodyCinfo *_this);
 extern RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor;
 
-typedef hkpBoxShape* (*_hkpBoxShape_ctor)(_hkpBoxShape *_this, const hkVector4& halfExtents, float radius);
+typedef hkpBoxShape* (*_hkpBoxShape_ctor)(hkpBoxShape *_this, const hkVector4& halfExtents, float radius);
 extern RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor;
 
 typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, UInt64 newState, UInt64 preferredActivationState, UInt64 collisionFilterUpdateMode);

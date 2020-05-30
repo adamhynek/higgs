@@ -68,7 +68,7 @@ void RayHitCollector::reset()
 	m_doesHitExist = false;
 }
 
-void RayHitCollector::addRayHit(const hkpCdBody& cdBody, const _hkpShapeRayCastCollectorOutput& hitInfo)
+void RayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCastCollectorOutput& hitInfo)
 {
 	// Note: for optimization purposes this should set the m_earlyOutHitFraction to:
 	// - 0.0 if you want to get no more hits
@@ -97,7 +97,7 @@ void AllRayHitCollector::reset()
 	m_hits.clear(); // TODO: Shrink to fit?
 }
 
-void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const _hkpShapeRayCastCollectorOutput& hitInfo)
+void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCastCollectorOutput& hitInfo)
 {
 	// Note: for optimization purposes this should set the m_earlyOutHitFraction to:
 	// - 0.0 if you want to get no more hits

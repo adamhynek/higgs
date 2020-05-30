@@ -43,6 +43,10 @@ struct Grabber
 	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset)
 		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), palmNodeName(palmNodeName), rolloverOffset(rolloverOffset)
 	{
+		// We don't want to even attempt to call the constructors of these, but we do want space for them
+		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
+		handCollCInfo = (hkpRigidBodyCinfo *)malloc(sizeof(hkpRigidBodyCinfo));
+		handCollBody = (hkpRigidBody *)malloc(sizeof(hkpRigidBody));
 	};
 
 	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
@@ -63,9 +67,9 @@ struct Grabber
 
 	hkpWorld *savedWorld = nullptr;
 
-	_hkpBoxShape handCollShape;
-	_hkpRigidBodyCinfo handCollCInfo;
-	_hkpRigidBody handCollBody;
+	hkpBoxShape *handCollShape;
+	hkpRigidBodyCinfo *handCollCInfo;
+	hkpRigidBody *handCollBody;
 
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;

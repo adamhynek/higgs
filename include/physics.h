@@ -10,29 +10,29 @@
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 
 
-struct RayHitCollector : public _hkpRayHitCollector
+struct RayHitCollector : public hkpRayHitCollector
 {
 public:
 	RayHitCollector();
 	inline void reset();
-	void addRayHit(const hkpCdBody& cdBody, const _hkpShapeRayCastCollectorOutput& hitInfo) override;
+	void addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCastCollectorOutput& hitInfo) override;
 
-	_hkpShapeRayCastCollectorOutput m_closestHitInfo;
+	hkpShapeRayCastCollectorOutput m_closestHitInfo;
 	bool m_doesHitExist = false;
 	//const hkpCdBody *m_closestCollidable = nullptr;
 };
 
-struct AllRayHitCollector : public _hkpRayHitCollector
+struct AllRayHitCollector : public hkpRayHitCollector
 {
 public:
 	AllRayHitCollector();
 	inline void reset();
-	void addRayHit(const hkpCdBody& cdBody, const _hkpShapeRayCastCollectorOutput& hitInfo) override;
+	void addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCastCollectorOutput& hitInfo) override;
 
-	std::vector<std::pair<hkpCdBody *, _hkpShapeRayCastCollectorOutput>> m_hits;
+	std::vector<std::pair<hkpCdBody *, hkpShapeRayCastCollectorOutput>> m_hits;
 };
 
-struct CdPointCollector : public _hkpCdPointCollector
+struct CdPointCollector : public hkpCdPointCollector
 {
 	CdPointCollector();
 	void addCdPoint(const hkpCdPoint& point) override;
@@ -41,7 +41,7 @@ struct CdPointCollector : public _hkpCdPointCollector
 	std::vector<std::pair<hkpCdBody *, hkContactPoint>> m_hits;
 };
 
-struct CdBodyPairCollector : public _hkpCdBodyPairCollector
+struct CdBodyPairCollector : public hkpCdBodyPairCollector
 {
 	CdBodyPairCollector();
 	void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) override;
