@@ -98,6 +98,9 @@ extern RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_apply
 typedef void(*_hkpKeyFrameUtility_applySoftKeyFrame)(const hkpKeyFrameUtility::KeyFrameInfo& keyFrameInfo, hkpKeyFrameUtility::AccelerationInfo& accelInfo, hkReal deltaTime, hkReal invDeltaTime, hkpRigidBody* body);
 extern RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_applySoftKeyFrame;
 
+typedef void(*_hkpConstraintInstance_setPriority)(hkpConstraintInstance *_this, hkpConstraintInstance::ConstraintPriority priority);
+extern RelocAddr<_hkpConstraintInstance_setPriority> hkpConstraintInstance_setPriority;
+
 typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, UInt64 newState, UInt64 preferredActivationState, UInt64 collisionFilterUpdateMode);
 extern RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType;
 

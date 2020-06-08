@@ -31,6 +31,7 @@
 #include "config.h"
 #include "menu_checker.h"
 #include "shaders.h"
+#include "offsets.h"
 
 
 // SKSE globals
@@ -58,10 +59,12 @@ Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandN
 Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
 
 
-auto hookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
-auto hookedFunc = RelocAddr<uintptr_t>(0x564DD0);
+auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
+auto shaderHookedFunc = RelocAddr<uintptr_t>(0x564DD0);
 
-uintptr_t hookedFuncAddr = 0;
+uintptr_t shaderHookedFuncAddr = 0;
+
+auto worldHookLoc = RelocAddr<uintptr_t>(0x271EF9);
 
 
 ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
@@ -72,67 +75,168 @@ void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE T
 	}
 }
 
+void HookedWorldUpdateHook(bhkWorld *world)
+{
+	//_MESSAGE("Pre World update hook");
+	if (g_rightGrabber.state == Grabber::State::HELD) {
+		NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber.handNodeName.data);
+		if (handNode) {
+			NiAVObject *n = FindCollidableNode(g_rightGrabber.selectedObject.collidable);
+			if (n) {
+				NiTransform inverseParent;
+				n->m_parent->m_worldTransform.Invert(inverseParent);
+				NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber.initialObjTransformHandSpace;
+				n->m_localTransform = inverseParent * newTransform;
+				NiAVObject::ControllerUpdateContext ctx;
+				ctx.flags = 0x2000; // makes havok sim more stable?
+				ctx.delta = 0;
+				NiAVObject_UpdateObjectUpwards(n, &ctx);
+				_MESSAGE("Update right node physics");
+			}
+		}
+	}
+	if (g_leftGrabber.state == Grabber::State::HELD) {
+		NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber.handNodeName.data);
+		if (handNode) {
+			NiAVObject *n = FindCollidableNode(g_leftGrabber.selectedObject.collidable);
+			if (n) {
+				NiTransform inverseParent;
+				n->m_parent->m_worldTransform.Invert(inverseParent);
+				NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber.initialObjTransformHandSpace;
+				n->m_localTransform = inverseParent * newTransform;
+				NiAVObject::ControllerUpdateContext ctx;
+				ctx.flags = 0x2000; // makes havok sim more stable?
+				ctx.delta = 0;
+				NiAVObject_UpdateObjectUpwards(n, &ctx);
+				_MESSAGE("Update left node physics");
+			}
+		}
+	}
+}
+
 
 void Hook_Commit(void)
 {
-	struct Code : Xbyak::CodeGenerator {
-		Code(void * buf) : Xbyak::CodeGenerator(256, buf)
-		{
-			Xbyak::Label jumpBack;
+	{
+		struct ShaderCode : Xbyak::CodeGenerator {
+			ShaderCode(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
 
-			push(rax);
-			push(rcx);
-			push(rdx);
-			push(r8);
-			push(r9);
-			push(r10);
-			push(r11);
-			sub(rsp, 0x60); // Need to keep the stack SIXTEEN BYTE ALIGNED
-			movsd(ptr[rsp], xmm0);
-			movsd(ptr[rsp + 0x10], xmm1);
-			movsd(ptr[rsp + 0x20], xmm2);
-			movsd(ptr[rsp + 0x30], xmm3);
-			movsd(ptr[rsp + 0x40], xmm4);
-			movsd(ptr[rsp + 0x50], xmm5);
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
 
-			// Call our hook
-			mov(rax, (uintptr_t)HookedShaderReferenceEffectCtor);
-			call(rax);
+				// Call our hook
+				mov(rax, (uintptr_t)HookedShaderReferenceEffectCtor);
+				call(rax);
 
-			movsd(xmm0, ptr[rsp]);
-			movsd(xmm1, ptr[rsp + 0x10]);
-			movsd(xmm2, ptr[rsp + 0x20]);
-			movsd(xmm3, ptr[rsp + 0x30]);
-			movsd(xmm4, ptr[rsp + 0x40]);
-			movsd(xmm5, ptr[rsp + 0x50]);
-			add(rsp, 0x60);
-			pop(r11);
-			pop(r10);
-			pop(r9);
-			pop(r8);
-			pop(rdx);
-			pop(rcx);
-			pop(rax);
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
 
-			// Original code
-			mov(rax, hookedFuncAddr);
-			call(rax);
+				// Original code
+				mov(rax, shaderHookedFuncAddr);
+				call(rax);
 
-			// Jump back to whence we came (+ the size of the initial branch instruction)
-			jmp(ptr[rip + jumpBack]);
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
 
-			L(jumpBack);
-			dq(hookLoc.GetUIntPtr() + 5);
-		}
-	};
+				L(jumpBack);
+				dq(shaderHookLoc.GetUIntPtr() + 5);
+			}
+		};
 
-	void * codeBuf = g_localTrampoline.StartAlloc();
-	Code code(codeBuf);
-	g_localTrampoline.EndAlloc(code.getCurr());
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		ShaderCode code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
 
-	g_branchTrampoline.Write5Branch(hookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+		g_branchTrampoline.Write5Branch(shaderHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
-	_MESSAGE("Hook complete");
+		_MESSAGE("Shader hook complete");
+	}
+
+	{
+		struct WorldCode : Xbyak::CodeGenerator {
+			WorldCode(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)HookedWorldUpdateHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Original code
+				call(ptr[r8 + 0x190]);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(worldHookLoc.GetUIntPtr() + 7);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		WorldCode code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(worldHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("World update hook complete");
+	}
 }
 
 
@@ -140,7 +244,7 @@ void Hook_Commit(void)
 bool TryHook()
 {
 	// This should be sized to the actual amount used by your trampoline
-	static const size_t TRAMPOLINE_SIZE = 256;
+	static const size_t TRAMPOLINE_SIZE = 512;
 
 	if (g_trampoline) {
 		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
@@ -461,7 +565,7 @@ extern "C" {
 		g_vrInterface->RegisterForControllerState(g_pluginHandle, 0, ControllerStateCB);
 		g_vrInterface->RegisterForPoses(g_pluginHandle, 0, WaitPosesCB);
 
-		hookedFuncAddr = hookedFunc.GetUIntPtr(); // before trampolines
+		shaderHookedFuncAddr = shaderHookedFunc.GetUIntPtr(); // before trampolines
 
 		g_trampoline = (SKSETrampolineInterface *)skse->QueryInterface(kInterface_Trampoline);
 		if (!g_trampoline) {

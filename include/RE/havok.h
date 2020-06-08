@@ -47,6 +47,11 @@ struct bhkWorld : NiRefObject
 };
 static_assert(offsetof(bhkWorld, world) == 0x10);
 
+struct bhkConstraint : NiRefObject
+{
+	hkpConstraintInstance *constraint; // 10
+};
+
 struct bhkEntity : NiRefObject
 {
 
@@ -57,7 +62,7 @@ struct bhkRigidBody : bhkEntity
 	hkpRigidBody * hkBody; // 10
 	UInt16 flags; // 18 - flags? if or'd with 0x20 (bit 5), it makes havok sim more stable
 	UInt64 unk20; // at least first byte are some flags?
-	void *constraints; // 28
+	bhkConstraint **constraints; // 28 - ptr to array of constraint ptrs. Size it at 0x38
 	UInt64 unk30;
 	UInt32 numConstraints; // 38
 };
@@ -65,8 +70,12 @@ static_assert(offsetof(bhkRigidBody, numConstraints) == 0x38);
 
 struct bhkRigidBodyT : bhkRigidBody
 {
-
+	// I'm really not sure about these. The first one likes to be { 0, 0, 0, 1 } which seems to be a quat.
+	hkQuaternion unkRot;
+	hkVector4 unkPos;
 };
+static_assert(offsetof(bhkRigidBodyT, unkRot) == 0x40);
+static_assert(offsetof(bhkRigidBodyT, unkPos) == 0x50);
 
 struct bhkCollisionObject : NiRefObject
 {

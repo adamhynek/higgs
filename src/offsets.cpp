@@ -65,7 +65,9 @@ RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKey
 
 RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_applySoftKeyFrame(0xAF6AF0);
 
-RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType(0xAA9530); // bhkRigidBody_setMotionType is at E08040
+RelocAddr<_hkpConstraintInstance_setPriority> hkpConstraintInstance_setPriority(0xAC05B0);
+
+RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType(0xAA9530);
 
 RelocAddr<_bhkRigidBody_setMotionType> bhkRigidBody_setMotionType(0xE08040);
 
@@ -94,6 +96,8 @@ RelocAddr<_TESObjectREFR_SetPosition> TESObjectREFR_SetPosition(0x2A8010);
 RelocAddr<_TESObjectREFR_SetRotation> TESObjectREFR_SetRotation(0x2A7C50);
 
 RelocAddr<_NiAVObject_UpdateObjectUpwards> NiAVObject_UpdateObjectUpwards(0xC9BC10);
+
+//bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);
 

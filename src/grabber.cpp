@@ -172,7 +172,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	if (world->world != handCollBody->m_world) {
 		// Create our own layer in the first ununsed vanilla layer (56)
 		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-		UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield
+		UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield - TODO: Actually just copy the L_WEAPON layer bitfield?
 		bitfield |= ((UInt64)1 << 56); // collide with ourselves
 		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
 		worldFilter->layerBitfields[56] = bitfield;
@@ -199,6 +199,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		_MESSAGE("Adding collision for hand");
 	}
 
+	// Put our hand collision where we want it
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
 	hkRotation desiredRot;
 	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
@@ -720,6 +721,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					if (state == HELD) {
 						//selectedObject.rigidBody->motion.m_linearVelocity = NiPointToHkVector((localToWorldTransform * handVelocityRoomspace) * *HAVOK_WORLD_SCALE_ADDR);
 						// Boost the velocity a bit
+						// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
 						selectedObject.rigidBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.5f * *HAVOK_WORLD_SCALE_ADDR);
 					}
 				}
@@ -1000,37 +1002,39 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 
 				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
+				NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 
-				hkVector4 translation = motion->m_motionState.m_transform.m_translation;
-
-				NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
-				NiPoint3 relObjPos = hkObjPos - hkHandPos;
-
-				float inverseMass = min(motion->getMassInv(), Config::options.inverseMassLimit);
-
-				float distanceFactor = VectorLength(initialGrabbedObjRelativePosition) / 5.0f;
+				float distanceFactor = VectorLength(hkHandPos - hkObjPos) / 5.0f;
 				float duration = 0.375f + 0.375f * distanceFactor;
-				float height = 0.25f + 0.25f * distanceFactor;
-				float lerp = min((g_currentFrameTime - grabbedTime) / duration, 1.0f);
 
-				NiPoint3 horizontalDelta = hkHandPos - initialGrabbedObjWorldPosition;
-				horizontalDelta.z = 0;
-				horizontalDelta *= lerp;
-
-				NiPoint2 leewayPoint = { 0.5f, max(hkHandPos.z, initialGrabbedObjWorldPosition.z) + height };
-				NiPoint3 coeffs = QuadraticFromPoints({ 0, initialGrabbedObjWorldPosition.z }, leewayPoint, { 1, hkHandPos.z });
-
-				NiPoint3 desiredPos = initialGrabbedObjWorldPosition + horizontalDelta;
-				desiredPos.z = coeffs.z + coeffs.y * lerp + coeffs.x * lerp * lerp;
-
-				NiPoint3 deltaPos = desiredPos - hkObjPos;
-				float newMagnitude = VectorLength(deltaPos) * pow(inverseMass, Config::options.massExponent) * Config::options.pullVelocityMultiplier;
-				newMagnitude /= havokWorldScale;
-
-				NiPoint3 newVelocity = VectorNormalized(deltaPos) * newMagnitude;
+				/*
+				NiPoint3 horizontalDelta =
+				NiPoint3 velocity = horizontalDelta / duration;
+				float verticalDelta = hkHandPos.z - initialGrabbedObjWorldPosition.z;
+				velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
 				hkpEntity_activate(selectedObject.rigidBody);
-				motion->m_linearVelocity = NiPointToHkVector(newVelocity);
+				motion->m_linearVelocity = NiPointToHkVector(velocity);
+				*/
+
+				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
+				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
+				if (pullFrameCounter < numPullFrames)
+				{
+					NiPoint3 horizontalDelta = hkHandPos - hkObjPos;
+					horizontalDelta.z = 0;
+					NiPoint3 velocity = horizontalDelta / duration;
+					float verticalDelta = hkHandPos.z - hkObjPos.z;
+					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
+
+					hkpEntity_activate(selectedObject.rigidBody);
+					motion->m_linearVelocity = NiPointToHkVector(velocity);
+					pullFrameCounter++;
+				}
+				else {
+					triggerReleased = true; // TODO: pretty hacky
+					pullFrameCounter = 0;
+				}
 			}
 		}
 
@@ -1043,7 +1047,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.hasSavedMotionType = true;
 						selectedObject.savedMotionType = motion->m_type;
 						selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
+
 						hkpRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, 1, 1);
+
 					}
 
 					if (!selectedObject.hasSavedCollisionFilterInfo) {
@@ -1057,19 +1063,29 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 					}
 
+					/*
+					hkpEntity_activate(selectedObject.rigidBody);
+					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
+					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+					hkRotation desiredRot;
+					NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+					hkQuaternion desiredQuat;
+					desiredQuat.setFromRotationSimd(desiredRot);
+					hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody);
+					*/
+
 					NiTransform inverseParent;
 					n->m_parent->m_worldTransform.Invert(inverseParent);
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
-					//newTransform.pos = handNode->m_worldTransform.pos;
-					//newTransform.rot = handNode->m_worldTransform.rot;
-					//newTransform.scale = n->m_worldTransform.scale;
 					n->m_localTransform = inverseParent * newTransform;
 					NiAVObject::ControllerUpdateContext ctx;
 					ctx.flags = 0x2000; // makes havok sim more stable?
 					ctx.delta = 0;
 					NiAVObject_UpdateObjectUpwards(n, &ctx);
-					//updateTransformTree(n, &ctx);
 				}
+			}
+			else {
+				state = IDLE;
 			}
 		}
 	}

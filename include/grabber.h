@@ -62,6 +62,7 @@ struct Grabber
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	static const int numPrevVel = 5;
+	static const int numPullFrames = 5;
 
 	State state = IDLE;
 	State prevState = IDLE;
@@ -99,6 +100,8 @@ struct Grabber
 
 	float prevHandSpeedInSpellDirection = 0;
 	float prevHandSpeedInObjDirection = 0;
+
+	int pullFrameCounter = 0;
 
 	bool unsheatheDesired = false;
 
