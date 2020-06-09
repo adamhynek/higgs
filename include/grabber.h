@@ -103,6 +103,7 @@ struct Grabber
 
 	int pullFrameCounter = 0;
 
+	bool idleDesired = false;
 	bool unsheatheDesired = false;
 
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid

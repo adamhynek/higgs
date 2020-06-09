@@ -658,6 +658,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
 						triggerPressed = false;
 						didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
+						unsheatheDesired = false; // If we do something with the trigger (i.e. grab something), then we no longer want to even think of attempting an unsheathe in X seconds
 					}
 					else {
 						// Selected object no longer exists
@@ -682,6 +683,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		if (triggerReleased) {
 			triggerReleased = false;
 			didTriggerPressGrabObject = false;
+			idleDesired = true;
+		}
+		if (idleDesired) {
+			idleDesired = false;
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
@@ -1032,7 +1037,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					pullFrameCounter++;
 				}
 				else {
-					triggerReleased = true; // TODO: pretty hacky
+					idleDesired = true;
 					pullFrameCounter = 0;
 				}
 			}
