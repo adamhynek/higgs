@@ -51,6 +51,13 @@ bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
 bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target);
 
+UInt32 GetSavedCollision(UInt32 id);
+UInt32 GetSavedCollisionRefCount(UInt32 id);
+void RemoveSavedCollision(UInt32 id);
+void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup);
+void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup);
+void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, hkpCollidable *skipNode = nullptr);
+void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode = nullptr);
 
 typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 

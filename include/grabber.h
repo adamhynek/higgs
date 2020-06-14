@@ -20,7 +20,6 @@ struct Grabber
 		bool hasSavedAngularDamping = false;
 		hkHalf savedAngularDamping;
 		bool hasSavedCollisionFilterInfo = false;
-		UInt32 savedCollisionFilterInfo = 0;
 		bool hasSavedMotionType = false;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
@@ -80,6 +79,8 @@ struct Grabber
 	NiMatrix33 rolloverRotation;
 	float rolloverScale;
 
+	UInt16 playerCollisionGroup;
+
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
@@ -110,6 +111,7 @@ struct Grabber
 	double triggerPressedTime = 0; // Timestamp when the trigger was pressed
 	double selectionLockedTime = 0; // Timestamp when the currently grabbed object (if there is one) was locked for selection
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
+	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 
 	bool triggerDown = false; // Whether the trigger was down last frame
 	bool triggerPressed = false; // True on rising edge of trigger press

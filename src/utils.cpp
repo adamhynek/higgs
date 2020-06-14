@@ -475,3 +475,136 @@ bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 	_WARNING("Armor node is not geometry and has no children: %", armorNode->m_name ? armorNode->m_name : "");
 	return false;
 }
+
+// Map havok entity id -> (saved collisionfilterinfo, "refcount" of sorts)
+std::unordered_map<UInt32, std::pair<UInt32, UInt8>> collisionInfoIdMap;
+
+UInt32 GetSavedCollision(UInt32 id)
+{
+	try {
+		return collisionInfoIdMap.at(id).first;
+	}
+	catch (std::out_of_range) {
+		// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
+		return 0;
+	}
+}
+
+UInt32 GetSavedCollisionRefCount(UInt32 id)
+{
+	try {
+		return collisionInfoIdMap.at(id).second;
+	}
+	catch (std::out_of_range) {
+		// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
+		return 0;
+	}
+}
+
+void RemoveSavedCollision(UInt32 id)
+{
+	try {
+		auto val = collisionInfoIdMap.at(id);
+		UInt8 count = val.second;
+		UInt32 collisionFilterInfo = val.first;
+		if (count == 1) {
+			// Other hand is not affecting this entity
+			collisionInfoIdMap.erase(id);
+		}
+		else {
+			// Other hand is still affecting this entity - 'decref'
+			collisionInfoIdMap[id] = { collisionFilterInfo, 1 };
+		}
+	}
+	catch (std::out_of_range) {
+		// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
+	}
+}
+
+
+void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup)
+{
+	if (obj->unk040) {
+		auto collObj = (bhkCollisionObject *)obj->unk040;
+		hkpRigidBody *entity = collObj->body->hkBody;
+		hkpCollidable *collidable = &entity->m_collidable;
+
+		// Save collisionfilterinfo by entity id
+		UInt32 entityId = entity->m_uid;
+		UInt32 savedInfo = GetSavedCollision(entityId);
+		if (savedInfo) {
+			// other hand already did the job - 'incRef'
+			collisionInfoIdMap[entityId] = { savedInfo, 2 };
+		}
+		else {
+			// Other hand hasn't affected this yet. Set its collision info
+			collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, 1 };
+
+			collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
+			collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
+			collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+			collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+			// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
+			collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
+
+			hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+		}		
+	}
+
+	NiNode *node = obj->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				SetCollisionInfoDownstream(child, collisionGroup);
+			}
+		}
+	}
+}
+
+void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup)
+{
+	if (refr->loadedState && refr->loadedState->node) {
+		SetCollisionInfoDownstream(refr->loadedState->node, collisionGroup);
+	}
+}
+
+
+void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode)
+{
+	if (obj->unk040) {
+		auto collObj = (bhkCollisionObject *)obj->unk040;
+		hkpRigidBody *entity = collObj->body->hkBody;
+		hkpCollidable *collidable = &entity->m_collidable;
+		if (collidable != skipNode) {
+			UInt32 entityId = entity->m_uid;
+			UInt8 refCount = GetSavedCollisionRefCount(entityId);
+			if (refCount) {
+				if (refCount == 1) {
+					// Only actually reset collision info if the other hand isn't involved
+					UInt32 collisionFilterInfo = GetSavedCollision(entityId);
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo = collisionFilterInfo;
+					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+				}
+				RemoveSavedCollision(entityId);
+			}
+		}
+	}
+
+	NiNode *node = obj->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				ResetCollisionInfoDownstream(child, skipNode);
+			}
+		}
+	}
+}
+
+void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, hkpCollidable *skipNode)
+{
+	if (refr->loadedState && refr->loadedState->node) {
+		ResetCollisionInfoDownstream(refr->loadedState->node, skipNode);
+	}
+}

@@ -91,7 +91,6 @@ void HookedWorldUpdateHook(bhkWorld *world)
 				ctx.flags = 0x2000; // makes havok sim more stable?
 				ctx.delta = 0;
 				NiAVObject_UpdateObjectUpwards(n, &ctx);
-				_MESSAGE("Update right node physics");
 			}
 		}
 	}
@@ -108,7 +107,6 @@ void HookedWorldUpdateHook(bhkWorld *world)
 				ctx.flags = 0x2000; // makes havok sim more stable?
 				ctx.delta = 0;
 				NiAVObject_UpdateObjectUpwards(n, &ctx);
-				_MESSAGE("Update left node physics");
 			}
 		}
 	}

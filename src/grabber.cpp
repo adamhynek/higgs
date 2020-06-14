@@ -159,7 +159,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		return;
 	}
 
-	UInt16 playerCollisionGroup = ((bhkCollisionObject *)comNode->unk040)->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
+	playerCollisionGroup = ((bhkCollisionObject *)comNode->unk040)->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
 
 	bhkWorld *world = GetWorld(cell);
 	if (!world) {
@@ -172,7 +172,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	if (world->world != handCollBody->m_world) {
 		// Create our own layer in the first ununsed vanilla layer (56)
 		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-		UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield - TODO: Actually just copy the L_WEAPON layer bitfield?
+		//UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield - TODO: Actually just copy the L_WEAPON layer bitfield?
+		UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
 		bitfield |= ((UInt64)1 << 56); // collide with ourselves
 		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
 		worldFilter->layerBitfields[56] = bitfield;
@@ -685,7 +686,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			didTriggerPressGrabObject = false;
 			idleDesired = true;
 		}
-		if (idleDesired) {
+		if (idleDesired || !allowGrab) {
 			idleDesired = false;
 
 			NiPointer<TESObjectREFR> selectedObj;
@@ -697,29 +698,41 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				StopShader(selectedObject.handle, selectedObject.shaderNode);
 				if (selectedObject.rigidBody) {
-					if (selectedObject.hasSavedCollisionFilterInfo) {
-						//selectedObject.hasSavedCollisionFilterInfo = false;
-						// TODO: We no longer set the collisionfilterinfo back so that it doesn't collide with the player anymore. Should it be this way?
-						//selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = selectedObject.savedCollisionFilterInfo;
-					}
 					if (selectedObject.hasSavedMotionType) {
 						selectedObject.hasSavedMotionType = false;
 						selectedObject.hasSavedCollisionFilterInfo = false;
-						// Restore only the original layer first, so it collides with everything except the player
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (selectedObject.savedCollisionFilterInfo & 0x7f);
-						selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-						hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
 
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = selectedObject.savedCollisionFilterInfo;
-						selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-						hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+						ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
+
+						UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->m_uid);
+						if (savedCollisionRefCount) {
+							if (savedCollisionRefCount == 1) {
+								UInt32 savedCollision = GetSavedCollision(selectedObject.rigidBody->m_uid);
+								// Restore only the original layer first, so it collides with everything except the player
+								selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+								selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
+								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
+								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+
+								selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
+								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
+								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+							}
+							else { // == 2
+								// use current collision, other hand still has it
+								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
+								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+
+								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
+								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+							}
+							RemoveSavedCollision(selectedObject.rigidBody->m_uid);
+						}
 					}
 					else {
 						if (selectedObject.hasSavedCollisionFilterInfo) {
 							selectedObject.hasSavedCollisionFilterInfo = false;
-							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = selectedObject.savedCollisionFilterInfo;
-							hkpWorld_UpdateCollisionFilterOnEntity(world->world, selectedObject.rigidBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+							ResetCollisionInfoForAllCollisionInRefr(selectedObj);
 						}
 					}
 
@@ -752,7 +765,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
 				//}
 
-				auto TransitionGrabbedPulled = [this, motion, relObjPos, hkObjPos, handPos, upperArmPos, selectedObj, playerCollisionGroup]()
+				auto TransitionGrabbedPulled = [this, motion, relObjPos, hkObjPos, handPos, upperArmPos, selectedObj]()
 				{
 					grabbedTime = g_currentFrameTime;
 					initialGrabbedObjRelativePosition = relObjPos;
@@ -788,6 +801,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					selectedObject.hasSavedAngularDamping = true;
 					selectedObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
 					motion->m_motionState.m_angularDamping = hkHalf(3.0f);
+					pulledTime = g_currentFrameTime;
+
 					if (selectedObject.hitForm) {
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
@@ -997,13 +1012,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				if (!selectedObject.hasSavedCollisionFilterInfo) {
 					selectedObject.hasSavedCollisionFilterInfo = true;
-					selectedObject.savedCollisionFilterInfo = selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo;
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF; // clear out collision group
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
-					// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
-					selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
+
+					SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
 				}
 
 				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
@@ -1059,13 +1069,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					if (!selectedObject.hasSavedCollisionFilterInfo) {
 						selectedObject.hasSavedCollisionFilterInfo = true;
-						selectedObject.savedCollisionFilterInfo = selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo;
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup) << 16;
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
-						// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
-						selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
+
+						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
 					}
 
 					/*
