@@ -17,15 +17,18 @@ struct Grabber
 		hkpRigidBody *rigidBody = nullptr;
 		bool isActor = false;
 		bool isImpactedProjectile = false;
-		bool hasSavedAngularDamping = false;
-		hkHalf savedAngularDamping;
-		bool hasSavedCollisionFilterInfo = false;
-		bool hasSavedMotionType = false;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		TESForm *hitForm = nullptr;
 		NiPointer<NiAVObject> shaderNode = nullptr;
 		NiPointer<NiAVObject> hitNode = nullptr;
+	};
+
+	struct PulledObject
+	{
+		UInt32 handle = 0;
+		hkpRigidBody *rigidBody = nullptr;
+		hkHalf savedAngularDamping;
 	};
 
 	enum State : int
@@ -57,6 +60,7 @@ struct Grabber
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
+	void EndPull();
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
@@ -88,6 +92,7 @@ struct Grabber
 	NiPoint3 handDirectionVelocities[numPrevVel]; // previous n hand direction velocities
 
 	SelectedObject selectedObject;
+	PulledObject pulledObject;
 
 	NiPoint3 initialObjPosRaySpace;
 	NiPoint3 initialGrabbedObjRelativePosition;
@@ -111,6 +116,7 @@ struct Grabber
 	double triggerPressedTime = 0; // Timestamp when the trigger was pressed
 	double selectionLockedTime = 0; // Timestamp when the currently grabbed object (if there is one) was locked for selection
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
+	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 
 	bool triggerDown = false; // Whether the trigger was down last frame

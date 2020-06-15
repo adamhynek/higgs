@@ -250,6 +250,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	NiPoint3 upperArmPos = upperArmNode->m_worldTransform.pos;
 
+	if (g_currentFrameTime - pulledTime > pulledExpireTime) {
+		EndPull();
+	}
+
 	bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
 	if (!sphere)
 		return;
@@ -653,6 +657,19 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 								NiTransform inverseHand;
 								handNode->m_worldTransform.Invert(inverseHand);
 								initialObjTransformHandSpace = inverseHand * desiredTransform;
+
+								SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+
+								selectedObject.savedMotionType = selectedObject.rigidBody->m_motion.m_type;
+								selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
+
+								hkpRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, 1, 1);
+
+								// Cancel a collision reset from pulling if we're grabbing the object
+								if (pulledObject.handle == selectedObject.handle) {
+									EndPull();
+								}
+
 								state = HELD;
 							}
 						}
@@ -691,56 +708,41 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				if (selectedObject.hasSavedAngularDamping) {
-					selectedObject.rigidBody->m_motion.m_motionState.m_angularDamping = selectedObject.savedAngularDamping;
-					selectedObject.hasSavedAngularDamping = false;
-				}
-
 				StopShader(selectedObject.handle, selectedObject.shaderNode);
-				if (selectedObject.rigidBody) {
-					if (selectedObject.hasSavedMotionType) {
-						selectedObject.hasSavedMotionType = false;
-						selectedObject.hasSavedCollisionFilterInfo = false;
+				if (state != PULLED) {
+					if (selectedObject.rigidBody) {
+						if (state == HELD) {
+							ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
 
-						ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
+							UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->m_uid);
+							if (savedCollisionRefCount > 0) {
+								if (savedCollisionRefCount == 1) {
+									UInt32 savedCollision = GetSavedCollision(selectedObject.rigidBody->m_uid);
+									// Restore only the original layer first, so it collides with everything except the player
+									selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+									selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
+									selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
+									hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
 
-						UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->m_uid);
-						if (savedCollisionRefCount) {
-							if (savedCollisionRefCount == 1) {
-								UInt32 savedCollision = GetSavedCollision(selectedObject.rigidBody->m_uid);
-								// Restore only the original layer first, so it collides with everything except the player
-								selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
-								selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
-								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+									selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
+									selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
+									hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+								}
+								else { // > 1
+									// use current collision, other hand still has it
+									selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
+									hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
 
-								selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
-								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+									selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
+									hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+								}
+								RemoveSavedCollision(selectedObject.rigidBody->m_uid);
 							}
-							else { // == 2
-								// use current collision, other hand still has it
-								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
 
-								selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-								hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
-							}
-							RemoveSavedCollision(selectedObject.rigidBody->m_uid);
+							// Boost the velocity a bit
+							// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
+							selectedObject.rigidBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.5f * *HAVOK_WORLD_SCALE_ADDR);
 						}
-					}
-					else {
-						if (selectedObject.hasSavedCollisionFilterInfo) {
-							selectedObject.hasSavedCollisionFilterInfo = false;
-							ResetCollisionInfoForAllCollisionInRefr(selectedObj);
-						}
-					}
-
-					if (state == HELD) {
-						//selectedObject.rigidBody->motion.m_linearVelocity = NiPointToHkVector((localToWorldTransform * handVelocityRoomspace) * *HAVOK_WORLD_SCALE_ADDR);
-						// Boost the velocity a bit
-						// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
-						selectedObject.rigidBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.5f * *HAVOK_WORLD_SCALE_ADDR);
 					}
 				}
 				Deselect();
@@ -796,11 +798,19 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				{
 					state = PULLED;
 
-					StopShader(selectedObject.handle, selectedObject.shaderNode);
+					// Cancel an existing pulled collision reset if we're pulling something new
+					if (pulledObject.handle != selectedObject.handle) {
+						EndPull();
 
-					selectedObject.hasSavedAngularDamping = true;
-					selectedObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
-					motion->m_motionState.m_angularDamping = hkHalf(3.0f);
+						pulledObject.handle = selectedObject.handle;
+						pulledObject.rigidBody = selectedObject.rigidBody;
+						pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
+						motion->m_motionState.m_angularDamping = hkHalf(3.0f);
+						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+					}
+
+					StopShader(selectedObject.handle, selectedObject.shaderNode);
+					
 					pulledTime = g_currentFrameTime;
 
 					if (selectedObject.hitForm) {
@@ -878,37 +888,29 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				NiPoint3 deltaPos = desiredPos - relObjPos;
 
 				if (state == SELECTION_LOCKED) {
-					NiPoint3 linearVelocity = HkVectorToNiPoint(motion->m_linearVelocity);
-					NiPoint3 angularVelocity = HkVectorToNiPoint(motion->m_angularVelocity);
-					// TODO: Config all these thresholds
-					if (VectorLength(linearVelocity) > 0.1f || VectorLength(angularVelocity) > 0.1f) {
-						TransitionGrabbed();
+					bool grab = false, pull = false;
+					if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pushPullSpeedThreshold) {
+						if (IsObjectPullable()) {
+							pull = true;
+						}
 					}
-					else {
-						bool grab = false, pull = false;
-						if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pushPullSpeedThreshold) {
-							if (IsObjectPullable()) {
-								pull = true;
-							}
+					if (!pull) {
+						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
+						NiPoint3 forward = castDirection;
+						NiPoint3 worldUp = { 0, 0, 1 };
+						NiPoint3 right = CrossProduct(forward, worldUp);
+						NiPoint3 up = CrossProduct(right, forward);
+						NiPoint3 initialObjPos = forward * initialObjPosRaySpace.x + right * initialObjPosRaySpace.y + up * initialObjPosRaySpace.z;
+						if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 1.5f) {
+							grab = true;
 						}
-						if (!pull) {
-							// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
-							NiPoint3 forward = castDirection;
-							NiPoint3 worldUp = { 0, 0, 1 };
-							NiPoint3 right = CrossProduct(forward, worldUp);
-							NiPoint3 up = CrossProduct(right, forward);
-							NiPoint3 initialObjPos = forward * initialObjPosRaySpace.x + right * initialObjPosRaySpace.y + up * initialObjPosRaySpace.z;
-							if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 1.5f) {
-								grab = true;
-							}
-						}
+					}
 
-						if (pull) {
-							TransitionPulled();
-						}
-						else if (grab) {
-							TransitionGrabbed();
-						}
+					if (pull) {
+						TransitionPulled();
+					}
+					else if (grab) {
+						TransitionGrabbed();
 					}
 				}
 
@@ -1010,17 +1012,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 				}
 
-				if (!selectedObject.hasSavedCollisionFilterInfo) {
-					selectedObject.hasSavedCollisionFilterInfo = true;
-
-					SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
-				}
-
 				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
 				NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 
 				float distanceFactor = VectorLength(hkHandPos - hkObjPos) / 5.0f;
 				float duration = 0.375f + 0.375f * distanceFactor;
+
+				pulledExpireTime = duration + 1.0f;
 
 				/*
 				NiPoint3 horizontalDelta =
@@ -1058,20 +1056,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				hkpMotion *motion = &selectedObject.rigidBody->m_motion;
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
-					if (!selectedObject.hasSavedMotionType) {
-						selectedObject.hasSavedMotionType = true;
-						selectedObject.savedMotionType = motion->m_type;
-						selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
-
-						hkpRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, 1, 1);
-
-					}
-
-					if (!selectedObject.hasSavedCollisionFilterInfo) {
-						selectedObject.hasSavedCollisionFilterInfo = true;
-
-						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
-					}
 
 					/*
 					hkpEntity_activate(selectedObject.rigidBody);
@@ -1161,6 +1145,18 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				}
 			}
 		}
+	}
+}
+
+
+void Grabber::EndPull()
+{
+	NiPointer<TESObjectREFR> pulledObj;
+	if (LookupREFRByHandle(pulledObject.handle, pulledObj)) {
+		ResetCollisionInfoForAllCollisionInRefr(pulledObj);
+		pulledObject.rigidBody->m_motion.m_motionState.m_angularDamping = pulledObject.savedAngularDamping;
+
+		pulledObject.handle = *g_invalidRefHandle;
 	}
 }
 

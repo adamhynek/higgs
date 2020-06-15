@@ -513,7 +513,7 @@ void RemoveSavedCollision(UInt32 id)
 		}
 		else {
 			// Other hand is still affecting this entity - 'decref'
-			collisionInfoIdMap[id] = { collisionFilterInfo, 1 };
+			collisionInfoIdMap[id] = { collisionFilterInfo, count - 1 };
 		}
 	}
 	catch (std::out_of_range) {
@@ -531,10 +531,11 @@ void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup)
 
 		// Save collisionfilterinfo by entity id
 		UInt32 entityId = entity->m_uid;
-		UInt32 savedInfo = GetSavedCollision(entityId);
-		if (savedInfo) {
+		UInt8 count = GetSavedCollisionRefCount(entityId);
+		if (count > 0) {
 			// other hand already did the job - 'incRef'
-			collisionInfoIdMap[entityId] = { savedInfo, 2 };
+			UInt32 savedInfo = GetSavedCollision(entityId);
+			collisionInfoIdMap[entityId] = { savedInfo, count + 1 };
 		}
 		else {
 			// Other hand hasn't affected this yet. Set its collision info
@@ -579,7 +580,7 @@ void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode)
 		if (collidable != skipNode) {
 			UInt32 entityId = entity->m_uid;
 			UInt8 refCount = GetSavedCollisionRefCount(entityId);
-			if (refCount) {
+			if (refCount > 0) {
 				if (refCount == 1) {
 					// Only actually reset collision info if the other hand isn't involved
 					UInt32 collisionFilterInfo = GetSavedCollision(entityId);
