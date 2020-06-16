@@ -201,6 +201,7 @@
   <ItemGroup>
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\grabber.h" />
+    <ClInclude Include="include\havok_ref_ptr.h" />
     <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\offsets.h" />
     <ClInclude Include="include\menu_checker.h" />

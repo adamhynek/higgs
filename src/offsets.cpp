@@ -97,6 +97,10 @@ RelocAddr<_TESObjectREFR_SetRotation> TESObjectREFR_SetRotation(0x2A7C50);
 
 RelocAddr<_NiAVObject_UpdateObjectUpwards> NiAVObject_UpdateObjectUpwards(0xC9BC10);
 
+RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReference(0xA01280);
+
+RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference(0xA01340);
+
 //bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);

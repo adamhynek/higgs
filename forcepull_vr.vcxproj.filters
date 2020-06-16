@@ -71,5 +71,8 @@
     <ClInclude Include="include\shaders.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\havok_ref_ptr.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

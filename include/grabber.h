@@ -4,6 +4,7 @@
 #include "RE/havok.h"
 #include "physics.h"
 #include "utils.h"
+#include "havok_ref_ptr.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 
@@ -13,21 +14,21 @@ struct Grabber
 	struct SelectedObject
 	{
 		UInt32 handle = 0;
-		hkpCollidable *collidable = nullptr;
-		hkpRigidBody *rigidBody = nullptr;
+		havokRefPtr<hkpRigidBody> rigidBody;
+		hkpCollidable *collidable = nullptr; // ptr to collidable owned by rigidBody
 		bool isActor = false;
 		bool isImpactedProjectile = false;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
-		TESForm *hitForm = nullptr;
-		NiPointer<NiAVObject> shaderNode = nullptr;
-		NiPointer<NiAVObject> hitNode = nullptr;
+		TESForm *hitForm;
+		NiPointer<NiAVObject> shaderNode;
+		NiPointer<NiAVObject> hitNode;
 	};
 
 	struct PulledObject
 	{
 		UInt32 handle = 0;
-		hkpRigidBody *rigidBody = nullptr;
+		havokRefPtr<hkpRigidBody> rigidBody;
 		hkHalf savedAngularDamping;
 	};
 
@@ -65,7 +66,7 @@ struct Grabber
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	static const int numPrevVel = 5;
-	static const int numPullFrames = 5;
+	static const int numPullFrames = 5; // TODO: Should be time, not frames
 
 	State state = IDLE;
 	State prevState = IDLE;
