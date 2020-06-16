@@ -78,6 +78,9 @@ void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE T
 void HookedWorldUpdateHook(bhkWorld *world)
 {
 	//_MESSAGE("Pre World update hook");
+	// Perform the same operation both in this hook and in the main thread.
+	// Why? We need it here to calm down physics constraints - they freak out if only set in the openvr hook
+	// We also need to do it there though, since otherwise we get flickering lighting on the object.
 	if (g_rightGrabber.state == Grabber::State::HELD) {
 		NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber.handNodeName.data);
 		if (handNode) {

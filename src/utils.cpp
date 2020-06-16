@@ -591,12 +591,15 @@ void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode)
 			if (refCount > 0) {
 				if (refCount == 1) {
 					// Only actually reset collision info if the other hand isn't involved
-					UInt32 collisionFilterInfo = GetSavedCollision(entityId);
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo = collisionFilterInfo;
+					UInt32 savedCollision = GetSavedCollision(entityId);
+
+					// Restore only the original layer first, so it collides with everything except the player
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
+					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 
 					// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
-					// However, as a side effect I believe it won't collide with other stuff either until they stop colliding,
-					// which is okay because the actual collidable we grab _will_, but not for other collidables in the same refr.
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
 					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 				}
 				RemoveSavedCollision(entityId);
