@@ -479,6 +479,14 @@ bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 // Map havok entity id -> (saved collisionfilterinfo, "refcount" of sorts)
 std::unordered_map<UInt32, std::pair<UInt32, UInt8>> collisionInfoIdMap;
 
+void ClearCollisionMap()
+{
+	// Should only be called when you're sure there should be nothing in the map
+	if (collisionInfoIdMap.size() > 0) {
+		collisionInfoIdMap.clear();
+	}
+}
+
 UInt32 GetSavedCollision(UInt32 id)
 {
 	try {

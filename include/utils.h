@@ -51,6 +51,7 @@ bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
 bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target);
 
+void ClearCollisionMap();
 UInt32 GetSavedCollision(UInt32 id);
 UInt32 GetSavedCollisionRefCount(UInt32 id);
 void RemoveSavedCollision(UInt32 id);
