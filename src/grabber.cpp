@@ -649,7 +649,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									_MESSAGE("%.2f", DotProduct(rayNormal, castDirection));
 								}
 
-								NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_translation);
+								NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale; //HkVectorToNiPoint(selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_translation);
 								NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
 								NiPoint3 desiredPos = palmNode->m_worldTransform.pos + (ptToCenter / havokWorldScale); // in skyrim coords
 								NiTransform desiredTransform = n->m_worldTransform;
