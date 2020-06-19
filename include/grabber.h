@@ -39,8 +39,10 @@ struct Grabber
 		SELECTED_CLOSE, // selected something that's next to the hand
 		SELECTION_LOCKED, // player has locked in their selection
 		GRABBED, // player has grabbed the selected object
+		PREPULL_ITEM, // player wants to pull a piece of armor off
 		PULLED, // player is pulling the object towards them
-		HELD // player is holding the object in their hand
+		HELD, // player is holding the object in their hand
+		HELD_BODY // player is holding a body
 	};
 
 	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset)
@@ -66,7 +68,6 @@ struct Grabber
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	static const int numPrevVel = 5;
-	static const int numPullFrames = 5; // TODO: Should be time, not frames
 
 	State state = IDLE;
 	State prevState = IDLE;
