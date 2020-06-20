@@ -20,6 +20,7 @@ NiPoint3 VectorNormalized(NiPoint3 vec);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta);
 void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat);
+void HkMatrixToNiMatrix(hkMatrix3 &hkMat, NiMatrix33 &niMat);
 inline NiPoint3 HkVectorToNiPoint(const hkVector4 &vec) { return { vec.getQuad().m128_f32[0], vec.getQuad().m128_f32[1], vec.getQuad().m128_f32[2] }; };
 inline hkVector4 NiPointToHkVector(NiPoint3 &pt) { return { pt.x, pt.y, pt.z, 0 }; };
 float Determinant33(const NiMatrix33 &m);

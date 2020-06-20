@@ -655,24 +655,36 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									_MESSAGE("%.2f", DotProduct(rayNormal, castDirection));
 								}
 
-								NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale; //HkVectorToNiPoint(selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_translation);
-								NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
-								NiPoint3 desiredPos = palmNode->m_worldTransform.pos + (ptToCenter / havokWorldScale); // in skyrim coords
-								NiTransform desiredTransform = n->m_worldTransform;
-								desiredTransform.pos = desiredPos;
-								NiTransform inverseHand;
-								handNode->m_worldTransform.Invert(inverseHand);
-								initialObjTransformHandSpace = inverseHand * desiredTransform;
-
 								// Cancel a collision reset from pulling if we're grabbing the object
 								if (pulledObject.handle == selectedObject.handle) {
 									EndPull();
 								}
 
 								if (selectedObject.isActor) {
+									// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
+									NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_translation);
+									NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
+									NiPoint3 desiredPos = palmNode->m_worldTransform.pos + (ptToCenter / havokWorldScale); // in skyrim coords
+									NiTransform desiredTransform = n->m_worldTransform;
+									desiredTransform.pos = desiredPos; 
+									HkMatrixToNiMatrix(selectedObject.rigidBody->m_motion.m_motionState.m_transform.m_rotation, desiredTransform.rot);
+									NiTransform inverseHand;
+									handNode->m_worldTransform.Invert(inverseHand);
+									initialObjTransformHandSpace = inverseHand * desiredTransform;
+
 									state = HELD_BODY;
 								}
 								else {
+									// Use ninode pos / rot since we set that while holding it
+									NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale;
+									NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
+									NiPoint3 desiredPos = palmNode->m_worldTransform.pos + (ptToCenter / havokWorldScale); // in skyrim coords
+									NiTransform desiredTransform = n->m_worldTransform;
+									desiredTransform.pos = desiredPos;
+									NiTransform inverseHand;
+									handNode->m_worldTransform.Invert(inverseHand);
+									initialObjTransformHandSpace = inverseHand * desiredTransform;
+
 									SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
 
 									selectedObject.savedMotionType = selectedObject.rigidBody->m_motion.m_type;
@@ -1099,18 +1111,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
-
-					/*
-					hkpEntity_activate(selectedObject.rigidBody);
-					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
-					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
-					hkRotation desiredRot;
-					NiMatrixToHkMatrix(newTransform.rot, desiredRot);
-					hkQuaternion desiredQuat;
-					desiredQuat.setFromRotationSimd(desiredRot);
-					hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody);
-					*/
-
 					NiTransform inverseParent;
 					n->m_parent->m_worldTransform.Invert(inverseParent);
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;

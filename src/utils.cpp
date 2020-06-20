@@ -66,6 +66,24 @@ void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat)
 		{ niMat.data[0][2], niMat.data[1][2], niMat.data[2][2], 0 });
 }
 
+void HkMatrixToNiMatrix(hkMatrix3 &hkMat, NiMatrix33 &niMat)
+{
+	hkVector4 col0, col1, col2;
+	hkMat.getCols(col0, col1, col2);
+
+	niMat.data[0][0] = col0(0);
+	niMat.data[1][0] = col0(1);
+	niMat.data[2][0] = col0(2);
+
+	niMat.data[0][1] = col1(0);
+	niMat.data[1][1] = col1(1);
+	niMat.data[2][1] = col1(2);
+
+	niMat.data[0][2] = col2(0);
+	niMat.data[1][2] = col2(1);
+	niMat.data[2][2] = col2(2);
+}
+
 float Determinant33(const NiMatrix33 &m)
 {
 	float a = m.data[0][0];
