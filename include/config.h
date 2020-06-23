@@ -9,6 +9,7 @@ namespace Config {
 		float castDistance = 5.0f;
 		float castRadius = 0.4f;
 		float grabRadius = 0.1f;
+		float wideGrabRadius = 0.2f;
 		float handActivateDistance = 30.0f;
 		float requiredCastDotProduct = cosf(50.0f * 0.0174533);
 		float grabbedDotProductThreshold = cosf(45.0f * 0.0174533);

@@ -131,9 +131,9 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	float radiusBefore = sphereShape->getRadius();
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
-	NiPoint3 hkPalmPosBackABit = hkPalmNodePos - (castDirection * 0.05f); // Move the palm pos backwards a bit
+	NiPoint3 hkPalmPosBackABit = hkPalmNodePos - (castDirection * 0.08f); // Move the palm pos backwards a bit
 
-	sphereShape->m_radius = (Config::options.grabRadius * 2.0f);
+	sphereShape->m_radius = Config::options.wideGrabRadius;
 	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2c;// 0x0009002C;
 	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
 
@@ -199,46 +199,6 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 		NiPoint3 ptPos = HkVectorToNiPoint(closestPoint.getPosition());
 		//NiPoint3 normal = HkVectorToNiPoint(closestPoint.m_separatingNormal); // vec from sphere center to point
-
-		// First, raycast in the pointing direction
-		bool didRayHitObject = false;
-		NiPoint3 rayNormal;
-		allRayHitCollector.reset();
-		//NiPoint3 hkTargetPos = hkPalmNodePos + castDirection * (Config::options.grabRadius * 2);
-		NiPoint3 hkTargetPos = hkPalmNodePos + (ptPos - hkPalmNodePos) * 1.5;
-		rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
-		rayCastInput.m_from = NiPointToHkVector(hkPalmNodePos);
-		rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
-
-		//hkpShapeRayCastInput input;
-		//hkpShapeRayCastOutput output;
-		//input.m_from = NiPointToHkVector(hkPalmNodePos);
-		//input.m_to = NiPointToHkVector(hkTargetPos);
-		//input.m_rayShapeCollectionFilter = world->world->m_collisionFilter;
-		//UInt64 *vtbl = *((UInt64 **)selectedObject.collidable->m_shape);
-		//((_hkpShape_castRayImpl)(vtbl[0x08]))(selectedObject.collidable->m_shape, input, output);
-
-		//if (output.m_hitFraction < 1.0f) {
-		//	didRayHitObject = true;
-		//	rayNormal = HkVectorToNiPoint(output.m_normal);
-		//}
-
-		hkpWorld_CastRay(world->world, &rayCastInput, &allRayHitCollector);
-		if (!allRayHitCollector.m_hits.empty()) {
-			for (auto pair : allRayHitCollector.m_hits) {
-				auto body = pair.first;
-				if (body == selectedObject.collidable) {
-					didRayHitObject = true;
-					rayNormal = HkVectorToNiPoint(pair.second.m_normal);
-					break;
-				}
-			}
-		}
-
-		if (didRayHitObject) {
-			_MESSAGE("Ray hit");
-			_MESSAGE("%.2f", DotProduct(rayNormal, castDirection));
-		}
 
 		// Cancel a collision reset from pulling if we're grabbing the object
 		if (pulledObject.handle == selectedObject.handle) {
