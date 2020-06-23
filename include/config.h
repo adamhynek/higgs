@@ -11,7 +11,7 @@ namespace Config {
 		float grabRadius = 0.1f;
 		float handActivateDistance = 30.0f;
 		float requiredCastDotProduct = cosf(50.0f * 0.0174533);
-		float grabbedDotProductThreshold = cosf(15.0f * 0.0174533);
+		float grabbedDotProductThreshold = cosf(45.0f * 0.0174533);
 		float hoverVelocityMultiplier = 0.17f;
 		float pullVelocityMultiplier = 0.9f;
 		float pushVelocityMultiplier = 0.01f;

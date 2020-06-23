@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include "skse64/InternalVR.h"
 #include "RE/havok.h"
 #include "physics.h"
@@ -45,8 +47,8 @@ struct Grabber
 		HELD_BODY // player is holding a body
 	};
 
-	Grabber(BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset)
-		: handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), palmNodeName(palmNodeName), rolloverOffset(rolloverOffset)
+	Grabber(BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset)
+		: name(name), handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), palmNodeName(palmNodeName), rolloverOffset(rolloverOffset)
 	{
 		// We don't want to even attempt to call the constructors of these, but we do want space for them
 		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
@@ -57,6 +59,9 @@ struct Grabber
 
 	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
+	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
+		NiPointer<TESObjectREFR> *closestObj, hkpCollidable **closestColl, hkContactPoint *closestPoint);
+	void TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
@@ -76,10 +81,13 @@ struct Grabber
 	hkpRigidBodyCinfo *handCollCInfo;
 	hkpRigidBody *handCollBody;
 
+	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;
 	BSFixedString wandNodeName;
 	BSFixedString palmNodeName;
+
+	std::mutex deselectLock;
 
 	NiPoint3 rolloverOffset;
 	NiMatrix33 rolloverRotation;

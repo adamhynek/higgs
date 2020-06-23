@@ -55,8 +55,8 @@ float g_normalRumbleIntensity;
 bool g_hasSavedRollover = false;
 NiTransform g_normalRolloverTransform;
 
-Grabber g_rightGrabber("NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 });
-Grabber g_leftGrabber("NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
+Grabber g_rightGrabber("RightHand", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 });
+Grabber g_leftGrabber("LeftHand", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
 
 
 auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
@@ -81,35 +81,43 @@ void HookedWorldUpdateHook(bhkWorld *world)
 	// Perform the same operation both in this hook and in the main thread.
 	// Why? We need it here to calm down physics constraints - they freak out if only set in the openvr hook
 	// We also need to do it there though, since otherwise we get flickering lighting on the object.
-	if (g_rightGrabber.state == Grabber::State::HELD) {
-		NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber.handNodeName.data);
-		if (handNode) {
-			NiAVObject *n = FindCollidableNode(g_rightGrabber.selectedObject.collidable);
-			if (n) {
-				NiTransform inverseParent;
-				n->m_parent->m_worldTransform.Invert(inverseParent);
-				NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber.initialObjTransformHandSpace;
-				n->m_localTransform = inverseParent * newTransform;
-				NiAVObject::ControllerUpdateContext ctx;
-				ctx.flags = 0x2000; // makes havok sim more stable?
-				ctx.delta = 0;
-				NiAVObject_UpdateObjectUpwards(n, &ctx);
+	{
+		std::lock_guard<std::mutex> lock(g_rightGrabber.deselectLock);
+
+		if (g_rightGrabber.state == Grabber::State::HELD) {
+			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber.handNodeName.data);
+			if (handNode) {
+				NiAVObject *n = FindCollidableNode(g_rightGrabber.selectedObject.collidable);
+				if (n) {
+					NiTransform inverseParent;
+					n->m_parent->m_worldTransform.Invert(inverseParent);
+					NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber.initialObjTransformHandSpace;
+					n->m_localTransform = inverseParent * newTransform;
+					NiAVObject::ControllerUpdateContext ctx;
+					ctx.flags = 0x2000; // makes havok sim more stable?
+					ctx.delta = 0;
+					NiAVObject_UpdateObjectUpwards(n, &ctx);
+				}
 			}
 		}
 	}
-	if (g_leftGrabber.state == Grabber::State::HELD) {
-		NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber.handNodeName.data);
-		if (handNode) {
-			NiAVObject *n = FindCollidableNode(g_leftGrabber.selectedObject.collidable);
-			if (n) {
-				NiTransform inverseParent;
-				n->m_parent->m_worldTransform.Invert(inverseParent);
-				NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber.initialObjTransformHandSpace;
-				n->m_localTransform = inverseParent * newTransform;
-				NiAVObject::ControllerUpdateContext ctx;
-				ctx.flags = 0x2000; // makes havok sim more stable?
-				ctx.delta = 0;
-				NiAVObject_UpdateObjectUpwards(n, &ctx);
+	{
+		std::lock_guard<std::mutex> lock(g_leftGrabber.deselectLock);
+
+		if (g_leftGrabber.state == Grabber::State::HELD) {
+			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber.handNodeName.data);
+			if (handNode) {
+				NiAVObject *n = FindCollidableNode(g_leftGrabber.selectedObject.collidable);
+				if (n) {
+					NiTransform inverseParent;
+					n->m_parent->m_worldTransform.Invert(inverseParent);
+					NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber.initialObjTransformHandSpace;
+					n->m_localTransform = inverseParent * newTransform;
+					NiAVObject::ControllerUpdateContext ctx;
+					ctx.flags = 0x2000; // makes havok sim more stable?
+					ctx.delta = 0;
+					NiAVObject_UpdateObjectUpwards(n, &ctx);
+				}
 			}
 		}
 	}
