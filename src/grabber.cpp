@@ -235,7 +235,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			selectedObject.savedMotionType = selectedObject.rigidBody->m_motion.m_type;
 			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
 
-			hkpRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, 1, 1);
+			hkpRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
 			state = HELD;
 		}
@@ -733,19 +733,19 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
 							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 
 							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
 							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 						}
 						else { // > 1
 							// use current collision, other hand still has it
 							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 
 							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, 1, 0);
+							hkpRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 						}
 						RemoveSavedCollision(selectedObject.rigidBody->m_uid);
 					}
@@ -753,6 +753,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (state == HELD || state == HELD_BODY) {
 					// Boost the velocity a bit
 					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
+					hkpEntity_activate(selectedObject.rigidBody);
 					selectedObject.rigidBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.3f * *HAVOK_WORLD_SCALE_ADDR);
 				}
 			}
@@ -793,7 +794,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 6; // player collision group, 'projectile' collision layer
 							// Projectiles have 'Fixed' motion type by default, making them unmovable
-							hkpRigidBody_setMotionType(collObj->body->hkBody, hkpMotion::MotionType::MOTION_DYNAMIC, 1, 0);
+							hkpRigidBody_setMotionType(collObj->body->hkBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 						}
 					}
 				};
