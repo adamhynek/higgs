@@ -1159,9 +1159,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		}
 	}
 
-	if (state != prevState) {
-		_MESSAGE("%s state: %d -> %d", name, prevState, state);
-	}
+	//if (state != prevState) {
+	//	_MESSAGE("%s: %d -> %d", name, prevState, state);
+	//}
 
 	prevState = state;
 	prevHandPosRoomspace = handPosRoomspace;
