@@ -35,6 +35,12 @@ static_assert(offsetof(bhkCollisionFilter, bipedBitfields) == 0x50);
 static_assert(offsetof(bhkCollisionFilter, layerBitfields) == 0x1D0);
 static_assert(offsetof(bhkCollisionFilter, layerNames) == 0x3E0);
 
+struct ahkpWorld : hkpWorld
+{
+	struct bhkWorld * m_userData; // 430
+};
+static_assert(offsetof(ahkpWorld, m_userData) == 0x430);
+
 // bhkWorld pointer (exteriors) is at reloc<0x1f850d0>
 // function that gets it from a TESObjectCELL is at reloc<276A90>
 
@@ -43,9 +49,12 @@ static_assert(offsetof(bhkCollisionFilter, layerNames) == 0x3E0);
 
 struct bhkWorld : NiRefObject
 {
-	hkpWorld * world; // 10
+	ahkpWorld * world; // 10
+	UInt8 unk18[0xC598 - 0x18];
+	BSReadWriteLock worldLock; // C598
 };
 static_assert(offsetof(bhkWorld, world) == 0x10);
+static_assert(offsetof(bhkWorld, worldLock) == 0xC598);
 
 struct bhkConstraint : NiRefObject
 {

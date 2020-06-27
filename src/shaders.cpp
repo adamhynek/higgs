@@ -109,8 +109,8 @@ void StopShader(UInt32 objHandle, NiAVObject *node)
 		return;
 	}
 
-	bool isFirstShaderTheOne = (_shaders[0].handle == objHandle && _shaders[0].node == node);
-	bool isSecondShaderTheOne = (_shaders[1].handle == objHandle && _shaders[1].node == node);
+	bool isFirstShaderTheOne = isFirstShaderPlaying && (_shaders[0].handle == objHandle && _shaders[0].node == node);
+	bool isSecondShaderTheOne = isSecondShaderPlaying && (_shaders[1].handle == objHandle && _shaders[1].node == node);
 
 	if (!isFirstShaderTheOne && !isSecondShaderTheOne) {
 		// Neither shader is playing for the given refr / node

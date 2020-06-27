@@ -70,11 +70,17 @@ extern RelocAddr<_hkpWorld_GetClosestPoints> hkpWorld_GetClosestPoints;
 typedef hkpEntity* (*_hkpWorld_AddEntity)(hkpWorld *world, hkpEntity* entity, int initialActivationState);
 extern RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity;
 
+typedef hkpEntity* (*_hkpWorld_RemoveEntity)(hkpWorld *world, hkBool *ret, hkpEntity* entity);
+extern RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity;
+
 typedef void(*_hkpWorld_UpdateCollisionFilterOnEntity)(hkpWorld *world, hkpEntity* entity, hkpUpdateCollisionFilterOnEntityMode updateMode, hkpUpdateCollectionFilterMode updateShapeCollectionFilter);
 extern RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity;
 
 typedef void(*_hkpEntity_activate)(hkpEntity *entity);
 extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;
+
+typedef void(*_bhkRigidBody_setActivated)(bhkRigidBody *rigidBody, bool activate);
+extern RelocAddr<_bhkRigidBody_setActivated> bhkRigidBody_setActivated;
 
 typedef void(*_hkpEntity_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
 extern RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation;

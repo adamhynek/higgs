@@ -16,7 +16,7 @@ struct Grabber
 	struct SelectedObject
 	{
 		UInt32 handle = 0;
-		havokRefPtr<hkpRigidBody> rigidBody;
+		NiPointer<bhkRigidBody> rigidBody;
 		hkpCollidable *collidable = nullptr; // ptr to collidable owned by rigidBody
 		bool isActor = false;
 		bool isImpactedProjectile = false;
@@ -30,7 +30,7 @@ struct Grabber
 	struct PulledObject
 	{
 		UInt32 handle = 0;
-		havokRefPtr<hkpRigidBody> rigidBody;
+		NiPointer<bhkRigidBody> rigidBody;
 		hkHalf savedAngularDamping;
 	};
 

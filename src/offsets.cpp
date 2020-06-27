@@ -46,9 +46,13 @@ RelocAddr<_hkpWorld_GetClosestPoints> hkpWorld_GetClosestPoints(0xAB62D0);
 
 RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity(0xAB0CB0);
 
+RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity(0xAB0E50);
+
 RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity(0xAB3110);
 
 RelocAddr<_hkpEntity_activate> hkpEntity_activate(0xAA7130);
+
+RelocAddr<_bhkRigidBody_setActivated> bhkRigidBody_setActivated(0xE085D0);
 
 RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation(0xAA9030);
 
