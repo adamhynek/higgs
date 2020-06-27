@@ -901,6 +901,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							pulledObject.rigidBody = selectedObject.rigidBody;
 							pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
 							motion->m_motionState.m_angularDamping = hkHalf(3.0f);
+
+							// TODO: Using the hand collision layer means the pulled object does not collide with other npcs. We probably do want it to though.
 							SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
 						}
 

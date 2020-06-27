@@ -35,7 +35,9 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "CastRadius", &options.castRadius)) return false;
 		if (!GetConfigOptionFloat("Settings", "CastDistance", &options.castDistance)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandActivateDistance", &options.handActivateDistance)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "GrabRadius", &options.wideGrabRadius)) return false;
+		if (!GetConfigOptionFloat("Settings", "WideGrabRadius", &options.wideGrabRadius)) return false;
 
 		float castDirectionRequiredHalfAngle;
 		if (!GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
@@ -56,6 +58,7 @@ namespace Config {
 		if (!Config::GetConfigOptionFloat("Settings", "PushVelocityMultiplier", &options.pushVelocityMultiplier)) return false;
 		if (!GetConfigOptionFloat("Settings", "MassExponent", &options.massExponent)) return false;
 		if (!GetConfigOptionFloat("Settings", "PushPullSpeedThreshold", &options.pushPullSpeedThreshold)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullAngularSpeedThreshold", &options.pullAngularSpeedThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
 
