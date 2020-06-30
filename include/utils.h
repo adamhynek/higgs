@@ -14,7 +14,8 @@ extern double g_currentFrameTime;
 //extern double g_deltaTime;
 
 
-inline float VectorLength(NiPoint3 vec) { return sqrtf(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z); }
+inline float VectorLengthSquared(NiPoint3 vec) { return vec.x*vec.x + vec.y*vec.y + vec.z*vec.z; }
+inline float VectorLength(NiPoint3 vec) { return sqrtf(VectorLengthSquared(vec)); }
 inline float DotProduct(NiPoint3 vec1, NiPoint3 vec2) { return vec1.x*vec2.x + vec1.y*vec2.y + vec1.z*vec2.z; }
 NiPoint3 VectorNormalized(NiPoint3 vec);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
@@ -64,3 +65,9 @@ void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode = nul
 typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 
 typedef void(*_Update3DPosition)(TESObjectREFR *_this, bool warp);
+
+struct Triangle
+{
+	UInt16 vertexIndices[3];
+};
+static_assert(sizeof(Triangle) == 0x06);
