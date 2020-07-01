@@ -644,3 +644,278 @@ void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, hkpCollidable 
 		ResetCollisionInfoDownstream(refr->loadedState->node, skipNode);
 	}
 }
+
+
+
+namespace MathUtils
+{
+	Result GetClosestPointOnTriangle(NiPoint3 const& point, Triangle const& triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	{
+		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
+		NiPoint3 pos0 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
+		NiPoint3 pos1 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
+		NiPoint3 pos2 = *(NiPoint3 *)(vert + vertexPosOffset);
+
+		NiPoint3 diff = point - pos0;
+		NiPoint3 edge0 = pos1 - pos0;
+		NiPoint3 edge1 = pos2 - pos0;
+		float a00 = DotProduct(edge0, edge0);
+		float a01 = DotProduct(edge0, edge1);
+		float a11 = DotProduct(edge1, edge1);
+		float b0 = -DotProduct(diff, edge0);
+		float b1 = -DotProduct(diff, edge1);
+		float det = a00 * a11 - a01 * a01;
+		float t0 = a01 * b1 - a11 * b0;
+		float t1 = a01 * b0 - a00 * b1;
+
+		if (t0 + t1 <= det)
+		{
+			if (t0 < 0)
+			{
+				if (t1 < 0)  // region 4
+				{
+					if (b0 < 0)
+					{
+						t1 = 0;
+						if (-b0 >= a00)  // V1
+						{
+							t0 = 1;
+						}
+						else  // E01
+						{
+							t0 = -b0 / a00;
+						}
+					}
+					else
+					{
+						t0 = 0;
+						if (b1 >= 0)  // V0
+						{
+							t1 = 0;
+						}
+						else if (-b1 >= a11)  // V2
+						{
+							t1 = 1;
+						}
+						else  // E20
+						{
+							t1 = -b1 / a11;
+						}
+					}
+				}
+				else  // region 3
+				{
+					t0 = 0;
+					if (b1 >= 0)  // V0
+					{
+						t1 = 0;
+					}
+					else if (-b1 >= a11)  // V2
+					{
+						t1 = 1;
+					}
+					else  // E20
+					{
+						t1 = -b1 / a11;
+					}
+				}
+			}
+			else if (t1 < 0)  // region 5
+			{
+				t1 = 0;
+				if (b0 >= 0)  // V0
+				{
+					t0 = 0;
+				}
+				else if (-b0 >= a00)  // V1
+				{
+					t0 = 1;
+				}
+				else  // E01
+				{
+					t0 = -b0 / a00;
+				}
+			}
+			else  // region 0, interior
+			{
+				float invDet = 1 / det;
+				t0 *= invDet;
+				t1 *= invDet;
+			}
+		}
+		else
+		{
+			float tmp0, tmp1, numer, denom;
+
+			if (t0 < 0)  // region 2
+			{
+				tmp0 = a01 + b0;
+				tmp1 = a11 + b1;
+				if (tmp1 > tmp0)
+				{
+					numer = tmp1 - tmp0;
+					denom = a00 - (float)2 * a01 + a11;
+					if (numer >= denom)  // V1
+					{
+						t0 = 1;
+						t1 = 0;
+					}
+					else  // E12
+					{
+						t0 = numer / denom;
+						t1 = 1 - t0;
+					}
+				}
+				else
+				{
+					t0 = 0;
+					if (tmp1 <= 0)  // V2
+					{
+						t1 = 1;
+					}
+					else if (b1 >= 0)  // V0
+					{
+						t1 = 0;
+					}
+					else  // E20
+					{
+						t1 = -b1 / a11;
+					}
+				}
+			}
+			else if (t1 < 0)  // region 6
+			{
+				tmp0 = a01 + b1;
+				tmp1 = a00 + b0;
+				if (tmp1 > tmp0)
+				{
+					numer = tmp1 - tmp0;
+					denom = a00 - (float)2 * a01 + a11;
+					if (numer >= denom)  // V2
+					{
+						t1 = 1;
+						t0 = 0;
+					}
+					else  // E12
+					{
+						t1 = numer / denom;
+						t0 = 1 - t1;
+					}
+				}
+				else
+				{
+					t1 = 0;
+					if (tmp1 <= 0)  // V1
+					{
+						t0 = 1;
+					}
+					else if (b0 >= 0)  // V0
+					{
+						t0 = 0;
+					}
+					else  // E01
+					{
+						t0 = -b0 / a00;
+					}
+				}
+			}
+			else  // region 1
+			{
+				numer = a11 + b1 - a01 - b0;
+				if (numer <= 0)  // V2
+				{
+					t0 = 0;
+					t1 = 1;
+				}
+				else
+				{
+					denom = a00 - (float)2 * a01 + a11;
+					if (numer >= denom)  // V1
+					{
+						t0 = 1;
+						t1 = 0;
+					}
+					else  // 12
+					{
+						t0 = numer / denom;
+						t1 = 1 - t0;
+					}
+				}
+			}
+		}
+
+		Result result;
+		result.parameter[0] = 1 - t0 - t1;
+		result.parameter[1] = t0;
+		result.parameter[2] = t1;
+		result.closest = pos0 + (edge0 * t0) + (edge1 * t1);
+		diff = point - result.closest;
+		result.sqrDistance = DotProduct(diff, diff);
+		return result;
+	}
+}
+
+
+bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, float *closestDistanceSoFar)
+{
+	BSTriShape *geom = root->GetAsBSTriShape();
+	if (geom) {
+		UInt16 numTris = geom->unk198;
+		UInt16 numVerts = geom->numVertices;
+		BSGeometryData *geomData = geom->geometryData;
+		auto tris = (Triangle *)geomData->triangles;
+		uintptr_t verts = (uintptr_t)(geomData->vertices);
+
+		UInt64 vertexDesc = geom->vertexDesc;
+		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+
+		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
+			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+			NiTransform inverseTransform;
+			geom->m_worldTransform.Invert(inverseTransform);
+			NiPoint3 pointInNodeSpace = inverseTransform * point;
+
+			int closestTri = -1;
+			NiPoint3 closestTriPos;
+			float closestDistance = *closestDistanceSoFar;
+
+			for (int i = 0; i < numTris; i++) {
+				Triangle tri = tris[i];
+				// get closest point on triangle to given point
+				MathUtils::Result result = MathUtils::GetClosestPointOnTriangle(pointInNodeSpace, tri, verts, vertexSize, posOffset);
+				float distance = result.sqrDistance;
+				if (distance < closestDistance) {
+					closestDistance = distance;
+					closestTriPos = result.closest;
+					closestTri = i;
+				}
+			}
+
+			if (closestTri >= 0) {
+				*closestDistanceSoFar = closestDistance;
+				*closestPos = geom->m_worldTransform * closestTriPos;
+
+				return true;
+			}
+		}
+		return false;
+	}
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		bool success = false;
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				if (GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestDistanceSoFar)) {
+					success = true;
+				}
+			}
+		}
+		return success;
+	}
+	return false;
+}

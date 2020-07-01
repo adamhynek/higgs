@@ -71,3 +71,19 @@ struct Triangle
 	UInt16 vertexIndices[3];
 };
 static_assert(sizeof(Triangle) == 0x06);
+
+
+namespace MathUtils
+{
+	struct Result
+	{
+		float sqrDistance;
+		// barycentric coordinates for triangle.v[3]
+		float parameter[3];
+		NiPoint3 closest;
+	};
+
+	Result GetClosestPointOnTriangle(NiPoint3 const& point, Triangle const& triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset);
+}
+
+bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, float *closestDistanceSoFar);

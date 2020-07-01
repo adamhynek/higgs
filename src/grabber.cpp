@@ -205,63 +205,6 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 }
 
 
-bool FindClosestVertex(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, float *closestDistanceSoFar)
-{
-	BSTriShape *geom = root->GetAsBSTriShape();
-	if (geom) {
-		UInt16 numTris = geom->unk198;
-		UInt16 numVerts = geom->numVertices;
-		BSGeometryData *geomData = geom->geometryData;
-		auto tris = (Triangle *)geomData->triangles;
-		uintptr_t verts = (uintptr_t)(geomData->vertices);
-
-		UInt64 vertexDesc = geom->vertexDesc;
-		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
-		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
-
-		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0) {
-			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
-
-			NiTransform inverseTransform;
-			geom->m_worldTransform.Invert(inverseTransform);
-			NiPoint3 pointInNodeSpace = inverseTransform * point;
-			float closestDistance = *closestDistanceSoFar;
-			NiPoint3 closestVertPos;
-			for (int i = 0; i < numVerts; i++) {
-				uintptr_t vert = (verts + i * vertexSize);
-				NiPoint3 position = *(NiPoint3 *)(vert + posOffset);
-				float distance = VectorLengthSquared(position - pointInNodeSpace);
-				if (distance < closestDistance) {
-					closestDistance = distance;
-					closestVertPos = position;
-				}
-			}
-
-			if (closestDistance < *closestDistanceSoFar) {
-				*closestDistanceSoFar = closestDistance;
-				*closestPos = geom->m_worldTransform * closestVertPos;
-				return true;
-			}
-		}
-		return false;
-	}
-	NiNode *node = root->GetAsNiNode();
-	if (node) {
-		bool success = false;
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				if (FindClosestVertex(child, point, closestPos, closestDistanceSoFar)) {
-					success = true;
-				}
-			}
-		}
-		return success;
-	}
-	return false;
-}
-
-
 void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj)
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
@@ -293,7 +236,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 		else {
 			NiPoint3 vertexPos;
 			float closestDist = (std::numeric_limits<float>::max)();
-			bool success = FindClosestVertex(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, &vertexPos, &closestDist);
+			bool success = GetClosestPointOnGraphicsGeometry(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, &vertexPos, &closestDist);
 			if (success) {
 				ptPos = vertexPos * havokWorldScale;
 			}
