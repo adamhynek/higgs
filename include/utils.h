@@ -20,6 +20,7 @@ inline float DotProduct(NiPoint3 vec1, NiPoint3 vec2) { return vec1.x*vec2.x + v
 NiPoint3 VectorNormalized(NiPoint3 vec);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta);
+NiPoint3 RotateVectorByAxisAngle(NiPoint3 vector, NiPoint3 axis, float angle);
 void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat);
 void HkMatrixToNiMatrix(hkMatrix3 &hkMat, NiMatrix33 &niMat);
 inline NiPoint3 HkVectorToNiPoint(const hkVector4 &vec) { return { vec.getQuad().m128_f32[0], vec.getQuad().m128_f32[1], vec.getQuad().m128_f32[2] }; };
@@ -86,4 +87,4 @@ namespace MathUtils
 	Result GetClosestPointOnTriangle(NiPoint3 const& point, Triangle const& triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset);
 }
 
-bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, float *closestDistanceSoFar);
+bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);

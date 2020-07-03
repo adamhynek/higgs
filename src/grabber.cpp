@@ -234,19 +234,48 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			state = HELD_BODY;
 		}
 		else {
-			NiPoint3 vertexPos;
+			NiPoint3 triPos, triNormal;
 			float closestDist = (std::numeric_limits<float>::max)();
-			bool success = GetClosestPointOnGraphicsGeometry(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, &vertexPos, &closestDist);
+			bool success = GetClosestPointOnGraphicsGeometry(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, &triPos, &triNormal, &closestDist);
+
+			NiTransform desiredTransform = n->m_worldTransform;
+
 			if (success) {
-				ptPos = vertexPos * havokWorldScale;
+				// We've got a point on the graphics geometry
+				ptPos = triPos * havokWorldScale;
+
+				// TODO: Using the graphics triangle normal is way too noisy. If going this route, need to either put a max on the angle we're willing to rotate by (easy),
+				// or figure out some smoothing algorithm over adjacent triangles or something, but we don't _always_ want to smooth out high frequency edges... (not gonna happen)
+				float angleBetweenPalmAndNormal = acosf(-DotProduct(castDirection, triNormal));
+				if (angleBetweenPalmAndNormal < 45.0f * 0.0174533) {
+					NiPoint3 axis = CrossProduct(castDirection, triNormal);
+					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
+					NiPoint3 triToCenter = n->m_worldTransform.pos - triPos;
+					NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(triToCenter, axis, angleBetweenPalmAndNormal);
+					NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
+
+					NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
+					desiredTransform.pos = desiredPos;
+					desiredTransform.rot = MatrixFromAxisAngle(axis, angleBetweenPalmAndNormal) * desiredTransform.rot;
+				}
+				else {
+					NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale;
+					NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
+
+					NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
+					desiredTransform.pos = desiredPos;
+				}
+			}
+			else {
+				// We've got a point on the collision geometry
+				NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale;
+				NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
+
+				NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
+				desiredTransform.pos = desiredPos;
 			}
 
 			// Use ninode pos / rot since we set that while holding it
-			NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale;
-			NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
-			NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
-			NiTransform desiredTransform = n->m_worldTransform;
-			desiredTransform.pos = desiredPos;
 			NiTransform inverseHand;
 			handNode->m_worldTransform.Invert(inverseHand);
 			initialObjTransformHandSpace = inverseHand * desiredTransform;

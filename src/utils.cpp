@@ -59,6 +59,12 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	return result;
 }
 
+NiPoint3 RotateVectorByAxisAngle(NiPoint3 vector, NiPoint3 axis, float angle)
+{
+	// Rodrigues' rotation formula
+	return vector * cosf(angle) + (CrossProduct(axis, vector) * sinf(angle)) + axis * DotProduct(axis, vector) * (1 - cosf(angle));
+}
+
 void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat)
 {
 	hkMat.setCols({ niMat.data[0][0], niMat.data[1][0], niMat.data[2][0], 0 },
@@ -651,6 +657,8 @@ namespace MathUtils
 {
 	Result GetClosestPointOnTriangle(NiPoint3 const& point, Triangle const& triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
 	{
+		// Taken from https://www.geometrictools.com/GTE//Mathematics/DistPointTriangleExact.h and adapted
+
 		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
 		NiPoint3 pos0 = *(NiPoint3 *)(vert + vertexPosOffset);
 		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
@@ -858,13 +866,18 @@ namespace MathUtils
 }
 
 
-bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, float *closestDistanceSoFar)
+bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
 		UInt16 numTris = geom->unk198;
 		UInt16 numVerts = geom->numVertices;
 		BSGeometryData *geomData = geom->geometryData;
+		if (!geomData) {
+			// Probably skinned mesh. TODO: Deal with skinned mesh
+			return false;
+		}
+
 		auto tris = (Triangle *)geomData->triangles;
 		uintptr_t verts = (uintptr_t)(geomData->vertices);
 
@@ -899,6 +912,16 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 				*closestDistanceSoFar = closestDistance;
 				*closestPos = geom->m_worldTransform * closestTriPos;
 
+				Triangle closestTriangle = tris[closestTri];
+				uintptr_t vert = (verts + closestTriangle.vertexIndices[0] * vertexSize);
+				NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				vert = (verts + closestTriangle.vertexIndices[1] * vertexSize);
+				NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				vert = (verts + closestTriangle.vertexIndices[2] * vertexSize);
+				NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+
+				*closestNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+
 				return true;
 			}
 		}
@@ -910,7 +933,7 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			auto child = node->m_children.m_data[i];
 			if (child) {
-				if (GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestDistanceSoFar)) {
+				if (GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestNormal, closestDistanceSoFar)) {
 					success = true;
 				}
 			}
