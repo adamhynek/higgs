@@ -40,7 +40,6 @@ struct Grabber
 		SELECTED_FAR, // pointing at something meaningful that isn't close
 		SELECTED_CLOSE, // selected something that's next to the hand
 		SELECTION_LOCKED, // player has locked in their selection
-		GRABBED, // player has grabbed the selected object
 		PREPULL_ITEM, // player wants to pull a piece of armor off
 		PULLED, // player is pulling the object towards them
 		HELD, // player is holding the object in their hand
@@ -113,9 +112,6 @@ struct Grabber
 
 	NiPoint3 prevHandPosRoomspace;
 	NiPoint3 prevHandDirectionRoomspace;
-
-	float prevHandSpeedInSpellDirection = 0;
-	float prevHandSpeedInObjDirection = 0;
 
 	int pullFrameCounter = 0;
 
