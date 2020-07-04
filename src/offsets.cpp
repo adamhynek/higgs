@@ -50,6 +50,8 @@ RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity(0xAB0E50);
 
 RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity(0xAB3110);
 
+RelocAddr<_bhkWorld_UpdateCollisionFilterOnEntity> bhkWorld_UpdateCollisionFilterOnEntity(0xDFFE50);
+
 RelocAddr<_hkpEntity_activate> hkpEntity_activate(0xAA7130);
 
 RelocAddr<_bhkRigidBody_setActivated> bhkRigidBody_setActivated(0xE085D0);

@@ -67,7 +67,7 @@ extern RelocAddr<_hkpWorld_GetPenetrations> hkpWorld_GetPenetrations;
 typedef void(*_hkpWorld_GetClosestPoints)(hkpWorld *world, const hkpCollidable* collA, const hkpCollisionInput* input, hkpCdPointCollector* collector);
 extern RelocAddr<_hkpWorld_GetClosestPoints> hkpWorld_GetClosestPoints;
 
-typedef hkpEntity* (*_hkpWorld_AddEntity)(hkpWorld *world, hkpEntity* entity, int initialActivationState);
+typedef hkpEntity* (*_hkpWorld_AddEntity)(hkpWorld *world, hkpEntity* entity, hkpEntityActivation initialActivationState);
 extern RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity;
 
 typedef hkpEntity* (*_hkpWorld_RemoveEntity)(hkpWorld *world, hkBool *ret, hkpEntity* entity);
@@ -75,6 +75,9 @@ extern RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity;
 
 typedef void(*_hkpWorld_UpdateCollisionFilterOnEntity)(hkpWorld *world, hkpEntity* entity, hkpUpdateCollisionFilterOnEntityMode updateMode, hkpUpdateCollectionFilterMode updateShapeCollectionFilter);
 extern RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity;
+
+typedef void(*_bhkWorld_UpdateCollisionFilterOnEntity)(bhkWorld *world, hkpEntity* entity);
+extern RelocAddr<_bhkWorld_UpdateCollisionFilterOnEntity> bhkWorld_UpdateCollisionFilterOnEntity;
 
 typedef void(*_hkpEntity_activate)(hkpEntity *entity);
 extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;

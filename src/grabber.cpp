@@ -396,7 +396,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		_MESSAGE("%s: Adding collision for hand", name);
 
 		world->worldLock.LockForWrite();
-		hkpWorld_AddEntity(world->world, handCollBody, 1);
+		hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 		world->worldLock.UnlockWrite();
 	}
 	

@@ -574,6 +574,9 @@ void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup)
 				// Other hand hasn't affected this yet. Set its collision info
 				collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, 1 };
 
+				bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+				world->worldLock.LockForWrite();
+
 				collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
 				collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
 				collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
@@ -582,6 +585,8 @@ void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup)
 				collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 
 				hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+				world->worldLock.UnlockWrite();
 			}
 		}
 	}
@@ -610,25 +615,32 @@ void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode)
 	if (obj->unk040) {
 		auto collObj = (bhkCollisionObject *)obj->unk040;
 		hkpRigidBody *entity = collObj->body->hkBody;
-		hkpCollidable *collidable = &entity->m_collidable;
-		if (collidable != skipNode) {
-			UInt32 entityId = entity->m_uid;
-			UInt8 refCount = GetSavedCollisionRefCount(entityId);
-			if (refCount > 0) {
-				if (refCount == 1) {
-					// Only actually reset collision info if the other hand isn't involved
-					UInt32 savedCollision = GetSavedCollision(entityId);
+		if (entity->m_world) {
+			hkpCollidable *collidable = &entity->m_collidable;
+			if (collidable != skipNode) {
+				UInt32 entityId = entity->m_uid;
+				UInt8 refCount = GetSavedCollisionRefCount(entityId);
+				if (refCount > 0) {
+					if (refCount == 1) {
+						// Only actually reset collision info if the other hand isn't involved
+						UInt32 savedCollision = GetSavedCollision(entityId);
 
-					// Restore only the original layer first, so it collides with everything except the player
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
-					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+						bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+						world->worldLock.LockForWrite();
 
-					// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
-					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+						// Restore only the original layer first, so it collides with everything except the player
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
+						hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+						// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
+						hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+						world->worldLock.UnlockWrite();
+					}
+					RemoveSavedCollision(entityId);
 				}
-				RemoveSavedCollision(entityId);
 			}
 		}
 	}
