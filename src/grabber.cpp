@@ -138,7 +138,9 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
 
 	cdPointCollector.reset();
+	world->worldLock.LockForRead();
 	hkpWorld_GetClosestPoints(world->world, &sphere->phantom->m_collidable, world->world->m_collisionInput, &cdPointCollector);
+	world->worldLock.UnlockRead();
 
 	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
 	sphereShape->m_radius = radiusBefore;
@@ -486,7 +488,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
 			rayCastInput.m_from = NiPointToHkVector(hkHandPos);
 			rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
+			world->worldLock.LockForRead();
 			hkpWorld_CastRay(world->world, &rayCastInput, &rayHitCollector);
+			world->worldLock.UnlockRead();
 			if (rayHitCollector.m_doesHitExist) {
 				// If raycast hit, we want to linearcast only up to the ray hit location
 				hitPosition = hkHandPos + (hkTargetPos - hkHandPos) * rayHitCollector.m_closestHitInfo.m_hitFraction;
@@ -500,7 +504,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			linearCastInput.m_to = NiPointToHkVector(hitPosition);
 			cdPointCollector.reset();
+			world->worldLock.LockForRead();
 			hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
+			world->worldLock.UnlockRead();
 
 			sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
 			sphereShape->m_radius = radiusBefore;
@@ -910,7 +916,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
 									collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 6; // player collision group, 'projectile' collision layer
 									// Projectiles have 'Fixed' motion type by default, making them unmovable
-									hkpRigidBody_setMotionType(collObj->body->hkBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+									bhkRigidBody_setMotionType(collObj->body, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 								}
 							}
 
@@ -1063,6 +1069,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
+				// TODO: Apply velocity to all collidables in the refr simultaneously, to deal with physics constraints 'weighing down' the one collidable
 				if (g_currentFrameTime - pulledTime <= 0.06f) { // just over 5 frames at 90fps
 					NiPoint3 horizontalDelta = hkHandPos - hkObjPos;
 					horizontalDelta.z = 0;
@@ -1088,7 +1095,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (n) {
 					NiTransform inverseParent;
 					n->m_parent->m_worldTransform.Invert(inverseParent);
+
+					// TODO: Do a fixed velocity to the hand instead of fixed time
+					float rampUp = min((g_currentFrameTime - grabbedTime) / Config::options.grabbedRampUpTime, 1.0f); // 0 to 1 over some number of ms
+
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
+					newTransform.pos = initialGrabbedObjWorldPosition * (1 - rampUp) + newTransform.pos * rampUp;
+
 					n->m_localTransform = inverseParent * newTransform;
 					NiAVObject::ControllerUpdateContext ctx;
 					ctx.flags = 0x2000; // makes havok sim more stable?
