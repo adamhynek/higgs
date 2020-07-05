@@ -29,7 +29,7 @@ struct bhkCollisionFilter : hkpCollisionFilter
 	UInt64 unk[39]; // 98
 	UInt64 layerBitfields[64]; // 1D0 - only 56 are valid in vanilla
 	UInt64 todo2[2]; // 3D0
-	char * layerNames[64]; // 3E0 - only 56 are non-null
+	BSFixedString layerNames[64]; // 3E0 - only 56 are non-null
 };
 static_assert(offsetof(bhkCollisionFilter, bipedBitfields) == 0x50);
 static_assert(offsetof(bhkCollisionFilter, layerBitfields) == 0x1D0);

@@ -373,7 +373,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		bitfield |= ((UInt64)1 << 56); // collide with ourselves
 		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
 		worldFilter->layerBitfields[56] = bitfield;
-		worldFilter->layerNames[56] = "L_HANDCOLLISION";
+		worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
 		// Set whether other layers should collide with our new layer
 		for (int i = 0; i < 56; i++) {
 			if ((bitfield >> i) & 1) {
