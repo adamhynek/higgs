@@ -366,6 +366,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			oldWorld->worldLock.UnlockWrite();
 		}
 
+		_MESSAGE("%s: Adding collision for hand", name);
+
+		world->worldLock.LockForWrite();
+
 		// Create our own layer in the first ununsed vanilla layer (56)
 		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
 		//UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield - TODO: Actually just copy the L_WEAPON layer bitfield?
@@ -393,10 +397,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		hkpRigidBody_ctor(handCollBody, handCollCInfo);
 
-		_MESSAGE("%s: Adding collision for hand", name);
-
-		world->worldLock.LockForWrite();
 		hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+
 		world->worldLock.UnlockWrite();
 	}
 	
