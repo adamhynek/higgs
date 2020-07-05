@@ -15,26 +15,26 @@ struct Grabber
 {
 	struct SelectedObject
 	{
-		UInt32 handle = 0;
 		NiPointer<bhkRigidBody> rigidBody;
 		hkpCollidable *collidable = nullptr; // ptr to collidable owned by rigidBody
-		bool isActor = false;
-		bool isImpactedProjectile = false;
-		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
-		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		TESForm *hitForm;
 		NiPointer<NiAVObject> shaderNode;
 		NiPointer<NiAVObject> hitNode;
+		UInt32 handle = 0;
+		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
+		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
+		bool isActor = false;
+		bool isImpactedProjectile = false;
 	};
 
 	struct PulledObject
 	{
-		UInt32 handle = 0;
 		NiPointer<bhkRigidBody> rigidBody;
+		UInt32 handle = 0;
 		hkHalf savedAngularDamping;
 	};
 
-	enum State : int
+	enum State : UInt16
 	{
 		IDLE, // not pointing at anything meaningful
 		SELECTED_FAR, // pointing at something meaningful that isn't close
@@ -112,8 +112,6 @@ struct Grabber
 
 	NiPoint3 prevHandPosRoomspace;
 	NiPoint3 prevHandDirectionRoomspace;
-
-	int pullFrameCounter = 0;
 
 	bool idleDesired = false;
 	bool unsheatheDesired = false;
