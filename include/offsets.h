@@ -110,10 +110,11 @@ extern RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_apply
 typedef void(*_hkpConstraintInstance_setPriority)(hkpConstraintInstance *_this, hkpConstraintInstance::ConstraintPriority priority);
 extern RelocAddr<_hkpConstraintInstance_setPriority> hkpConstraintInstance_setPriority;
 
-typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, hkpMotion::MotionType newState, hkpEntityActivation preferredActivationState, hkpUpdateCollisionFilterOnEntityMode collisionFilterUpdateMode);
+// MotionType HAS to be a UInt64, NOT a hkpMotion::MotionType, as hkpMotion::MotionType is a UInt8 but the actual function in the binary expects a UInt64. Fuck.
+typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, UInt64 newState, hkpEntityActivation preferredActivationState, hkpUpdateCollisionFilterOnEntityMode collisionFilterUpdateMode);
 extern RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType;
 
-typedef void(*_bhkRigidBody_setMotionType)(bhkRigidBody *_this, hkpMotion::MotionType newState, hkpEntityActivation preferredActivationState, hkpUpdateCollisionFilterOnEntityMode collisionFilterUpdateMode);
+typedef void(*_bhkRigidBody_setMotionType)(bhkRigidBody *_this, UInt64 newState, hkpEntityActivation preferredActivationState, hkpUpdateCollisionFilterOnEntityMode collisionFilterUpdateMode);
 extern RelocAddr<_bhkRigidBody_setMotionType> bhkRigidBody_setMotionType;
 
 typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
