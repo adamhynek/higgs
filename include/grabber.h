@@ -56,6 +56,8 @@ struct Grabber
 		handCollBody->m_world = nullptr; // a bit weird, but we want to make sure it's 0 for when we check it
 	};
 
+	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
+
 	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
@@ -97,7 +99,8 @@ struct Grabber
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	NiPoint3 handVelocities[numPrevVel]; // previous n hand velocities
+	NiPoint3 handVelocitiesWorldspace[numPrevVel]; // previous n hand velocities in skyrim worldspace
+	NiPoint3 handVelocitiesRoomspace[numPrevVel]; // previous n wand velocities in local roomspace
 	NiPoint3 handDirectionVelocities[numPrevVel]; // previous n hand direction velocities
 
 	SelectedObject selectedObject;
@@ -110,6 +113,7 @@ struct Grabber
 
 	NiTransform initialObjTransformHandSpace;
 
+	NiPoint3 prevHandPosWorldspace;
 	NiPoint3 prevHandPosRoomspace;
 	NiPoint3 prevHandDirectionRoomspace;
 

@@ -372,7 +372,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		// Create our own layer in the first ununsed vanilla layer (56)
 		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-		//UInt64 bitfield = 0x00053343561B7EFF; // copy of L_WEAPON layer bitfield - TODO: Actually just copy the L_WEAPON layer bitfield?
 		UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
 		bitfield |= ((UInt64)1 << 56); // collide with ourselves
 		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
@@ -410,22 +409,32 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	desiredQuat.setFromRotationSimd(desiredRot);
 	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 
+	NiPoint3 handVelocityWorldspace = (handPos - prevHandPosWorldspace) / *g_deltaTime;
+
+	// Update velocities array to this frame
+	for (int i = numPrevVel - 1; i >= 1; i--) {
+		handVelocitiesWorldspace[i] = handVelocitiesWorldspace[i - 1];
+	}
+	handVelocitiesWorldspace[0] = handVelocityWorldspace;
+
+	NiPoint3 avgVelocityWorldspace = std::accumulate(handVelocitiesWorldspace, &handVelocitiesWorldspace[numPrevVel - 1], NiPoint3()) / numPrevVel;
+
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
 	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) / *g_deltaTime;
 
 	// Update velocities array to this frame
 	for (int i = numPrevVel - 1; i >= 1; i--) {
-		handVelocities[i] = handVelocities[i - 1];
+		handVelocitiesRoomspace[i] = handVelocitiesRoomspace[i - 1];
 	}
-	handVelocities[0] = handVelocityRoomspace;
+	handVelocitiesRoomspace[0] = handVelocityRoomspace;
 
-	NiPoint3 avgVelocityRoomspace = std::accumulate(handVelocities, &handVelocities[numPrevVel - 1], NiPoint3()) / numPrevVel;
+	NiPoint3 avgVelocityRoomspace = std::accumulate(handVelocitiesRoomspace, &handVelocitiesRoomspace[numPrevVel - 1], NiPoint3()) / numPrevVel;
 
 	// Get whatever transform takes the wand position from room space to skyrim worldspace
 	NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
 	NiMatrix33 worldToLocalTransform = localToWorldTransform.Transpose();
 
-	NiPoint3 velocityWorldspace = localToWorldTransform * avgVelocityRoomspace;
+	NiPoint3 localVelocityWorldspace = localToWorldTransform * avgVelocityRoomspace;
 
 	NiPoint3 handDirectionRoomspace = worldToLocalTransform * castDirection;
 	NiPoint3 deltaHandDirectionRoomspace = handDirectionRoomspace - prevHandDirectionRoomspace;
@@ -832,10 +841,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 				}
 				if (state == HELD || state == HELD_BODY) {
-					// Boost the velocity a bit
 					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityWorldspace * 1.3f * *HAVOK_WORLD_SCALE_ADDR);
+					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(avgVelocityWorldspace * 1.1f * havokWorldScale); // Boost the velocity a bit
 				}
 			}
 
@@ -957,7 +965,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 					NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-					float handSpeedInObjDirection = DotProduct(velocityWorldspace, VectorNormalized(relObjPos));
+					float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));
 					//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
 					//	PrintToFile(std::to_string(VectorLength(handDirectionVelocityRoomspace)), "hand_delta_dir_r.txt");
 					//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
@@ -1146,6 +1154,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	//}
 
 	prevState = state;
+	prevHandPosWorldspace = handPos;
 	prevHandPosRoomspace = handPosRoomspace;
 	prevHandDirectionRoomspace = handDirectionRoomspace;
 }

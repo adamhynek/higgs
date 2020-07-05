@@ -55,8 +55,8 @@ float g_normalRumbleIntensity;
 bool g_hasSavedRollover = false;
 NiTransform g_normalRolloverTransform;
 
-Grabber g_rightGrabber("R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 });
-Grabber g_leftGrabber("L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
+Grabber *g_rightGrabber;
+Grabber *g_leftGrabber;
 
 
 auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
@@ -82,18 +82,18 @@ void HookedWorldUpdateHook(bhkWorld *world)
 	// Why? We need it here to calm down physics constraints - they freak out if only set in the openvr hook
 	// We also need to do it there though, since otherwise we get flickering lighting on the object.
 	{
-		std::lock_guard<std::mutex> lock(g_rightGrabber.deselectLock);
+		std::lock_guard<std::mutex> lock(g_rightGrabber->deselectLock);
 
-		if (g_rightGrabber.state == Grabber::State::HELD) {
-			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber.handNodeName.data);
+		if (g_rightGrabber->state == Grabber::State::HELD) {
+			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
-				if (LookupREFRByHandle(g_rightGrabber.selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-					NiAVObject *n = FindCollidableNode(g_rightGrabber.selectedObject.collidable);
+				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+					NiAVObject *n = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
 					if (n) {
 						NiTransform inverseParent;
 						n->m_parent->m_worldTransform.Invert(inverseParent);
-						NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber.initialObjTransformHandSpace;
+						NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber->initialObjTransformHandSpace;
 						n->m_localTransform = inverseParent * newTransform;
 						NiAVObject::ControllerUpdateContext ctx;
 						ctx.flags = 0x2000; // makes havok sim more stable?
@@ -105,18 +105,18 @@ void HookedWorldUpdateHook(bhkWorld *world)
 		}
 	}
 	{
-		std::lock_guard<std::mutex> lock(g_leftGrabber.deselectLock);
+		std::lock_guard<std::mutex> lock(g_leftGrabber->deselectLock);
 
-		if (g_leftGrabber.state == Grabber::State::HELD) {
-			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber.handNodeName.data);
+		if (g_leftGrabber->state == Grabber::State::HELD) {
+			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
-				if (LookupREFRByHandle(g_leftGrabber.selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-					NiAVObject *n = FindCollidableNode(g_leftGrabber.selectedObject.collidable);
+				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+					NiAVObject *n = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
 					if (n) {
 						NiTransform inverseParent;
 						n->m_parent->m_worldTransform.Invert(inverseParent);
-						NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber.initialObjTransformHandSpace;
+						NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber->initialObjTransformHandSpace;
 						n->m_localTransform = inverseParent * newTransform;
 						NiAVObject::ControllerUpdateContext ctx;
 						ctx.flags = 0x2000; // makes havok sim more stable?
@@ -331,17 +331,17 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 	bool isLeftHanded = *g_leftHandedMode;
 
-	g_rightGrabber.PoseUpdate(g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
-	g_leftGrabber.PoseUpdate(g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
+	g_rightGrabber->PoseUpdate(*g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
+	g_leftGrabber->PoseUpdate(*g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
 
-	if ((g_rightGrabber.state != Grabber::State::HELD && g_rightGrabber.pulledObject.handle == *g_invalidRefHandle) &&
-		(g_leftGrabber.state != Grabber::State::HELD && g_leftGrabber.pulledObject.handle == *g_invalidRefHandle)) {
+	if ((g_rightGrabber->state != Grabber::State::HELD && g_rightGrabber->pulledObject.handle == *g_invalidRefHandle) &&
+		(g_leftGrabber->state != Grabber::State::HELD && g_leftGrabber->pulledObject.handle == *g_invalidRefHandle)) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
 		ClearCollisionMap();
 	}
 
-	bool displayLeft = g_leftGrabber.ShouldDisplayRollover();
-	bool displayRight = g_rightGrabber.ShouldDisplayRollover();
+	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
+	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
 
 	static BSFixedString rightWandStr("RightWandNode");
 	NiAVObject *rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
@@ -376,7 +376,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 		if (displayRight && displayLeft) {
 			// Pick whichever hand grabbed last
-			if (g_leftGrabber.selectionLockedTime > g_rightGrabber.selectionLockedTime) {
+			if (g_leftGrabber->selectionLockedTime > g_rightGrabber->selectionLockedTime) {
 				NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 				if (!rolloverNode) {
 					// Switch menu to left hand if it's on the right
@@ -384,7 +384,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					leftWandNode->AttachChild(rolloverNode, false);
 					rightWandNode->RemoveChild(rolloverNode);
 				}
-				g_leftGrabber.SetupRollover(rolloverNode, isLeftHanded);
+				g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
 			}
 			else {
 				NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -394,7 +394,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					rightWandNode->AttachChild(rolloverNode, false);
 					leftWandNode->RemoveChild(rolloverNode);
 				}
-				g_rightGrabber.SetupRollover(rolloverNode, isLeftHanded);
+				g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
 			}
 		}
 		else if (displayRight) {
@@ -405,7 +405,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				rightWandNode->AttachChild(rolloverNode, false);
 				leftWandNode->RemoveChild(rolloverNode);
 			}
-			g_rightGrabber.SetupRollover(rolloverNode, isLeftHanded);
+			g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
 		}
 		else if (displayLeft) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -415,7 +415,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				leftWandNode->AttachChild(rolloverNode, false);
 				rightWandNode->RemoveChild(rolloverNode);
 			}
-			g_leftGrabber.SetupRollover(rolloverNode, isLeftHanded);
+			g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
 		}
 	}
 	else {
@@ -454,10 +454,10 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 	vr_src::TrackedDeviceIndex_t leftController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(leftControllerRole);
 
 	if (unControllerDeviceIndex == rightController) {
-		g_rightGrabber.ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
+		g_rightGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
 	}
 	else if (unControllerDeviceIndex == leftController) {
-		g_leftGrabber.ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
+		g_leftGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
 	}
 }
 
@@ -466,8 +466,8 @@ extern "C" {
 	void OnDataLoaded()
 	{
 		// Can't set these statically as the invalidrefhandle doesn't load until later
-		g_rightGrabber.selectedObject.handle = *g_invalidRefHandle;
-		g_leftGrabber.selectedObject.handle = *g_invalidRefHandle;
+		g_rightGrabber->selectedObject.handle = *g_invalidRefHandle;
+		g_leftGrabber->selectedObject.handle = *g_invalidRefHandle;
 
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
@@ -502,11 +502,11 @@ extern "C" {
 			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
 		}
 
-		g_rightGrabber.itemSelectedShader = g_itemSelectedShader;
-		g_rightGrabber.itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
+		g_rightGrabber->itemSelectedShader = g_itemSelectedShader;
+		g_rightGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
-		g_leftGrabber.itemSelectedShader = g_itemSelectedShader;
-		g_leftGrabber.itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
+		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
+		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
 		_MESSAGE("Successfully loaded all forms");
 	}
@@ -567,6 +567,13 @@ extern "C" {
 	{	// Called by SKSE to load this plugin
 		_MESSAGE("ForcePullVR loaded");
 
+		g_rightGrabber = new Grabber("R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 });
+		g_leftGrabber = new Grabber("L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
+		if (!g_rightGrabber || !g_leftGrabber) {
+			_ERROR("[CRITICAL] Couldn't allocate memory");
+			return false;
+		}
+
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);
@@ -596,8 +603,6 @@ extern "C" {
 			_ERROR("Failed to perform hook");
 		}
 
-
-
 		g_timer.Start();
 
 		// Right vector points to the right of the text
@@ -613,18 +618,18 @@ extern "C" {
 		g_rolloverRotation.data[1][2] = sinf(30 * 0.0174533);
 		g_rolloverRotation.data[2][2] = -cosf(30 * 0.0174533);
 
-		g_rightGrabber.rolloverRotation = g_rolloverRotation;
-		g_rightGrabber.rolloverScale = Config::options.rolloverScale;
+		g_rightGrabber->rolloverRotation = g_rolloverRotation;
+		g_rightGrabber->rolloverScale = Config::options.rolloverScale;
 
 		// Flip right/forward vectors
-		g_leftGrabber.rolloverRotation = g_rolloverRotation;
-		g_leftGrabber.rolloverRotation.data[0][0] = -g_leftGrabber.rolloverRotation.data[0][0];
-		g_leftGrabber.rolloverRotation.data[1][0] = -g_leftGrabber.rolloverRotation.data[1][0];
-		g_leftGrabber.rolloverRotation.data[2][0] = -g_leftGrabber.rolloverRotation.data[2][0];
-		g_leftGrabber.rolloverRotation.data[0][1] = -g_leftGrabber.rolloverRotation.data[0][1];
-		g_leftGrabber.rolloverRotation.data[1][1] = -g_leftGrabber.rolloverRotation.data[1][1];
-		g_leftGrabber.rolloverRotation.data[2][1] = -g_leftGrabber.rolloverRotation.data[2][1];
-		g_leftGrabber.rolloverScale = Config::options.rolloverScale;
+		g_leftGrabber->rolloverRotation = g_rolloverRotation;
+		g_leftGrabber->rolloverRotation.data[0][0] = -g_leftGrabber->rolloverRotation.data[0][0];
+		g_leftGrabber->rolloverRotation.data[1][0] = -g_leftGrabber->rolloverRotation.data[1][0];
+		g_leftGrabber->rolloverRotation.data[2][0] = -g_leftGrabber->rolloverRotation.data[2][0];
+		g_leftGrabber->rolloverRotation.data[0][1] = -g_leftGrabber->rolloverRotation.data[0][1];
+		g_leftGrabber->rolloverRotation.data[1][1] = -g_leftGrabber->rolloverRotation.data[1][1];
+		g_leftGrabber->rolloverRotation.data[2][1] = -g_leftGrabber->rolloverRotation.data[2][1];
+		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
 
 		return true;
 	}
