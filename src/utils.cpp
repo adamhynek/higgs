@@ -954,3 +954,36 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 	}
 	return false;
 }
+
+
+void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
+{
+	if (obj->unk040) {
+		auto collObj = (bhkCollisionObject *)obj->unk040;
+		bhkRigidBody *bRigidBody = collObj->body;
+		hkpRigidBody *rigidBody = bRigidBody->hkBody;
+		if (rigidBody->m_world) {
+			hkpMotion *motion = &rigidBody->m_motion;
+
+			bhkRigidBody_setActivated(bRigidBody, true);
+			motion->m_linearVelocity = velocity;
+		}
+	}
+
+	NiNode *node = obj->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				SetVelocityDownstream(child, velocity);
+			}
+		}
+	}
+}
+
+void SetVelocityForAllCollisionInRefr(TESObjectREFR *refr, hkVector4 velocity)
+{
+	if (refr->loadedState && refr->loadedState->node) {
+		SetVelocityDownstream(refr->loadedState->node, velocity);
+	}
+}

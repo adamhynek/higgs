@@ -88,3 +88,6 @@ namespace MathUtils
 }
 
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
+
+void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
+void SetVelocityForAllCollisionInRefr(TESObjectREFR *refr, hkVector4 velocity);

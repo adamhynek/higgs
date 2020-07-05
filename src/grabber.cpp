@@ -1084,7 +1084,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
-				// TODO: Apply velocity to all collidables in the refr simultaneously, to deal with physics constraints 'weighing down' the one collidable
 				if (g_currentFrameTime - pulledTime <= 0.06f) { // just over 5 frames at 90fps
 					NiPoint3 horizontalDelta = hkHandPos - hkObjPos;
 					horizontalDelta.z = 0;
@@ -1092,8 +1091,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					float verticalDelta = hkHandPos.z - hkObjPos.z;
 					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
-					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					motion->m_linearVelocity = NiPointToHkVector(velocity);
+					SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));
 				}
 				else {
 					idleDesired = true;
