@@ -297,7 +297,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
-			state = HELD;
+			state = HELD_INIT;
 		}
 	}
 }
@@ -799,7 +799,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 
 	NiPointer<TESObjectREFR> selectedObj;
-	if (state == SELECTION_LOCKED || state == PULLED || state == PREPULL_ITEM || state == HELD || state == HELD_BODY) {
+	if (state == SELECTION_LOCKED || state == PULLED || state == PREPULL_ITEM || state == HELD_INIT || state == HELD || state == HELD_BODY) {
 		// Check if we should drop the object. If yes, go to IDLE
 		if (triggerReleased) {
 			triggerReleased = false;
@@ -812,7 +812,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				StopShader(selectedObject.handle, selectedObject.shaderNode);
-				if (state == HELD) {
+				if (state == HELD || state == HELD_INIT) {
 					ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
 
 					UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->hkBody->m_uid);
@@ -840,7 +840,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						RemoveSavedCollision(selectedObject.rigidBody->hkBody->m_uid);
 					}
 				}
-				if (state == HELD || state == HELD_BODY) {
+				if (state == HELD_INIT || state == HELD || state == HELD_BODY) {
 					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(avgVelocityWorldspace * 1.1f * havokWorldScale); // Boost the velocity a bit
@@ -1092,18 +1092,31 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			}
 		}
 
-		if (state == HELD) {
+		if (state == HELD_INIT || state == HELD) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
 					NiTransform inverseParent;
 					n->m_parent->m_worldTransform.Invert(inverseParent);
 
-					// TODO: Do a fixed velocity to the hand instead of fixed time
-					float rampUp = min((g_currentFrameTime - grabbedTime) / Config::options.grabbedRampUpTime, 1.0f); // 0 to 1 over some number of ms
-
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
-					newTransform.pos = initialGrabbedObjWorldPosition * (1 - rampUp) + newTransform.pos * rampUp;
+
+					if (state == HELD_INIT) {
+						if (g_currentFrameTime - grabbedTime > 1.0f) {
+							// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
+							state = HELD;
+						}
+						else {
+							NiPoint3 delta = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
+							if (VectorLengthSquared(delta) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos)) {
+								// If not close enough, move the object closer to the hand at some velocity
+								newTransform.pos = n->m_worldTransform.pos + delta;
+							}
+							else {
+								state = HELD;
+							}
+						}
+					}
 
 					n->m_localTransform = inverseParent * newTransform;
 					NiAVObject::ControllerUpdateContext ctx;
@@ -1230,15 +1243,21 @@ bool Grabber::IsObjectPullable()
 
 bool Grabber::HasExclusiveObject() const
 {
-	return state == PULLED || state == SELECTION_LOCKED || state == HELD || state == HELD_BODY;
+	return state == PULLED || state == SELECTION_LOCKED || state == HELD || state == HELD_INIT || state == HELD_BODY;
 }
 
 
 bool Grabber::ShouldDisplayRollover()
 {
-	if (state != SELECTED_CLOSE && state != PULLED && state != SELECTION_LOCKED && state != HELD) return false;
+	if (state != SELECTED_CLOSE && state != PULLED && state != SELECTION_LOCKED && state != HELD && state != HELD_INIT) return false;
 
 	return IsObjectPullable();
+}
+
+
+bool Grabber::IsSafeToClearSavedCollision()
+{
+	return (state != HELD && state != HELD_INIT && pulledObject.handle == *g_invalidRefHandle);
 }
 
 

@@ -42,6 +42,7 @@ struct Grabber
 		SELECTION_LOCKED, // player has locked in their selection
 		PREPULL_ITEM, // player wants to pull a piece of armor off
 		PULLED, // player is pulling the object towards them
+		HELD_INIT, // held object is moving towards hand
 		HELD, // player is holding the object in their hand
 		HELD_BODY // player is holding a body
 	};
@@ -64,6 +65,7 @@ struct Grabber
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
 	void TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
+	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);

@@ -49,7 +49,8 @@ namespace Config {
 
 		if (!GetConfigOptionDouble("Settings", "SelectedFadeTime", &options.selectedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "GrabbedRampUpTime", &options.grabbedRampUpTime)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
 
 		if (!GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &options.ignoreWeaponChecks)) return false;
 

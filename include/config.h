@@ -23,7 +23,7 @@ namespace Config {
 		float maxBodyHeight = 1.5f;
 		float pushPullSpeedThreshold = 90.0f;
 		float pullAngularSpeedThreshold = 9.0f;
-		double grabbedRampUpTime = 1.0f; // in s, time over which to ramp up speed after grabbing an object
+		float grabStartSpeed = 250.0f;
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		bool ignoreWeaponChecks = false;

@@ -334,8 +334,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	g_rightGrabber->PoseUpdate(*g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
 	g_leftGrabber->PoseUpdate(*g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
 
-	if ((g_rightGrabber->state != Grabber::State::HELD && g_rightGrabber->pulledObject.handle == *g_invalidRefHandle) &&
-		(g_leftGrabber->state != Grabber::State::HELD && g_leftGrabber->pulledObject.handle == *g_invalidRefHandle)) {
+	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
 		ClearCollisionMap();
 	}
