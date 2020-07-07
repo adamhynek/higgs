@@ -1071,16 +1071,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				pulledExpireTime = duration + 1.0f;
 
-				/*
-				NiPoint3 horizontalDelta =
-				NiPoint3 velocity = horizontalDelta / duration;
-				float verticalDelta = hkHandPos.z - initialGrabbedObjWorldPosition.z;
-				velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
-
-				hkpEntity_activate(selectedObject.rigidBody);
-				motion->m_linearVelocity = NiPointToHkVector(velocity);
-				*/
-
 				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
