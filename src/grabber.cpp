@@ -989,7 +989,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						TransitionPulled();
 					}
 					else {
-						// Hold object still while hand doesn't point too far away from original location. If far enough, transition to grabbed.
+						// Hold object selected while hand doesn't point too far away from original location. If far enough, deselect.
 						NiPoint3 forward = castDirection;
 						NiPoint3 worldUp = { 0, 0, 1 };
 						NiPoint3 right = CrossProduct(forward, worldUp);
@@ -998,7 +998,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 						// Determine the position where we want the object to be
 						// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-						float maxHeight = selectedObject.isActor ? Config::options.maxBodyHeight : Config::options.maxItemHeight;
+						float maxHeight = 4.0f;
 						NiPoint3 horiz;
 						float h;
 						if (castDirection.z <= 0.9999f) {

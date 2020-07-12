@@ -59,19 +59,10 @@ namespace Config {
 
 		if (!GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &options.ignoreWeaponChecks)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "HoverVelocityMultiplier", &options.hoverVelocityMultiplier)) return false;
-		if (!GetConfigOptionFloat("Settings", "PullVelocityMultiplier", &options.pullVelocityMultiplier)) return false;
-		if (!Config::GetConfigOptionFloat("Settings", "PushVelocityMultiplier", &options.pushVelocityMultiplier)) return false;
-		if (!GetConfigOptionFloat("Settings", "MassExponent", &options.massExponent)) return false;
 		if (!GetConfigOptionFloat("Settings", "PushPullSpeedThreshold", &options.pushPullSpeedThreshold)) return false;
 		if (!GetConfigOptionFloat("Settings", "PullAngularSpeedThreshold", &options.pullAngularSpeedThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
-
-		if (!GetConfigOptionFloat("Settings", "MaxItemHeight", &options.maxItemHeight)) return false;
-		if (!GetConfigOptionFloat("Settings", "MaxBodyHeight", &options.maxBodyHeight)) return false;
-
-		if (!GetConfigOptionFloat("Settings", "InverseMassLimit", &options.inverseMassLimit)) return false;
 
 		if (!GetConfigOptionBool("Settings", "EnableTrigger", &options.enableTrigger)) return false;
 		if (!GetConfigOptionBool("Settings", "EnableGrip", &options.enableGrip)) return false;
