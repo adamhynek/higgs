@@ -1301,7 +1301,6 @@ bool Grabber::IsObjectPullable()
 {
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-		//return (selectedObj->baseForm && selectedObj->baseForm->formType != kFormType_MovableStatic && (!selectedObject.isActor || selectedObject.hitForm));
 		return (!selectedObject.isActor || selectedObject.hitForm);
 	}
 	return false;
@@ -1316,8 +1315,13 @@ bool Grabber::HasExclusiveObject() const
 
 bool Grabber::ShouldDisplayRollover()
 {
-	if (state != State_SelectedClose && state != State_Pulled && state != State_SelectionLocked && state != State_Held && state != State_HeldInit) return false;
+	if (state != State_SelectedClose && state != State_Pulled && state != State_SelectionLocked && state != State_Held && state != State_HeldInit && state != State_HeldBody)
+		return false;
 
+	if (state == State_SelectedClose) {
+		// Even when no piece of armor selected, still show rollover when we'd be grabbing the body
+		return true;
+	}
 	return IsObjectPullable();
 }
 
