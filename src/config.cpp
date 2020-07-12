@@ -48,6 +48,10 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "GrabAngleThreshold", &grabbedAngleThreshold)) return false;
 		options.grabbedDotProductThreshold = cosf(grabbedAngleThreshold * 0.0174533); // degrees to radians
 
+		float normalSnapAngle;
+		if (!GetConfigOptionFloat("Settings", "NormalSnapAngle", &normalSnapAngle)) return false;
+		options.normalSnapAngle = cosf(normalSnapAngle * 0.0174533); // degrees to radians
+
 		if (!GetConfigOptionDouble("Settings", "SelectedFadeTime", &options.selectedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
 

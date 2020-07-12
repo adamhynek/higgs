@@ -257,7 +257,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				// TODO: Using the graphics triangle normal is way too noisy. If going this route, need to either put a max on the angle we're willing to rotate by (easy),
 				// or figure out some smoothing algorithm over adjacent triangles or something, but we don't _always_ want to smooth out high frequency edges... (not gonna happen)
 				float angleBetweenPalmAndNormal = acosf(-DotProduct(castDirection, triNormal));
-				if (angleBetweenPalmAndNormal < 45.0f * 0.0174533) {
+				if (angleBetweenPalmAndNormal < Config::options.normalSnapAngle) {
 					NiPoint3 axis = CrossProduct(castDirection, triNormal);
 					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
 					NiPoint3 triToCenter = n->m_worldTransform.pos - triPos;
