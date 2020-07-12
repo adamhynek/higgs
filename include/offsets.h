@@ -37,6 +37,13 @@ extern RelocAddr<_EffectShader_Stop> EffectShader_Stop;
 typedef void(*_BSExtraDataList_RemoveOwnership)(BaseExtraList *_this);
 extern RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership;
 
+typedef void(*_BSExtraDataList_SetOwnerForm)(BaseExtraList *_this, TESForm *form);
+extern RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm;
+
+// rcx and rdx are ignored for some reason. Args are in r8 and r9.
+typedef void(*_TESObjectREFR_SetActorOwner)(void *null1, void *null2, TESObjectREFR *_this, TESForm *owner);
+extern RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner;
+
 typedef void(*_hkpWorld_CastRay)(hkpWorld *world, hkpWorldRayCastInput *input, hkpRayHitCollector *collector);
 extern RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay;
 

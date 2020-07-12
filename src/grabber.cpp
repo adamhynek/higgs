@@ -1047,8 +1047,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.rigidBody = collObj->body;
 						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
 
-						// Remove ownership so it doesn't count as stealing
-						BSExtraDataList_RemoveOwnership(&selectedObj->extraData);
+						// Set owner to the player so it doesn't count as stealing
+						TESObjectREFR_SetActorOwner(nullptr, nullptr, selectedObj, player->baseForm);
 
 						state = State_Pulled;
 						pulledTime = g_currentFrameTime;

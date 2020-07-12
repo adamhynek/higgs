@@ -24,6 +24,10 @@ RelocAddr<_EffectShader_Stop> EffectShader_Stop(0x9BCC20);
 
 RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership(0x1309A0);
 
+RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm(0x11E0C0);
+
+RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner(0x9D18C0);
+
 RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay(0x00AB5B20);
 
 RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast(0x00AB5EC0);
