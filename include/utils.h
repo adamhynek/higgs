@@ -20,6 +20,8 @@ inline float DotProduct(NiPoint3 vec1, NiPoint3 vec2) { return vec1.x*vec2.x + v
 NiPoint3 VectorNormalized(NiPoint3 vec);
 NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2);
 NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta);
+NiPoint3 MatrixToEuler(NiMatrix33 &mat);
+NiMatrix33 EulerToMatrix(NiPoint3 euler);
 NiPoint3 RotateVectorByAxisAngle(NiPoint3 vector, NiPoint3 axis, float angle);
 void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat);
 void HkMatrixToNiMatrix(hkMatrix3 &hkMat, NiMatrix33 &niMat);

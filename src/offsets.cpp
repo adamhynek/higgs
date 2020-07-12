@@ -16,25 +16,13 @@ RelocPtr<float> g_deltaTime(0x1EC8278);
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 
-RelocAddr<_SetMotionTypeFunctor> SetMotionTypeFunctor(0x009D1FF0);
-
-RelocAddr <_ApplyHavokImpulse> ApplyHavokImpulse(0x009CDE90);
-
 RelocAddr<_Activate> Activate(0x009CD750);
-
-RelocAddr<_SetPosition> SetPosition(0x9D2280);
-
-RelocAddr<_TranslateTo> TranslateTo(0x009D2570);
-
-RelocAddr<_StopTranslation> StopTranslation(0x009D3140);
-
-RelocAddr<_Cast> Cast(0x009BB6B0);
-
-RelocAddr<_InterruptCast> InterruptCast(0x009CEF80);
 
 RelocAddr<_EffectShader_Play> EffectShader_Play(0x9BCAF0);
 
 RelocAddr<_EffectShader_Stop> EffectShader_Stop(0x9BCC20);
+
+RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership(0x1309A0);
 
 RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay(0x00AB5B20);
 

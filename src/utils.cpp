@@ -59,6 +59,64 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	return result;
 }
 
+NiPoint3 MatrixToEuler(NiMatrix33 &mat)
+{
+	// Thanks DavidJCobb
+	NiPoint3 output(0, 0, 0);
+
+	float fY = asin(((float)(SInt32)(-mat.arr[2] * 1000000)) / 1000000);
+	float fCY = cos(fY);
+	float fCYTest = ((float)(SInt32)(fCY * 100)) / 100;
+	float fTX, fTY;
+	if (fCY && abs(fCY) >= 0.00000011920929 && fCYTest) {
+		fTX = mat.arr[8] / fCY;
+		fTY = mat.arr[5] / fCY;
+		output.x = atan2(fTY, fTX);
+		fTX = mat.arr[0] / fCY;
+		fTY = mat.arr[1] / fCY;
+		output.z = atan2(fTY, fTX);
+	}
+	else {
+		output.x = 0;
+		fTX = mat.arr[4];
+		fTY = mat.arr[3];
+		output.z = -atan2(fTY, fTX);
+	}
+	output.y = fY;
+	return output;
+}
+
+NiMatrix33 EulerToMatrix(NiPoint3 euler)
+{
+	// Thanks DavidJCobb
+	NiMatrix33 output;
+	//
+	float _x = euler.x;
+	float _y = euler.y;
+	float _z = euler.z;
+
+	float fSinX = sin(_x);
+	float fSinY = sin(_y);
+	float fSinZ = sin(_z);
+	float fCosX = cos(_x);
+	float fCosY = cos(_y);
+	float fCosZ = cos(_z);
+	//
+	// Build the matrix.
+	//
+	output.data[0][0] = fCosY * fCosZ; // 1,1
+	output.data[0][1] = fCosY * fSinZ;
+	output.data[0][2] = -fSinY;
+	output.data[1][0] = fSinX * fSinY * fCosZ - fCosX * fSinZ; // 2,1
+	output.data[1][1] = fSinX * fSinY * fSinZ + fCosX * fCosZ;
+	output.data[1][2] = fSinX * fCosY;
+	output.data[2][0] = fCosX * fSinY * fCosZ + fSinX * fSinZ; // 3,1
+	output.data[2][1] = fCosX * fSinY * fSinZ - fSinX * fCosZ;
+	output.data[2][2] = fCosX * fCosY;
+	//
+	return output;
+};
+
 NiPoint3 RotateVectorByAxisAngle(NiPoint3 vector, NiPoint3 axis, float angle)
 {
 	// Rodrigues' rotation formula

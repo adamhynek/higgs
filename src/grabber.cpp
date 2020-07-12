@@ -891,10 +891,17 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 										UInt64 *vtbl = *((UInt64 **)actor);
 										UInt32 droppedObjHandle = *g_invalidRefHandle;
-										// TODO: For dropped weapons, make the drop pos / rot equal to where it was before
-										NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
-										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit //selectedObject.hitNode->m_worldTransform.pos + (dirObjToHand * 30);
-										((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
+										if (DYNAMIC_CAST(item, TESBoundObject, TESObjectWEAP)) {
+											// For dropped weapons, make the drop pos / rot equal to where it was before
+											NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
+											NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
+											((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
+										}
+										else {
+											NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
+											NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
+											((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
+										}
 
 										NiPointer<TESObjectREFR> droppedObj;
 										if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
@@ -903,15 +910,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 											selectedObject.handle = droppedObjHandle;
 											selectedObject.collidable = nullptr;
 											selectedObject.rigidBody = nullptr;
-
-											// Remove ownership so it doesn't count as stealing
-											BSExtraData *ownershipData = droppedObj->extraData.GetByType(kExtraData_Ownership);
-											if (ownershipData) {
-												ExtraOwnership *ownership = DYNAMIC_CAST(ownershipData, BSExtraData, ExtraOwnership);
-												if (ownership) {
-													ownership->owner = nullptr;
-												}
-											}
 										}
 									}
 								}
@@ -1048,6 +1046,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					if (collObj) {
 						selectedObject.rigidBody = collObj->body;
 						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
+
+						// Remove ownership so it doesn't count as stealing
+						BSExtraDataList_RemoveOwnership(&selectedObj->extraData);
 
 						state = State_Pulled;
 						pulledTime = g_currentFrameTime;
