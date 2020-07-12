@@ -43,7 +43,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 
 			ShaderReferenceEffect *shaderReference;
 			g_shaderReferenceToSet = &shaderReference;
-			EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, -1.0f);
+			EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, 60.0f);
 			g_shaderReferenceToSet = nullptr;
 			freeShader.shaderReference = shaderReference;
 
@@ -72,7 +72,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 
 				ShaderReferenceEffect *shaderReference;
 				g_shaderReferenceToSet = &shaderReference;
-				EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, -1.0f);
+				EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, 60.0f);
 				g_shaderReferenceToSet = nullptr;
 				freeShader.shaderReference = shaderReference;
 
@@ -90,7 +90,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 
 				ShaderReferenceEffect *shaderReference;
 				g_shaderReferenceToSet = &shaderReference;
-				EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, -1.0f);
+				EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, 60.0f);
 				g_shaderReferenceToSet = nullptr;
 				freeShader.shaderReference = shaderReference;
 
@@ -109,8 +109,8 @@ void StopShader(UInt32 objHandle, NiAVObject *node)
 		return;
 	}
 
-	bool isFirstShaderTheOne = isFirstShaderPlaying && (_shaders[0].handle == objHandle && _shaders[0].node == node);
-	bool isSecondShaderTheOne = isSecondShaderPlaying && (_shaders[1].handle == objHandle && _shaders[1].node == node);
+	bool isFirstShaderTheOne = _shaders[0].handle == objHandle && _shaders[0].node == node;
+	bool isSecondShaderTheOne = _shaders[1].handle == objHandle && _shaders[1].node == node;
 
 	if (!isFirstShaderTheOne && !isSecondShaderTheOne) {
 		// Neither shader is playing for the given refr / node
@@ -133,8 +133,10 @@ void StopShader(UInt32 objHandle, NiAVObject *node)
 
 	// Only one shader is on the refr / node. Stop the shader.
 	PlayingShader &neo = isFirstShaderTheOne ? _shaders[0] : _shaders[1];
-	neo.shaderReference->finished = true; // This is all it takes to stop the shader
-
+	if ((isFirstShaderTheOne && isFirstShaderPlaying) || (isSecondShaderTheOne && isSecondShaderPlaying)) {
+		neo.shaderReference->finished = true; // This is all it takes to stop the shader
+	}
+	
 	neo.shaderReference = nullptr;
 	neo.shader = nullptr;
 	neo.handle = *g_invalidRefHandle;

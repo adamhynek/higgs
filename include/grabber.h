@@ -34,17 +34,25 @@ struct Grabber
 		hkHalf savedAngularDamping;
 	};
 
-	enum State : UInt16
+	enum State : UInt8
 	{
-		IDLE, // not pointing at anything meaningful
-		SELECTED_FAR, // pointing at something meaningful that isn't close
-		SELECTED_CLOSE, // selected something that's next to the hand
-		SELECTION_LOCKED, // player has locked in their selection
-		PREPULL_ITEM, // player wants to pull a piece of armor off
-		PULLED, // player is pulling the object towards them
-		HELD_INIT, // held object is moving towards hand
-		HELD, // player is holding the object in their hand
-		HELD_BODY // player is holding a body
+		State_Idle, // not pointing at anything meaningful
+		State_SelectedFar, // pointing at something meaningful that isn't close
+		State_SelectedClose, // selected something that's next to the hand
+		State_SelectionLocked, // player has locked in their selection
+		State_PrepullItem , // player wants to pull a piece of armor off
+		State_Pulled, // player is pulling the object towards them
+		State_HeldInit, // held object is moving towards hand
+		State_Held, // player is holding the object in their hand
+		State_HeldBody // player is holding a body
+	};
+
+	enum InputState : UInt8
+	{
+		InputState_Idle,
+		InputState_Leeway,
+		InputState_Block,
+		InputState_Force
 	};
 
 	Grabber(BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset)
@@ -61,6 +69,7 @@ struct Grabber
 
 	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
+
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
 	void TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
@@ -76,9 +85,6 @@ struct Grabber
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	static const int numPrevVel = 5;
-
-	State state = IDLE;
-	State prevState = IDLE;
 
 	hkpBoxShape *handCollShape;
 	hkpRigidBodyCinfo *handCollCInfo;
@@ -120,17 +126,25 @@ struct Grabber
 	NiPoint3 prevHandDirectionRoomspace;
 
 	bool idleDesired = false;
-	bool unsheatheDesired = false;
 
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
-	double triggerPressedTime = 0; // Timestamp when the trigger was pressed
+	double grabRequestedTime = 0; // Timestamp when the trigger was pressed
 	double selectionLockedTime = 0; // Timestamp when the currently grabbed object (if there is one) was locked for selection
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 
+	State state = State_Idle;
+	State prevState = State_Idle;
+
+	InputState inputState = InputState_Idle;
+	bool inputTrigger = false;
+	bool inputGrip = false;
+
+	bool forceInput = false;
 	bool triggerDown = false; // Whether the trigger was down last frame
-	bool triggerPressed = false; // True on rising edge of trigger press
-	bool triggerReleased = false; // True on falling edge of trigger press
-	bool didTriggerPressGrabObject = false;
+	bool gripDown = false;
+	bool grabRequested = false; // True on rising edge of trigger press
+	bool releaseRequested = false; // True on falling edge of trigger press
+	bool wasObjectGrabbed = false;
 };

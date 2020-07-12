@@ -30,7 +30,8 @@ namespace Config {
 			options.handAdjust = VectorNormalized(handAdjust);
 		}
 		else {
-			_WARNING("Supplied hand adjust vector is too small - using default.");
+			_WARNING("Supplied hand adjust vector is too small");
+			return false;
 		}
 
 		if (!GetConfigOptionFloat("Settings", "CastRadius", &options.castRadius)) return false;
@@ -67,6 +68,9 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "MaxBodyHeight", &options.maxBodyHeight)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "InverseMassLimit", &options.inverseMassLimit)) return false;
+
+		if (!GetConfigOptionBool("Settings", "EnableTrigger", &options.enableTrigger)) return false;
+		if (!GetConfigOptionBool("Settings", "EnableGrip", &options.enableGrip)) return false;
 
 		return true;
 	}

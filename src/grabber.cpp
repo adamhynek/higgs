@@ -75,7 +75,7 @@ void Grabber::Deselect()
 	selectedObject.hitNode = nullptr;
 	selectedObject.hitForm = nullptr;
 
-	state = IDLE;
+	state = State_Idle;
 }
 
 
@@ -239,7 +239,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			handNode->m_worldTransform.Invert(inverseHand);
 			initialObjTransformHandSpace = inverseHand * desiredTransform;
 
-			state = HELD_BODY;
+			state = State_HeldBody;
 		}
 		else {
 			initialGrabbedObjWorldPosition = n->m_worldTransform.pos;
@@ -290,6 +290,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			handNode->m_worldTransform.Invert(inverseHand);
 			initialObjTransformHandSpace = inverseHand * desiredTransform;
 
+			// TODO: For e.g. books, I don't think we want the other parts of the book to collide with the hand that's holding it (with the other hand is fine). It can cause physics freakouts.
 			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
 
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -297,7 +298,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
-			state = HELD_INIT;
+			state = State_HeldInit;
 		}
 	}
 }
@@ -305,6 +306,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode)
 {
+	//_MESSAGE("%s:, pose update", name);
+	forceInput = false; // 'Consume' the forceinput event
+
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->loadedState || !player->loadedState->node)
 		return;
@@ -472,7 +476,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	float radiusBefore = sphereShape->getRadius();
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
-	if (state == IDLE || state == SELECTED_CLOSE || state == SELECTED_FAR) {
+	if (state == State_Idle || state == State_SelectedClose || state == State_SelectedFar) {
 
 		// See if there's something near the hand to pick up
 		NiPointer<TESObjectREFR> closestObj;
@@ -577,11 +581,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 				// select the new refr
 				Select(closestObj);
-				state = isSelectedNear ? SELECTED_CLOSE : SELECTED_FAR;
+				state = isSelectedNear ? State_SelectedClose : State_SelectedFar;
 			}
-			else if ((state == SELECTED_FAR && isSelectedNear) || (state == SELECTED_CLOSE && !isSelectedNear)) {
+			else if ((state == State_SelectedFar && isSelectedNear) || (state == State_SelectedClose && !isSelectedNear)) {
 				// Same object is selected, but it has become near/far enough to switch states
-				state = isSelectedNear ? SELECTED_CLOSE : SELECTED_FAR;
+				state = isSelectedNear ? State_SelectedClose : State_SelectedFar;
 			}
 
 			// Figure out which node we should be playing a shader on, and switch to that one
@@ -700,15 +704,17 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				if (selectedObject.handle != prevSelectedHandle) {
 					// New refr is selected. Stopping the shader for the previous ref is done earlier.
-					TESEffectShader *shader;
-					if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
-						shader = itemSelectedShaderOffLimits;
-					}
-					else {
-						shader = itemSelectedShader;
-					}
+					if (!selectedObject.isActor) {
+						TESEffectShader *shader;
+						if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+							shader = itemSelectedShaderOffLimits;
+						}
+						else {
+							shader = itemSelectedShader;
+						}
 
-					PlayShader(selectedObject.handle, nullptr, shader);
+						PlayShader(selectedObject.handle, nullptr, shader);
+					}
 
 					selectedObject.shaderNode = nullptr;
 					selectedObject.hitNode = nullptr;
@@ -727,7 +733,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							shader = itemSelectedShader;
 						}
 
-						PlayShader(selectedObject.handle, nullptr, shader);
+						//PlayShader(selectedObject.handle, nullptr, shader);
 
 						selectedObject.shaderNode = nullptr;
 						selectedObject.hitNode = nullptr;
@@ -744,7 +750,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			lastSelectedTime = g_currentFrameTime;
 		}
 
-		if (state == SELECTED_CLOSE || state == SELECTED_FAR) {
+		if (state == State_SelectedClose || state == State_SelectedFar) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
@@ -754,9 +760,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 
 				// Check if we should grab the object. If yes, grab and go to GRABBED
-				if (triggerPressed && g_currentFrameTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
+				if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 					if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-						if (state == SELECTED_FAR) {
+						if (state == State_SelectedFar) {
 							hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
 							NiPoint3 hkHandPos = handPos * havokWorldScale;
 							NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
@@ -771,39 +777,38 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							initialGrabbedObjRelativePosition = relObjPos;
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
-							state = SELECTION_LOCKED;
+							state = State_SelectionLocked;
 						}
-						else if (state == SELECTED_CLOSE) {
+						else if (state == State_SelectedClose) {
 							TransitionHeld(world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
-						triggerPressed = false;
-						didTriggerPressGrabObject = true; // This variable is not set to false when we push/pull the object
-						unsheatheDesired = false; // If we do something with the trigger (i.e. grab something), then we no longer want to even think of attempting an unsheathe in X seconds
+						grabRequested = false;
+						wasObjectGrabbed = true; // This variable is not set to false when we push/pull the object
 					}
 					else {
 						// Selected object no longer exists
-						state = IDLE;
+						state = State_Idle;
 					}
 				}
 			}
 			else {
-				state = IDLE;
+				state = State_Idle;
 			}
 		}
 
-		if (triggerReleased) {
-			triggerReleased = false;
-			didTriggerPressGrabObject = false;
+		if (releaseRequested) {
+			releaseRequested = false;
+			wasObjectGrabbed = false;
 		}
 	}
 
 	NiPointer<TESObjectREFR> selectedObj;
-	if (state == SELECTION_LOCKED || state == PULLED || state == PREPULL_ITEM || state == HELD_INIT || state == HELD || state == HELD_BODY) {
+	if (state == State_SelectionLocked || state == State_Pulled || state == State_PrepullItem || state == State_HeldInit || state == State_Held || state == State_HeldBody) {
 		// Check if we should drop the object. If yes, go to IDLE
-		if (triggerReleased) {
-			triggerReleased = false;
-			didTriggerPressGrabObject = false;
+		if (releaseRequested) {
+			releaseRequested = false;
+			wasObjectGrabbed = false;
 			idleDesired = true;
 		}
 		if (idleDesired || !allowGrab) {
@@ -811,8 +816,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				StopShader(selectedObject.handle, selectedObject.shaderNode);
-				if (state == HELD || state == HELD_INIT) {
+				if (state == State_Held || state == State_HeldInit) {
 					ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
 
 					UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->hkBody->m_uid);
@@ -840,7 +844,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						RemoveSavedCollision(selectedObject.rigidBody->hkBody->m_uid);
 					}
 				}
-				if (state == HELD_INIT || state == HELD || state == HELD_BODY) {
+				if (state == State_SelectionLocked) {
+					StopShader(selectedObject.handle, selectedObject.shaderNode);
+				}
+				if (state == State_HeldInit || state == State_Held || state == State_HeldBody) {
 					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(avgVelocityWorldspace * 1.1f * havokWorldScale); // Boost the velocity a bit
@@ -852,7 +859,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
 
-		if (state == SELECTION_LOCKED) {
+		if (state == State_SelectionLocked) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
@@ -865,7 +872,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					if (selectedObject.hitForm) {
 						// Trying to pull armor off a body
 
-						state = IDLE; // If things don't go right, fallback to idle
+						state = State_Idle; // If things don't go right, fallback to idle
 
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
@@ -891,7 +898,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 										NiPointer<TESObjectREFR> droppedObj;
 										if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-											state = PREPULL_ITEM;
+											state = State_PrepullItem;
 
 											selectedObject.handle = droppedObjHandle;
 											selectedObject.collidable = nullptr;
@@ -913,7 +920,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					else {
 						// Not trying to pull armor off a body
-						state = PULLED;
+						state = State_Pulled;
 
 						if (pulledObject.handle != selectedObject.handle) {
 							EndPull(); // Cancel an existing pulled collision reset if we're pulling something new
@@ -943,7 +950,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				bool isSelectedNear = false;
 
-				if (g_currentFrameTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
+				if (g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 					NiPointer<TESObjectREFR> closestObj;
 					NiPointer<bhkRigidBody> closestRigidBody;
 					hkContactPoint closestPoint;
@@ -1025,13 +1032,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			}
 			else {
 				// Grabbed object doesn't exist - go back to IDLE
-				state = IDLE;
+				state = State_Idle;
 			}
 		}
 
-		if (state == PREPULL_ITEM) {
+		if (state == State_PrepullItem) {
 			if (g_currentFrameTime - pulledTime > 0.5f) { // half a second for the item to spawn in
-				state = IDLE;
+				state = State_Idle;
 			}
 			else {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
@@ -1042,7 +1049,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.rigidBody = collObj->body;
 						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
 
-						state = PULLED;
+						state = State_Pulled;
 						pulledTime = g_currentFrameTime;
 
 						// Cancel an existing pulled collision reset
@@ -1060,7 +1067,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			}
 		}
 
-		if (state == PULLED) {
+		if (state == State_Pulled) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
@@ -1088,11 +1095,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				state = IDLE;
+				state = State_Idle;
 			}
 		}
 
-		if (state == HELD_INIT || state == HELD) {
+		if (state == State_HeldInit || state == State_Held) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
@@ -1101,19 +1108,20 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
 
-					if (state == HELD_INIT) {
+					if (state == State_HeldInit) {
 						if (g_currentFrameTime - grabbedTime > 1.0f) {
 							// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
-							state = HELD;
+							state = State_Held;
 						}
 						else {
+							// TODO: Interpolate not just pos, but rot too...?
 							NiPoint3 delta = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
 							if (VectorLengthSquared(delta) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos)) {
 								// If not close enough, move the object closer to the hand at some velocity
 								newTransform.pos = n->m_worldTransform.pos + delta;
 							}
 							else {
-								state = HELD;
+								state = State_Held;
 							}
 						}
 					}
@@ -1126,11 +1134,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				state = IDLE;
+				state = State_Idle;
 			}
 		}
 
-		if (state == HELD_BODY) {
+		if (state == State_HeldBody) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
@@ -1145,7 +1153,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				state = IDLE;
+				state = State_Idle;
 			}
 		}
 	}
@@ -1164,55 +1172,113 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState)
 {
 	bool triggerDownBefore = triggerDown;
+	bool gripDownBefore = gripDown;
+
+	//_MESSAGE("%s:, controller update", name);
+
+	uint64_t triggerMask = vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
+	uint64_t gripMask = vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_Grip);
 
 	// Check if the trigger is pressed
-	if (pControllerState->ulButtonPressed & vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger)) {
-		triggerDown = true;
+	triggerDown = Config::options.enableTrigger && (pControllerState->ulButtonPressed & triggerMask);
+	gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
 
-		if (!triggerDownBefore) {
-			triggerPressedTime = GetTime();
-			triggerPressed = true;
-			triggerReleased = false;
-		}
+	bool triggerRisingEdge = triggerDown && !triggerDownBefore;
+	bool triggerFallingEdge = !triggerDown && triggerDownBefore;
 
-		if (didTriggerPressGrabObject) {
-			// If something is grabbed, disable the trigger
-			pControllerState->ulButtonPressed &= ~vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
-		}
-		else {
-			if (!triggerDownBefore) {
-				// Trigger pressed but object is not grabbed (yet?). Do not unsheathe weapons until leeway time has passed.
+	bool gripRisingEdge = gripDown && !gripDownBefore;
+	bool gripFallingEdge = !gripDown && gripDownBefore;
+
+	if (inputState == InputState_Idle) {
+		if (triggerRisingEdge || gripRisingEdge) {
+			grabRequestedTime = GetTime();
+			grabRequested = true;
+
+			inputTrigger = false;
+			inputGrip = false;
+
+			if (triggerRisingEdge) {
 				PlayerCharacter *pc = *g_thePlayer;
 				if (pc && !pc->actorState.IsWeaponDrawn()) {
-					unsheatheDesired = true;
+					inputTrigger = true;
+				}
+			}
+
+			if (gripRisingEdge) {
+				inputGrip = true;
+			}
+
+			inputState = InputState_Leeway;
+		}
+	}
+	
+	if (inputState == InputState_Leeway) {
+		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
+			releaseRequested = true;
+			if (wasObjectGrabbed) {
+				inputState = InputState_Idle;
+			}
+			else {
+				forceInput = true;
+				inputState = InputState_Force;
+			}
+		}
+		else {
+			if (wasObjectGrabbed) {
+				inputState = InputState_Block;
+			}
+			else {
+				double currentTime = GetTime();
+				if (currentTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
+					if (triggerRisingEdge) {
+						PlayerCharacter *pc = *g_thePlayer;
+						if (pc && !pc->actorState.IsWeaponDrawn()) {
+							inputTrigger = true;
+						}
+					}
+					if (gripRisingEdge) {
+						inputGrip = true;
+					}
+
+					// Suppress trigger press
+					if (inputTrigger) {
+						pControllerState->ulButtonPressed &= ~triggerMask;
+					}
+					if (inputGrip) {
+						pControllerState->ulButtonPressed &= ~gripMask;
+					}
+				}
+				else {
+					// Leeway time has run out
+					forceInput = true;
+					inputState = InputState_Force;
 				}
 			}
 		}
 	}
-	else {
-		triggerDown = false;
 
-		if (triggerDownBefore) {
-			triggerReleased = true;
-			triggerPressed = false;
+	if (inputState == InputState_Block) {
+		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
+			releaseRequested = true;
+			inputState = InputState_Idle;
+		}
+		else {
+			pControllerState->ulButtonPressed &= ~triggerMask;
+			pControllerState->ulButtonPressed &= ~gripMask;
 		}
 	}
 
-	if (unsheatheDesired) {
-		double currentTime = GetTime();
-		if (currentTime - triggerPressedTime <= Config::options.triggerPressedLeewayTime) {
-			// Suppress trigger press
-			pControllerState->ulButtonPressed &= ~vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
+	if (inputState == InputState_Force) {
+		if (forceInput) {
+			if (inputTrigger) {
+				pControllerState->ulButtonPressed |= triggerMask;
+			}
+			if (inputGrip) {
+				pControllerState->ulButtonPressed |= gripMask;
+			}
 		}
 		else {
-			unsheatheDesired = false;
-			// Do the unsheathing, only if we didn't grab something
-			if (!didTriggerPressGrabObject) {
-				PlayerCharacter *pc = *g_thePlayer;
-				if (pc && !pc->actorState.IsWeaponDrawn()) {
-					pc->DrawSheatheWeapon(true);
-				}
-			}
+			inputState = InputState_Idle;
 		}
 	}
 }
@@ -1243,13 +1309,13 @@ bool Grabber::IsObjectPullable()
 
 bool Grabber::HasExclusiveObject() const
 {
-	return state == PULLED || state == SELECTION_LOCKED || state == HELD || state == HELD_INIT || state == HELD_BODY;
+	return state == State_Pulled || state == State_SelectionLocked || state == State_Held || state == State_HeldInit || state == State_HeldBody;
 }
 
 
 bool Grabber::ShouldDisplayRollover()
 {
-	if (state != SELECTED_CLOSE && state != PULLED && state != SELECTION_LOCKED && state != HELD && state != HELD_INIT) return false;
+	if (state != State_SelectedClose && state != State_Pulled && state != State_SelectionLocked && state != State_Held && state != State_HeldInit) return false;
 
 	return IsObjectPullable();
 }
@@ -1257,7 +1323,7 @@ bool Grabber::ShouldDisplayRollover()
 
 bool Grabber::IsSafeToClearSavedCollision()
 {
-	return (state != HELD && state != HELD_INIT && pulledObject.handle == *g_invalidRefHandle);
+	return (state != State_Held && state != State_HeldInit && pulledObject.handle == *g_invalidRefHandle);
 }
 
 
