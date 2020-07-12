@@ -55,8 +55,14 @@ struct Grabber
 		InputState_Force
 	};
 
-	Grabber(BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset)
-		: name(name), handNodeName(handNodeName), upperArmNodeName(upperArmNodeName), wandNodeName(wandNodeName), palmNodeName(palmNodeName), rolloverOffset(rolloverOffset)
+	Grabber(BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset, bool delayGripInput) :
+		name(name),
+		handNodeName(handNodeName),
+		upperArmNodeName(upperArmNodeName),
+		wandNodeName(wandNodeName),
+		palmNodeName(palmNodeName),
+		rolloverOffset(rolloverOffset),
+		delayGripInput(delayGripInput)
 	{
 		// We don't want to even attempt to call the constructors of these, but we do want space for them
 		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
@@ -90,6 +96,7 @@ struct Grabber
 	hkpRigidBodyCinfo *handCollCInfo;
 	hkpRigidBody *handCollBody;
 
+	const bool delayGripInput = false;
 	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;

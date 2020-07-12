@@ -1204,7 +1204,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				}
 			}
 
-			if (gripRisingEdge) {
+			if (gripRisingEdge && delayGripInput) {
 				inputGrip = true;
 			}
 
@@ -1236,7 +1236,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 							inputTrigger = true;
 						}
 					}
-					if (gripRisingEdge) {
+					if (gripRisingEdge && delayGripInput) {
 						inputGrip = true;
 					}
 

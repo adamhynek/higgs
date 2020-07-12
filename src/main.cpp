@@ -566,8 +566,15 @@ extern "C" {
 	{	// Called by SKSE to load this plugin
 		_MESSAGE("ForcePullVR loaded");
 
-		g_rightGrabber = new Grabber("R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 });
-		g_leftGrabber = new Grabber("L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 });
+		if (Config::ReadConfigOptions()) {
+			_MESSAGE("Successfully read config parameters");
+		}
+		else {
+			_WARNING("[WARNING] Failed to read config options. Using defaults instead.");
+		}
+
+		g_rightGrabber = new Grabber("R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 }, Config::options.delayRightGripInput);
+		g_leftGrabber = new Grabber("L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 }, Config::options.delayLeftGripInput);
 		if (!g_rightGrabber || !g_leftGrabber) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return false;
@@ -576,13 +583,6 @@ extern "C" {
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);
-
-		if (Config::ReadConfigOptions()) {
-			_MESSAGE("Successfully read config parameters");
-		}
-		else {
-			_WARNING("[WARNING] Failed to read config options. Using defaults instead.");
-		}
 
 		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
 		if (!g_vrInterface) {

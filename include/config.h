@@ -29,6 +29,8 @@ namespace Config {
 		bool ignoreWeaponChecks = false;
 		bool enableTrigger = true;
 		bool enableGrip = true;
+		bool delayRightGripInput = true;
+		bool delayLeftGripInput = false;
 
 		NiPoint3 handAdjust = { -0.018, -0.965, 0.261 };
 	};

@@ -72,6 +72,9 @@ namespace Config {
 		if (!GetConfigOptionBool("Settings", "EnableTrigger", &options.enableTrigger)) return false;
 		if (!GetConfigOptionBool("Settings", "EnableGrip", &options.enableGrip)) return false;
 
+		if (!GetConfigOptionBool("Settings", "DelayRightGripInput", &options.delayRightGripInput)) return false;
+		if (!GetConfigOptionBool("Settings", "DelayLeftGripInput", &options.delayLeftGripInput)) return false;
+
 		return true;
 	}
 
