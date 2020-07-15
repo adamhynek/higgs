@@ -9,7 +9,7 @@ RelocPtr<float> HAVOK_WORLD_SCALE_ADDR(0x15B78F4);
 // Even better, (*0x2FC60C0) + 0x78
 RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR(0x3000958);
 
-RelocPtr<UInt32 *> SELECTED_HANDLES(0x2FC60C0);
+RelocPtr<CrosshairPickData *> g_pickData(0x2FC60C0);
 
 RelocPtr<float> g_deltaTime(0x1EC8278);
 

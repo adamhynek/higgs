@@ -83,6 +83,7 @@ struct Grabber
 	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
+	void SetSelectedHandles(bool isLeftHanded);
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
@@ -155,3 +156,6 @@ struct Grabber
 	bool releaseRequested = false; // True on falling edge of trigger press
 	bool wasObjectGrabbed = false;
 };
+
+extern Grabber *g_rightGrabber;
+extern Grabber *g_leftGrabber;

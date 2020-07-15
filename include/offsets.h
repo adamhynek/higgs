@@ -10,6 +10,25 @@
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 
 
+struct CrosshairPickData
+{
+	UInt32 unk00;
+	UInt32 leftHandle1; // 04
+	UInt32 rightHandle1; // 08
+	UInt32 unk0C;
+	UInt32 leftHandle2; // 10
+	UInt32 rightHandle2; // 14
+	UInt32 unk18;
+	UInt32 leftHandle3; // 1C
+	UInt32 rightHandle3; // 20
+	UInt8 unk24[0x34 - 0x24];
+	float unk34[6];
+	UInt8 unk4C[0x78 - 0x4C];
+	NiPointer<bhkSimpleShapePhantom> sphere; // 78
+};
+static_assert(offsetof(CrosshairPickData, sphere) == 0x78);
+
+
 // Multiply skyrim coords by this to get havok coords
 // It's the number of meters per skyrim unit
 extern RelocPtr<float> HAVOK_WORLD_SCALE_ADDR;
@@ -17,7 +36,7 @@ extern RelocPtr<float> HAVOK_WORLD_SCALE_ADDR;
 // Address of pointer to bhkSimpleShapePhantom that tracks the right hand - more or less
 extern RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR;
 
-extern RelocPtr<UInt32 *> SELECTED_HANDLES;
+extern RelocPtr<CrosshairPickData *> g_pickData;
 
 extern RelocPtr<float> g_deltaTime;
 

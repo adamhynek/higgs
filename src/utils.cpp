@@ -933,6 +933,100 @@ namespace MathUtils
 		result.sqrDistance = DotProduct(diff, diff);
 		return result;
 	}
+
+	bool RayIntersectsTriangle(NiPoint3 rayOrigin,
+		NiPoint3 rayVector,
+		Triangle &triangle,
+		NiPoint3 &outIntersectionPoint,
+		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	{
+		const float EPSILON = 0.0000001;
+
+		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
+		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
+		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
+		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+
+		NiPoint3 edge1, edge2, h, s, q;
+		float a, f, u, v;
+		edge1 = vertex1 - vertex0;
+		edge2 = vertex2 - vertex0;
+		h = CrossProduct(rayVector, edge2);
+		a = DotProduct(edge1, h);
+		if (a > -EPSILON && a < EPSILON)
+			return false;    // This ray is parallel to this triangle.
+		f = 1.0 / a;
+		s = rayOrigin - vertex0;
+		u = f * DotProduct(s, h);
+		if (u < 0.0 || u > 1.0)
+			return false;
+		q = CrossProduct(s, edge1);
+		v = f * DotProduct(rayVector, q);
+		if (v < 0.0 || u + v > 1.0)
+			return false;
+		// At this stage we can compute t to find out where the intersection point is on the line.
+		float t = f * DotProduct(edge2, q);
+		if (t > EPSILON) // ray intersection
+		{
+			outIntersectionPoint = rayOrigin + rayVector * t;
+			return true;
+		}
+		else // This means that there is a line intersection but not a ray intersection.
+			return false;
+	}
+
+	bool GetClosestPointOnTriangleToLine(NiPoint3 rayOrigin,
+		NiPoint3 rayVector,
+		Triangle &triangle,
+		NiPoint3 &outIntersectionPoint,
+		float &outSqrDistance,
+		bool &outIntersects,
+		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	{
+		const float EPSILON = 0.0000001;
+
+		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
+		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
+		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
+		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+
+		bool intersects = true;
+		NiPoint3 edge1, edge2, h, s, q;
+		float a, f, u, v;
+		edge1 = vertex1 - vertex0;
+		edge2 = vertex2 - vertex0;
+		h = CrossProduct(rayVector, edge2);
+		a = DotProduct(edge1, h);
+		if (a > -EPSILON && a < EPSILON)
+			return false;    // This ray is parallel to this triangle.
+		f = 1.0 / a;
+		s = rayOrigin - vertex0;
+		u = f * DotProduct(s, h);
+		if (u < 0.0 || u > 1.0)
+			intersects = false;
+		q = CrossProduct(s, edge1);
+		v = f * DotProduct(rayVector, q);
+		if (v < 0.0 || u + v > 1.0)
+			intersects = false;
+
+		// At this stage we can compute t to find out where the intersection point is on the line.
+		float t = f * DotProduct(edge2, q);
+		if (t > EPSILON) // ray intersection
+		{
+			NiPoint3 intersectPoint = rayOrigin + rayVector * t;
+			Result result = GetClosestPointOnTriangle(intersectPoint, triangle, vertices, vertexStride, vertexPosOffset);
+			outIntersectionPoint = result.closest;
+			outSqrDistance = result.sqrDistance;
+			outIntersects = intersects;
+			return true;
+		}
+		else // This means that there is a line intersection but not a ray intersection.
+			return false;
+	}
 }
 
 
@@ -947,6 +1041,8 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 			// Probably skinned mesh. TODO: Deal with skinned mesh
 			return false;
 		}
+
+		_MESSAGE("%d tris", numTris);
 
 		auto tris = (Triangle *)geomData->triangles;
 		uintptr_t verts = (uintptr_t)(geomData->vertices);
@@ -1004,6 +1100,106 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 			auto child = node->m_children.m_data[i];
 			if (child) {
 				if (GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestNormal, closestDistanceSoFar)) {
+					success = true;
+				}
+			}
+		}
+		return success;
+	}
+	return false;
+}
+
+bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, NiPoint3 direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+{
+	BSTriShape *geom = root->GetAsBSTriShape();
+	if (geom) {
+		UInt16 numTris = geom->unk198;
+		UInt16 numVerts = geom->numVertices;
+		BSGeometryData *geomData = geom->geometryData;
+		if (!geomData) {
+			// Probably skinned mesh. TODO: Deal with skinned mesh
+			return false;
+		}
+
+		_MESSAGE("%d tris", numTris);
+
+		auto tris = (Triangle *)geomData->triangles;
+		uintptr_t verts = (uintptr_t)(geomData->vertices);
+
+		UInt64 vertexDesc = geom->vertexDesc;
+		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+
+		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
+			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+			NiTransform inverseTransform;
+			geom->m_worldTransform.Invert(inverseTransform);
+			NiPoint3 pointInNodeSpace = inverseTransform * point;
+			NiPoint3 directionInNodeSpace = geom->m_worldTransform.rot.Transpose() * direction;
+
+			int closestTri = -1;
+			NiPoint3 closestTriPos;
+			float closestDistance = *closestDistanceSoFar;
+			bool doesClosestPointIntersect = false;
+
+			for (int i = 0; i < numTris; i++) {
+				Triangle tri = tris[i];
+				// get closest point on triangle to given point
+				NiPoint3 intersectionPoint;
+				float distance;
+				bool intersects;
+				bool isValid = MathUtils::GetClosestPointOnTriangleToLine(pointInNodeSpace, directionInNodeSpace, tri, intersectionPoint, distance, intersects, verts, vertexSize, posOffset);
+				if (!isValid) {
+					// TODO: Handle this properly (i.e. what about meshes that do not have a single tri for which it _is_ valid?)
+					continue;
+				}
+				if (intersects) {
+					float distanceFromOrigin = VectorLengthSquared(intersectionPoint - pointInNodeSpace);
+					if (!doesClosestPointIntersect || distanceFromOrigin < closestDistance) {
+						closestDistance = distanceFromOrigin;
+						closestTriPos = intersectionPoint;
+						closestTri = i;
+						doesClosestPointIntersect = true;
+					}
+					
+				}
+				else if (!doesClosestPointIntersect) {
+					if (distance < closestDistance) {
+						closestDistance = distance;
+						closestTriPos = intersectionPoint; // not actually intersection
+						closestTri = i;
+					}
+				}
+			}
+			if (doesClosestPointIntersect) _MESSAGE("intersects");
+
+			if (closestTri >= 0) {
+				*closestDistanceSoFar = closestDistance;
+				*closestPos = geom->m_worldTransform * closestTriPos;
+
+				Triangle closestTriangle = tris[closestTri];
+				uintptr_t vert = (verts + closestTriangle.vertexIndices[0] * vertexSize);
+				NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				vert = (verts + closestTriangle.vertexIndices[1] * vertexSize);
+				NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				vert = (verts + closestTriangle.vertexIndices[2] * vertexSize);
+				NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+
+				*closestNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+
+				return true;
+			}
+		}
+		return false;
+	}
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		bool success = false;
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				if (GetClosestPointOnGraphicsGeometryToLine(child, point, direction, closestPos, closestNormal, closestDistanceSoFar)) {
 					success = true;
 				}
 			}
