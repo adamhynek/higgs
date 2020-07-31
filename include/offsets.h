@@ -31,10 +31,10 @@ static_assert(offsetof(CrosshairPickData, sphere) == 0x78);
 
 // Multiply skyrim coords by this to get havok coords
 // It's the number of meters per skyrim unit
-extern RelocPtr<float> HAVOK_WORLD_SCALE_ADDR;
+extern RelocPtr<float> g_havokWorldScale;
 
 // Address of pointer to bhkSimpleShapePhantom that tracks the right hand - more or less
-extern RelocPtr<bhkSimpleShapePhantom *> SPHERE_SHAPE_ADDR;
+extern RelocPtr<bhkSimpleShapePhantom *> g_pickSphere;
 
 extern RelocPtr<CrosshairPickData *> g_pickData;
 

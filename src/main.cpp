@@ -32,6 +32,7 @@
 #include "shaders.h"
 #include "offsets.h"
 #include "hooks.h"
+#include "vrikinterface001.h"
 
 
 // SKSE globals
@@ -40,6 +41,8 @@ static SKSEMessagingInterface *g_messaging = nullptr;
 
 SKSEVRInterface *g_vrInterface = nullptr;
 SKSETrampolineInterface *g_trampoline = nullptr;
+
+vrikPluginApi::IVrikInterface001 * g_vrikInterface;
 
 NiMatrix33 g_rolloverRotation; // Set on plugin load
 
@@ -187,6 +190,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					rightWandNode->RemoveChild(rolloverNode);
 				}
 				g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
+				g_leftGrabber->SetSelectedHandles(isLeftHanded);
 			}
 			else {
 				NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -197,6 +201,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					leftWandNode->RemoveChild(rolloverNode);
 				}
 				g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
+				g_rightGrabber->SetSelectedHandles(isLeftHanded);
 			}
 		}
 		else if (displayRight) {
@@ -208,6 +213,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				leftWandNode->RemoveChild(rolloverNode);
 			}
 			g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
+			g_rightGrabber->SetSelectedHandles(isLeftHanded);
 		}
 		else if (displayLeft) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -218,6 +224,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				rightWandNode->RemoveChild(rolloverNode);
 			}
 			g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
+			g_leftGrabber->SetSelectedHandles(isLeftHanded);
 		}
 	}
 	else {
@@ -335,6 +342,10 @@ extern "C" {
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoadGame || msg->type == SKSEMessagingInterface::kMessage_NewGame) {
 				_MESSAGE("SKSE PostLoadGame or NewGame message received, type: %d", msg->type);
 				g_isLoaded = true;
+			}
+			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
+				// Get the VRIK plugin API
+				vrikPluginApi::IVrikInterface001 * iface = vrikPluginApi::getVrikInterface001(g_pluginHandle, g_messaging);
 			}
 		}
 	}

@@ -198,6 +198,7 @@
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\shaders.cpp" />
     <ClCompile Include="src\utils.cpp" />
+    <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\config.h" />
@@ -211,6 +212,7 @@
     <ClInclude Include="include\shaders.h" />
     <ClInclude Include="include\utils.h" />
     <ClInclude Include="include\version.h" />
+    <ClInclude Include="include\vrikinterface001.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\skse64\skse64.vcxproj">

@@ -17,6 +17,8 @@ namespace Config {
 		float pushPullSpeedThreshold = 90.0f;
 		float pullAngularSpeedThreshold = 9.0f;
 		float grabStartSpeed = 250.0f;
+		float grabLateralWeight = 0.65f;
+		float grabDirectionalWeight = 0.35f;
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		bool ignoreWeaponChecks = false;

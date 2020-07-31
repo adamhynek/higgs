@@ -44,7 +44,7 @@ public:
 	{
 		if (m_pntr)
 		{
-			hkReferencedObject_addReference(m_pntr);
+			hkReferencedObject_removeReference(m_pntr);
 		}
 		m_pntr = nullptr;
 	}

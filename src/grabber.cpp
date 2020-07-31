@@ -11,6 +11,7 @@
 #include "config.h"
 #include "menu_checker.h"
 #include "shaders.h"
+#include "vrikinterface001.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
@@ -238,6 +239,25 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				// We've got a point on the graphics geometry
 				ptPos = triPos * havokWorldScale;
 
+				static BSFixedString startFingerJoint("NPC R Finger10 [RF10]");
+				static BSFixedString midFingerJoint("NPC R Finger11 [RF11]");
+				static BSFixedString endFingerJoint("NPC R Finger12 [RF12]");
+				PlayerCharacter *player = *g_thePlayer;
+				NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&startFingerJoint.data);
+				NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&midFingerJoint.data);
+				NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&endFingerJoint.data);
+				if (startFinger && midFinger && endFinger) {
+					NiPoint3 handToPt = triPos - hkPalmNodePos / havokWorldScale;
+
+					NiPoint3 startFingerPos = startFinger->m_worldTransform.pos + handToPt;
+					NiPoint3 midFingerPos = midFinger->m_worldTransform.pos + handToPt;
+					NiPoint3 endFingerPos = endFinger->m_worldTransform.pos + handToPt;
+
+					float closestAngle = (std::numeric_limits<float>::max)();
+					NiPoint3 intersection, normal;
+					bool intersects = GetCircleIntersectionOnGraphicsGeometry(selectedObj->loadedState->node, startFingerPos, midFingerPos, endFingerPos, &intersection, &normal, &closestAngle);
+				}
+
 				// TODO: Using the graphics triangle normal is way too noisy. If going this route, need to either put a max on the angle we're willing to rotate by (easy),
 				// or figure out some smoothing algorithm over adjacent triangles or something, but we don't _always_ want to smooth out high frequency edges... (not gonna happen)
 				float angleBetweenPalmAndNormal = acosf(-DotProduct(castDirection, triNormal));
@@ -340,7 +360,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		return;
 	}
 
-	float havokWorldScale = *HAVOK_WORLD_SCALE_ADDR;
+	float havokWorldScale = *g_havokWorldScale;
 	
 	if (world->world != handCollBody->m_world) {
 		if (handCollBody->m_world) {
@@ -450,7 +470,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		EndPull();
 	}
 
-	bhkSimpleShapePhantom *sphere = *SPHERE_SHAPE_ADDR;
+	bhkSimpleShapePhantom *sphere = *g_pickSphere;
 	if (!sphere)
 		return;
 
@@ -1169,6 +1189,27 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	// Check if the trigger is pressed
 	triggerDown = Config::options.enableTrigger && (pControllerState->ulButtonPressed & triggerMask);
 	gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
+
+	bool isLeft = std::string("L") == name.data;
+	float finger0Pos = g_vrikInterface->getFingerPos(isLeft, 0);
+	float finger1Pos = g_vrikInterface->getFingerPos(isLeft, 1);
+	float finger3Pos = g_vrikInterface->getFingerPos(isLeft, 3);
+	float finger4Pos = g_vrikInterface->getFingerPos(isLeft, 4);
+
+	float finger2Pos;
+	if (triggerDown && gripDown) {
+		finger2Pos = 0;
+	}
+	else if (triggerDown) {
+		finger2Pos = 0.5;
+	}
+	else if (gripDown) {
+		finger2Pos = 0.75;
+	}
+	else {
+		finger2Pos = 1;
+	}
+	g_vrikInterface->setFingerRange(isLeft, finger0Pos, finger0Pos, finger1Pos, finger1Pos, finger2Pos, finger2Pos, finger3Pos, finger3Pos, finger4Pos, finger4Pos);
 
 	bool triggerRisingEdge = triggerDown && !triggerDownBefore;
 	bool triggerFallingEdge = !triggerDown && triggerDownBefore;

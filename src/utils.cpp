@@ -12,6 +12,7 @@
 
 #include "utils.h"
 #include "offsets.h"
+#include "config.h"
 
 
 ITimer g_timer;
@@ -1015,20 +1016,237 @@ namespace MathUtils
 
 		// At this stage we can compute t to find out where the intersection point is on the line.
 		float t = f * DotProduct(edge2, q);
-		if (t > EPSILON) // ray intersection
-		{
+		//if (t > EPSILON) // ray intersection
+		//{
 			NiPoint3 intersectPoint = rayOrigin + rayVector * t;
 			Result result = GetClosestPointOnTriangle(intersectPoint, triangle, vertices, vertexStride, vertexPosOffset);
 			outIntersectionPoint = result.closest;
 			outSqrDistance = result.sqrDistance;
 			outIntersects = intersects;
 			return true;
+		//}
+		//else // This means that there is a line intersection but not a ray intersection.
+		//	return false;
+	}
+
+	bool LinePlaneIntersection(NiPoint3& contact, NiPoint3 ray, NiPoint3 rayOrigin,
+		NiPoint3 normal, NiPoint3 coord) {
+		// get d value
+		float d = DotProduct(normal, coord);
+
+		float normalDotRay = DotProduct(normal, ray);
+		if (normalDotRay < 0.0000001) {
+			return false; // No intersection, the line is parallel to the plane
 		}
-		else // This means that there is a line intersection but not a ray intersection.
+
+		// Compute the X value for the directed line ray intersecting the plane
+		float x = (d - DotProduct(normal, rayOrigin)) / normalDotRay;
+
+		// output contact point
+		contact = rayOrigin + ray * x; //Make sure your ray vector is normalized
+		return true;
+	}
+
+	bool PlaneIntersectsLineSegment(NiPoint3 planePoint, NiPoint3 planeNormal, NiPoint3 segmentStart, NiPoint3 segmentFinish, NiPoint3 &outPoint)
+	{
+		NiPoint3 edge = segmentFinish - segmentStart;
+		float edgeLength = VectorLength(edge);
+		NiPoint3 ray = edgeLength ? edge / edgeLength : NiPoint3();
+		
+		// get d value
+		float d = DotProduct(planeNormal, planePoint);
+
+		float normalDotRay = DotProduct(planeNormal, ray);
+		if (abs(normalDotRay) < 0.0000001) {
+			return false; // No intersection, the line is parallel to the plane
+		}
+
+		// Compute the X value for the directed line ray intersecting the plane
+		float x = (d - DotProduct(planeNormal, segmentStart)) / normalDotRay;
+
+		// output contact point
+		if (x < 0 || x > edgeLength) {
+			// intersection point is not on the line segment
 			return false;
+		}
+
+		outPoint = segmentStart + ray * x;
+		return true;
+	}
+
+	bool CircleIntersectsTriangle(NiPoint3 circleCenter,
+		NiPoint3 circleNormal,
+		float circleRadius,
+		Triangle &triangle,
+		NiPoint3 &outIntersectionPoint,
+		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	{
+		const float EPSILON = 0.0000001;
+
+		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
+		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
+		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
+		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+
+		NiPoint3 edge1Intersection, edge2Intersection, edge3Intersection;
+		bool edge1Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex0, vertex1, edge1Intersection);
+		bool edge2Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex0, vertex2, edge2Intersection);
+		bool edge3Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex1, vertex2, edge3Intersection);
+
+		int numIntersections = edge1Intersects + edge2Intersects + edge3Intersects;
+		if (numIntersections < 2) {
+			// TODO: Could check after checking only 2 edges to return earlier
+			return false;
+		}
+
+		NiPoint3 d, p;
+		float edgeLength;
+		if (edge1Intersects && edge2Intersects) {
+			NiPoint3 edge = edge2Intersection - edge1Intersection;
+			edgeLength = VectorLength(edge);
+			d = edgeLength ? edge / edgeLength : NiPoint3();
+			p = edge1Intersection - circleCenter;			
+		}
+		else if (edge1Intersects && edge3Intersects) {
+			NiPoint3 edge = edge3Intersection - edge1Intersection;
+			edgeLength = VectorLength(edge);
+			d = edgeLength ? edge / edgeLength : NiPoint3();
+			p = edge1Intersection - circleCenter;
+		}
+		else if (edge2Intersects && edge3Intersects) {
+			NiPoint3 edge = edge3Intersection - edge2Intersection;
+			edgeLength = VectorLength(edge);
+			d = edgeLength ? edge / edgeLength : NiPoint3();
+			p = edge2Intersection - circleCenter;
+		}
+		else {
+			// Impossible
+			ASSERT(false);
+			return false;
+		}
+
+		float pDotd = DotProduct(p, d);
+		float dLength2 = VectorLengthSquared(d);
+		float pLength2 = VectorLengthSquared(p);
+		float discriminant = pDotd * pDotd - dLength2 * (pLength2 - circleRadius * circleRadius);
+		if (discriminant < 0) {
+			return false;
+		}
+		float t1 = (-pDotd + sqrtf(discriminant)) / dLength2;
+		float t2 = (-pDotd - sqrtf(discriminant)) / dLength2;
+
+		if (t1 >= 0 && t1 <= edgeLength) {
+			// t1 is on the segment
+			outIntersectionPoint = circleCenter + p + d * t1;
+			return true;
+		}
+		if (t2 >= 0 && t2 <= edgeLength) {
+			// t2 is on the segment
+			outIntersectionPoint = circleCenter + p + d * t2;
+			return true;
+		}
+
+		return false;
 	}
 }
 
+
+bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+{
+	BSTriShape *geom = root->GetAsBSTriShape();
+	if (geom) {
+		UInt16 numTris = geom->unk198;
+		UInt16 numVerts = geom->numVertices;
+		BSGeometryData *geomData = geom->geometryData;
+		if (!geomData) {
+			// Probably skinned mesh. TODO: Deal with skinned mesh
+			return false;
+		}
+
+		_MESSAGE("%d tris", numTris);
+
+		auto tris = (Triangle *)geomData->triangles;
+		uintptr_t verts = (uintptr_t)(geomData->vertices);
+
+		UInt64 vertexDesc = geom->vertexDesc;
+		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+
+		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
+			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+			NiTransform inverseTransform;
+			geom->m_worldTransform.Invert(inverseTransform);
+			NiPoint3 centerInNodeSpace = inverseTransform * center;
+			NiPoint3 point1InNodeSpace = inverseTransform * point1;
+			NiPoint3 point2InNodeSpace = inverseTransform * point2;
+
+			float radius = VectorLength(point2InNodeSpace - centerInNodeSpace);
+			_MESSAGE("r: %.2f", radius);
+
+			NiPoint3 centerToPoint1 = point1InNodeSpace - centerInNodeSpace;
+			NiPoint3 centerToPoint2 = point2InNodeSpace - centerInNodeSpace;
+			NiPoint3 centerToPoint2Normalized = VectorNormalized(centerToPoint2);
+			NiPoint3 normalInNodeSpace = VectorNormalized(CrossProduct(centerToPoint1, centerToPoint2));
+
+			int closestTri = -1;
+			NiPoint3 closestTriPos;
+			float closestDistance = *closestDistanceSoFar;
+
+			for (int i = 0; i < numTris; i++) {
+				Triangle tri = tris[i];
+				// get closest point on triangle to given point
+				NiPoint3 intersectionPoint;
+				bool intersects = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalInNodeSpace, radius, tri, intersectionPoint, verts, vertexSize, posOffset);
+				if (!intersects) {
+					continue;
+				}
+				NiPoint3 centerToIntersect = intersectionPoint - centerInNodeSpace;
+				float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), centerToPoint2Normalized));
+				_MESSAGE("angle: %.2f", angle * 57.2958);
+				if (angle < closestDistance) {
+					closestDistance = angle;
+					closestTriPos = intersectionPoint;
+					closestTri = i;
+				}
+			}
+
+			if (closestTri >= 0) {
+				*closestDistanceSoFar = closestDistance;
+				*closestPos = geom->m_worldTransform * closestTriPos;
+
+				Triangle closestTriangle = tris[closestTri];
+				uintptr_t vert = (verts + closestTriangle.vertexIndices[0] * vertexSize);
+				NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				vert = (verts + closestTriangle.vertexIndices[1] * vertexSize);
+				NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				vert = (verts + closestTriangle.vertexIndices[2] * vertexSize);
+				NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+
+				*closestNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+
+				return true;
+			}
+		}
+		return false;
+	}
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		bool success = false;
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				if (GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, closestPos, closestNormal, closestDistanceSoFar)) {
+					success = true;
+				}
+			}
+		}
+		return success;
+	}
+	return false;
+}
 
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
@@ -1141,38 +1359,29 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, N
 			int closestTri = -1;
 			NiPoint3 closestTriPos;
 			float closestDistance = *closestDistanceSoFar;
-			bool doesClosestPointIntersect = false;
+
+			float lateralWeight = Config::options.grabLateralWeight;
+			float directionalWeight = Config::options.grabDirectionalWeight;
 
 			for (int i = 0; i < numTris; i++) {
 				Triangle tri = tris[i];
-				// get closest point on triangle to given point
-				NiPoint3 intersectionPoint;
-				float distance;
+				// get closest point on the triangle to given ray starting at point in direction
+				NiPoint3 closestPoint;
+				float closestDistSquared;
 				bool intersects;
-				bool isValid = MathUtils::GetClosestPointOnTriangleToLine(pointInNodeSpace, directionInNodeSpace, tri, intersectionPoint, distance, intersects, verts, vertexSize, posOffset);
-				if (!isValid) {
-					// TODO: Handle this properly (i.e. what about meshes that do not have a single tri for which it _is_ valid?)
-					continue;
-				}
-				if (intersects) {
-					float distanceFromOrigin = VectorLengthSquared(intersectionPoint - pointInNodeSpace);
-					if (!doesClosestPointIntersect || distanceFromOrigin < closestDistance) {
-						closestDistance = distanceFromOrigin;
-						closestTriPos = intersectionPoint;
-						closestTri = i;
-						doesClosestPointIntersect = true;
-					}
-					
-				}
-				else if (!doesClosestPointIntersect) {
-					if (distance < closestDistance) {
-						closestDistance = distance;
-						closestTriPos = intersectionPoint; // not actually intersection
-						closestTri = i;
-					}
+				MathUtils::GetClosestPointOnTriangleToLine(pointInNodeSpace, directionInNodeSpace, tri, closestPoint, closestDistSquared, intersects, verts, vertexSize, posOffset);
+				NiPoint3 pointToClosest = closestPoint - pointInNodeSpace;
+				NiPoint3 pointToClosestAlongDirection = directionInNodeSpace * DotProduct(pointToClosest, directionInNodeSpace);
+				float directionalDistance = VectorLength(pointToClosestAlongDirection);
+				float lateralDistance = VectorLength(pointToClosest - pointToClosestAlongDirection);
+				float distance = directionalWeight * directionalDistance + lateralWeight * lateralDistance;
+				if (distance < closestDistance) {
+					closestDistance = distance;
+					//closestTriPos = result.closest;
+					closestTriPos = closestPoint;
+					closestTri = i;
 				}
 			}
-			if (doesClosestPointIntersect) _MESSAGE("intersects");
 
 			if (closestTri >= 0) {
 				*closestDistanceSoFar = closestDistance;
