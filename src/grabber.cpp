@@ -76,7 +76,7 @@ void Grabber::Deselect()
 	selectedObject.hitNode = nullptr;
 	selectedObject.hitForm = nullptr;
 
-	state = State_Idle;
+	state = State::Idle;
 }
 
 
@@ -221,7 +221,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			handNode->m_worldTransform.Invert(inverseHand);
 			initialObjTransformHandSpace = inverseHand * desiredTransform;
 
-			state = State_HeldBody;
+			state = State::HeldBody;
 		}
 		else {
 			initialGrabbedObjWorldPosition = n->m_worldTransform.pos;
@@ -231,7 +231,6 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			double t = GetTime();
 			bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, castDirection, &triPos, &triNormal, &closestDist);
 			//bool success = GetClosestPointOnGraphicsGeometry(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, &triPos, &triNormal, &closestDist);
-			_MESSAGE("%.3f", (GetTime() - t) * 1000);
 
 			NiTransform desiredTransform = n->m_worldTransform;
 
@@ -239,29 +238,91 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				// We've got a point on the graphics geometry
 				ptPos = triPos * havokWorldScale;
 
-				static BSFixedString startFingerJoint("NPC R Finger10 [RF10]");
-				static BSFixedString midFingerJoint("NPC R Finger11 [RF11]");
-				static BSFixedString endFingerJoint("NPC R Finger12 [RF12]");
 				PlayerCharacter *player = *g_thePlayer;
-				NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&startFingerJoint.data);
-				NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&midFingerJoint.data);
-				NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&endFingerJoint.data);
-				if (startFinger && midFinger && endFinger) {
-					NiPoint3 handToPt = triPos - hkPalmNodePos / havokWorldScale;
 
-					NiPoint3 startFingerPos = startFinger->m_worldTransform.pos + handToPt;
-					NiPoint3 midFingerPos = midFinger->m_worldTransform.pos + handToPt;
-					NiPoint3 endFingerPos = endFinger->m_worldTransform.pos + handToPt;
+				float fingerRanges[5];
+				float fingerAngles[5];
+				for (int i = 0; i < 5; i++) {
+					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][0].data);
+					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][1].data);
+					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][2].data);
 
-					float closestAngle = (std::numeric_limits<float>::max)();
-					NiPoint3 intersection, normal;
-					bool intersects = GetCircleIntersectionOnGraphicsGeometry(selectedObj->loadedState->node, startFingerPos, midFingerPos, endFingerPos, &intersection, &normal, &closestAngle);
+					if (startFinger && midFinger && endFinger) {
+						NiPoint3 handToPt = triPos - hkPalmNodePos / havokWorldScale;
+
+						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos + handToPt;
+						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos + handToPt;
+						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos + handToPt;
+
+						NiPoint3 zeroAngleVectorWorldspace, normalWorldspace;
+						if (i == 0) {
+							// Thumb
+							NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
+							if (isLeft) {
+								zeroAngleVectorHandspace.x *= -1; // x axis is flipped for left hand
+							}
+							zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
+
+							NiPoint3 normalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm
+							if (isLeft) {
+								normalHandspace.y *= -1;
+								normalHandspace.z *= -1;
+							}
+							normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+						}
+						else {
+							// Not thumb
+							NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 }); // okay for both hands since x is zero (x is flipped for each hand)
+							zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
+
+							NiPoint3 normalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up
+							normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+						}
+
+						float closestAngle = (std::numeric_limits<float>::max)();
+						NiPoint3 intersection, normal;
+						bool intersects = GetCircleIntersectionOnGraphicsGeometry(selectedObj->loadedState->node, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace, &intersection, &normal, &closestAngle);
+						if (intersects) {
+							NiPoint3 centerToIntersect = intersection - startFingerPos;
+							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorWorldspace));
+							if (DotProduct(normalWorldspace, CrossProduct(zeroAngleVectorWorldspace, centerToIntersect)) < 0) {
+								// Positive angles are those which curl the finger
+								angle *= -1;
+							}
+							fingerAngles[i] = angle;
+
+							float degrees = angle * 57.2958;
+							_MESSAGE("%d angle: %.2f", i, degrees);
+
+							if (i == 0) {
+								// Thumb's got it a bit different
+								fingerRanges[i] = 1.0f - max(0, min(1, (degrees / 180.0f) / 0.75f));
+							}
+							else {
+								fingerRanges[i] = 1.0f - max(0, min(1, degrees / 180.0f));
+							}
+						}
+						else {
+							// No finger intersection, so just close it completely
+							fingerRanges[i] = 0;
+						}
+					}
 				}
+				float smallestAngle = std::reduce(&fingerAngles[1], &fingerAngles[4], (std::numeric_limits<float>::max)(), std::fminf);
+				if (smallestAngle < 0) {
+					// Derotate the object to not have fingers clip through it
+					// TODO: Compute thumb angle _after_ derotating, not with the other fingers
+				}
+
+				g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
+				//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
+
+				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
 
 				// TODO: Using the graphics triangle normal is way too noisy. If going this route, need to either put a max on the angle we're willing to rotate by (easy),
 				// or figure out some smoothing algorithm over adjacent triangles or something, but we don't _always_ want to smooth out high frequency edges... (not gonna happen)
 				float angleBetweenPalmAndNormal = acosf(-DotProduct(castDirection, triNormal));
-				if (angleBetweenPalmAndNormal < Config::options.normalSnapAngle) {
+				if (angleBetweenPalmAndNormal < 0){//Config::options.normalSnapAngle) {
 					NiPoint3 axis = CrossProduct(castDirection, triNormal);
 					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
 					NiPoint3 triToCenter = n->m_worldTransform.pos - triPos;
@@ -302,7 +363,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
-			state = State_HeldInit;
+			state = State::HeldInit;
 		}
 	}
 }
@@ -485,7 +546,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	float radiusBefore = sphereShape->getRadius();
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
-	if (state == State_Idle || state == State_SelectedClose || state == State_SelectedFar) {
+	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar) {
 
 		// See if there's something near the hand to pick up
 		NiPointer<TESObjectREFR> closestObj;
@@ -587,11 +648,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 				// select the new refr
 				Select(closestObj);
-				state = isSelectedNear ? State_SelectedClose : State_SelectedFar;
+				state = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 			}
-			else if ((state == State_SelectedFar && isSelectedNear) || (state == State_SelectedClose && !isSelectedNear)) {
+			else if ((state == State::SelectedFar && isSelectedNear) || (state == State::SelectedClose && !isSelectedNear)) {
 				// Same object is selected, but it has become near/far enough to switch states
-				state = isSelectedNear ? State_SelectedClose : State_SelectedFar;
+				state = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 			}
 
 			// Figure out which node we should be playing a shader on, and switch to that one
@@ -756,7 +817,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			lastSelectedTime = g_currentFrameTime;
 		}
 
-		if (state == State_SelectedClose || state == State_SelectedFar) {
+		if (state == State::SelectedClose || state == State::SelectedFar) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
@@ -768,7 +829,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				// Check if we should grab the object. If yes, grab and go to GRABBED
 				if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 					if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-						if (state == State_SelectedFar) {
+						if (state == State::SelectedFar) {
 							hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
 							NiPoint3 hkHandPos = handPos * havokWorldScale;
 							NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
@@ -783,9 +844,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							initialGrabbedObjRelativePosition = relObjPos;
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
-							state = State_SelectionLocked;
+							state = State::SelectionLocked;
 						}
-						else if (state == State_SelectedClose) {
+						else if (state == State::SelectedClose) {
 							TransitionHeld(world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
@@ -794,12 +855,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					else {
 						// Selected object no longer exists
-						state = State_Idle;
+						state = State::Idle;
 					}
 				}
 			}
 			else {
-				state = State_Idle;
+				state = State::Idle;
 			}
 		}
 
@@ -810,7 +871,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 
 	NiPointer<TESObjectREFR> selectedObj;
-	if (state == State_SelectionLocked || state == State_Pulled || state == State_PrepullItem || state == State_HeldInit || state == State_Held || state == State_HeldBody) {
+	if (state == State::SelectionLocked || state == State::Pulled || state == State::PrepullItem || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 		// Check if we should drop the object. If yes, go to IDLE
 		if (releaseRequested) {
 			releaseRequested = false;
@@ -822,7 +883,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				if (state == State_Held || state == State_HeldInit) {
+				if (state == State::Held || state == State::HeldInit) {
+					g_vrikInterface->restoreFingers(isLeft);
+
 					ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
 
 					UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->hkBody->m_uid);
@@ -850,10 +913,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						RemoveSavedCollision(selectedObject.rigidBody->hkBody->m_uid);
 					}
 				}
-				if (state == State_SelectionLocked) {
+				if (state == State::SelectionLocked) {
 					StopShader(selectedObject.handle, selectedObject.shaderNode);
 				}
-				if (state == State_HeldInit || state == State_Held || state == State_HeldBody) {
+				if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(avgVelocityWorldspace * 1.1f * havokWorldScale); // Boost the velocity a bit
@@ -865,7 +928,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		NiPoint3 hkHandPos = handPos * havokWorldScale;
 
-		if (state == State_SelectionLocked) {
+		if (state == State::SelectionLocked) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
@@ -878,7 +941,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					if (selectedObject.hitForm) {
 						// Trying to pull armor off a body
 
-						state = State_Idle; // If things don't go right, fallback to idle
+						state = State::Idle; // If things don't go right, fallback to idle
 
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
@@ -911,7 +974,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 										NiPointer<TESObjectREFR> droppedObj;
 										if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-											state = State_PrepullItem;
+											state = State::PrepullItem;
 
 											selectedObject.handle = droppedObjHandle;
 											selectedObject.collidable = nullptr;
@@ -924,7 +987,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					else {
 						// Not trying to pull armor off a body
-						state = State_Pulled;
+						state = State::Pulled;
 
 						if (pulledObject.handle != selectedObject.handle) {
 							EndPull(); // Cancel an existing pulled collision reset if we're pulling something new
@@ -1036,13 +1099,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			}
 			else {
 				// Grabbed object doesn't exist - go back to IDLE
-				state = State_Idle;
+				state = State::Idle;
 			}
 		}
 
-		if (state == State_PrepullItem) {
+		if (state == State::PrepullItem) {
 			if (g_currentFrameTime - pulledTime > 0.5f) { // half a second for the item to spawn in
-				state = State_Idle;
+				state = State::Idle;
 			}
 			else {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
@@ -1056,7 +1119,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						// Set owner to the player so it doesn't count as stealing
 						TESObjectREFR_SetActorOwner(nullptr, nullptr, selectedObj, player->baseForm);
 
-						state = State_Pulled;
+						state = State::Pulled;
 						pulledTime = g_currentFrameTime;
 
 						// Cancel an existing pulled collision reset
@@ -1074,7 +1137,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			}
 		}
 
-		if (state == State_Pulled) {
+		if (state == State::Pulled) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
@@ -1102,11 +1165,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				state = State_Idle;
+				state = State::Idle;
 			}
 		}
 
-		if (state == State_HeldInit || state == State_Held) {
+		if (state == State::HeldInit || state == State::Held) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
@@ -1115,10 +1178,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
 
-					if (state == State_HeldInit) {
+					if (state == State::HeldInit) {
 						if (g_currentFrameTime - grabbedTime > 1.0f) {
 							// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
-							state = State_Held;
+							state = State::Held;
 						}
 						else {
 							// TODO: Interpolate not just pos, but rot too...?
@@ -1128,7 +1191,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 								newTransform.pos = n->m_worldTransform.pos + delta;
 							}
 							else {
-								state = State_Held;
+								state = State::Held;
 							}
 						}
 					}
@@ -1141,11 +1204,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				state = State_Idle;
+				g_vrikInterface->restoreFingers(isLeft);
+				state = State::Idle;
 			}
 		}
 
-		if (state == State_HeldBody) {
+		if (state == State::HeldBody) {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
@@ -1160,7 +1224,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				state = State_Idle;
+				state = State::Idle;
 			}
 		}
 	}
@@ -1190,34 +1254,13 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	triggerDown = Config::options.enableTrigger && (pControllerState->ulButtonPressed & triggerMask);
 	gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
 
-	bool isLeft = std::string("L") == name.data;
-	float finger0Pos = g_vrikInterface->getFingerPos(isLeft, 0);
-	float finger1Pos = g_vrikInterface->getFingerPos(isLeft, 1);
-	float finger3Pos = g_vrikInterface->getFingerPos(isLeft, 3);
-	float finger4Pos = g_vrikInterface->getFingerPos(isLeft, 4);
-
-	float finger2Pos;
-	if (triggerDown && gripDown) {
-		finger2Pos = 0;
-	}
-	else if (triggerDown) {
-		finger2Pos = 0.5;
-	}
-	else if (gripDown) {
-		finger2Pos = 0.75;
-	}
-	else {
-		finger2Pos = 1;
-	}
-	g_vrikInterface->setFingerRange(isLeft, finger0Pos, finger0Pos, finger1Pos, finger1Pos, finger2Pos, finger2Pos, finger3Pos, finger3Pos, finger4Pos, finger4Pos);
-
 	bool triggerRisingEdge = triggerDown && !triggerDownBefore;
 	bool triggerFallingEdge = !triggerDown && triggerDownBefore;
 
 	bool gripRisingEdge = gripDown && !gripDownBefore;
 	bool gripFallingEdge = !gripDown && gripDownBefore;
 
-	if (inputState == InputState_Idle) {
+	if (inputState == InputState::Idle) {
 		if (triggerRisingEdge || gripRisingEdge) {
 			grabRequestedTime = GetTime();
 			grabRequested = true;
@@ -1236,24 +1279,24 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				inputGrip = true;
 			}
 
-			inputState = InputState_Leeway;
+			inputState = InputState::Leeway;
 		}
 	}
 	
-	if (inputState == InputState_Leeway) {
+	if (inputState == InputState::Leeway) {
 		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
 			releaseRequested = true;
 			if (wasObjectGrabbed) {
-				inputState = InputState_Idle;
+				inputState = InputState::Idle;
 			}
 			else {
 				forceInput = true;
-				inputState = InputState_Force;
+				inputState = InputState::Force;
 			}
 		}
 		else {
 			if (wasObjectGrabbed) {
-				inputState = InputState_Block;
+				inputState = InputState::Block;
 			}
 			else {
 				double currentTime = GetTime();
@@ -1279,16 +1322,16 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				else {
 					// Leeway time has run out
 					forceInput = true;
-					inputState = InputState_Force;
+					inputState = InputState::Force;
 				}
 			}
 		}
 	}
 
-	if (inputState == InputState_Block) {
+	if (inputState == InputState::Block) {
 		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
 			releaseRequested = true;
-			inputState = InputState_Idle;
+			inputState = InputState::Idle;
 		}
 		else {
 			pControllerState->ulButtonPressed &= ~triggerMask;
@@ -1296,7 +1339,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 		}
 	}
 
-	if (inputState == InputState_Force) {
+	if (inputState == InputState::Force) {
 		if (forceInput) {
 			if (inputTrigger) {
 				pControllerState->ulButtonPressed |= triggerMask;
@@ -1306,7 +1349,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 			}
 		}
 		else {
-			inputState = InputState_Idle;
+			inputState = InputState::Idle;
 		}
 	}
 }
@@ -1336,16 +1379,16 @@ bool Grabber::IsObjectPullable()
 
 bool Grabber::HasExclusiveObject() const
 {
-	return state == State_Pulled || state == State_SelectionLocked || state == State_Held || state == State_HeldInit || state == State_HeldBody;
+	return state == State::Pulled || state == State::SelectionLocked || state == State::Held || state == State::HeldInit || state == State::HeldBody;
 }
 
 
 bool Grabber::ShouldDisplayRollover()
 {
-	if (state != State_SelectedClose && state != State_Pulled && state != State_SelectionLocked && state != State_Held && state != State_HeldInit && state != State_HeldBody)
+	if (state != State::SelectedClose && state != State::Pulled && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody)
 		return false;
 
-	if (state == State_SelectedClose) {
+	if (state == State::SelectedClose) {
 		// Even when no piece of armor selected, still show rollover when we'd be grabbing the body
 		return true;
 	}
@@ -1355,7 +1398,7 @@ bool Grabber::ShouldDisplayRollover()
 
 bool Grabber::IsSafeToClearSavedCollision()
 {
-	return (state != State_Held && state != State_HeldInit && pulledObject.handle == *g_invalidRefHandle);
+	return (state != State::Held && state != State::HeldInit && pulledObject.handle == *g_invalidRefHandle);
 }
 
 

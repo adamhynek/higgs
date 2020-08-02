@@ -1053,7 +1053,7 @@ namespace MathUtils
 		float edgeLength = VectorLength(edge);
 		NiPoint3 ray = edgeLength ? edge / edgeLength : NiPoint3();
 		
-		// get d value
+		// get d value, where plane eq: n*x = d
 		float d = DotProduct(planeNormal, planePoint);
 
 		float normalDotRay = DotProduct(planeNormal, ray);
@@ -1090,6 +1090,7 @@ namespace MathUtils
 		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
 		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
 
+		// Check each triangle edge for intersection. Either none intersect, or 2 of them do.
 		NiPoint3 edge1Intersection, edge2Intersection, edge3Intersection;
 		bool edge1Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex0, vertex1, edge1Intersection);
 		bool edge2Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex0, vertex2, edge2Intersection);
@@ -1101,13 +1102,14 @@ namespace MathUtils
 			return false;
 		}
 
+		// p: start point of intersection line; d: direction vector of intersection line
 		NiPoint3 d, p;
 		float edgeLength;
 		if (edge1Intersects && edge2Intersects) {
 			NiPoint3 edge = edge2Intersection - edge1Intersection;
 			edgeLength = VectorLength(edge);
 			d = edgeLength ? edge / edgeLength : NiPoint3();
-			p = edge1Intersection - circleCenter;			
+			p = edge1Intersection - circleCenter; // Make the circle center the origin, it makes the math cleaner
 		}
 		else if (edge1Intersects && edge3Intersects) {
 			NiPoint3 edge = edge3Intersection - edge1Intersection;
@@ -1127,6 +1129,7 @@ namespace MathUtils
 			return false;
 		}
 
+		// Solve quadratic for pt that is on the intersection line as well as on the circle (dist to circle center == radius)
 		float pDotd = DotProduct(p, d);
 		float dLength2 = VectorLengthSquared(d);
 		float pLength2 = VectorLengthSquared(p);
@@ -1139,7 +1142,7 @@ namespace MathUtils
 
 		if (t1 >= 0 && t1 <= edgeLength) {
 			// t1 is on the segment
-			outIntersectionPoint = circleCenter + p + d * t1;
+			outIntersectionPoint = circleCenter + p + d * t1; // Add back the circle center after making it the origin
 			return true;
 		}
 		if (t2 >= 0 && t2 <= edgeLength) {
@@ -1153,7 +1156,7 @@ namespace MathUtils
 }
 
 
-bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1183,13 +1186,12 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 			NiPoint3 point1InNodeSpace = inverseTransform * point1;
 			NiPoint3 point2InNodeSpace = inverseTransform * point2;
 
-			float radius = VectorLength(point2InNodeSpace - centerInNodeSpace);
-			_MESSAGE("r: %.2f", radius);
+			NiMatrix33 inverseRot = geom->m_worldTransform.rot.Transpose();
+			NiPoint3 zeroAngleVectorNodespace = inverseRot * zeroAngleVector;
+			NiPoint3 normalNodespace = inverseRot * normal;
 
-			NiPoint3 centerToPoint1 = point1InNodeSpace - centerInNodeSpace;
-			NiPoint3 centerToPoint2 = point2InNodeSpace - centerInNodeSpace;
-			NiPoint3 centerToPoint2Normalized = VectorNormalized(centerToPoint2);
-			NiPoint3 normalInNodeSpace = VectorNormalized(CrossProduct(centerToPoint1, centerToPoint2));
+			float radius = VectorLength(point2InNodeSpace - point1InNodeSpace) + VectorLength(point1InNodeSpace - centerInNodeSpace); // Add em up as if the finger was straightned out
+			_MESSAGE("r: %.2f", radius);
 
 			int closestTri = -1;
 			NiPoint3 closestTriPos;
@@ -1199,17 +1201,29 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 				Triangle tri = tris[i];
 				// get closest point on triangle to given point
 				NiPoint3 intersectionPoint;
-				bool intersects = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalInNodeSpace, radius, tri, intersectionPoint, verts, vertexSize, posOffset);
+				bool intersects = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint, verts, vertexSize, posOffset);
 				if (!intersects) {
 					continue;
 				}
 				NiPoint3 centerToIntersect = intersectionPoint - centerInNodeSpace;
-				float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), centerToPoint2Normalized));
-				_MESSAGE("angle: %.2f", angle * 57.2958);
+				float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
 				if (angle < closestDistance) {
-					closestDistance = angle;
-					closestTriPos = intersectionPoint;
-					closestTri = i;
+					uintptr_t vert = (verts + tri.vertexIndices[0] * vertexSize);
+					NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+					vert = (verts + tri.vertexIndices[1] * vertexSize);
+					NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+					vert = (verts + tri.vertexIndices[2] * vertexSize);
+					NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+
+					NiPoint3 triNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+
+					NiPoint3 tangentAtIntersection = CrossProduct(normalNodespace, centerToIntersect);
+					//if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
+						// Front face of the triangle was intersected CCW around the circle
+						closestDistance = angle;
+						closestTriPos = intersectionPoint;
+						closestTri = i;
+					//}	
 				}
 			}
 
@@ -1238,7 +1252,7 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			auto child = node->m_children.m_data[i];
 			if (child) {
-				if (GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, closestPos, closestNormal, closestDistanceSoFar)) {
+				if (GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, closestDistanceSoFar)) {
 					success = true;
 				}
 			}

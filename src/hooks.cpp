@@ -39,7 +39,7 @@ void HookedWorldUpdateHook(bhkWorld *world)
 	{
 		std::lock_guard<std::mutex> lock(g_rightGrabber->deselectLock);
 
-		if (g_rightGrabber->state == Grabber::State_Held) {
+		if (g_rightGrabber->state == Grabber::State::Held) {
 			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
@@ -62,7 +62,7 @@ void HookedWorldUpdateHook(bhkWorld *world)
 	{
 		std::lock_guard<std::mutex> lock(g_leftGrabber->deselectLock);
 
-		if (g_leftGrabber->state == Grabber::State_Held) {
+		if (g_leftGrabber->state == Grabber::State::Held) {
 			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;

@@ -20,7 +20,7 @@ struct Grabber
 		TESForm *hitForm;
 		NiPointer<NiAVObject> shaderNode;
 		NiPointer<NiAVObject> hitNode;
-		UInt32 handle = 0;
+		UInt32 handle = *g_invalidRefHandle;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		bool isActor = false;
@@ -30,32 +30,33 @@ struct Grabber
 	struct PulledObject
 	{
 		NiPointer<bhkRigidBody> rigidBody;
-		UInt32 handle = 0;
+		UInt32 handle = *g_invalidRefHandle;
 		hkHalf savedAngularDamping;
 	};
 
-	enum State : UInt8
+	enum class State : UInt8
 	{
-		State_Idle, // not pointing at anything meaningful
-		State_SelectedFar, // pointing at something meaningful that isn't close
-		State_SelectedClose, // selected something that's next to the hand
-		State_SelectionLocked, // player has locked in their selection
-		State_PrepullItem , // player wants to pull a piece of armor off
-		State_Pulled, // player is pulling the object towards them
-		State_HeldInit, // held object is moving towards hand
-		State_Held, // player is holding the object in their hand
-		State_HeldBody // player is holding a body
+		Idle, // not pointing at anything meaningful
+		SelectedFar, // pointing at something meaningful that isn't close
+		SelectedClose, // selected something that's next to the hand
+		SelectionLocked, // player has locked in their selection
+		PrepullItem , // player wants to pull a piece of armor off
+		Pulled, // player is pulling the object towards them
+		HeldInit, // held object is moving towards hand
+		Held, // player is holding the object in their hand
+		HeldBody // player is holding a body
 	};
 
-	enum InputState : UInt8
+	enum class InputState : UInt8
 	{
-		InputState_Idle,
-		InputState_Leeway,
-		InputState_Block,
-		InputState_Force
+		Idle,
+		Leeway,
+		Block,
+		Force
 	};
 
-	Grabber(BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, NiPoint3 rolloverOffset, bool delayGripInput) :
+	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 rolloverOffset, bool delayGripInput) :
+		isLeft(isLeft),
 		name(name),
 		handNodeName(handNodeName),
 		upperArmNodeName(upperArmNodeName),
@@ -64,6 +65,12 @@ struct Grabber
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput)
 	{
+		for (int i = 0; i < 5; i++) {
+			for (int j = 0; j < 3; j++) {
+				this->fingerNodeNames[i][j] = fingerNodeNames[i][j];
+			}
+		}
+
 		// We don't want to even attempt to call the constructors of these, but we do want space for them
 		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
 		handCollCInfo = (hkpRigidBodyCinfo *)malloc(sizeof(hkpRigidBodyCinfo));
@@ -97,7 +104,9 @@ struct Grabber
 	hkpRigidBodyCinfo *handCollCInfo;
 	hkpRigidBody *handCollBody;
 
+	const bool isLeft = false;
 	const bool delayGripInput = false;
+	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
 	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;
@@ -142,10 +151,10 @@ struct Grabber
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 
-	State state = State_Idle;
-	State prevState = State_Idle;
+	State state = State::Idle;
+	State prevState = State::Idle;
 
-	InputState inputState = InputState_Idle;
+	InputState inputState = InputState::Idle;
 	bool inputTrigger = false;
 	bool inputGrip = false;
 

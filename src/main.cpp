@@ -58,6 +58,8 @@ float g_normalRumbleIntensity;
 bool g_hasSavedRollover = false;
 NiTransform g_normalRolloverTransform;
 
+bool initComplete = false; // Whether grabbers have been initialized
+
 Grabber *g_rightGrabber;
 Grabber *g_leftGrabber;
 
@@ -103,7 +105,7 @@ bool TryHook()
 
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
-	if (!g_isLoaded) return true;
+	if (!initComplete || !g_isLoaded) return true;
 
 	if (MenuChecker::isGameStopped()) return true;
 
@@ -254,6 +256,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, uint32_t unControllerStateSize, bool& state)
 {
+	if (!initComplete) return;
+
 	if (MenuChecker::isGameStopped()) return;
 
 	vr_src::ETrackedControllerRole rightControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand;
@@ -274,10 +278,6 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 extern "C" {
 	void OnDataLoaded()
 	{
-		// Can't set these statically as the invalidrefhandle doesn't load until later
-		g_rightGrabber->selectedObject.handle = *g_invalidRefHandle;
-		g_leftGrabber->selectedObject.handle = *g_invalidRefHandle;
-
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
 			_MESSAGE("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
@@ -311,12 +311,104 @@ extern "C" {
 			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
 		}
 
+		// Init both grabbers
+
+		BSFixedString rightFingerNames[5][3] = {
+			{
+				BSFixedString("NPC R Finger00 [RF00]"),
+				BSFixedString("NPC R Finger01 [RF01]"),
+				BSFixedString("NPC R Finger02 [RF02]")
+			},
+			{
+				BSFixedString("NPC R Finger10 [RF10]"),
+				BSFixedString("NPC R Finger11 [RF11]"),
+				BSFixedString("NPC R Finger12 [RF12]")
+			},
+			{
+				BSFixedString("NPC R Finger20 [RF20]"),
+				BSFixedString("NPC R Finger21 [RF21]"),
+				BSFixedString("NPC R Finger22 [RF22]")
+			},
+			{
+				BSFixedString("NPC R Finger30 [RF30]"),
+				BSFixedString("NPC R Finger31 [RF31]"),
+				BSFixedString("NPC R Finger32 [RF32]")
+			},
+			{
+				BSFixedString("NPC R Finger40 [RF40]"),
+				BSFixedString("NPC R Finger41 [RF41]"),
+				BSFixedString("NPC R Finger42 [RF42]")
+			},
+		};
+
+		BSFixedString leftFingerNames[5][3] = {
+			{
+				BSFixedString("NPC L Finger00 [LF00]"),
+				BSFixedString("NPC L Finger01 [LF01]"),
+				BSFixedString("NPC L Finger02 [LF02]")
+			},
+			{
+				BSFixedString("NPC L Finger10 [LF10]"),
+				BSFixedString("NPC L Finger11 [LF11]"),
+				BSFixedString("NPC L Finger12 [LF12]")
+			},
+			{
+				BSFixedString("NPC L Finger20 [LF20]"),
+				BSFixedString("NPC L Finger21 [LF21]"),
+				BSFixedString("NPC L Finger22 [LF22]")
+			},
+			{
+				BSFixedString("NPC L Finger30 [LF30]"),
+				BSFixedString("NPC L Finger31 [LF31]"),
+				BSFixedString("NPC L Finger32 [LF32]")
+			},
+			{
+				BSFixedString("NPC L Finger40 [LF40]"),
+				BSFixedString("NPC L Finger41 [LF41]"),
+				BSFixedString("NPC L Finger42 [LF42]")
+			},
+		};
+
+		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", rightFingerNames, { 7, -5, -2 }, Config::options.delayRightGripInput);
+		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", leftFingerNames, { -7, -7, -3 }, Config::options.delayLeftGripInput);
+		if (!g_rightGrabber || !g_leftGrabber) {
+			_ERROR("[CRITICAL] Couldn't allocate memory");
+			return;
+		}
+
 		g_rightGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_rightGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
 		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
+		// Right vector points to the right of the text
+		g_rolloverRotation.data[0][0] = 0;
+		g_rolloverRotation.data[1][0] = -cosf(30 * 0.0174533);
+		g_rolloverRotation.data[2][0] = -sinf(30 * 0.0174533);
+		// Forward vector points into the text
+		g_rolloverRotation.data[0][1] = -1;
+		g_rolloverRotation.data[1][1] = 0;
+		g_rolloverRotation.data[2][1] = 0;
+		// Up vector points up from the text
+		g_rolloverRotation.data[0][2] = 0;
+		g_rolloverRotation.data[1][2] = sinf(30 * 0.0174533);
+		g_rolloverRotation.data[2][2] = -cosf(30 * 0.0174533);
+
+		g_rightGrabber->rolloverRotation = g_rolloverRotation;
+		g_rightGrabber->rolloverScale = Config::options.rolloverScale;
+
+		// Flip right/forward vectors
+		g_leftGrabber->rolloverRotation = g_rolloverRotation;
+		g_leftGrabber->rolloverRotation.data[0][0] = -g_leftGrabber->rolloverRotation.data[0][0];
+		g_leftGrabber->rolloverRotation.data[1][0] = -g_leftGrabber->rolloverRotation.data[1][0];
+		g_leftGrabber->rolloverRotation.data[2][0] = -g_leftGrabber->rolloverRotation.data[2][0];
+		g_leftGrabber->rolloverRotation.data[0][1] = -g_leftGrabber->rolloverRotation.data[0][1];
+		g_leftGrabber->rolloverRotation.data[1][1] = -g_leftGrabber->rolloverRotation.data[1][1];
+		g_leftGrabber->rolloverRotation.data[2][1] = -g_leftGrabber->rolloverRotation.data[2][1];
+		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
+
+		initComplete = true;
 		_MESSAGE("Successfully loaded all forms");
 	}
 
@@ -387,13 +479,6 @@ extern "C" {
 			_WARNING("[WARNING] Failed to read config options. Using defaults instead.");
 		}
 
-		g_rightGrabber = new Grabber("R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", { 7, -5, -2 }, Config::options.delayRightGripInput);
-		g_leftGrabber = new Grabber("L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", { -7, -7, -3 }, Config::options.delayLeftGripInput);
-		if (!g_rightGrabber || !g_leftGrabber) {
-			_ERROR("[CRITICAL] Couldn't allocate memory");
-			return false;
-		}
-
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);
@@ -416,32 +501,6 @@ extern "C" {
 		}
 
 		g_timer.Start();
-
-		// Right vector points to the right of the text
-		g_rolloverRotation.data[0][0] = 0;
-		g_rolloverRotation.data[1][0] = -cosf(30 * 0.0174533);
-		g_rolloverRotation.data[2][0] = -sinf(30 * 0.0174533);
-		// Forward vector points into the text
-		g_rolloverRotation.data[0][1] = -1;
-		g_rolloverRotation.data[1][1] = 0;
-		g_rolloverRotation.data[2][1] = 0;
-		// Up vector points up from the text
-		g_rolloverRotation.data[0][2] = 0;
-		g_rolloverRotation.data[1][2] = sinf(30 * 0.0174533);
-		g_rolloverRotation.data[2][2] = -cosf(30 * 0.0174533);
-
-		g_rightGrabber->rolloverRotation = g_rolloverRotation;
-		g_rightGrabber->rolloverScale = Config::options.rolloverScale;
-
-		// Flip right/forward vectors
-		g_leftGrabber->rolloverRotation = g_rolloverRotation;
-		g_leftGrabber->rolloverRotation.data[0][0] = -g_leftGrabber->rolloverRotation.data[0][0];
-		g_leftGrabber->rolloverRotation.data[1][0] = -g_leftGrabber->rolloverRotation.data[1][0];
-		g_leftGrabber->rolloverRotation.data[2][0] = -g_leftGrabber->rolloverRotation.data[2][0];
-		g_leftGrabber->rolloverRotation.data[0][1] = -g_leftGrabber->rolloverRotation.data[0][1];
-		g_leftGrabber->rolloverRotation.data[1][1] = -g_leftGrabber->rolloverRotation.data[1][1];
-		g_leftGrabber->rolloverRotation.data[2][1] = -g_leftGrabber->rolloverRotation.data[2][1];
-		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
 
 		return true;
 	}
