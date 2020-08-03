@@ -253,6 +253,18 @@ void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext 
 	}
 }
 
+void UpdateKeyframedNodeTransform(NiAVObject *node, const NiTransform &transform)
+{
+	NiTransform inverseParent;
+	node->m_parent->m_worldTransform.Invert(inverseParent);
+
+	node->m_localTransform = inverseParent * transform;
+	NiAVObject::ControllerUpdateContext ctx;
+	ctx.flags = 0x2000; // makes havok sim more stable?
+	ctx.delta = 0;
+	NiAVObject_UpdateObjectUpwards(node, &ctx);
+}
+
 bool IsTwoHanded(const TESObjectWEAP *weap)
 {
 	switch (weap->gameData.type) {
@@ -1156,7 +1168,8 @@ namespace MathUtils
 }
 
 
-bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector,
+	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1180,16 +1193,20 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
 			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
 
+			NiTransform nodeTransform = geom->m_worldTransform;
+
+			// Input transformations
 			NiTransform inverseTransform;
-			geom->m_worldTransform.Invert(inverseTransform);
+			nodeTransform.Invert(inverseTransform);
 			NiPoint3 centerInNodeSpace = inverseTransform * center;
 			NiPoint3 point1InNodeSpace = inverseTransform * point1;
 			NiPoint3 point2InNodeSpace = inverseTransform * point2;
 
-			NiMatrix33 inverseRot = geom->m_worldTransform.rot.Transpose();
+			NiMatrix33 inverseRot = nodeTransform.rot.Transpose();
 			NiPoint3 zeroAngleVectorNodespace = inverseRot * zeroAngleVector;
 			NiPoint3 normalNodespace = inverseRot * normal;
 
+			// Compute radius after transforming points, as things can be scaled up/down
 			float radius = VectorLength(point2InNodeSpace - point1InNodeSpace) + VectorLength(point1InNodeSpace - centerInNodeSpace); // Add em up as if the finger was straightned out
 			_MESSAGE("r: %.2f", radius);
 
@@ -1209,11 +1226,11 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 				float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
 				if (angle < closestDistance) {
 					uintptr_t vert = (verts + tri.vertexIndices[0] * vertexSize);
-					NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+					NiPoint3 pos0 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
 					vert = (verts + tri.vertexIndices[1] * vertexSize);
-					NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+					NiPoint3 pos1 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
 					vert = (verts + tri.vertexIndices[2] * vertexSize);
-					NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+					NiPoint3 pos2 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
 
 					NiPoint3 triNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
 
@@ -1229,15 +1246,15 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 
 			if (closestTri >= 0) {
 				*closestDistanceSoFar = closestDistance;
-				*closestPos = geom->m_worldTransform * closestTriPos;
+				*closestPos = nodeTransform * closestTriPos;
 
 				Triangle closestTriangle = tris[closestTri];
 				uintptr_t vert = (verts + closestTriangle.vertexIndices[0] * vertexSize);
-				NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				NiPoint3 pos0 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
 				vert = (verts + closestTriangle.vertexIndices[1] * vertexSize);
-				NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				NiPoint3 pos1 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
 				vert = (verts + closestTriangle.vertexIndices[2] * vertexSize);
-				NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
+				NiPoint3 pos2 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
 
 				*closestNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
 
@@ -1388,7 +1405,7 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, N
 				NiPoint3 pointToClosestAlongDirection = directionInNodeSpace * DotProduct(pointToClosest, directionInNodeSpace);
 				float directionalDistance = VectorLength(pointToClosestAlongDirection);
 				float lateralDistance = VectorLength(pointToClosest - pointToClosestAlongDirection);
-				float distance = directionalWeight * directionalDistance + lateralWeight * lateralDistance;
+				float distance = directionalWeight * directionalDistance*directionalDistance + lateralWeight * lateralDistance*lateralDistance;
 				if (distance < closestDistance) {
 					closestDistance = distance;
 					//closestTriPos = result.closest;

@@ -32,6 +32,7 @@ NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3);
 
 NiAVObject * GetHighestParent(NiAVObject *node);
 void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx);
+void UpdateKeyframedNodeTransform(NiAVObject *node, const NiTransform &transform);
 
 NiAVObject * GetTorsoNode(Actor *actor);
 
@@ -89,7 +90,8 @@ namespace MathUtils
 	Result GetClosestPointOnTriangle(NiPoint3 const& point, Triangle const& triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset);
 }
 
-bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
+bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector,
+	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
 bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, NiPoint3 direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
 

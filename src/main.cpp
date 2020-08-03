@@ -437,7 +437,7 @@ extern "C" {
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
 				// Get the VRIK plugin API
-				vrikPluginApi::IVrikInterface001 * iface = vrikPluginApi::getVrikInterface001(g_pluginHandle, g_messaging);
+				g_vrikInterface = vrikPluginApi::getVrikInterface001(g_pluginHandle, g_messaging);
 			}
 		}
 	}

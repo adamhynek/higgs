@@ -224,6 +224,16 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			state = State::HeldBody;
 		}
 		else {
+			// TODO: For e.g. books, I don't think we want the other parts of the book to collide with the hand that's holding it (with the other hand is fine). It can cause physics freakouts.
+			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+
+			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
+			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
+
+			// Set motion type before trying to set obj transform
+			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
+
+
 			initialGrabbedObjWorldPosition = n->m_worldTransform.pos;
 
 			NiPoint3 triPos, triNormal;
@@ -240,9 +250,11 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				PlayerCharacter *player = *g_thePlayer;
 
-				float fingerRanges[5];
+				NiPoint3 nonThumbNormalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up for the right hand
+				NiPoint3 nonThumbNormalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * nonThumbNormalHandspace);
+
 				float fingerAngles[5];
-				for (int i = 0; i < 5; i++) {
+				for (int i = 1; i < 5; i++) { // No thumb
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][1].data);
 					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][2].data);
@@ -265,6 +277,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 							NiPoint3 normalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm
 							if (isLeft) {
+								// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
 								normalHandspace.y *= -1;
 								normalHandspace.z *= -1;
 							}
@@ -275,8 +288,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 							NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 }); // okay for both hands since x is zero (x is flipped for each hand)
 							zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
 
-							NiPoint3 normalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up
-							normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+							normalWorldspace = nonThumbNormalWorldspace;
 						}
 
 						float closestAngle = (std::numeric_limits<float>::max)();
@@ -290,56 +302,119 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 								angle *= -1;
 							}
 							fingerAngles[i] = angle;
-
-							float degrees = angle * 57.2958;
-							_MESSAGE("%d angle: %.2f", i, degrees);
-
-							if (i == 0) {
-								// Thumb's got it a bit different
-								fingerRanges[i] = 1.0f - max(0, min(1, (degrees / 180.0f) / 0.75f));
-							}
-							else {
-								fingerRanges[i] = 1.0f - max(0, min(1, degrees / 180.0f));
-							}
 						}
 						else {
 							// No finger intersection, so just close it completely
-							fingerRanges[i] = 0;
+							fingerAngles[i] = 99999999; // some large angle
 						}
 					}
 				}
-				float smallestAngle = std::reduce(&fingerAngles[1], &fingerAngles[4], (std::numeric_limits<float>::max)(), std::fminf);
-				if (smallestAngle < 0) {
+				float smallestAngle = std::reduce(&fingerAngles[1], &fingerAngles[5], (std::numeric_limits<float>::max)(), std::fminf);
+				NiPoint3 correctionPos;
+				NiMatrix33 correctionRot;
+				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
+				if (smallestAngle < minAllowedAngle) {
 					// Derotate the object to not have fingers clip through it
 					// TODO: Compute thumb angle _after_ derotating, not with the other fingers
-				}
+					NiPoint3 axis = nonThumbNormalWorldspace;
+					float angle = minAllowedAngle - smallestAngle;
 
-				g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
-				//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
-
-				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
-
-				// TODO: Using the graphics triangle normal is way too noisy. If going this route, need to either put a max on the angle we're willing to rotate by (easy),
-				// or figure out some smoothing algorithm over adjacent triangles or something, but we don't _always_ want to smooth out high frequency edges... (not gonna happen)
-				float angleBetweenPalmAndNormal = acosf(-DotProduct(castDirection, triNormal));
-				if (angleBetweenPalmAndNormal < 0){//Config::options.normalSnapAngle) {
-					NiPoint3 axis = CrossProduct(castDirection, triNormal);
 					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
 					NiPoint3 triToCenter = n->m_worldTransform.pos - triPos;
-					NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(triToCenter, axis, angleBetweenPalmAndNormal);
+					NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(triToCenter, axis, angle);
 					NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
 
 					NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
+					correctionPos = -(desiredPos - n->m_worldTransform.pos);
 					desiredTransform.pos = desiredPos;
-					desiredTransform.rot = MatrixFromAxisAngle(axis, angleBetweenPalmAndNormal) * desiredTransform.rot;
+
+					NiMatrix33 rotMatrix = MatrixFromAxisAngle(axis, angle);
+					correctionRot = rotMatrix.Transpose();
+					desiredTransform.rot = rotMatrix * desiredTransform.rot;
+
+					for (int i = 1; i < 5; i++) {
+						fingerAngles[i] += angle;
+					}
 				}
 				else {
 					NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale;
 					NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
 
 					NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
+					correctionPos = -(desiredPos - n->m_worldTransform.pos);
 					desiredTransform.pos = desiredPos;
+
+					correctionRot.Identity(); // No rotation
 				}
+
+				// Move our object now so that the thumb check uses the updated transform;
+				UpdateKeyframedNodeTransform(n, desiredTransform);
+
+				// Now that we've determined (potentially) the object's rotation, figure out the thumb
+				{
+					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][0].data);
+					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][1].data);
+					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][2].data);
+
+					if (startFinger && midFinger && endFinger) {
+						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
+						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
+						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
+
+						// Thumb
+						NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
+						if (isLeft) {
+							zeroAngleVectorHandspace.x *= -1; // x axis is flipped for left hand
+						}
+						NiPoint3 zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
+
+						NiPoint3 normalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm
+						if (isLeft) {
+							// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+							normalHandspace.y *= -1;
+							normalHandspace.z *= -1;
+						}
+						NiPoint3 normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+
+						float closestAngle = (std::numeric_limits<float>::max)();
+						NiPoint3 intersection, normal;
+						bool intersects = GetCircleIntersectionOnGraphicsGeometry(selectedObj->loadedState->node, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+							&intersection, &normal, &closestAngle);
+						if (intersects) {
+							NiPoint3 centerToIntersect = intersection - startFingerPos;
+							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorWorldspace));
+							if (DotProduct(normalWorldspace, CrossProduct(zeroAngleVectorWorldspace, centerToIntersect)) < 0) {
+								// Positive angles are those which curl the finger
+								angle *= -1;
+							}
+							fingerAngles[0] = angle;
+						}
+						else {
+							// No finger intersection, so just close it completely
+							fingerAngles[0] = 99999999; // some large angle
+						}
+					}
+				}
+
+				if (g_vrikInterface) {
+					float fingerRanges[5];
+					for (int i = 0; i < 5; i++) {
+						float degrees = fingerAngles[i] * 57.2958;
+						_MESSAGE("%d angle: %.2f", i, degrees);
+						if (i == 0) {
+							// Thumb's got it a bit different
+							fingerRanges[i] = 1.0f - max(0, min(1, (degrees / 180.0f) / 0.75f));
+						}
+						else {
+							fingerRanges[i] = 1.0f - max(0, min(1, degrees / 180.0f));
+						}
+					}
+
+					g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
+					//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
+				}
+
+				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
 			}
 			else {
 				// We've got a point on the collision geometry
@@ -348,20 +423,17 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
 				desiredTransform.pos = desiredPos;
+
+				if (g_vrikInterface) {
+					// Not gonna bother querying any geometry, so just fully open the hand
+					g_vrikInterface->setFingerRange(isLeft, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+				}
 			}
 
 			// Use ninode pos / rot since we set that while holding it
 			NiTransform inverseHand;
 			handNode->m_worldTransform.Invert(inverseHand);
 			initialObjTransformHandSpace = inverseHand * desiredTransform;
-
-			// TODO: For e.g. books, I don't think we want the other parts of the book to collide with the hand that's holding it (with the other hand is fine). It can cause physics freakouts.
-			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
-
-			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
-			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
-
-			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
 			state = State::HeldInit;
 		}
@@ -486,7 +558,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 	handVelocitiesWorldspace[0] = handVelocityWorldspace;
 
-	NiPoint3 avgVelocityWorldspace = std::accumulate(handVelocitiesWorldspace, &handVelocitiesWorldspace[numPrevVel - 1], NiPoint3()) / numPrevVel;
+	NiPoint3 avgVelocityWorldspace = std::accumulate(handVelocitiesWorldspace, &handVelocitiesWorldspace[numPrevVel], NiPoint3()) / numPrevVel;
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
 	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) / *g_deltaTime;
@@ -497,7 +569,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 	handVelocitiesRoomspace[0] = handVelocityRoomspace;
 
-	NiPoint3 avgVelocityRoomspace = std::accumulate(handVelocitiesRoomspace, &handVelocitiesRoomspace[numPrevVel - 1], NiPoint3()) / numPrevVel;
+	NiPoint3 avgVelocityRoomspace = std::accumulate(handVelocitiesRoomspace, &handVelocitiesRoomspace[numPrevVel], NiPoint3()) / numPrevVel;
 
 	// Get whatever transform takes the wand position from room space to skyrim worldspace
 	NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
@@ -515,7 +587,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 	handDirectionVelocities[0] = handDirectionVelocityRoomspace;
 
-	NiPoint3 avgDirectionVelocityRoomspace = std::accumulate(handDirectionVelocities, &handDirectionVelocities[numPrevVel - 1], NiPoint3()) / numPrevVel;
+	NiPoint3 avgDirectionVelocityRoomspace = std::accumulate(handDirectionVelocities, &handDirectionVelocities[numPrevVel], NiPoint3()) / numPrevVel;
 
 	//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
 	//	PrintToFile(std::to_string(VectorLength(avgDirectionVelocityRoomspace)), "hand_dir_speed_r.txt");
@@ -884,7 +956,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (state == State::Held || state == State::HeldInit) {
-					g_vrikInterface->restoreFingers(isLeft);
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
 
 					ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
 
@@ -1204,7 +1278,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 			}
 			else {
-				g_vrikInterface->restoreFingers(isLeft);
+				if (g_vrikInterface) {
+					g_vrikInterface->restoreFingers(isLeft);
+				}
 				state = State::Idle;
 			}
 		}
