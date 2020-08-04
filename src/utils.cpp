@@ -1226,21 +1226,21 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 				float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
 				if (angle < closestDistance) {
 					uintptr_t vert = (verts + tri.vertexIndices[0] * vertexSize);
-					NiPoint3 pos0 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
+					NiPoint3 pos0 = *(NiPoint3 *)(vert + posOffset);
 					vert = (verts + tri.vertexIndices[1] * vertexSize);
-					NiPoint3 pos1 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
+					NiPoint3 pos1 = *(NiPoint3 *)(vert + posOffset);
 					vert = (verts + tri.vertexIndices[2] * vertexSize);
-					NiPoint3 pos2 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
+					NiPoint3 pos2 = *(NiPoint3 *)(vert + posOffset);
 
 					NiPoint3 triNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
 
 					NiPoint3 tangentAtIntersection = CrossProduct(normalNodespace, centerToIntersect);
-					//if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
+					if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
 						// Front face of the triangle was intersected CCW around the circle
 						closestDistance = angle;
 						closestTriPos = intersectionPoint;
 						closestTri = i;
-					//}	
+					}
 				}
 			}
 
