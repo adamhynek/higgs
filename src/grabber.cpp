@@ -250,50 +250,40 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				PlayerCharacter *player = *g_thePlayer;
 
-				NiPoint3 nonThumbNormalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up for the right hand
+				static const NiPoint3 nonThumbNormalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up for the right hand
+				static const NiPoint3 nonThumbZeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 });
+
+				static const NiPoint3 thumbZeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
+				static const NiPoint3 thumbNormalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm for the right hand
+
 				NiPoint3 nonThumbNormalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * nonThumbNormalHandspace);
 
-				float fingerAngles[5];
-				for (int i = 1; i < 5; i++) { // No thumb
-					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][0].data);
-					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][1].data);
-					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[i][2].data);
+				auto FingerCheck = [this, player, handNode](TESObjectREFR *refr, int fingerIndex, NiPoint3 zeroAngleVectorHandspace, NiPoint3 normalHandspace) -> float
+				{
+					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
+					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
+					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][2].data);
 
 					if (startFinger && midFinger && endFinger) {
-						NiPoint3 handToPt = triPos - hkPalmNodePos / havokWorldScale;
+						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
+						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
+						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
 
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos + handToPt;
-						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos + handToPt;
-						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos + handToPt;
-
-						NiPoint3 zeroAngleVectorWorldspace, normalWorldspace;
-						if (i == 0) {
-							// Thumb
-							NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
-							if (isLeft) {
-								zeroAngleVectorHandspace.x *= -1; // x axis is flipped for left hand
-							}
-							zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
-
-							NiPoint3 normalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm
-							if (isLeft) {
-								// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-								normalHandspace.y *= -1;
-								normalHandspace.z *= -1;
-							}
-							normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+						if (isLeft) {
+							zeroAngleVectorHandspace.x *= -1; // x axis is flipped for left hand
 						}
-						else {
-							// Not thumb
-							NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 }); // okay for both hands since x is zero (x is flipped for each hand)
-							zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
+						NiPoint3 zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
 
-							normalWorldspace = nonThumbNormalWorldspace;
+						if (isLeft) {
+							// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+							normalHandspace.y *= -1;
+							normalHandspace.z *= -1;
 						}
+						NiPoint3 normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
 
 						float closestAngle = (std::numeric_limits<float>::max)();
 						NiPoint3 intersection, normal;
-						bool intersects = GetCircleIntersectionOnGraphicsGeometry(selectedObj->loadedState->node, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace, &intersection, &normal, &closestAngle);
+						bool intersects = GetCircleIntersectionOnGraphicsGeometry(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace, &intersection, &normal, &closestAngle);
 						if (intersects) {
 							NiPoint3 centerToIntersect = intersection - startFingerPos;
 							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorWorldspace));
@@ -301,17 +291,26 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 								// Positive angles are those which curl the finger
 								angle *= -1;
 							}
-							fingerAngles[i] = angle;
+							return angle;
 						}
 						else {
 							// No finger intersection, so just close it completely
-							fingerAngles[i] = 99999999; // some large angle
+							return 99999999; // some large angle
 						}
 					}
+					return 0; // Couldn't get the fingers... that's a problem
+				};
+
+				// Update transform to snap to the hand
+				desiredTransform.pos += hkPalmNodePos / havokWorldScale - triPos;
+				UpdateKeyframedNodeTransform(n, desiredTransform);
+
+				float fingerAngles[5];
+				for (int i = 1; i < 5; i++) { // No thumb
+					fingerAngles[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorHandspace, nonThumbNormalHandspace);
 				}
+
 				float smallestAngle = std::reduce(&fingerAngles[1], &fingerAngles[5], (std::numeric_limits<float>::max)(), std::fminf);
-				NiPoint3 correctionPos;
-				NiMatrix33 correctionRot;
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 				if (smallestAngle < minAllowedAngle) {
 					// Derotate the object to not have fingers clip through it
@@ -322,79 +321,24 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
 					NiPoint3 triToCenter = n->m_worldTransform.pos - triPos;
 					NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(triToCenter, axis, angle);
-					NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
+					NiPoint3 desiredPos = triPos + rotatedPtToCenter;
+					//NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
 
-					NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
-					correctionPos = -(desiredPos - n->m_worldTransform.pos);
+					//NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
 					desiredTransform.pos = desiredPos;
 
 					NiMatrix33 rotMatrix = MatrixFromAxisAngle(axis, angle);
-					correctionRot = rotMatrix.Transpose();
 					desiredTransform.rot = rotMatrix * desiredTransform.rot;
+
+					UpdateKeyframedNodeTransform(n, desiredTransform);
 
 					for (int i = 1; i < 5; i++) {
 						fingerAngles[i] += angle;
 					}
 				}
-				else {
-					NiPoint3 centerOfMass = n->m_worldTransform.pos * havokWorldScale;
-					NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
-
-					NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
-					correctionPos = -(desiredPos - n->m_worldTransform.pos);
-					desiredTransform.pos = desiredPos;
-
-					correctionRot.Identity(); // No rotation
-				}
-
-				// Move our object now so that the thumb check uses the updated transform;
-				UpdateKeyframedNodeTransform(n, desiredTransform);
 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
-				{
-					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][0].data);
-					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][1].data);
-					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][2].data);
-
-					if (startFinger && midFinger && endFinger) {
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
-						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
-
-						// Thumb
-						NiPoint3 zeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
-						if (isLeft) {
-							zeroAngleVectorHandspace.x *= -1; // x axis is flipped for left hand
-						}
-						NiPoint3 zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
-
-						NiPoint3 normalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm
-						if (isLeft) {
-							// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-							normalHandspace.y *= -1;
-							normalHandspace.z *= -1;
-						}
-						NiPoint3 normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-
-						float closestAngle = (std::numeric_limits<float>::max)();
-						NiPoint3 intersection, normal;
-						bool intersects = GetCircleIntersectionOnGraphicsGeometry(selectedObj->loadedState->node, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-							&intersection, &normal, &closestAngle);
-						if (intersects) {
-							NiPoint3 centerToIntersect = intersection - startFingerPos;
-							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorWorldspace));
-							if (DotProduct(normalWorldspace, CrossProduct(zeroAngleVectorWorldspace, centerToIntersect)) < 0) {
-								// Positive angles are those which curl the finger
-								angle *= -1;
-							}
-							fingerAngles[0] = angle;
-						}
-						else {
-							// No finger intersection, so just close it completely
-							fingerAngles[0] = 99999999; // some large angle
-						}
-					}
-				}
+				fingerAngles[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorHandspace, thumbNormalHandspace);
 
 				if (g_vrikInterface) {
 					float fingerRanges[5];
@@ -423,11 +367,6 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
 				desiredTransform.pos = desiredPos;
-
-				if (g_vrikInterface) {
-					// Not gonna bother querying any geometry, so just fully open the hand
-					g_vrikInterface->setFingerRange(isLeft, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
-				}
 			}
 
 			// Use ninode pos / rot since we set that while holding it
@@ -494,7 +433,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 
 	float havokWorldScale = *g_havokWorldScale;
-	
+
 	if (world->world != handCollBody->m_world) {
 		if (handCollBody->m_world) {
 			// If exists, remove the hand entity from the previous world
@@ -541,7 +480,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		world->worldLock.UnlockWrite();
 	}
-	
+
 	// Put our hand collision where we want it
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
 	hkRotation desiredRot;
@@ -1009,7 +948,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				auto TransitionPulled = [this, motion, selectedObj, handNode]()
 				{
 					StopShader(selectedObject.handle, selectedObject.shaderNode);
-					
+
 					pulledTime = g_currentFrameTime;
 
 					if (selectedObject.hitForm) {
@@ -1247,9 +1186,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
-					NiTransform inverseParent;
-					n->m_parent->m_worldTransform.Invert(inverseParent);
-
 					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
 
 					if (state == State::HeldInit) {
@@ -1270,11 +1206,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						}
 					}
 
-					n->m_localTransform = inverseParent * newTransform;
-					NiAVObject::ControllerUpdateContext ctx;
-					ctx.flags = 0x2000; // makes havok sim more stable?
-					ctx.delta = 0;
-					NiAVObject_UpdateObjectUpwards(n, &ctx);
+					UpdateKeyframedNodeTransform(n, newTransform);
 				}
 			}
 			else {
@@ -1358,7 +1290,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 			inputState = InputState::Leeway;
 		}
 	}
-	
+
 	if (inputState == InputState::Leeway) {
 		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
 			releaseRequested = true;
@@ -1506,6 +1438,6 @@ void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)
 		// First, change rotation/position/scale of the hud prompt
 		rolloverNode->m_localTransform.pos = rolloverOffset;
 		rolloverNode->m_localTransform.rot = rolloverRotation;
-		rolloverNode->m_localTransform.scale = rolloverScale;		
+		rolloverNode->m_localTransform.scale = rolloverScale;
 	}
 }
