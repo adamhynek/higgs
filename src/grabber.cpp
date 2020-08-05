@@ -11,6 +11,7 @@
 #include "config.h"
 #include "menu_checker.h"
 #include "shaders.h"
+#include "math_utils.h"
 #include "vrikinterface001.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
@@ -314,7 +315,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 				if (smallestAngle < minAllowedAngle) {
 					// Derotate the object to not have fingers clip through it
-					// TODO: Compute thumb angle _after_ derotating, not with the other fingers
+					// TODO: Rotate about closest pt on line that goes through the knuckles, instead of the tripos
 					NiPoint3 axis = nonThumbNormalWorldspace;
 					float angle = minAllowedAngle - smallestAngle;
 

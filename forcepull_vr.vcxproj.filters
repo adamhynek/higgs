@@ -45,6 +45,9 @@
     <ClCompile Include="src\vrikinterface001.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\math_utils.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\version.h">
@@ -81,6 +84,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\vrikinterface001.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\math_utils.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

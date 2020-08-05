@@ -9,6 +9,8 @@
 #include <Physics/Collide/Agent/Query/hkpCdBodyPairCollector.h>
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 
+#include "skse64/GameReferences.h"
+
 
 struct RayHitCollector : public hkpRayHitCollector
 {
@@ -49,3 +51,15 @@ struct CdBodyPairCollector : public hkpCdBodyPairCollector
 
 	std::vector<hkpCdBody *> m_hits;
 };
+
+void ClearCollisionMap();
+UInt32 GetSavedCollision(UInt32 id);
+UInt32 GetSavedCollisionRefCount(UInt32 id);
+void RemoveSavedCollision(UInt32 id);
+void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup);
+void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup);
+void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, hkpCollidable *skipNode = nullptr);
+void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode = nullptr);
+
+void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
+void SetVelocityForAllCollisionInRefr(TESObjectREFR *refr, hkVector4 velocity);
