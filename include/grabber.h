@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mutex>
+#include <array>
 
 #include "skse64/InternalVR.h"
 #include "RE/havok.h"
@@ -98,8 +99,6 @@ struct Grabber
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
-	static const int numPrevVel = 5;
-
 	hkpBoxShape *handCollShape;
 	hkpRigidBodyCinfo *handCollCInfo;
 	hkpRigidBody *handCollBody;
@@ -124,9 +123,9 @@ struct Grabber
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	NiPoint3 handVelocitiesWorldspace[numPrevVel]; // previous n hand velocities in skyrim worldspace
-	NiPoint3 handVelocitiesRoomspace[numPrevVel]; // previous n wand velocities in local roomspace
-	NiPoint3 handDirectionVelocities[numPrevVel]; // previous n hand direction velocities
+	std::array<NiPoint3, 5> handVelocitiesWorldspace; // previous n hand velocities in skyrim worldspace
+	std::array<NiPoint3, 5> handVelocitiesRoomspace; // previous n wand velocities in local roomspace
+	std::array<NiPoint3, 5> handDirectionVelocities; // previous n hand direction velocities
 
 	SelectedObject selectedObject;
 	PulledObject pulledObject;

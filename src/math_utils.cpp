@@ -549,11 +549,13 @@ namespace MathUtils
 		NiPoint3 edge1Intersection, edge2Intersection, edge3Intersection;
 		bool edge1Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex0, vertex1, edge1Intersection);
 		bool edge2Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex0, vertex2, edge2Intersection);
+		if (!edge1Intersects && !edge2Intersects) {
+			return false; // Impossible for 2 edges to intersect at this point
+		}
 		bool edge3Intersects = PlaneIntersectsLineSegment(circleCenter, circleNormal, vertex1, vertex2, edge3Intersection);
 
 		int numIntersections = edge1Intersects + edge2Intersects + edge3Intersects;
 		if (numIntersections < 2) {
-			// TODO: Could check after checking only 2 edges to return earlier
 			return false;
 		}
 
