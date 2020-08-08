@@ -710,16 +710,27 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 	}
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
-		bool success = false;
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				if (GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, closestDistanceSoFar)) {
-					success = true;
+		if (node->GetAsNiSwitchNode()) {
+			// NiSwitchNode: Return the first valid child
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					return GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, closestDistanceSoFar);
 				}
 			}
 		}
-		return success;
+		else {
+			bool success = false;
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					if (GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, closestDistanceSoFar)) {
+						success = true;
+					}
+				}
+			}
+			return success;
+		}
 	}
 	return false;
 }
@@ -789,16 +800,27 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 	}
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
-		bool success = false;
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				if (GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestNormal, closestDistanceSoFar)) {
-					success = true;
+		if (node->GetAsNiSwitchNode()) {
+			// NiSwitchNode: Return the first valid child
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					return GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestNormal, closestDistanceSoFar);
 				}
 			}
 		}
-		return success;
+		else {
+			bool success = false;
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					if (GetClosestPointOnGraphicsGeometry(child, point, closestPos, closestNormal, closestDistanceSoFar)) {
+						success = true;
+					}
+				}
+			}
+			return success;
+		}
 	}
 	return false;
 }
@@ -880,16 +902,27 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, N
 	}
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
-		bool success = false;
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				if (GetClosestPointOnGraphicsGeometryToLine(child, point, direction, closestPos, closestNormal, closestDistanceSoFar)) {
-					success = true;
+		if (node->GetAsNiSwitchNode()) {
+			// NiSwitchNode: Return the first valid child
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					return GetClosestPointOnGraphicsGeometryToLine(child, point, direction, closestPos, closestNormal, closestDistanceSoFar);
 				}
 			}
 		}
-		return success;
+		else {
+			bool success = false;
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					if (GetClosestPointOnGraphicsGeometryToLine(child, point, direction, closestPos, closestNormal, closestDistanceSoFar)) {
+						success = true;
+					}
+				}
+			}
+			return success;
+		}
 	}
 	return false;
 }
