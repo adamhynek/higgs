@@ -326,13 +326,6 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					}
 				}
 
-				// TODO: BETTER IDEA
-				//
-				// Derotate first, then move the hand backwards in the palm direction. Then compute palm attach pos and all fingers again...
-				//
-				// Do derotation for the thumb only. Then, for the rest of the fingers, instead of derotating, move the hand away from the object (or vice versa - moving the object might be easier?)
-				// in the negative palm direction some amount, at which point hopefully the fingers are no longer intersecting and we can do the whole thing from scratch
-
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 				if (smallestAngle < minAllowedAngle) {
 					// Derotate the object to not have fingers clip through it
@@ -360,7 +353,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						//NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
 
 						//NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
-						NiTransform desiredTransform = n->m_worldTransform;
+						desiredTransform = n->m_worldTransform;
 						desiredTransform.pos = desiredPos;
 
 						NiMatrix33 rotMatrix = MatrixFromAxisAngle(axis, angle);
@@ -368,30 +361,30 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						UpdateKeyframedNodeTransform(n, desiredTransform);
 
-						for (int i = 1; i < fingerAngles.size(); i++) {
-							fingerAngles[i] += angle;
+						//for (int i = 1; i < fingerAngles.size(); i++) {
+						//	fingerAngles[i] += angle;
+						//}
+
+						// Move the object away from the hand a bit
+						//desiredTransform = n->m_worldTransform;
+						//desiredTransform.pos += castDirection * 5; // ~7cm
+						//UpdateKeyframedNodeTransform(n, desiredTransform);
+
+						// Compute the palm attach pos again
+						NiPoint3 triPos, triNormal;
+						float closestDist = (std::numeric_limits<float>::max)();
+						bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, castDirection, &triPos, &triNormal, &closestDist);
+
+						// Update transform to snap to the hand
+						desiredTransform = n->m_worldTransform;
+						desiredTransform.pos += hkPalmNodePos / havokWorldScale - triPos;
+						UpdateKeyframedNodeTransform(n, desiredTransform);
+
+						// Recompute all fingers
+						for (int i = 1; i < fingerAngles.size(); i++) { // No thumb
+							fingerAngles[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorHandspace, nonThumbNormalHandspace);
 						}
 					}
-				}
-
-				// Move the object away from the hand a bit
-				desiredTransform = n->m_worldTransform;
-				desiredTransform.pos += castDirection * 5; // ~7cm
-				UpdateKeyframedNodeTransform(n, desiredTransform);
-
-				// Compute the palm attach pos again
-				NiPoint3 triPos, triNormal;
-				float closestDist = (std::numeric_limits<float>::max)();
-				bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, hkPalmNodePos / havokWorldScale, castDirection, &triPos, &triNormal, &closestDist);
-
-				// Update transform to snap to the hand
-				desiredTransform = n->m_worldTransform;
-				desiredTransform.pos += hkPalmNodePos / havokWorldScale - triPos;
-				UpdateKeyframedNodeTransform(n, desiredTransform);
-
-				// Recompute all fingers
-				for (int i = 1; i < fingerAngles.size(); i++) { // No thumb
-					fingerAngles[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorHandspace, nonThumbNormalHandspace);
 				}
 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
@@ -408,6 +401,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						}
 						else {
 							fingerRanges[i] = 1.0f - max(0, min(1, degrees / 180.0f));
+							fingerRanges[i] = max(0.1f, fingerRanges[i]); // some min value to not overcurl the finger
 						}
 					}
 
@@ -1467,6 +1461,10 @@ bool Grabber::IsSafeToClearSavedCollision()
 }
 
 
+// 0x1F8319C: selected handle as well? no
+// 0x2FEAC78: TESObjectREFR * to selected object? yes?
+RelocPtr<TESObjectREFR*> selectedREFR(0x2FEAC78);
+RelocPtr<UInt32> selectedHandle(0x1F8319C); // no
 void Grabber::SetSelectedHandles(bool isLeftHanded)
 {
 	// Now set all the places I could find that get set to the handle of the pointed at object usually

@@ -21,7 +21,7 @@ struct Grabber
 		TESForm *hitForm;
 		NiPointer<NiAVObject> shaderNode;
 		NiPointer<NiAVObject> hitNode;
-		UInt32 handle = *g_invalidRefHandle;
+		UInt32 handle = 0;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		bool isActor = false;
@@ -31,7 +31,7 @@ struct Grabber
 	struct PulledObject
 	{
 		NiPointer<bhkRigidBody> rigidBody;
-		UInt32 handle = *g_invalidRefHandle;
+		UInt32 handle = 0;
 		hkHalf savedAngularDamping;
 	};
 

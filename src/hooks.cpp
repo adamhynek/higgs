@@ -7,6 +7,7 @@
 #include "shaders.h"
 #include "RE/havok.h"
 #include "grabber.h"
+#include "vrikinterface001.h"
 
 
 auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
@@ -40,20 +41,16 @@ void HookedWorldUpdateHook(bhkWorld *world)
 		std::lock_guard<std::mutex> lock(g_rightGrabber->deselectLock);
 
 		if (g_rightGrabber->state == Grabber::State::Held) {
-			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber->handNodeName.data);
+			PlayerCharacter *player = *g_thePlayer;
+			NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
 				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 					NiAVObject *n = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
 					if (n) {
-						NiTransform inverseParent;
-						n->m_parent->m_worldTransform.Invert(inverseParent);
 						NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber->initialObjTransformHandSpace;
-						n->m_localTransform = inverseParent * newTransform;
-						NiAVObject::ControllerUpdateContext ctx;
-						ctx.flags = 0x2000; // makes havok sim more stable?
-						ctx.delta = 0;
-						NiAVObject_UpdateObjectUpwards(n, &ctx);
+
+						UpdateKeyframedNodeTransform(n, newTransform);
 					}
 				}
 			}
@@ -63,20 +60,16 @@ void HookedWorldUpdateHook(bhkWorld *world)
 		std::lock_guard<std::mutex> lock(g_leftGrabber->deselectLock);
 
 		if (g_leftGrabber->state == Grabber::State::Held) {
-			NiAVObject *handNode = (*g_thePlayer)->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber->handNodeName.data);
+			PlayerCharacter *player = *g_thePlayer;
+			NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
 				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 					NiAVObject *n = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
 					if (n) {
-						NiTransform inverseParent;
-						n->m_parent->m_worldTransform.Invert(inverseParent);
 						NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber->initialObjTransformHandSpace;
-						n->m_localTransform = inverseParent * newTransform;
-						NiAVObject::ControllerUpdateContext ctx;
-						ctx.flags = 0x2000; // makes havok sim more stable?
-						ctx.delta = 0;
-						NiAVObject_UpdateObjectUpwards(n, &ctx);
+
+						UpdateKeyframedNodeTransform(n, newTransform);
 					}
 				}
 			}

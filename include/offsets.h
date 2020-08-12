@@ -10,6 +10,8 @@
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 
 
+// 0x1F8319C: selected handle as well?
+// 0x2FEAC78: TESObjectREFR * to selected object?
 struct CrosshairPickData
 {
 	UInt32 unk00;
@@ -21,17 +23,19 @@ struct CrosshairPickData
 	UInt32 unk18;
 	UInt32 leftHandle3; // 1C
 	UInt32 rightHandle3; // 20
-	UInt8 unk24[0x34 - 0x24];
-	float unk34[6];
-	UInt8 unk4C[0x78 - 0x4C];
+	UInt8 unk24[0x50 - 0x24];
+	bhkRigidBody *rigidBodies[2]; // 50 - slot depends on hand
+	UInt8 unk60[0x78 - 0x60];
 	NiPointer<bhkSimpleShapePhantom> sphere; // 78
 };
+static_assert(offsetof(CrosshairPickData, rigidBodies) == 0x50);
 static_assert(offsetof(CrosshairPickData, sphere) == 0x78);
 
 
 // Multiply skyrim coords by this to get havok coords
 // It's the number of meters per skyrim unit
 extern RelocPtr<float> g_havokWorldScale;
+extern RelocPtr<float> g_inverseHavokWorldScale;
 
 // Address of pointer to bhkSimpleShapePhantom that tracks the right hand - more or less
 extern RelocPtr<bhkSimpleShapePhantom *> g_pickSphere;

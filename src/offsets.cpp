@@ -4,6 +4,7 @@
 
 
 RelocPtr<float> g_havokWorldScale(0x15B78F4);
+RelocPtr<float> g_inverseHavokWorldScale(0x15ADFE8);
 
 // Alternatively, 0x30008E0 + 0x78
 // Even better, (*0x2FC60C0) + 0x78
@@ -105,6 +106,3 @@ RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReferenc
 
 // 1st arg: ptr to BipedAnim. 2nd arg: ptr to NiNode
 //CreateArmorNode(0x1DB680);
-
-
-//115111
