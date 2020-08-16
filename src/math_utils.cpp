@@ -484,6 +484,25 @@ namespace MathUtils
 		//	return false;
 	}
 
+	NiPoint3 GetClosestPointOnLineSegment(NiPoint3 start, NiPoint3 end, NiPoint3 point) {
+		float l2 = VectorLengthSquared(end - start);  // i.e. |w-v|^2
+		if (l2 == 0.0) return start;   // v == w case
+		// Consider the line extending the segment, parameterized as v + t (w - v).
+		// We find projection of point p onto the line. 
+		// It falls where t = [(p-v) . (w-v)] / |w-v|^2
+		// We clamp t from [0,1] to handle points outside the segment vw.
+		float t = max(0, min(1, DotProduct(point - start, end - start) / l2));
+		NiPoint3 projection = start + (end - start) * t;  // Projection falls on the segment
+		return projection;
+	}
+
+	NiPoint3 GetFurthestPointOnLineSegment(NiPoint3 start, NiPoint3 end, NiPoint3 point) {
+		float l2 = VectorLengthSquared(end - start);
+		if (l2 == 0.0) return start;   // v == w case
+		
+		return VectorLengthSquared(start - point) >= VectorLengthSquared(end - point) ? start : end;
+	}
+
 	bool LinePlaneIntersection(NiPoint3& contact, NiPoint3 ray, NiPoint3 rayOrigin,
 		NiPoint3 normal, NiPoint3 coord) {
 		// get d value
@@ -594,7 +613,7 @@ namespace MathUtils
 		float pLength2 = VectorLengthSquared(p);
 		float discriminant = pDotd * pDotd - dLength2 * (pLength2 - circleRadius * circleRadius);
 		if (discriminant < 0) {
-			return false;
+			return 0;
 		}
 		float t1 = (-pDotd + sqrtf(discriminant)) / dLength2;
 		float t2 = (-pDotd - sqrtf(discriminant)) / dLength2;
@@ -621,11 +640,113 @@ namespace MathUtils
 
 		return 0;
 	}
+
+	// Return # of intersection points (0, 1, or 2)
+	int DiskIntersectsTriangle(NiPoint3 diskCenter,
+		NiPoint3 diskNormal,
+		float diskRadius,
+		Triangle &triangle,
+		NiPoint3 &outIntersectionPoint1,
+		NiPoint3 &outIntersectionPoint2,
+		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	{
+		const float EPSILON = 0.0000001;
+
+		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
+		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
+		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
+		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
+		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+
+		// Check each triangle edge for intersection. Either none intersect, or 2 of them do.
+		NiPoint3 edge1Intersection, edge2Intersection, edge3Intersection;
+		bool edge1Intersects = PlaneIntersectsLineSegment(diskCenter, diskNormal, vertex0, vertex1, edge1Intersection);
+		bool edge2Intersects = PlaneIntersectsLineSegment(diskCenter, diskNormal, vertex0, vertex2, edge2Intersection);
+		if (!edge1Intersects && !edge2Intersects) {
+			return 0; // Impossible for 2 edges to intersect at this point
+		}
+		bool edge3Intersects = PlaneIntersectsLineSegment(diskCenter, diskNormal, vertex1, vertex2, edge3Intersection);
+
+		int numIntersections = edge1Intersects + edge2Intersects + edge3Intersects;
+		if (numIntersections < 2) {
+			return 0;
+		}
+
+		// p: start point of intersection line; d: direction vector of intersection line
+		NiPoint3 d, p;
+		float edgeLength;
+		if (edge1Intersects && edge2Intersects) {
+			NiPoint3 edge = edge2Intersection - edge1Intersection;
+			edgeLength = VectorLength(edge);
+			d = edgeLength ? edge / edgeLength : NiPoint3();
+			p = edge1Intersection - diskCenter; // Make the circle center the origin, it makes the math cleaner
+		}
+		else if (edge1Intersects && edge3Intersects) {
+			NiPoint3 edge = edge3Intersection - edge1Intersection;
+			edgeLength = VectorLength(edge);
+			d = edgeLength ? edge / edgeLength : NiPoint3();
+			p = edge1Intersection - diskCenter;
+		}
+		else if (edge2Intersects && edge3Intersects) {
+			NiPoint3 edge = edge3Intersection - edge2Intersection;
+			edgeLength = VectorLength(edge);
+			d = edgeLength ? edge / edgeLength : NiPoint3();
+			p = edge2Intersection - diskCenter;
+		}
+		else {
+			// Impossible
+			ASSERT(false);
+			return 0;
+		}
+
+		NiPoint3 furthestPoint = GetFurthestPointOnLineSegment(p, p + d * edgeLength, { 0, 0, 0 }); // circle center is the origin, so {0, 0, 0}
+		if (VectorLength(furthestPoint) > diskRadius) {
+			// Furthest point is past the end of the disk. See if there is another point at the edge of the disk.
+
+			// Solve quadratic for pt that is on the intersection line as well as on the circle (dist to circle center == radius)
+			float pDotd = DotProduct(p, d);
+			float dLength2 = VectorLengthSquared(d);
+			float pLength2 = VectorLengthSquared(p);
+			float discriminant = pDotd * pDotd - dLength2 * (pLength2 - diskRadius * diskRadius);
+			if (discriminant < 0) {
+				return 0;
+			}
+			float t1 = (-pDotd + sqrtf(discriminant)) / dLength2;
+			float t2 = (-pDotd - sqrtf(discriminant)) / dLength2;
+
+			bool t1IsOnSegment = t1 >= 0 && t1 <= edgeLength;
+			bool t2IsOnSegment = t2 >= 0 && t2 <= edgeLength;
+
+			if (t1IsOnSegment && t2IsOnSegment) {
+				// This is rare... the circle intersects the triangle at 2 points
+				outIntersectionPoint1 = diskCenter + p + d * t1; // Add back the circle center after making it the origin
+				outIntersectionPoint2 = diskCenter + p + d * t2;
+				return 2;
+			}
+			else if (t1IsOnSegment) {
+				// t1 is on the segment
+				outIntersectionPoint1 = diskCenter + p + d * t1;
+				return 1;
+			}
+			else if (t2IsOnSegment) {
+				// t2 is on the segment
+				outIntersectionPoint1 = diskCenter + p + d * t2;
+				return 1;
+			}
+		}
+		else {
+			outIntersectionPoint1 = diskCenter + furthestPoint;
+			return 1;
+		}
+
+		return 0;
+	}
 }
 
 
-bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector,
-	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector,
+	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -668,13 +789,15 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 
 			int closestTri = -1;
 			NiPoint3 closestTriPos;
-			float closestDistance = *closestDistanceSoFar;
+			float furthestDistance = *furthestDistanceSoFar;
+			float smallestAngle = *bestPointAngle;
 
 			for (int i = 0; i < numTris; i++) {
 				Triangle tri = tris[i];
 				// get closest point on triangle to given point
 				NiPoint3 intersectionPoint1, intersectionPoint2;
-				int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
+				int numIntersections = MathUtils::DiskIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
+				//int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				if (numIntersections == 0) {
 					continue;
 				}
@@ -699,7 +822,8 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 					angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
 				}
 				
-				if (angle < closestDistance) {
+				float dist = VectorLength(centerToIntersect);
+				if (dist > furthestDistance || (abs(dist - furthestDistance) < 0.001f && angle < smallestAngle)) {
 					uintptr_t vert = (verts + tri.vertexIndices[0] * vertexSize);
 					NiPoint3 pos0 = *(NiPoint3 *)(vert + posOffset);
 					vert = (verts + tri.vertexIndices[1] * vertexSize);
@@ -712,7 +836,8 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 					NiPoint3 tangentAtIntersection = CrossProduct(normalNodespace, centerToIntersect);
 					if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
 						// Front face of the triangle was intersected CCW around the circle
-						closestDistance = angle;
+						furthestDistance = dist;
+						smallestAngle = angle;
 						closestTriPos = intersectionPoint;
 						closestTri = i;
 					}
@@ -720,7 +845,8 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 			}
 
 			if (closestTri >= 0) {
-				*closestDistanceSoFar = closestDistance;
+				*furthestDistanceSoFar = furthestDistance;
+				*bestPointAngle = smallestAngle;
 				*closestPos = nodeTransform * closestTriPos;
 
 				Triangle closestTriangle = tris[closestTri];
@@ -745,7 +871,7 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					return GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, closestDistanceSoFar);
+					return GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
 				}
 			}
 		}
@@ -754,7 +880,7 @@ bool GetCircleIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, 
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					if (GetCircleIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, closestDistanceSoFar)) {
+					if (GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
 						success = true;
 					}
 				}
