@@ -253,11 +253,24 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				PlayerCharacter *player = *g_thePlayer;
 
 				//static const NiPoint3 nonThumbNormalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up for the right hand
-				static const NiPoint3 nonThumbNormalHandspace = VectorNormalized({ 1, 0.3, 0.2 }); // points out the thumb like in a thumbs-up for the right hand
-				static const NiPoint3 nonThumbZeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 });
+				NiPoint3 nonThumbNormalHandspace = VectorNormalized({ 1, 0.3, 0.2 }); // points out the thumb like in a thumbs-up for the right hand
+				NiPoint3 nonThumbZeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 });
 
-				static const NiPoint3 thumbZeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
-				static const NiPoint3 thumbNormalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm for the right hand
+				NiPoint3 thumbZeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
+				NiPoint3 thumbNormalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm for the right hand
+
+				if (isLeft) {
+					// x axis is flipped for left hand
+					nonThumbZeroAngleVectorHandspace.x *= -1;
+					thumbZeroAngleVectorHandspace.x *= -1;
+
+					// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+					nonThumbNormalHandspace.y *= -1;
+					nonThumbNormalHandspace.z *= -1;
+
+					thumbNormalHandspace.y *= -1;
+					thumbNormalHandspace.z *= -1;
+				}
 
 				NiPoint3 thumbNormalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * thumbNormalHandspace);
 				NiPoint3 nonThumbNormalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * nonThumbNormalHandspace);
@@ -271,7 +284,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					float fingerRadius; // full radius of the finger
 				};
 
-				auto FingerCheck = [this, player, handNode](TESObjectREFR *refr, int fingerIndex, NiPoint3 zeroAngleVectorHandspace, NiPoint3 normalHandspace) -> FingerData
+				auto FingerCheck = [this, player, handNode](TESObjectREFR *refr, int fingerIndex, NiPoint3 zeroAngleVectorWorldspace, NiPoint3 normalWorldspace) -> FingerData
 				{
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
@@ -281,18 +294,6 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
 						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
 						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
-
-						if (isLeft) {
-							zeroAngleVectorHandspace.x *= -1; // x axis is flipped for left hand
-						}
-						NiPoint3 zeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVectorHandspace);
-
-						if (isLeft) {
-							// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-							normalHandspace.y *= -1;
-							normalHandspace.z *= -1;
-						}
-						NiPoint3 normalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
 
 						float furthestDistance = -1;
 						float closestAngle = (std::numeric_limits<float>::max)();
@@ -326,11 +327,11 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 
-				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorHandspace, thumbNormalHandspace).angle;
+				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace).angle;
 				if (thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
 					NiPoint3 axis = thumbNormalWorldspace;
-					//float angle = minAllowedAngle - thumbAngle;
+					float angle = minAllowedAngle - thumbAngle;
 
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][1].data);
@@ -344,26 +345,12 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, minAllowedAngle);
 						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, thumbAngle);
 
-						NiPoint3 palmToActual = actualPtPos - palmPos;
-						NiPoint3 palmToActualAlongAxis = axis * DotProduct(axis, palmToActual);
-						NiPoint3 axisToActual = palmToActual - palmToActualAlongAxis;
-
-						NiPoint3 palmToDesired = desiredPtPos - palmPos;
-						NiPoint3 palmToDesiredAlongAxis = axis * DotProduct(axis, palmToDesired);
-						NiPoint3 axisToDesired = palmToDesired - palmToDesiredAlongAxis;
-
-						float angle = acosf(DotProduct(VectorNormalized(axisToActual), VectorNormalized(axisToDesired)));
-						if (DotProduct(axis, CrossProduct(axisToDesired, axisToActual)) > 0) { // This is the derotation angle, so opposite condition to in FingerCheck()
-							angle *= -1;
-						}
 
 						NiPoint3 ptToCenter = n->m_worldTransform.pos - actualPtPos;
 
 						NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(ptToCenter, axis, angle);
 						NiPoint3 desiredPos = desiredPtPos + rotatedPtToCenter;
-						//NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
 
-						//NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
 						desiredTransform = n->m_worldTransform;
 						desiredTransform.pos = desiredPos;
 
@@ -373,20 +360,20 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						UpdateKeyframedNodeTransform(n, desiredTransform);
 
 						// Compute the palm attach pos again
-						NiPoint3 triPos, triNormal;
+						/*NiPoint3 triPos, triNormal;
 						float closestDist = (std::numeric_limits<float>::max)();
 						bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, palmPos, castDirection, &triPos, &triNormal, &closestDist);
 
 						// Update transform to snap to the hand
 						desiredTransform = n->m_worldTransform;
 						desiredTransform.pos += palmPos - triPos;
-						UpdateKeyframedNodeTransform(n, desiredTransform);
+						UpdateKeyframedNodeTransform(n, desiredTransform);*/
 					}
 				}
 
 				std::array<FingerData, 5> fingerData;
 				for (int i = 1; i < fingerData.size(); i++) { // No thumb
-					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorHandspace, nonThumbNormalHandspace);
+					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace);
 				}
 
 				int fingerWithSmallestAngle = -1;
@@ -455,13 +442,13 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						// Recompute all fingers
 						for (int i = 1; i < fingerData.size(); i++) { // No thumb
-							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorHandspace, nonThumbNormalHandspace);
+							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace);
 						}
 					}
 				}
 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
-				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorHandspace, thumbNormalHandspace);
+				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace);
 
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
@@ -469,19 +456,22 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						FingerData data = fingerData[i];
 						float degrees = data.angle * 57.2958;
 						_MESSAGE("%d angle: %.2f", i, degrees);
+
+						float radiusRatio = 1.0f - data.radius / data.fingerRadius; // 0 to 1, 0 if radius equals fingerRadius
+						_MESSAGE("%d radius ratio: %.2f", i, radiusRatio);
+
+						float angleRatio = min(1, degrees / 180.0f);
+						float range = angleRatio + (1.0f - angleRatio) * radiusRatio; // amount of curl
+
 						if (i == 0) {
 							// Thumb's got it a bit different
-							fingerRanges[i] = 1.0f - max(0, min(1, (degrees / 180.0f) / 0.75f));
+							fingerRanges[i] = 1.0f - max(0, min(1, range * 1.5f));
 						}
 						else {
-							float radiusRatio = 1.0f - data.radius / data.fingerRadius; // 0 to 1, 0 if radius equals fingerRadius
-							_MESSAGE("%d radius ratio: %.2f", i, radiusRatio);
-
-							float angleRatio = min(1, degrees / 180.0f);
-							float range = angleRatio + (1.0f - angleRatio) * radiusRatio; // amount of curl
 							fingerRanges[i] = 1.0f - max(0, min(1, range));
-							fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
 						}
+
+						fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
 					}
 
 					g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
@@ -529,7 +519,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 	NiPoint3 handPos = handNode->m_worldTransform.pos;
 
-	NiPoint3 castDirection = VectorNormalized(handNode->m_worldTransform.rot * Config::options.handAdjust);
+	NiPoint3 handAdjust = Config::options.handAdjust;
+	if (isLeft) handAdjust.x *= -1;
+	NiPoint3 castDirection = VectorNormalized(handNode->m_worldTransform.rot * handAdjust);
 
 	NiAVObject *hmdNode = playerWorldNode->GetObjectByName(&hmdNodeStr.data);
 	if (!hmdNode)
