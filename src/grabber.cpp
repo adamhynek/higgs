@@ -10,7 +10,7 @@
 #include "utils.h"
 #include "config.h"
 #include "menu_checker.h"
-#include "shaders.h"
+#include "effects.h"
 #include "math_utils.h"
 #include "vrikinterface001.h"
 
@@ -31,6 +31,8 @@ CdBodyPairCollector pairCollector;
 // Why ItemPicker? It ignores stuff like weapons the player is holding
 //static hkpWorldRayCastInput rayCastInput(0x02420028);
 hkpWorldRayCastInput rayCastInput;
+
+float fingerTipLengths[] = { 2.202f, 2.419f, 2.192f, 1.6676f, 1.7275f };
 
 
 // Copied from PapyrusActor.cpp
@@ -122,6 +124,64 @@ bool CompareBipedIndices(int i1, int i2)
 }
 
 
+void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
+{
+	NiPointer<TESObjectREFR> obj;
+	if (LookupREFRByHandle(objHandle, obj)) {
+		Actor *actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
+		if (actor) {
+			BGSReferenceEffect *effect;
+			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+				effect = itemSelectedEffectOffLimits;
+			}
+			else {
+				effect = itemSelectedEffect;
+			}
+			PlayVFX(objHandle, node, effect);
+		}
+		else {
+			TESEffectShader *shader;
+			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+				shader = itemSelectedShaderOffLimits;
+			}
+			else {
+				shader = itemSelectedShader;
+			}
+			PlayShader(objHandle, node, shader);
+		}
+	}
+}
+
+
+void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
+{
+	NiPointer<TESObjectREFR> obj;
+	if (LookupREFRByHandle(objHandle, obj)) {
+		Actor *actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
+		if (actor) {
+			BGSReferenceEffect *effect;
+			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+				effect = itemSelectedEffectOffLimits;
+			}
+			else {
+				effect = itemSelectedEffect;
+			}
+			StopVFX(objHandle, node, effect);
+		}
+		else {
+			TESEffectShader *shader;
+			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+				shader = itemSelectedShaderOffLimits;
+			}
+			else {
+				shader = itemSelectedShader;
+			}
+			StopShader(objHandle, node, shader);
+		}
+	}
+}
+
+
 bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 	NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint)
 {
@@ -196,7 +256,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
-		StopShader(selectedObject.handle, selectedObject.shaderNode);
+		StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
 		grabbedTime = g_currentFrameTime;
 
@@ -295,10 +355,14 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
 						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
 
+						_MESSAGE("%d", fingerIndex);
+
+						float tipLength = fingerTipLengths[fingerIndex];
+
 						float furthestDistance = -1;
 						float closestAngle = (std::numeric_limits<float>::max)();
 						NiPoint3 intersection, normal;
-						bool intersects = GetDiskIntersectionOnGraphicsGeometry(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+						bool intersects = GetDiskIntersectionOnGraphicsGeometry(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, tipLength, normalWorldspace, zeroAngleVectorWorldspace,
 							&intersection, &normal, &furthestDistance, &closestAngle);
 						if (intersects) {
 							NiPoint3 centerToIntersect = intersection - startFingerPos;
@@ -307,7 +371,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 								// Positive angles are those which curl the finger
 								angle *= -1;
 							}
-							float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
+							float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos) + tipLength;
 							return { angle, VectorLength(centerToIntersect), radius };
 						}
 						else {
@@ -328,7 +392,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 
 				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace).angle;
-				if (thumbAngle < minAllowedAngle) {
+				if (false){//(thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
 					NiPoint3 axis = thumbNormalWorldspace;
 					float angle = minAllowedAngle - thumbAngle;
@@ -465,7 +529,8 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						if (i == 0) {
 							// Thumb's got it a bit different
-							fingerRanges[i] = 1.0f - max(0, min(1, range * 1.5f));
+							//fingerRanges[i] = 1.0f - max(0, min(1, range * 1.5f));
+							fingerRanges[i] = 1.0f;
 						}
 						else {
 							fingerRanges[i] = 1.0f - max(0, min(1, range));
@@ -668,10 +733,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	if (!sphere)
 		return;
 
-	NiAVObject *palmNode = player->GetNiRootNode(1)->GetObjectByName(&palmNodeName.data);
-	if (!palmNode)
-		return;
-	NiPoint3 hkPalmNodePos = palmNode->m_worldTransform.pos * havokWorldScale;
+	NiPoint3 hkPalmNodePos = handNode->m_worldTransform * palmPosHandspace * havokWorldScale;
 
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
@@ -776,7 +838,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) || closestObj != selectedObj) {
 				if (selectedObj) {
 					// Deselect the old thing if something else was selected
-					StopShader(selectedObject.handle, selectedObject.shaderNode);
+					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					Deselect();
 				}
 				// select the new refr
@@ -857,7 +919,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									TESForm *equippedForm = equipData.pForm;
 									if (equippedForm) {
 										auto hitBipedData = &bipedData->unk10[hitIndex];
-										nodeOnWhichToPlayShader = hitBipedData->object;
+										nodeOnWhichToPlayShader = hitNode;
 										selectedObject.hitForm = hitForm;
 										selectedObject.hitNode = hitNode;
 									}
@@ -875,26 +937,18 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 					if (nodeOnWhichToPlayShader != selectedObject.shaderNode) {
 						// New node, same (or new) object
-						TESEffectShader *shader;
-						if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
-							shader = itemSelectedShaderOffLimits;
-						}
-						else {
-							shader = itemSelectedShader;
-						}
-
 						if (selectedObject.handle == prevSelectedHandle) {
 							// Stop the shader on the current reference, we've changed nodes
-							StopShader(selectedObject.handle, selectedObject.shaderNode);
+							StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 						}
 						else {
 							// Stop the shader on the previous reference
 							NiPointer<TESObjectREFR> prevSelectedObj;
 							if (LookupREFRByHandle(prevSelectedHandle, prevSelectedObj)) {
-								StopShader(prevSelectedHandle, selectedObject.shaderNode);
+								StopSelectionEffect(prevSelectedHandle, selectedObject.shaderNode);
 							}
 						}
-						PlayShader(selectedObject.handle, nodeOnWhichToPlayShader, shader);
+						PlaySelectionEffect(selectedObject.handle, nodeOnWhichToPlayShader);
 						selectedObject.shaderNode = nodeOnWhichToPlayShader;
 					}
 				}
@@ -905,15 +959,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				if (selectedObject.handle != prevSelectedHandle) {
 					// New refr is selected. Stopping the shader for the previous ref is done earlier.
 					if (!selectedObject.isActor) {
-						TESEffectShader *shader;
-						if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
-							shader = itemSelectedShaderOffLimits;
-						}
-						else {
-							shader = itemSelectedShader;
-						}
-
-						PlayShader(selectedObject.handle, nullptr, shader);
+						PlaySelectionEffect(selectedObject.handle, nullptr);
 					}
 
 					selectedObject.shaderNode = nullptr;
@@ -923,15 +969,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				else if (selectedObject.shaderNode) {
 					// Node was selected before (selectedObject.shaderNode), but not now (nodeOnWhichToPlayShader). Stop the shader on that node.
 					if (breakStickiness) {
-						StopShader(selectedObject.handle, selectedObject.shaderNode);
-
-						TESEffectShader *shader;
-						if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
-							shader = itemSelectedShaderOffLimits;
-						}
-						else {
-							shader = itemSelectedShader;
-						}
+						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
 						//PlayShader(selectedObject.handle, nullptr, shader);
 
@@ -955,7 +993,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
 					// If time has run out and nothing is selected, deselect whatever is selected
-					StopShader(selectedObject.handle, selectedObject.shaderNode);
+					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					Deselect();
 				}
 
@@ -1049,7 +1087,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 				}
 				if (state == State::SelectionLocked) {
-					StopShader(selectedObject.handle, selectedObject.shaderNode);
+					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 				}
 				if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
@@ -1069,7 +1107,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 				auto TransitionPulled = [this, motion, selectedObj, handNode]()
 				{
-					StopShader(selectedObject.handle, selectedObject.shaderNode);
+					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
 					pulledTime = g_currentFrameTime;
 
@@ -1156,9 +1194,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					NiPointer<TESObjectREFR> closestObj;
 					NiPointer<bhkRigidBody> closestRigidBody;
 					hkContactPoint closestPoint;
-
-					NiAVObject *palmNode = player->GetNiRootNode(1)->GetObjectByName(&palmNodeName.data);
-					NiPoint3 hkPalmNodePos = palmNode->m_worldTransform.pos * havokWorldScale;
 
 					isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, castDirection, sphere,
 						&closestObj, &closestRigidBody, &closestPoint);
@@ -1252,7 +1287,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
 
 						// Set owner to the player so it doesn't count as stealing
-						TESObjectREFR_SetActorOwner(nullptr, nullptr, selectedObj, player->baseForm);
+						TESObjectREFR_SetActorOwner(nullptr, 0, selectedObj, player->baseForm);
 
 						state = State::Pulled;
 						pulledTime = g_currentFrameTime;

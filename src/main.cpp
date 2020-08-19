@@ -29,7 +29,7 @@
 #include "utils.h"
 #include "config.h"
 #include "menu_checker.h"
-#include "shaders.h"
+#include "effects.h"
 #include "offsets.h"
 #include "hooks.h"
 #include "vrikinterface001.h"
@@ -52,6 +52,8 @@ bool g_isLoaded = false;
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
+BGSReferenceEffect *g_itemSelectedEffect = nullptr;
+BGSReferenceEffect *g_itemSelectedEffectOffLimits = nullptr;
 
 bool g_hasSavedRumbleIntensity = false;
 float g_normalRumbleIntensity;
@@ -67,7 +69,7 @@ Grabber *g_leftGrabber;
 bool TryHook()
 {
 	// This should be sized to the actual amount used by your trampoline
-	static const size_t TRAMPOLINE_SIZE = 1024;
+	static const size_t TRAMPOLINE_SIZE = 2048;
 
 	if (g_trampoline) {
 		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
@@ -305,6 +307,28 @@ extern "C" {
 			_MESSAGE("Failed to cast selected item off limits shader form");
 			return;
 		}
+
+		TESForm *effectForm = LookupFormByID(GetFullFormID(modInfo, 0x7464));
+		if (!effectForm) {
+			_MESSAGE("Failed to get slected item effect form");
+			return;
+		}
+		g_itemSelectedEffect = DYNAMIC_CAST(effectForm, TESForm, BGSReferenceEffect);
+		if (!g_itemSelectedEffect) {
+			_MESSAGE("Failed to cast selected item effect form");
+			return;
+		}
+
+		effectForm = LookupFormByID(GetFullFormID(modInfo, 0x7464));
+		if (!effectForm) {
+			_MESSAGE("Failed to get slected item off limits effect form");
+			return;
+		}
+		g_itemSelectedEffectOffLimits = DYNAMIC_CAST(effectForm, TESForm, BGSReferenceEffect);
+		if (!g_itemSelectedEffectOffLimits) {
+			_MESSAGE("Failed to cast selected item off limits effect form");
+			return;
+		}
 		
 		MenuManager * menuManager = MenuManager::GetSingleton();
 		if (menuManager) {
@@ -369,8 +393,8 @@ extern "C" {
 			},
 		};
 
-		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", "AnimObjectR", rightFingerNames, { 7, -5, -2 }, Config::options.delayRightGripInput);
-		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", "AnimObjectL", leftFingerNames, { -7, -7, -3 }, Config::options.delayLeftGripInput);
+		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", rightFingerNames, { 0, -2, 5.5 }, { 7, -5, -2 }, Config::options.delayRightGripInput);
+		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", leftFingerNames, { 0, -2, 5.5 }, { -7, -7, -3 }, Config::options.delayLeftGripInput);
 		if (!g_rightGrabber || !g_leftGrabber) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
@@ -378,9 +402,13 @@ extern "C" {
 
 		g_rightGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_rightGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
+		g_rightGrabber->itemSelectedEffect = g_itemSelectedEffect;
+		g_rightGrabber->itemSelectedEffectOffLimits = g_itemSelectedEffectOffLimits;
 
 		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
+		g_leftGrabber->itemSelectedEffect = g_itemSelectedEffect;
+		g_leftGrabber->itemSelectedEffectOffLimits = g_itemSelectedEffectOffLimits;
 
 		// Right vector points to the right of the text
 		g_rolloverRotation.data[0][0] = 0;

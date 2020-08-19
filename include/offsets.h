@@ -57,14 +57,19 @@ extern RelocAddr<_EffectShader_Play> EffectShader_Play;
 typedef void(*_EffectShader_Stop)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target);
 extern RelocAddr<_EffectShader_Stop> EffectShader_Stop;
 
+typedef void(*_VisualEffect_Play)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target, float duration, TESObjectREFR *objToFace);
+extern RelocAddr<_VisualEffect_Play> VisualEffect_Play;
+
+typedef void(*_VisualEffect_Stop)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target);
+extern RelocAddr<_VisualEffect_Stop> VisualEffect_Stop;
+
 typedef void(*_BSExtraDataList_RemoveOwnership)(BaseExtraList *_this);
 extern RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership;
 
 typedef void(*_BSExtraDataList_SetOwnerForm)(BaseExtraList *_this, TESForm *form);
 extern RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm;
 
-// rcx and rdx are ignored for some reason. Args are in r8 and r9.
-typedef void(*_TESObjectREFR_SetActorOwner)(void *null1, void *null2, TESObjectREFR *_this, TESForm *owner);
+typedef void(*_TESObjectREFR_SetActorOwner)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR *_this, TESForm *owner);
 extern RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner;
 
 typedef void(*_hkpWorld_CastRay)(hkpWorld *world, hkpWorldRayCastInput *input, hkpRayHitCollector *collector);

@@ -23,6 +23,10 @@ RelocAddr<_EffectShader_Play> EffectShader_Play(0x9BCAF0);
 
 RelocAddr<_EffectShader_Stop> EffectShader_Stop(0x9BCC20);
 
+RelocAddr<_VisualEffect_Play> VisualEffect_Play(0x9A4E00);
+
+RelocAddr<_VisualEffect_Stop> VisualEffect_Stop(0x9A4F80);
+
 RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership(0x1309A0);
 
 RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm(0x11E0C0);

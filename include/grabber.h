@@ -56,13 +56,13 @@ struct Grabber
 		Force
 	};
 
-	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString palmNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 rolloverOffset, bool delayGripInput) :
+	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
 		isLeft(isLeft),
 		name(name),
 		handNodeName(handNodeName),
 		upperArmNodeName(upperArmNodeName),
 		wandNodeName(wandNodeName),
-		palmNodeName(palmNodeName),
+		palmPosHandspace(palmPosHandspace),
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput)
 	{
@@ -84,6 +84,8 @@ struct Grabber
 	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 
+	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
+	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
 	void TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
@@ -105,12 +107,12 @@ struct Grabber
 
 	const bool isLeft = false;
 	const bool delayGripInput = false;
+	const NiPoint3 palmPosHandspace;
 	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
 	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
 	BSFixedString upperArmNodeName;
 	BSFixedString wandNodeName;
-	BSFixedString palmNodeName;
 
 	std::mutex deselectLock;
 
@@ -122,6 +124,8 @@ struct Grabber
 
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
+	BGSReferenceEffect *itemSelectedEffect = nullptr;
+	BGSReferenceEffect *itemSelectedEffectOffLimits = nullptr;
 
 	std::array<NiPoint3, 5> handVelocitiesWorldspace; // previous n hand velocities in skyrim worldspace
 	std::array<NiPoint3, 5> handVelocitiesRoomspace; // previous n wand velocities in local roomspace

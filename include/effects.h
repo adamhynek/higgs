@@ -9,13 +9,13 @@ struct OwnedController
 	UInt32 unk0C;
 	TESEffectShader *shader; // 10
 	BGSArtObject *artObject; // 18
-	UInt32 unkHandle; // 20
+	UInt32 aimAtHandle; // 20
 	UInt32 unk24;
 	NiPointer<NiAVObject> attachRoot; // 28
 };
 static_assert(sizeof(OwnedController) == 0x30);
 
-struct ShaderReferenceEffect : NiObject
+struct ReferenceEffect : NiObject
 {
 	float		   lifetime;	 // 10
 	UInt32		   pad14;		 // 14
@@ -33,11 +33,19 @@ struct ShaderReferenceEffect : NiObject
 	bool					   ownController;  // 41
 	UInt16					   pad42;		   // 42
 	UInt32					   pad44;		   // 44
-	// more...
 };
-static_assert(offsetof(ShaderReferenceEffect, controller) == 0x30);
+static_assert(offsetof(ReferenceEffect, controller) == 0x30);
+
+struct ShaderReferenceEffect : ReferenceEffect
+{
+};
+
+struct ModelReferenceEffect : ReferenceEffect
+{
+};
 
 extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
+extern ModelReferenceEffect ** volatile g_modelReferenceToSet;
 
 
 struct PlayingShader
@@ -50,4 +58,16 @@ struct PlayingShader
 	bool IsPlaying() const;
 };
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
-void StopShader(UInt32 objHandle, NiAVObject *node);
+void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
+
+struct PlayingEffect
+{
+	BGSReferenceEffect *effect;
+	NiPointer<ModelReferenceEffect> modelReference;
+	UInt32 handle;
+	NiPointer<NiAVObject> node;
+
+	bool IsPlaying() const;
+};
+void PlayVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect);
+void StopVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect);

@@ -745,7 +745,7 @@ namespace MathUtils
 }
 
 
-bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector,
+bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
@@ -784,7 +784,8 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 			NiPoint3 normalNodespace = inverseRot * normal;
 
 			// Compute radius after transforming points, as things can be scaled up/down
-			float radius = VectorLength(point2InNodeSpace - point1InNodeSpace) + VectorLength(point1InNodeSpace - centerInNodeSpace); // Add em up as if the finger was straightned out
+			float tipLengthInNodeSpace = tipLength * nodeTransform.scale;
+			float radius = VectorLength(point2InNodeSpace - point1InNodeSpace) + VectorLength(point1InNodeSpace - centerInNodeSpace) + tipLengthInNodeSpace; // Add em up as if the finger was straightned out
 			_MESSAGE("r: %.2f", radius);
 
 			int closestTri = -1;
@@ -815,11 +816,29 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 					intersectionPoint = angle1Smaller ? intersectionPoint1 : intersectionPoint2;
 					angle = angle1Smaller ? angle1 : angle2;
 					centerToIntersect = angle1Smaller ? centerToIntersect1 : centerToIntersect2;
+
+					float degrees = angle1 * 57.2958;
+					_MESSAGE("angle 1: %.2f", degrees);
+
+					float radiusRatio = 1.0f - VectorLength(centerToIntersect1) / radius;
+					_MESSAGE("radius ratio 1: %.3f", radiusRatio);
+
+					degrees = angle2 * 57.2958;
+					_MESSAGE("angle 2: %.2f", degrees);
+
+					radiusRatio = 1.0f - VectorLength(centerToIntersect2) / radius;
+					_MESSAGE("radius ratio 2: %.3f", radiusRatio);
 				}
 				else { // numIntersections == 1
 					intersectionPoint = intersectionPoint1;
 					centerToIntersect = intersectionPoint - centerInNodeSpace;
 					angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
+
+					float degrees = angle * 57.2958;
+					_MESSAGE("angle: %.2f", degrees);
+
+					float radiusRatio = 1.0f - VectorLength(centerToIntersect) / radius;
+					_MESSAGE("radius ratio: %.3f", radiusRatio);
 				}
 				
 				float dist = VectorLength(centerToIntersect);
@@ -871,7 +890,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					return GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
+					return GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, tipLength, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
 				}
 			}
 		}
@@ -880,7 +899,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					if (GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
+					if (GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, tipLength, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
 						success = true;
 					}
 				}

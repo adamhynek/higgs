@@ -36,9 +36,6 @@
     <ClCompile Include="src\offsets.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\shaders.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\hooks.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -46,6 +43,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\math_utils.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\effects.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -77,9 +77,6 @@
     <ClInclude Include="include\menu_checker.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\shaders.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\havok_ref_ptr.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -87,6 +84,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\math_utils.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\effects.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

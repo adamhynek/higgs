@@ -197,7 +197,7 @@
     <ClCompile Include="src\menu_checker.cpp" />
     <ClCompile Include="src\offsets.cpp" />
     <ClCompile Include="src\physics.cpp" />
-    <ClCompile Include="src\shaders.cpp" />
+    <ClCompile Include="src\effects.cpp" />
     <ClCompile Include="src\utils.cpp" />
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
@@ -211,7 +211,7 @@
     <ClInclude Include="include\menu_checker.h" />
     <ClInclude Include="include\physics.h" />
     <ClInclude Include="include\RE\havok.h" />
-    <ClInclude Include="include\shaders.h" />
+    <ClInclude Include="include\effects.h" />
     <ClInclude Include="include\utils.h" />
     <ClInclude Include="include\version.h" />
     <ClInclude Include="include\vrikinterface001.h" />
