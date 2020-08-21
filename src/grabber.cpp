@@ -344,7 +344,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					float fingerRadius; // full radius of the finger
 				};
 
-				auto FingerCheck = [this, player, handNode](TESObjectREFR *refr, int fingerIndex, NiPoint3 zeroAngleVectorWorldspace, NiPoint3 normalWorldspace) -> FingerData
+				auto FingerCheck = [this, player, handNode](TESObjectREFR *refr, int fingerIndex, NiPoint3 zeroAngleVectorWorldspace, NiPoint3 normalWorldspace, NiPoint3 palmPos) -> FingerData
 				{
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
@@ -362,7 +362,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						float furthestDistance = -1;
 						float closestAngle = (std::numeric_limits<float>::max)();
 						NiPoint3 intersection, normal;
-						bool intersects = GetDiskIntersectionOnGraphicsGeometry(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, tipLength, normalWorldspace, zeroAngleVectorWorldspace,
+						bool intersects = GetIntersections(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, tipLength, normalWorldspace, zeroAngleVectorWorldspace, palmPos,
 							&intersection, &normal, &furthestDistance, &closestAngle);
 						if (intersects) {
 							NiPoint3 centerToIntersect = intersection - startFingerPos;
@@ -391,7 +391,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 
-				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace).angle;
+				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace, triPos).angle;
 				if (false){//(thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
 					NiPoint3 axis = thumbNormalWorldspace;
@@ -437,7 +437,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				std::array<FingerData, 5> fingerData;
 				for (int i = 1; i < fingerData.size(); i++) { // No thumb
-					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace);
+					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace, triPos);
 				}
 
 				int fingerWithSmallestAngle = -1;
@@ -495,7 +495,6 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						//UpdateKeyframedNodeTransform(n, desiredTransform);
 
 						// Compute the palm attach pos again
-						NiPoint3 triPos, triNormal;
 						float closestDist = (std::numeric_limits<float>::max)();
 						bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, palmPos, castDirection, &triPos, &triNormal, &closestDist);
 
@@ -506,13 +505,13 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						// Recompute all fingers
 						for (int i = 1; i < fingerData.size(); i++) { // No thumb
-							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace);
+							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace, triPos);
 						}
 					}
 				}
 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
-				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace);
+				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace, triPos);
 
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
@@ -1564,29 +1563,6 @@ bool Grabber::ShouldDisplayRollover()
 bool Grabber::IsSafeToClearSavedCollision()
 {
 	return (state != State::Held && state != State::HeldInit && pulledObject.handle == *g_invalidRefHandle);
-}
-
-
-// 0x1F8319C: selected handle as well? no
-// 0x2FEAC78: TESObjectREFR * to selected object? yes?
-RelocPtr<TESObjectREFR*> selectedREFR(0x2FEAC78);
-RelocPtr<UInt32> selectedHandle(0x1F8319C); // no
-void Grabber::SetSelectedHandles(bool isLeftHanded)
-{
-	// Now set all the places I could find that get set to the handle of the pointed at object usually
-	CrosshairPickData *pickData = *g_pickData;
-	if (pickData) {
-		if (isLeftHanded) {
-			pickData->leftHandle1 = selectedObject.handle;
-			pickData->leftHandle2 = selectedObject.handle;
-			pickData->leftHandle3 = selectedObject.handle;
-		}
-		else {
-			pickData->rightHandle1 = selectedObject.handle;
-			pickData->rightHandle2 = selectedObject.handle;
-			pickData->rightHandle3 = selectedObject.handle;
-		}
-	}
 }
 
 

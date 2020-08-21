@@ -93,7 +93,6 @@ struct Grabber
 	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
-	void SetSelectedHandles(bool isLeftHanded);
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
 	void Deselect();

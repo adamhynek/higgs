@@ -194,7 +194,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					rightWandNode->RemoveChild(rolloverNode);
 				}
 				g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
-				g_leftGrabber->SetSelectedHandles(isLeftHanded);
 			}
 			else {
 				NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -205,7 +204,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					leftWandNode->RemoveChild(rolloverNode);
 				}
 				g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
-				g_rightGrabber->SetSelectedHandles(isLeftHanded);
 			}
 		}
 		else if (displayRight) {
@@ -217,7 +215,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				leftWandNode->RemoveChild(rolloverNode);
 			}
 			g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
-			g_rightGrabber->SetSelectedHandles(isLeftHanded);
 		}
 		else if (displayLeft) {
 			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
@@ -228,7 +225,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				rightWandNode->RemoveChild(rolloverNode);
 			}
 			g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
-			g_leftGrabber->SetSelectedHandles(isLeftHanded);
 		}
 	}
 	else {
@@ -308,7 +304,7 @@ extern "C" {
 			return;
 		}
 
-		TESForm *effectForm = LookupFormByID(GetFullFormID(modInfo, 0x7464));
+		TESForm *effectForm = LookupFormByID(GetFullFormID(modInfo, 0x7463));
 		if (!effectForm) {
 			_MESSAGE("Failed to get slected item effect form");
 			return;
@@ -402,7 +398,7 @@ extern "C" {
 
 		g_rightGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_rightGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
-		g_rightGrabber->itemSelectedEffect = g_itemSelectedEffect;
+		g_rightGrabber->itemSelectedEffect = g_itemSelectedEffectOffLimits;
 		g_rightGrabber->itemSelectedEffectOffLimits = g_itemSelectedEffectOffLimits;
 
 		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;

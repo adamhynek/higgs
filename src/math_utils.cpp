@@ -745,7 +745,7 @@ namespace MathUtils
 }
 
 
-bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector,
+bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
@@ -890,7 +890,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					return GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, tipLength, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
+					return GetDiskIntersectionOnGraphicsGeometry(intersections, child, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
 				}
 			}
 		}
@@ -899,7 +899,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					if (GetDiskIntersectionOnGraphicsGeometry(child, center, point1, point2, tipLength, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
+					if (GetDiskIntersectionOnGraphicsGeometry(intersections, child, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
 						success = true;
 					}
 				}
@@ -909,6 +909,26 @@ bool GetDiskIntersectionOnGraphicsGeometry(NiAVObject *root, NiPoint3 center, Ni
 	}
 	return false;
 }
+
+
+bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos,
+	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
+{
+	std::vector<Intersection> intersections;
+
+	// Populate intersections
+	GetDiskIntersectionOnGraphicsGeometry(intersections, root, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos,
+		closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
+
+	// Construct a graph where V = all intersected triangles, and E = connections of adjacent triangles. I just realized we can only do that within each trishape... fuck...
+
+	// Now find the closest intersection to the palmPos
+
+	// Now go through the connected component of the above, and pick the one with the largest radius
+	// Allow backfaces when traversing the connected component, but only choose a final triangle if it is a front face
+	return true;
+}
+
 
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
