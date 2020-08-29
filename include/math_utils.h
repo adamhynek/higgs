@@ -15,6 +15,7 @@ struct Intersection
 {
 	NiPoint3 pt; // intersection pt
 	NiPoint3 pt2;
+	BSTriShape *node; // the trishape where the intersected triangle resides
 	Triangle tri; // triangle that was intersected
 	bool hasPt2;
 };

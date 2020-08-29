@@ -7,6 +7,12 @@ PlayingShader _shaders[2];
 PlayingEffect _effects[2];
 
 
+bool IsEffectPlaying(ModelReferenceEffect *effect)
+{
+	return _effects[0].modelReference == effect || _effects[1].modelReference == effect;
+}
+
+
 bool PlayingEffect::IsPlaying() const
 {
 	// Return true iff the shader was started and the obj / node on which it plays still exists

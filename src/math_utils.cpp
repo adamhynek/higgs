@@ -4,6 +4,9 @@
 
 #include "skse64/NiGeometry.h"
 
+#include <array>
+#include <set>
+
 
 NiPoint3 VectorNormalized(NiPoint3 vec)
 {
@@ -817,28 +820,14 @@ bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 					angle = angle1Smaller ? angle1 : angle2;
 					centerToIntersect = angle1Smaller ? centerToIntersect1 : centerToIntersect2;
 
-					float degrees = angle1 * 57.2958;
-					_MESSAGE("angle 1: %.2f", degrees);
-
-					float radiusRatio = 1.0f - VectorLength(centerToIntersect1) / radius;
-					_MESSAGE("radius ratio 1: %.3f", radiusRatio);
-
-					degrees = angle2 * 57.2958;
-					_MESSAGE("angle 2: %.2f", degrees);
-
-					radiusRatio = 1.0f - VectorLength(centerToIntersect2) / radius;
-					_MESSAGE("radius ratio 2: %.3f", radiusRatio);
+					intersections.push_back({ nodeTransform * intersectionPoint1, nodeTransform * intersectionPoint2, geom, tri, true });
 				}
 				else { // numIntersections == 1
 					intersectionPoint = intersectionPoint1;
 					centerToIntersect = intersectionPoint - centerInNodeSpace;
 					angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
 
-					float degrees = angle * 57.2958;
-					_MESSAGE("angle: %.2f", degrees);
-
-					float radiusRatio = 1.0f - VectorLength(centerToIntersect) / radius;
-					_MESSAGE("radius ratio: %.3f", radiusRatio);
+					intersections.push_back({ nodeTransform * intersectionPoint1, { 0, 0, 0 }, geom, tri, false });
 				}
 				
 				float dist = VectorLength(centerToIntersect);
@@ -911,6 +900,71 @@ bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 }
 
 
+std::array<NiPoint3, 3> GetVertices(Intersection &intersection)
+{
+	BSTriShape *geom = intersection.node;
+	Triangle tri = intersection.tri;
+
+	BSGeometryData *geomData = geom->geometryData;
+
+	uintptr_t verts = (uintptr_t)(geomData->vertices);
+
+	UInt64 vertexDesc = geom->vertexDesc;
+	UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+
+	UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+	NiTransform nodeTransform = geom->m_worldTransform;
+
+	// get vertices in world space
+	uintptr_t vert = (verts + tri.vertexIndices[0] * vertexSize);
+	NiPoint3 pos0 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
+	vert = (verts + tri.vertexIndices[1] * vertexSize);
+	NiPoint3 pos1 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
+	vert = (verts + tri.vertexIndices[2] * vertexSize);
+	NiPoint3 pos2 = nodeTransform * *(NiPoint3 *)(vert + posOffset);
+
+	return { pos0, pos1, pos2 };
+}
+
+bool DoesAnyVertexMatch(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
+{
+	auto vector_compare = [](NiPoint3 &v1, NiPoint3 &v2) -> bool {
+		return VectorLengthSquared(v1 - v2) < 0.00001f;
+	};
+
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			if (vector_compare(verts1[i], verts2[j])) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void _VisitGraphNodes(std::unordered_map<Intersection *, std::set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor, std::set<Intersection *> &visited)
+{
+	visitor(intersection);
+	visited.insert(intersection);
+
+	if (graph.count(intersection) == 0) {
+		return;
+	}
+
+	for (Intersection *edge : graph[intersection]) {
+		if (visited.count(edge) == 0) {
+			_VisitGraphNodes(graph, edge, visitor, visited);
+		}
+	}
+}
+
+void VisitGraphNodes(std::unordered_map<Intersection *, std::set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor)
+{
+	std::set<Intersection *> visited;
+	_VisitGraphNodes(graph, intersection, visitor, visited);
+}
+
 bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
@@ -920,12 +974,116 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 	GetDiskIntersectionOnGraphicsGeometry(intersections, root, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos,
 		closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
 
+	if (intersections.size() == 0) {
+		return false;
+	}
+
 	// Construct a graph where V = all intersected triangles, and E = connections of adjacent triangles. I just realized we can only do that within each trishape... fuck...
+
+	std::unordered_map<Intersection *, std::set<Intersection *>> graph; // adjacency list: map intersection -> intersections adjacent to it
+
+	for (int i = 0; i < intersections.size(); i++) {
+		Intersection *intersection = &intersections[i];
+
+		std::array<NiPoint3, 3> vertices = GetVertices(*intersection);
+
+		for (int j = i + 1; j < intersections.size(); j++) {
+			Intersection *otherIntersection = &intersections[j];
+
+			std::array<NiPoint3, 3> otherVertices = GetVertices(*otherIntersection);
+
+			if (DoesAnyVertexMatch(vertices, otherVertices)) {
+				// Add an edge between these two intersections
+				if (graph.count(intersection) == 0) {
+					graph[intersection] = std::set<Intersection *>();
+				}
+				graph[intersection].insert(otherIntersection);
+
+				if (graph.count(otherIntersection) == 0) {
+					graph[otherIntersection] = std::set<Intersection *>();
+				}
+				graph[otherIntersection].insert(intersection);
+			}
+		}
+	}
 
 	// Now find the closest intersection to the palmPos
 
+	Intersection *closestIntersection;
+	float closestDist = (std::numeric_limits<float>::max)();
+	for (Intersection &intersection : intersections) {
+		float dist;
+		if (intersection.hasPt2) {
+			float dist1 = VectorLengthSquared(intersection.pt - palmPos);
+			float dist2 = VectorLengthSquared(intersection.pt2 - palmPos);
+			// TODO: What if dist1 == dist2? This should be exceedingly rare, as pt and pt2 are equidistant from the _finger joint_, not the palm
+			dist = dist1 <= dist2 ? dist1 : dist2;
+		}
+		else {
+			dist = VectorLengthSquared(intersection.pt - palmPos);
+		}
+
+		if (dist < closestDist) {
+			closestDist = dist;
+			closestIntersection = &intersection;
+		}
+	}
+
 	// Now go through the connected component of the above, and pick the one with the largest radius
 	// Allow backfaces when traversing the connected component, but only choose a final triangle if it is a front face
+
+	float smallestEnergy = (std::numeric_limits<float>::max)();
+	NiPoint3 furthestIntersection;
+	auto visit = [&furthestIntersection, &smallestEnergy, &center, &normal, &zeroAngleVector, &point1, &point2, &tipLength](Intersection *intersection) {
+		NiPoint3 centerToIntersect = intersection->pt - center;
+		float dist;
+		NiPoint3 pt;
+		if (intersection->hasPt2) {
+			float dist1 = VectorLength(intersection->pt - center);
+			float dist2 = VectorLength(intersection->pt2 - center);
+			// TODO: What if dist1 == dist2? This should be exceedingly rare, as pt and pt2 are equidistant from the _finger joint_, not the palm
+			if (dist1 >= dist2) {
+				dist = dist1;
+				pt = intersection->pt;
+			}
+			else {
+				dist = dist2;
+				pt = intersection->pt2;
+			}
+		}
+		else {
+			dist = VectorLength(centerToIntersect);
+			pt = intersection->pt;
+		}
+
+		centerToIntersect = pt - center;
+		float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVector));
+
+		float degrees = angle * 57.2958f;
+		_MESSAGE("angle: %.2f", degrees);
+
+		float radius = VectorLength(point2 - point1) + VectorLength(point1 - center) + tipLength;
+		float radiusRatio = 1.0f - VectorLength(centerToIntersect) / radius;
+		_MESSAGE("radius ratio: %.3f", radiusRatio);
+
+		float energy = radiusRatio * 0.7f + (angle / 180.0f) * 0.3f;
+
+		if (energy < smallestEnergy) {
+			std::array<NiPoint3, 3> verts = GetVertices(*intersection);
+
+			NiPoint3 triNormal = VectorNormalized(CrossProduct(verts[1] - verts[0], verts[2] - verts[1]));
+
+			NiPoint3 tangentAtIntersection = CrossProduct(normal, centerToIntersect);
+			if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
+				// Front face of the triangle was intersected CCW around the circle
+				smallestEnergy = energy;
+				furthestIntersection = pt;
+			}
+		}
+	};
+	VisitGraphNodes(graph, closestIntersection, visit);
+
+	*closestPos = furthestIntersection;
 	return true;
 }
 

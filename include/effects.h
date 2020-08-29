@@ -38,11 +38,37 @@ static_assert(offsetof(ReferenceEffect, controller) == 0x30);
 
 struct ShaderReferenceEffect : ReferenceEffect
 {
+	UInt8 unkArraysAndSoundHandle[0xCC - 0x48]; // 48
+	std::uint32_t		  pad0CC;			 // 0CC
+	void*				  unk0D0;			 // 0D0 - smart ptr
+	void*				  unk0D8;			 // 0D8 - smart ptr
+	void*				  unk0E0;			 // 0E0 - smart ptr
+	void*				  unk0E8;			 // 0E8 - smart ptr
+	void*				  unk0F0;			 // 0F0 - smart ptr
+	NiPointer<NiAVObject> lastRootNode;		 // 0F8
+	TESBoundObject*		  wornObject;		 // 100
+	TESEffectShader*	  effectData;		 // 108
+	void*	  effectShaderData;	 // 110
+	void*				  unk118;			 // 118 - smart ptr
+	std::uint32_t		  unk120;			 // 120
+	std::uint32_t		  unk124;			 // 124
+	std::uint32_t		  unk128;			 // 128
+	std::uint32_t		  unk12C;			 // 12C
+	std::uint32_t		  flags;			 // 130
+	std::uint32_t		  pushCount;		 // 134
 };
+static_assert(offsetof(ShaderReferenceEffect, pushCount) == 0x134);
 
 struct ModelReferenceEffect : ReferenceEffect
 {
+	UInt8 otherBaseClassesAndHitEffectArtData[0xB0 - 0x48];  // 48
+	std::uint64_t			unkB0;			   // B0
+	BGSArtObject*			artObject;		   // B8
+	std::uint64_t			unkC0;			   // C0
+	NiPointer<NiAVObject>	artObject3D;	   // C8
+	std::uint64_t			unkD0;			   // D0
 };
+static_assert(offsetof(ModelReferenceEffect, artObject3D) == 0xC8);
 
 extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
 extern ModelReferenceEffect ** volatile g_modelReferenceToSet;
@@ -71,3 +97,5 @@ struct PlayingEffect
 };
 void PlayVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect);
 void StopVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect);
+
+bool IsEffectPlaying(ModelReferenceEffect *effect);

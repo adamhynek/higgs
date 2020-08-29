@@ -133,19 +133,24 @@ void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
 			BGSReferenceEffect *effect;
 			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
 				effect = itemSelectedEffectOffLimits;
+				
 			}
 			else {
 				effect = itemSelectedEffect;
+				
 			}
 			PlayVFX(objHandle, node, effect);
+			
 		}
 		else {
 			TESEffectShader *shader;
 			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
 				shader = itemSelectedShaderOffLimits;
+				
 			}
 			else {
 				shader = itemSelectedShader;
+				
 			}
 			PlayShader(objHandle, node, shader);
 		}
@@ -162,21 +167,27 @@ void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 			BGSReferenceEffect *effect;
 			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
 				effect = itemSelectedEffectOffLimits;
+				
 			}
 			else {
 				effect = itemSelectedEffect;
+				
 			}
 			StopVFX(objHandle, node, effect);
+			
 		}
 		else {
 			TESEffectShader *shader;
 			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
 				shader = itemSelectedShaderOffLimits;
+				
 			}
 			else {
 				shader = itemSelectedShader;
+				
 			}
 			StopShader(objHandle, node, shader);
+			
 		}
 	}
 }
@@ -391,7 +402,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 
-				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace, triPos).angle;
+				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace, palmPos).angle;
 				if (false){//(thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
 					NiPoint3 axis = thumbNormalWorldspace;
@@ -437,7 +448,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				std::array<FingerData, 5> fingerData;
 				for (int i = 1; i < fingerData.size(); i++) { // No thumb
-					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace, triPos);
+					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace, palmPos);
 				}
 
 				int fingerWithSmallestAngle = -1;
@@ -505,13 +516,13 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						// Recompute all fingers
 						for (int i = 1; i < fingerData.size(); i++) { // No thumb
-							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace, triPos);
+							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace, palmPos);
 						}
 					}
 				}
 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
-				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace, triPos);
+				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace, palmPos);
 
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
@@ -833,6 +844,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		bool isSelectedThisFrame = false;
 		UInt32 prevSelectedHandle = selectedObject.handle;
 		if (closestObj) {
+			State newState = state; // We only want to set state after the collidable is updated, for threading reasons
+
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) || closestObj != selectedObj) {
 				if (selectedObj) {
@@ -842,11 +855,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 				// select the new refr
 				Select(closestObj);
-				state = isSelectedNear ? State::SelectedClose : State::SelectedFar;
+				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 			}
 			else if ((state == State::SelectedFar && isSelectedNear) || (state == State::SelectedClose && !isSelectedNear)) {
 				// Same object is selected, but it has become near/far enough to switch states
-				state = isSelectedNear ? State::SelectedClose : State::SelectedFar;
+				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 			}
 
 			// Figure out which node we should be playing a shader on, and switch to that one
@@ -918,7 +931,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									TESForm *equippedForm = equipData.pForm;
 									if (equippedForm) {
 										auto hitBipedData = &bipedData->unk10[hitIndex];
-										nodeOnWhichToPlayShader = hitNode;
+										nodeOnWhichToPlayShader = hitBipedData->object;
 										selectedObject.hitForm = hitForm;
 										selectedObject.hitNode = hitNode;
 									}
@@ -982,6 +995,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			// Set selected collidable no matter what, as we can have objects with more than one collidable
 			selectedObject.rigidBody = closestRigidBody;
 			selectedObject.collidable = &closestRigidBody->hkBody->m_collidable;
+
+			state = newState;
 
 			isSelectedThisFrame = true;
 			lastSelectedTime = g_currentFrameTime;
@@ -1146,11 +1161,13 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 										NiPointer<TESObjectREFR> droppedObj;
 										if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-											state = State::PrepullItem;
+											std::lock_guard<std::mutex> lock(deselectLock);
 
 											selectedObject.handle = droppedObjHandle;
 											selectedObject.collidable = nullptr;
 											selectedObject.rigidBody = nullptr;
+
+											state = State::PrepullItem;
 										}
 									}
 								}

@@ -25,7 +25,7 @@ uintptr_t effectHookedFuncAddr = 0;
 auto effectRotUpdateHookLoc = RelocAddr<uintptr_t>(0x55E27E);
 auto effectRotUpdateHookedFunc = RelocAddr<uintptr_t>(0x5627B0);
 
-auto worldHookLoc = RelocAddr<uintptr_t>(0x271EF9);
+auto worldUpdateHookLoc = RelocAddr<uintptr_t>(0x271EF9);
 
 auto pickHookLoc = RelocAddr<uintptr_t>(0x6D2E7F);
 auto pickHookedFunc = RelocAddr<uintptr_t>(0x3BA0C0); // CrosshairPickData::Pick
@@ -63,13 +63,17 @@ void HookedModelReferenceEffectUpdateRotation(TESObjectREFR *target, NiPoint3 *o
 	if (effect && effect->controller && effect->controller->attachRoot) {
 		NiAVObject *attachRoot = effect->controller->attachRoot;
 		*outPos = attachRoot->m_worldTransform.pos;
+
+		if (effect->artObject3D) {
+			effect->artObject3D->m_localTransform.pos = { 0, 0, 30 };
+		}
 	}
 	else {
 		((_GetREFRCenterPosition)effectRotUpdateHookedFunc.GetUIntPtr())(target, outPos);
 	}
 }
 
-void HookedWorldUpdateHook(bhkWorld *world)
+void WorldUpdateHook(bhkWorld *world)
 {
 	//_MESSAGE("Pre World update hook");
 	// Perform the same operation both in this hook and in the main thread.
@@ -132,25 +136,49 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 			if (displayRight && displayLeft) {
 				// Pick whichever hand grabbed last
 				if (g_leftGrabber->selectionLockedTime > g_rightGrabber->selectionLockedTime) {
-					hkpCdPoint cdPoint(*collA, *g_leftGrabber->selectedObject.collidable);
-					memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint)); // stupid
-					castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+					NiPointer<TESObjectREFR> obj;
+					if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, obj)) {
+						hkpCollidable *collidable = g_leftGrabber->selectedObject.collidable;
+						if (collidable) {
+							hkpCdPoint cdPoint(*collA, *collidable);
+							memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint)); // stupid
+							castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+						}
+					}
 				}
 				else {
-					hkpCdPoint cdPoint(*collA, *g_rightGrabber->selectedObject.collidable);
-					memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
-					castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+					NiPointer<TESObjectREFR> obj;
+					if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, obj)) {
+						hkpCollidable *collidable = g_rightGrabber->selectedObject.collidable;
+						if (collidable) {
+							hkpCdPoint cdPoint(*collA, *g_rightGrabber->selectedObject.collidable);
+							memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
+							castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+						}
+					}
 				}
 			}
 			else if (displayRight) {
-				hkpCdPoint cdPoint(*collA, *g_rightGrabber->selectedObject.collidable);
-				memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
-				castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+				NiPointer<TESObjectREFR> obj;
+				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, obj)) {
+					hkpCollidable *collidable = g_rightGrabber->selectedObject.collidable;
+					if (collidable) {
+						hkpCdPoint cdPoint(*collA, *g_rightGrabber->selectedObject.collidable);
+						memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
+						castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+					}
+				}
 			}
 			else if (displayLeft) {
-				hkpCdPoint cdPoint(*collA, *g_leftGrabber->selectedObject.collidable);
-				memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
-				castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+				NiPointer<TESObjectREFR> obj;
+				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, obj)) {
+					hkpCollidable *collidable = g_leftGrabber->selectedObject.collidable;
+					if (collidable) {
+						hkpCdPoint cdPoint(*collA, *collidable);
+						memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
+						castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
+					}
+				}
 			}
 
 			g_overrideRaycast = true;
@@ -382,7 +410,7 @@ void PerformHooks(void)
 				movsd(ptr[rsp + 0x50], xmm5);
 
 				// Call our hook
-				mov(rax, (uintptr_t)HookedWorldUpdateHook);
+				mov(rax, (uintptr_t)WorldUpdateHook);
 				call(rax);
 
 				movsd(xmm0, ptr[rsp]);
@@ -407,7 +435,7 @@ void PerformHooks(void)
 				jmp(ptr[rip + jumpBack]);
 
 				L(jumpBack);
-				dq(worldHookLoc.GetUIntPtr() + 7);
+				dq(worldUpdateHookLoc.GetUIntPtr() + 7);
 			}
 		};
 
@@ -415,7 +443,7 @@ void PerformHooks(void)
 		Code code(codeBuf);
 		g_localTrampoline.EndAlloc(code.getCurr());
 
-		g_branchTrampoline.Write5Branch(worldHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+		g_branchTrampoline.Write5Branch(worldUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("World update hook complete");
 	}
