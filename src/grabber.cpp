@@ -128,32 +128,16 @@ void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
 {
 	NiPointer<TESObjectREFR> obj;
 	if (LookupREFRByHandle(objHandle, obj)) {
-		Actor *actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
-		if (actor) {
-			BGSReferenceEffect *effect;
-			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
-				effect = itemSelectedEffectOffLimits;
+		TESEffectShader *shader;
+		if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+			shader = itemSelectedShaderOffLimits;
 				
-			}
-			else {
-				effect = itemSelectedEffect;
-				
-			}
-			PlayVFX(objHandle, node, effect);
-			
 		}
 		else {
-			TESEffectShader *shader;
-			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
-				shader = itemSelectedShaderOffLimits;
+			shader = itemSelectedShader;
 				
-			}
-			else {
-				shader = itemSelectedShader;
-				
-			}
-			PlayShader(objHandle, node, shader);
 		}
+		PlayShader(objHandle, node, shader);
 	}
 }
 
@@ -162,33 +146,16 @@ void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 {
 	NiPointer<TESObjectREFR> obj;
 	if (LookupREFRByHandle(objHandle, obj)) {
-		Actor *actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
-		if (actor) {
-			BGSReferenceEffect *effect;
-			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
-				effect = itemSelectedEffectOffLimits;
+		TESEffectShader *shader;
+		if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
+			shader = itemSelectedShaderOffLimits;
 				
-			}
-			else {
-				effect = itemSelectedEffect;
-				
-			}
-			StopVFX(objHandle, node, effect);
-			
 		}
 		else {
-			TESEffectShader *shader;
-			if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
-				shader = itemSelectedShaderOffLimits;
+			shader = itemSelectedShader;
 				
-			}
-			else {
-				shader = itemSelectedShader;
-				
-			}
-			StopShader(objHandle, node, shader);
-			
 		}
+		StopShader(objHandle, node, shader);
 	}
 }
 
@@ -219,7 +186,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	float closestDistance = (std::numeric_limits<float>::max)();
 	for (auto pair : cdPointCollector.m_hits) {
 		auto collidable = static_cast<hkpCollidable *>(pair.first);
-		if (!allowGrab || (other.HasExclusiveObject() && collidable == other.selectedObject.collidable)) {
+		if (!allowGrab || (collidable == other.selectedObject.collidable && other.HasExclusiveObject())) {
 			continue;
 		}
 		hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
@@ -270,6 +237,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 		StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
 		grabbedTime = g_currentFrameTime;
+		rolloverDisplayTime = g_currentFrameTime;
 
 		NiPoint3 ptPos = HkVectorToNiPoint(closestPoint.getPosition());
 		//NiPoint3 normal = HkVectorToNiPoint(closestPoint.m_separatingNormal); // vec from sphere center to point
@@ -856,10 +824,16 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				// select the new refr
 				Select(closestObj);
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
+				if (newState == State::SelectedClose) {
+					rolloverDisplayTime = g_currentFrameTime;
+				}
 			}
 			else if ((state == State::SelectedFar && isSelectedNear) || (state == State::SelectedClose && !isSelectedNear)) {
 				// Same object is selected, but it has become near/far enough to switch states
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
+				if (newState == State::SelectedClose) {
+					rolloverDisplayTime = g_currentFrameTime;
+				}
 			}
 
 			// Figure out which node we should be playing a shader on, and switch to that one
@@ -930,10 +904,14 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									EquipData equipData = containerChanges->FindEquipped(matcher);
 									TESForm *equippedForm = equipData.pForm;
 									if (equippedForm) {
-										auto hitBipedData = &bipedData->unk10[hitIndex];
-										nodeOnWhichToPlayShader = hitBipedData->object;
-										selectedObject.hitForm = hitForm;
-										selectedObject.hitNode = hitNode;
+										Biped::Data *hitBipedData = &bipedData->unk10[hitIndex];
+										auto hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
+										// If it's armor, make sure it has a name. If it doesn't, it could be FEC, or who knows...
+										if (!hitArmor || *hitArmor->fullName.name.data) {
+											nodeOnWhichToPlayShader = hitBipedData->object;
+											selectedObject.hitForm = hitForm;
+											selectedObject.hitNode = hitNode;
+										}
 									}
 									else {
 										// The form we hit is not equipped - do the same as if no form was selected
@@ -1025,7 +1003,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							NiPoint3 right = CrossProduct(forward, worldUp);
 							NiPoint3 up = CrossProduct(right, forward);
 							initialObjPosRaySpace = { DotProduct(relObjPos, forward), DotProduct(relObjPos, right) , DotProduct(relObjPos, up) };
-							selectionLockedTime = g_currentFrameTime;
+							rolloverDisplayTime = g_currentFrameTime;
 							initialGrabbedObjRelativePosition = relObjPos;
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
@@ -1176,7 +1154,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					else {
 						// Not trying to pull armor off a body
-						state = State::Pulled;
 
 						if (pulledObject.handle != selectedObject.handle) {
 							EndPull(); // Cancel an existing pulled collision reset if we're pulling something new
@@ -1192,7 +1169,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 									// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 									auto collidable = &collObj->body->hkBody->m_collidable;
 									// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
-									collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 6; // player collision group, 'projectile' collision layer
+									collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
 									// Projectiles have 'Fixed' motion type by default, making them unmovable
 									bhkRigidBody_setMotionType(collObj->body, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 								}
@@ -1201,6 +1178,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							// TODO: Using the hand collision layer means the pulled object does not collide with other npcs. We probably do want it to though.
 							SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
 						}
+
+						state = State::Pulled;
 					}
 				};
 
@@ -1305,9 +1284,6 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						// Set owner to the player so it doesn't count as stealing
 						TESObjectREFR_SetActorOwner(nullptr, 0, selectedObj, player->baseForm);
 
-						state = State::Pulled;
-						pulledTime = g_currentFrameTime;
-
 						// Cancel an existing pulled collision reset
 						EndPull();
 
@@ -1318,6 +1294,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
 						motion->m_motionState.m_angularDamping = hkHalf(3.0f);
 						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+
+						pulledTime = g_currentFrameTime;
+						state = State::Pulled;
 					}
 				}
 			}
@@ -1566,14 +1545,14 @@ bool Grabber::HasExclusiveObject() const
 
 bool Grabber::ShouldDisplayRollover()
 {
-	if (state != State::SelectedClose && state != State::Pulled && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody)
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody)
 		return false;
 
-	if (state == State::SelectedClose) {
-		// Even when no piece of armor selected, still show rollover when we'd be grabbing the body
+	NiPointer<TESObjectREFR> selectedObj;
+	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 		return true;
 	}
-	return IsObjectPullable();
+	return false;
 }
 
 
@@ -1581,7 +1560,6 @@ bool Grabber::IsSafeToClearSavedCollision()
 {
 	return (state != State::Held && state != State::HeldInit && pulledObject.handle == *g_invalidRefHandle);
 }
-
 
 void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)
 {
@@ -1593,5 +1571,25 @@ void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)
 		rolloverNode->m_localTransform.pos = rolloverOffset;
 		rolloverNode->m_localTransform.rot = rolloverRotation;
 		rolloverNode->m_localTransform.scale = rolloverScale;
+
+		SetSelectedHandles(isLeftHanded);
+	}
+}
+
+void Grabber::SetSelectedHandles(bool isLeftHanded)
+{
+	// Now set all the places I could find that get set to the handle of the pointed at object usually
+	CrosshairPickData *pickData = *g_pickData;
+	if (pickData) {
+		if (isLeftHanded) {
+			pickData->leftHandle1 = selectedObject.handle;
+			pickData->leftHandle2 = selectedObject.handle;
+			pickData->leftHandle3 = selectedObject.handle;
+		}
+		else {
+			pickData->rightHandle1 = selectedObject.handle;
+			pickData->rightHandle2 = selectedObject.handle;
+			pickData->rightHandle3 = selectedObject.handle;
+		}
 	}
 }

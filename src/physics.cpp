@@ -136,29 +136,27 @@ void ClearCollisionMap()
 
 UInt32 GetSavedCollision(UInt32 id)
 {
-	try {
-		return collisionInfoIdMap.at(id).first;
+	if (collisionInfoIdMap.count(id) != 0) {
+		return collisionInfoIdMap[id].first;
 	}
-	catch (std::out_of_range) {
-		// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
-		return 0;
-	}
+
+	// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
+	return 0;
 }
 
 UInt32 GetSavedCollisionRefCount(UInt32 id)
 {
-	try {
-		return collisionInfoIdMap.at(id).second;
+	if (collisionInfoIdMap.count(id) != 0) {
+		return collisionInfoIdMap[id].second;
 	}
-	catch (std::out_of_range) {
-		// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
-		return 0;
-	}
+
+	// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
+	return 0;
 }
 
 void RemoveSavedCollision(UInt32 id)
 {
-	try {
+	if (collisionInfoIdMap.count(id) != 0) {
 		auto val = collisionInfoIdMap.at(id);
 		UInt8 count = val.second;
 		UInt32 collisionFilterInfo = val.first;
@@ -170,9 +168,6 @@ void RemoveSavedCollision(UInt32 id)
 			// Other hand is still affecting this entity - 'decref'
 			collisionInfoIdMap[id] = { collisionFilterInfo, count - 1 };
 		}
-	}
-	catch (std::out_of_range) {
-		// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
 	}
 }
 

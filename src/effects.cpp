@@ -2,154 +2,11 @@
 #include "utils.h"
 #include "offsets.h"
 
+#include "skse64/NiGeometry.h"
+#include "skse64/GameRTTI.h"
+
 
 PlayingShader _shaders[2];
-PlayingEffect _effects[2];
-
-
-bool IsEffectPlaying(ModelReferenceEffect *effect)
-{
-	return _effects[0].modelReference == effect || _effects[1].modelReference == effect;
-}
-
-
-bool PlayingEffect::IsPlaying() const
-{
-	// Return true iff the shader was started and the obj / node on which it plays still exists
-	if (!modelReference) {
-		return false;
-	}
-
-	NiPointer<TESObjectREFR> obj;
-	UInt32 handleCopy = handle; // handle can get set to 0 by LookupREFRByHandle
-	bool doesObjExist = LookupREFRByHandle(handleCopy, obj);
-	if (doesObjExist && node) {
-		return DoesRefrHaveNode(obj, node);
-	}
-	return doesObjExist;
-}
-
-void PlayVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect)
-{
-	bool isFirstEffectPlaying = _effects[0].IsPlaying();
-	bool isSecondEffectPlaying = _effects[1].IsPlaying();
-
-	if (isFirstEffectPlaying && isSecondEffectPlaying) {
-		// Both shaders are already playing
-		return;
-	}
-
-	if (!isFirstEffectPlaying && !isSecondEffectPlaying) {
-		// No shaders in use - use the first one
-		NiPointer<TESObjectREFR> obj;
-		UInt32 handleCopy = objHandle;
-		if (LookupREFRByHandle(handleCopy, obj)) {
-			PlayingEffect &freeEffect = _effects[0];
-
-			freeEffect.handle = objHandle;
-			freeEffect.effect = effect;
-
-			ModelReferenceEffect *modelReference;
-			g_modelReferenceToSet = &modelReference;
-			VisualEffect_Play(VM_REGISTRY, 0, effect, obj, 60.0f, *g_thePlayer);
-			g_modelReferenceToSet = nullptr;
-			freeEffect.modelReference = modelReference;
-
-			freeEffect.node = node;
-			freeEffect.modelReference->controller->attachRoot = node;
-		}
-
-		return;
-	}
-
-	// One shader is playing, and the other is not
-	PlayingEffect &freeEffect = isFirstEffectPlaying ? _effects[1] : _effects[0];
-	PlayingEffect &playingEffect = isFirstEffectPlaying ? _effects[0] : _effects[1];
-
-	// Set the params for the shader, but only actually play the shader if it's not already playing
-	freeEffect.handle = objHandle;
-	freeEffect.node = node;
-
-	if (node) {
-		if (playingEffect.node != node) {
-			// Other shader is playing on another node - play the shader
-			NiPointer<TESObjectREFR> obj;
-			UInt32 handleCopy = objHandle;
-			if (LookupREFRByHandle(handleCopy, obj)) {
-				freeEffect.effect = effect;
-
-				ModelReferenceEffect *modelReference;
-				g_modelReferenceToSet = &modelReference;
-				VisualEffect_Play(VM_REGISTRY, 0, effect, obj, 60.0f, *g_thePlayer);
-				g_modelReferenceToSet = nullptr;
-				freeEffect.modelReference = modelReference;
-
-				freeEffect.modelReference->controller->attachRoot = node;
-			}
-		}
-	}
-	else {
-		if (playingEffect.handle != objHandle || playingEffect.node) {
-			// Other shader is playing on another object, or a specific node on this object - play the shader
-			NiPointer<TESObjectREFR> obj;
-			UInt32 handleCopy = objHandle;
-			if (LookupREFRByHandle(handleCopy, obj)) {
-				freeEffect.effect = effect;
-
-				ModelReferenceEffect *modelReference;
-				g_modelReferenceToSet = &modelReference;
-				VisualEffect_Play(VM_REGISTRY, 0, effect, obj, 60.0f, *g_thePlayer);
-				g_modelReferenceToSet = nullptr;
-				freeEffect.modelReference = modelReference;
-
-				freeEffect.modelReference->controller->attachRoot = node;
-			}
-		}
-	}
-}
-
-void StopVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect)
-{
-	bool isFirstEffectPlaying = _effects[0].IsPlaying();
-	bool isSecondEffectPlaying = _effects[1].IsPlaying();
-
-	if (!isFirstEffectPlaying && !isSecondEffectPlaying) {
-		return;
-	}
-
-	bool isFirstEffectTheOne = _effects[0].handle == objHandle && _effects[0].node == node;
-	bool isSecondEffectTheOne = _effects[1].handle == objHandle && _effects[1].node == node;
-
-	if (!isFirstEffectTheOne && !isSecondEffectTheOne) {
-		// Neither shader is playing for the given refr / node
-		return;
-	}
-	else if (isFirstEffectTheOne && isSecondEffectTheOne) {
-		// Clear one of the shaders - whichever does not have the shader actually playing
-		if (_effects[1].modelReference) {
-			_effects[0].effect = nullptr;
-			_effects[0].handle = *g_invalidRefHandle;
-			_effects[0].node = nullptr;
-		}
-		else {
-			_effects[1].effect = nullptr;
-			_effects[1].handle = *g_invalidRefHandle;
-			_effects[1].node = nullptr;
-		}
-		return;
-	}
-
-	// Only one shader is on the refr / node. Stop the shader.
-	PlayingEffect &neo = isFirstEffectTheOne ? _effects[0] : _effects[1];
-	if ((isFirstEffectTheOne && isFirstEffectPlaying) || (isSecondEffectTheOne && isSecondEffectPlaying)) {
-		neo.modelReference->finished = true; // This is all it takes to stop the shader
-	}
-
-	neo.modelReference = nullptr;
-	neo.effect = nullptr;
-	neo.handle = *g_invalidRefHandle;
-	neo.node = nullptr;
-}
 
 
 bool PlayingShader::IsPlaying() const
@@ -168,6 +25,79 @@ bool PlayingShader::IsPlaying() const
 	return doesObjExist;
 }
 
+struct BSEffectShaderData
+{
+	inline UInt32 IncRef() { return InterlockedIncrement(&refCount); }
+	inline UInt32 DecRef() { return InterlockedDecrement(&refCount); }
+
+	UInt32 refCount; // 00
+
+	// more...
+};
+
+
+std::unordered_map<NiAVObject *, NiPointer<BSEffectShaderData>> effectDataMap;
+
+void ClearEffectDataMap()
+{
+	if (!_shaders[0].shaderReference && !_shaders[1].shaderReference) {
+		if (effectDataMap.size() > 0) {
+			effectDataMap.clear();
+		}
+	}
+}
+
+void SaveShaderData(NiAVObject *root)
+{
+	BSGeometry *geom = root->GetAsBSGeometry();
+	if (geom) {
+		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSLightingShaderProperty);
+		if (shaderProperty) {
+			NiPointer<BSEffectShaderData> effectData = (BSEffectShaderData *)shaderProperty->unk68;
+			if (effectData) {
+				effectDataMap[root] = effectData;
+			}
+			_MESSAGE("%s: %x", root->m_name ? root->m_name : "", effectData);
+		}
+	}
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			NiAVObject *child = node->m_children.m_data[i];
+			if (child) {
+				SaveShaderData(child);
+			}
+		}
+	}
+}
+
+void RestoreShaderData(NiAVObject *root)
+{
+	BSGeometry *geom = root->GetAsBSGeometry();
+	if (geom) {
+		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSLightingShaderProperty);
+		if (shaderProperty) {
+			if (effectDataMap.count(root) != 0) {
+				NiPointer<BSEffectShaderData> shaderData = effectDataMap[root];
+				shaderData->IncRef();
+				*((BSEffectShaderData **)&shaderProperty->unk68) = shaderData;
+				effectDataMap.erase(root);
+			}
+		}
+	}
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			NiAVObject *child = node->m_children.m_data[i];
+			if (child) {
+				RestoreShaderData(child);
+			}
+		}
+	}
+}
+
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 {
 	bool isFirstShaderPlaying = _shaders[0].IsPlaying();
@@ -183,6 +113,10 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 		NiPointer<TESObjectREFR> obj;
 		UInt32 handleCopy = objHandle;
 		if (LookupREFRByHandle(handleCopy, obj)) {
+			if (node) {
+				SaveShaderData(node);
+			}
+
 			PlayingShader &freeShader = _shaders[0];
 
 			freeShader.handle = objHandle;
@@ -215,6 +149,8 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 			NiPointer<TESObjectREFR> obj;
 			UInt32 handleCopy = objHandle;
 			if (LookupREFRByHandle(handleCopy, obj)) {
+				SaveShaderData(node);
+
 				freeShader.shader = shader;
 
 				ShaderReferenceEffect *shaderReference;
@@ -253,6 +189,7 @@ void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 	bool isSecondShaderPlaying = _shaders[1].IsPlaying();
 
 	if (!isFirstShaderPlaying && !isSecondShaderPlaying) {
+		ClearEffectDataMap();
 		return;
 	}
 
@@ -282,10 +219,16 @@ void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 	PlayingShader &neo = isFirstShaderTheOne ? _shaders[0] : _shaders[1];
 	if ((isFirstShaderTheOne && isFirstShaderPlaying) || (isSecondShaderTheOne && isSecondShaderPlaying)) {
 		neo.shaderReference->finished = true; // This is all it takes to stop the shader
+
+		if (neo.node) {
+			RestoreShaderData(neo.node);
+		}
 	}
 	
 	neo.shaderReference = nullptr;
 	neo.shader = nullptr;
 	neo.handle = *g_invalidRefHandle;
 	neo.node = nullptr;
+
+	ClearEffectDataMap();
 }

@@ -94,6 +94,7 @@ struct Grabber
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
+	void SetSelectedHandles(bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void EndPull();
@@ -148,7 +149,7 @@ struct Grabber
 
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
 	double grabRequestedTime = 0; // Timestamp when the trigger was pressed
-	double selectionLockedTime = 0; // Timestamp when the currently grabbed object (if there is one) was locked for selection
+	double rolloverDisplayTime = 0; // Timestamp when we performed the last action that warrants showing the rollover text
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled

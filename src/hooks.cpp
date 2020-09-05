@@ -1,7 +1,9 @@
 #include <mutex>
+
 #include "xbyak/xbyak.h"
 #include "skse64_common/Relocation.h"
 #include "skse64_common/BranchTrampoline.h"
+#include "skse64/NiGeometry.h"
 
 #include "hooks.h"
 #include "effects.h"
@@ -17,14 +19,6 @@ auto shaderHookedFunc = RelocAddr<uintptr_t>(0x564DD0);
 
 uintptr_t shaderHookedFuncAddr = 0;
 
-auto effectHookLoc = RelocAddr<uintptr_t>(0x320FEC);
-auto effectHookedFunc = RelocAddr<uintptr_t>(0x55DA30);
-
-uintptr_t effectHookedFuncAddr = 0;
-
-auto effectRotUpdateHookLoc = RelocAddr<uintptr_t>(0x55E27E);
-auto effectRotUpdateHookedFunc = RelocAddr<uintptr_t>(0x5627B0);
-
 auto worldUpdateHookLoc = RelocAddr<uintptr_t>(0x271EF9);
 
 auto pickHookLoc = RelocAddr<uintptr_t>(0x6D2E7F);
@@ -39,6 +33,9 @@ uintptr_t pickLinearCastHookedFuncAddr = 0;
 
 auto pickRayCastHookLoc = RelocAddr<uintptr_t>(0x3BA787);
 
+auto shaderSetEffectDataHookLoc = RelocAddr<uintptr_t>(0x2292AE);
+auto shaderSetEffectDataHookedFunc = RelocAddr<uintptr_t>(0x22A280); // BSLightingShaderProperty::SetEffectShaderData
+
 
 ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
 void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
@@ -48,29 +45,19 @@ void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE T
 	}
 }
 
-ModelReferenceEffect ** volatile g_modelReferenceToSet = nullptr;
-void HookedModelReferenceEffectCtor(ModelReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
+typedef void(*_ShaderProperty_SetEffectData)(BSLightingShaderProperty *shaderProperty, void *effectShaderData);
+void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *effectShaderData, TESEffectShader *shader)
 {
-	if (g_modelReferenceToSet) {
-		*g_modelReferenceToSet = ref;
-	}
-}
+	if (shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Facegen_Detail_Map ||
+		shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_FaceGen_RGB_Tint) {
+		if (shader == g_rightGrabber->itemSelectedShader || shader == g_rightGrabber->itemSelectedShaderOffLimits) {
 
-// outPos is the pos that is the source of the 'lookAt'. The dest is the pos of the lookAtHandle.
-typedef void(*_GetREFRCenterPosition)(TESObjectREFR *refr, NiPoint3 *outPos);
-void HookedModelReferenceEffectUpdateRotation(TESObjectREFR *target, NiPoint3 *outPos, ModelReferenceEffect *effect)
-{
-	if (effect && effect->controller && effect->controller->attachRoot) {
-		NiAVObject *attachRoot = effect->controller->attachRoot;
-		*outPos = attachRoot->m_worldTransform.pos;
-
-		if (effect->artObject3D) {
-			effect->artObject3D->m_localTransform.pos = { 0, 0, 30 };
+			// It's skin geometry, skip this one
+			return;
 		}
 	}
-	else {
-		((_GetREFRCenterPosition)effectRotUpdateHookedFunc.GetUIntPtr())(target, outPos);
-	}
+
+	((_ShaderProperty_SetEffectData)shaderSetEffectDataHookedFunc.GetUIntPtr())(shaderProperty, effectShaderData);
 }
 
 void WorldUpdateHook(bhkWorld *world)
@@ -120,83 +107,16 @@ void WorldUpdateHook(bhkWorld *world)
 }
 
 
-UInt8 _cdPoint[sizeof(hkpCdPoint)]; // Allocate room for a single hkpCdPoint to return from the hooked linear cast
-volatile bool g_overrideRaycast = false; // The pick linearcast happens once, before the raycasts, so we know there if we want to override the raycasts that follow
 void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector)
 {
-	{
-		std::lock_guard<std::mutex> leftLock(g_leftGrabber->deselectLock);
-		std::lock_guard<std::mutex> rightLock(g_rightGrabber->deselectLock);
+	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
+	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
 
-		bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
-		bool displayRight = g_rightGrabber->ShouldDisplayRollover();
-
-		if (displayRight || displayLeft) {
-			// Something is grabbed
-			if (displayRight && displayLeft) {
-				// Pick whichever hand grabbed last
-				if (g_leftGrabber->selectionLockedTime > g_rightGrabber->selectionLockedTime) {
-					NiPointer<TESObjectREFR> obj;
-					if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, obj)) {
-						hkpCollidable *collidable = g_leftGrabber->selectedObject.collidable;
-						if (collidable) {
-							hkpCdPoint cdPoint(*collA, *collidable);
-							memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint)); // stupid
-							castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
-						}
-					}
-				}
-				else {
-					NiPointer<TESObjectREFR> obj;
-					if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, obj)) {
-						hkpCollidable *collidable = g_rightGrabber->selectedObject.collidable;
-						if (collidable) {
-							hkpCdPoint cdPoint(*collA, *g_rightGrabber->selectedObject.collidable);
-							memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
-							castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
-						}
-					}
-				}
-			}
-			else if (displayRight) {
-				NiPointer<TESObjectREFR> obj;
-				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, obj)) {
-					hkpCollidable *collidable = g_rightGrabber->selectedObject.collidable;
-					if (collidable) {
-						hkpCdPoint cdPoint(*collA, *g_rightGrabber->selectedObject.collidable);
-						memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
-						castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
-					}
-				}
-			}
-			else if (displayLeft) {
-				NiPointer<TESObjectREFR> obj;
-				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, obj)) {
-					hkpCollidable *collidable = g_leftGrabber->selectedObject.collidable;
-					if (collidable) {
-						hkpCdPoint cdPoint(*collA, *collidable);
-						memmove(_cdPoint, &cdPoint, sizeof(hkpCdPoint));
-						castCollector->addCdPoint(*(hkpCdPoint*)_cdPoint);
-					}
-				}
-			}
-
-			g_overrideRaycast = true;
-			return;
-		}
+	if (displayRight || displayLeft) {
+		return;
 	}
 
-	// do the regular pick linearcast if we don't want to override it
-	g_overrideRaycast = false;
 	((_hkpWorld_LinearCast)pickLinearCastHookedFuncAddr)(world, collA, input, castCollector, startCollector);
-}
-
-
-void PickRayCastHook(hkpShapeRayCastOutput *output)
-{
-	if (g_overrideRaycast) {
-		output->m_hitFraction = 0;
-	}
 }
 
 
@@ -204,7 +124,6 @@ void PerformHooks(void)
 {
 	// First, set our addresses
 	shaderHookedFuncAddr = shaderHookedFunc.GetUIntPtr();
-	effectHookedFuncAddr = effectHookedFunc.GetUIntPtr();
 	pickHookedFuncAddr = pickHookedFunc.GetUIntPtr();
 	pickLinearCastHookedFuncAddr = pickLinearCastHookedFunc.GetUIntPtr();
 
@@ -267,125 +186,6 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(shaderHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Shader hook complete");
-	}
-
-	{
-		struct Code : Xbyak::CodeGenerator {
-			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
-			{
-				Xbyak::Label jumpBack;
-
-				push(rax);
-				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
-
-				// Call our hook
-				mov(rax, (uintptr_t)HookedModelReferenceEffectCtor);
-				call(rax);
-
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
-				pop(rcx);
-				pop(rax);
-
-				// Original code
-				mov(rax, effectHookedFuncAddr);
-				call(rax);
-
-				// Jump back to whence we came (+ the size of the initial branch instruction)
-				jmp(ptr[rip + jumpBack]);
-
-				L(jumpBack);
-				dq(effectHookLoc.GetUIntPtr() + 5);
-			}
-		};
-
-		void * codeBuf = g_localTrampoline.StartAlloc();
-		Code code(codeBuf);
-		g_localTrampoline.EndAlloc(code.getCurr());
-
-		g_branchTrampoline.Write5Branch(effectHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
-
-		_MESSAGE("Effect hook complete");
-	}
-
-	{
-		struct Code : Xbyak::CodeGenerator {
-			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
-			{
-				Xbyak::Label jumpBack;
-
-				push(rax);
-				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
-
-				// Call our hook
-				mov(r8, rsi); // ModelReferenceEffect is in rsi, we want to pass it to our hook
-				mov(rax, (uintptr_t)HookedModelReferenceEffectUpdateRotation);
-				call(rax);
-
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
-				pop(rcx);
-				pop(rax);
-
-				// Jump back to whence we came (+ the size of the initial branch instruction)
-				jmp(ptr[rip + jumpBack]);
-
-				L(jumpBack);
-				dq(effectRotUpdateHookLoc.GetUIntPtr() + 5);
-			}
-		};
-
-		void * codeBuf = g_localTrampoline.StartAlloc();
-		Code code(codeBuf);
-		g_localTrampoline.EndAlloc(code.getCurr());
-
-		g_branchTrampoline.Write5Branch(effectRotUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
-
-		_MESSAGE("Effect rotation update hook complete");
 	}
 
 	{
@@ -509,28 +309,18 @@ void PerformHooks(void)
 		struct Code : Xbyak::CodeGenerator {
 			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
 			{
-				Xbyak::Label jumpBack, saveR9;
-
-				// Save the raycast output, which is in r9
-				mov(r14, r9); // this is ok because I know r14 is not used after this, but in general it's not ok
-
-				// Original code
-				call(ptr[rax + 0x40]);
-
-				mov(rcx, r14);
+				Xbyak::Label jumpBack;
 
 				// Call our hook
-				mov(rax, (uintptr_t)PickRayCastHook);
+				mov(r8, ptr[rsp + 0x40]); // TESEffectShader passed into the parent function is at rsp + 0x40
+				mov(rax, (uintptr_t)ShaderSetEffectDataHook);
 				call(rax);
 
 				// Jump back to whence we came (+ the size of the initial branch instruction)
 				jmp(ptr[rip + jumpBack]);
 
 				L(jumpBack);
-				dq(pickRayCastHookLoc.GetUIntPtr() + 5);
-
-				L(saveR9);
-				dq(0);
+				dq(shaderSetEffectDataHookLoc.GetUIntPtr() + 5);
 			}
 		};
 
@@ -538,8 +328,8 @@ void PerformHooks(void)
 		Code code(codeBuf);
 		g_localTrampoline.EndAlloc(code.getCurr());
 
-		g_branchTrampoline.Write5Branch(pickRayCastHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+		g_branchTrampoline.Write5Branch(shaderSetEffectDataHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
-		_MESSAGE("Pick ray cast hook complete");
+		_MESSAGE("Shader SetEffectShaderData hook complete");
 	}
 }

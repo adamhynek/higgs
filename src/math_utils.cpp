@@ -5,7 +5,7 @@
 #include "skse64/NiGeometry.h"
 
 #include <array>
-#include <set>
+#include <unordered_set>
 
 
 NiPoint3 VectorNormalized(NiPoint3 vec)
@@ -943,7 +943,7 @@ bool DoesAnyVertexMatch(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3>
 	return false;
 }
 
-void _VisitGraphNodes(std::unordered_map<Intersection *, std::set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor, std::set<Intersection *> &visited)
+void _VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor, std::unordered_set<Intersection *> &visited)
 {
 	visitor(intersection);
 	visited.insert(intersection);
@@ -959,9 +959,9 @@ void _VisitGraphNodes(std::unordered_map<Intersection *, std::set<Intersection *
 	}
 }
 
-void VisitGraphNodes(std::unordered_map<Intersection *, std::set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor)
+void VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor)
 {
-	std::set<Intersection *> visited;
+	std::unordered_set<Intersection *> visited;
 	_VisitGraphNodes(graph, intersection, visitor, visited);
 }
 
@@ -978,9 +978,9 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 		return false;
 	}
 
-	// Construct a graph where V = all intersected triangles, and E = connections of adjacent triangles. I just realized we can only do that within each trishape... fuck...
+	// Construct a graph where V = all intersected triangles, and E = connections of adjacent triangles
 
-	std::unordered_map<Intersection *, std::set<Intersection *>> graph; // adjacency list: map intersection -> intersections adjacent to it
+	std::unordered_map<Intersection *, std::unordered_set<Intersection *>> graph; // adjacency list: map intersection -> intersections adjacent to it
 
 	for (int i = 0; i < intersections.size(); i++) {
 		Intersection *intersection = &intersections[i];
@@ -995,12 +995,12 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 			if (DoesAnyVertexMatch(vertices, otherVertices)) {
 				// Add an edge between these two intersections
 				if (graph.count(intersection) == 0) {
-					graph[intersection] = std::set<Intersection *>();
+					graph[intersection] = std::unordered_set<Intersection *>();
 				}
 				graph[intersection].insert(otherIntersection);
 
 				if (graph.count(otherIntersection) == 0) {
-					graph[otherIntersection] = std::set<Intersection *>();
+					graph[otherIntersection] = std::unordered_set<Intersection *>();
 				}
 				graph[otherIntersection].insert(intersection);
 			}
@@ -1060,11 +1060,9 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 		float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVector));
 
 		float degrees = angle * 57.2958f;
-		_MESSAGE("angle: %.2f", degrees);
 
 		float radius = VectorLength(point2 - point1) + VectorLength(point1 - center) + tipLength;
 		float radiusRatio = 1.0f - VectorLength(centerToIntersect) / radius;
-		_MESSAGE("radius ratio: %.3f", radiusRatio);
 
 		float energy = radiusRatio * 0.7f + (angle / 180.0f) * 0.3f;
 
@@ -1078,6 +1076,9 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 				// Front face of the triangle was intersected CCW around the circle
 				smallestEnergy = energy;
 				furthestIntersection = pt;
+
+				_MESSAGE("radius ratio: %.3f", radiusRatio);
+				_MESSAGE("angle: %.2f", degrees);
 			}
 		}
 	};

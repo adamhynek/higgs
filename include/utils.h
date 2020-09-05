@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_set>
+
 #include "RE/havok.h"
 
 #include "skse64/NiNodes.h"
@@ -40,6 +42,7 @@ void PrintToFile(std::string entry, std::string filename);
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
 bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target);
+void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes);
 
 typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 

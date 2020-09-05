@@ -185,7 +185,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 		if (displayRight && displayLeft) {
 			// Pick whichever hand grabbed last
-			if (g_leftGrabber->selectionLockedTime > g_rightGrabber->selectionLockedTime) {
+			if (g_leftGrabber->rolloverDisplayTime > g_rightGrabber->rolloverDisplayTime) {
 				NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
 				if (!rolloverNode) {
 					// Switch menu to left hand if it's on the right

@@ -394,6 +394,35 @@ bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 		}
 		return false;
 	}
-	_WARNING("Armor node is not geometry and has no children: %", armorNode->m_name ? armorNode->m_name : "");
+	_WARNING("Armor node is not geometry and has no children: %s", armorNode->m_name ? armorNode->m_name : "");
 	return false;
+}
+
+void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes)
+{
+	BSGeometry *geom = root->GetAsBSGeometry();
+	if (geom) {
+		NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
+		if (skinInstance) {
+			NiSkinDataPtr skinData = skinInstance->m_spSkinData;
+			if (skinData) {
+				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
+				for (int i = 0; i < numBones; i++) {
+					NiAVObject *bone = skinInstance->m_ppkBones[i];
+					if (bone) {
+						skinnedNodes.insert(bone);
+					}
+				}
+			}
+		}
+	}
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				GetAllSkinnedNodes(child, skinnedNodes);
+			}
+		}
+	}
 }

@@ -71,7 +71,6 @@ struct ModelReferenceEffect : ReferenceEffect
 static_assert(offsetof(ModelReferenceEffect, artObject3D) == 0xC8);
 
 extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
-extern ModelReferenceEffect ** volatile g_modelReferenceToSet;
 
 
 struct PlayingShader
@@ -85,17 +84,3 @@ struct PlayingShader
 };
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
 void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
-
-struct PlayingEffect
-{
-	BGSReferenceEffect *effect;
-	NiPointer<ModelReferenceEffect> modelReference;
-	UInt32 handle;
-	NiPointer<NiAVObject> node;
-
-	bool IsPlaying() const;
-};
-void PlayVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect);
-void StopVFX(UInt32 objHandle, NiAVObject *node, BGSReferenceEffect *effect);
-
-bool IsEffectPlaying(ModelReferenceEffect *effect);
