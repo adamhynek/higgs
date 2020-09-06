@@ -89,5 +89,8 @@
     <ClInclude Include="include\effects.h">
       <Filter>include</Filter>
     </ClInclude>
+	<ClInclude Include="include\triangle_triangle_intersection.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

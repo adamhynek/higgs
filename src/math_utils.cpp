@@ -1,6 +1,7 @@
 #include "math_utils.h"
 #include "utils.h"
 #include "config.h"
+#include "triangle_triangle_intersection.h"
 
 #include "skse64/NiGeometry.h"
 
@@ -748,7 +749,7 @@ namespace MathUtils
 }
 
 
-bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos,
+bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
@@ -879,7 +880,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					return GetDiskIntersectionOnGraphicsGeometry(intersections, child, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
+					return GetDiskIntersectionOnGraphicsGeometry(intersections, child, center, point1, point2, tipLength, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
 				}
 			}
 		}
@@ -888,7 +889,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					if (GetDiskIntersectionOnGraphicsGeometry(intersections, child, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
+					if (GetDiskIntersectionOnGraphicsGeometry(intersections, child, center, point1, point2, tipLength, normal, zeroAngleVector, closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle)) {
 						success = true;
 					}
 				}
@@ -899,6 +900,27 @@ bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 	return false;
 }
 
+
+NiPoint3 GetClosestPointOnIntersection(NiPoint3 const& point, Intersection &intersection)
+{
+	BSTriShape *geom = intersection.node;
+	Triangle tri = intersection.tri;
+
+	BSGeometryData *geomData = geom->geometryData;
+
+	uintptr_t verts = (uintptr_t)(geomData->vertices);
+
+	UInt64 vertexDesc = geom->vertexDesc;
+	UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+
+	UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+	NiTransform nodeTransform = geom->m_worldTransform;
+
+	MathUtils::Result result = MathUtils::GetClosestPointOnTriangle(point, tri, verts, vertexSize, posOffset);
+
+	return nodeTransform * result.closest;
+}
 
 std::array<NiPoint3, 3> GetVertices(Intersection &intersection)
 {
@@ -929,18 +951,27 @@ std::array<NiPoint3, 3> GetVertices(Intersection &intersection)
 
 bool DoesAnyVertexMatch(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
 {
-	auto vector_compare = [](NiPoint3 &v1, NiPoint3 &v2) -> bool {
-		return VectorLengthSquared(v1 - v2) < 0.00001f;
-	};
-
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 3; j++) {
-			if (vector_compare(verts1[i], verts2[j])) {
+			if (VectorLengthSquared(verts1[i] - verts2[j]) < 0.00001f) {
 				return true;
 			}
 		}
 	}
 	return false;
+}
+
+bool TriangleIntersectsTriangle(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
+{
+	float *p1 = (float *)&verts1[0];
+	float *q1 = (float *)&verts1[1];
+	float *r1 = (float *)&verts1[2];
+
+	float *p2 = (float *)&verts2[0];
+	float *q2 = (float *)&verts2[1];
+	float *r2 = (float *)&verts2[2];
+
+	return tri_tri_overlap_test_3d(p1, q1, r1, p2, q2, r2);
 }
 
 void _VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor, std::unordered_set<Intersection *> &visited)
@@ -965,13 +996,13 @@ void VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Inter
 	_VisitGraphNodes(graph, intersection, visitor, visited);
 }
 
-bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos,
+bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmDirection,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
 	std::vector<Intersection> intersections;
 
 	// Populate intersections
-	GetDiskIntersectionOnGraphicsGeometry(intersections, root, center, point1, point2, tipLength, normal, zeroAngleVector, palmPos,
+	GetDiskIntersectionOnGraphicsGeometry(intersections, root, center, point1, point2, tipLength, normal, zeroAngleVector,
 		closestPos, closestNormal, furthestDistanceSoFar, bestPointAngle);
 
 	if (intersections.size() == 0) {
@@ -992,7 +1023,7 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 
 			std::array<NiPoint3, 3> otherVertices = GetVertices(*otherIntersection);
 
-			if (DoesAnyVertexMatch(vertices, otherVertices)) {
+			if (DoesAnyVertexMatch(vertices, otherVertices) || TriangleIntersectsTriangle(vertices, otherVertices)) {
 				// Add an edge between these two intersections
 				if (graph.count(intersection) == 0) {
 					graph[intersection] = std::unordered_set<Intersection *>();
@@ -1007,25 +1038,24 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 		}
 	}
 
-	// Now find the closest intersection to the palmPos
+	// Now find the closest intersection to the center
 
 	Intersection *closestIntersection;
 	float closestDist = (std::numeric_limits<float>::max)();
 	for (Intersection &intersection : intersections) {
-		float dist;
-		if (intersection.hasPt2) {
-			float dist1 = VectorLengthSquared(intersection.pt - palmPos);
-			float dist2 = VectorLengthSquared(intersection.pt2 - palmPos);
-			// TODO: What if dist1 == dist2? This should be exceedingly rare, as pt and pt2 are equidistant from the _finger joint_, not the palm
-			dist = dist1 <= dist2 ? dist1 : dist2;
-		}
-		else {
-			dist = VectorLengthSquared(intersection.pt - palmPos);
-		}
+		NiPoint3 pt = GetClosestPointOnIntersection(center, intersection);
+		float dist = VectorLengthSquared(pt - center);
 
 		if (dist < closestDist) {
-			closestDist = dist;
-			closestIntersection = &intersection;
+			std::array<NiPoint3, 3> verts = GetVertices(intersection);
+
+			NiPoint3 triNormal = VectorNormalized(CrossProduct(verts[1] - verts[0], verts[2] - verts[1]));
+
+			if (DotProduct(triNormal, palmDirection) <= 0) {
+				// Front face of the triangle faces the line
+				closestDist = dist;
+				closestIntersection = &intersection;
+			}
 		}
 	}
 
@@ -1039,15 +1069,16 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 		float dist;
 		NiPoint3 pt;
 		if (intersection->hasPt2) {
-			float dist1 = VectorLength(intersection->pt - center);
-			float dist2 = VectorLength(intersection->pt2 - center);
-			// TODO: What if dist1 == dist2? This should be exceedingly rare, as pt and pt2 are equidistant from the _finger joint_, not the palm
-			if (dist1 >= dist2) {
-				dist = dist1;
+			// Both pts have the same dist, so choose based on smaller angle
+			float angle1 = acosf(DotProduct(VectorNormalized(intersection->pt - center), zeroAngleVector));
+			float angle2 = acosf(DotProduct(VectorNormalized(intersection->pt2 - center), zeroAngleVector));
+
+			if (angle1 <= angle2) {
+				dist = VectorLength(intersection->pt - center);
 				pt = intersection->pt;
 			}
 			else {
-				dist = dist2;
+				dist = VectorLength(intersection->pt2 - center);
 				pt = intersection->pt2;
 			}
 		}

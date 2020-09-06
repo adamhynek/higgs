@@ -202,6 +202,7 @@
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\triangle_triangle_intersection.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\grabber.h" />
     <ClInclude Include="include\havok_ref_ptr.h" />
