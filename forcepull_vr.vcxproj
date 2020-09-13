@@ -190,6 +190,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
+    <ClCompile Include="src\finger_curves.cpp" />
     <ClCompile Include="src\grabber.cpp" />
     <ClCompile Include="src\hooks.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -202,6 +203,9 @@
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\finger_curves.h" />
+    <ClInclude Include="include\PQP\MatVec.h" />
+    <ClInclude Include="include\PQP\TriDist.h" />
     <ClInclude Include="include\triangle_triangle_intersection.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\grabber.h" />

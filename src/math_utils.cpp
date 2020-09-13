@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "config.h"
 #include "triangle_triangle_intersection.h"
+#include "PQP/TriDist.h"
 
 #include "skse64/NiGeometry.h"
 
@@ -788,7 +789,7 @@ bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 			NiPoint3 normalNodespace = inverseRot * normal;
 
 			// Compute radius after transforming points, as things can be scaled up/down
-			float tipLengthInNodeSpace = tipLength * nodeTransform.scale;
+			float tipLengthInNodeSpace = tipLength * (1.0f  / nodeTransform.scale);
 			float radius = VectorLength(point2InNodeSpace - point1InNodeSpace) + VectorLength(point1InNodeSpace - centerInNodeSpace) + tipLengthInNodeSpace; // Add em up as if the finger was straightned out
 			_MESSAGE("r: %.2f", radius);
 
@@ -974,6 +975,14 @@ bool TriangleIntersectsTriangle(std::array<NiPoint3, 3> &verts1, std::array<NiPo
 	return tri_tri_overlap_test_3d(p1, q1, r1, p2, q2, r2);
 }
 
+float TriangleTriangleDistance(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
+{
+	float P[3], Q[3];
+	auto S = (float(*)[3])&verts1;
+	auto T = (float(*)[3])&verts2;
+	return TriDist(P, Q, S, T);
+}
+
 void _VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor, std::unordered_set<Intersection *> &visited)
 {
 	visitor(intersection);
@@ -996,7 +1005,7 @@ void VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Inter
 	_VisitGraphNodes(graph, intersection, visitor, visited);
 }
 
-bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmDirection,
+bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos, NiPoint3 palmDirection,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle)
 {
 	std::vector<Intersection> intersections;
@@ -1023,7 +1032,7 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 
 			std::array<NiPoint3, 3> otherVertices = GetVertices(*otherIntersection);
 
-			if (DoesAnyVertexMatch(vertices, otherVertices) || TriangleIntersectsTriangle(vertices, otherVertices)) {
+			if (DoesAnyVertexMatch(vertices, otherVertices) || TriangleIntersectsTriangle(vertices, otherVertices) || TriangleTriangleDistance(vertices, otherVertices) < 1.5f) {
 				// Add an edge between these two intersections
 				if (graph.count(intersection) == 0) {
 					graph[intersection] = std::unordered_set<Intersection *>();
@@ -1038,13 +1047,13 @@ bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoin
 		}
 	}
 
-	// Now find the closest intersection to the center
+	// Now find the closest intersection to the palm
 
-	Intersection *closestIntersection;
+	Intersection *closestIntersection = nullptr;
 	float closestDist = (std::numeric_limits<float>::max)();
 	for (Intersection &intersection : intersections) {
-		NiPoint3 pt = GetClosestPointOnIntersection(center, intersection);
-		float dist = VectorLengthSquared(pt - center);
+		NiPoint3 pt = GetClosestPointOnIntersection(palmPos, intersection);
+		float dist = VectorLengthSquared(pt - palmPos);
 
 		if (dist < closestDist) {
 			std::array<NiPoint3, 3> verts = GetVertices(intersection);

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <map>
 
 #include "skse64/GameRTTI.h"
 #include "skse64/NiExtraData.h"
@@ -13,11 +14,11 @@
 #include "utils.h"
 #include "offsets.h"
 #include "config.h"
+#include "math_utils.h"
 
 
 ITimer g_timer;
 double g_currentFrameTime;
-//double g_deltaTime;
 double GetTime()
 {
 	return g_timer.GetElapsedTime();
@@ -157,7 +158,6 @@ bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> funct
 		if (functor(parent, depth))
 			return true;
 
-		//auto children = NINODE_CHILDREN(node);
 		auto children = &node->m_children;
 		for (UInt32 i = 0; i < children->m_emptyRunStart; i++) {
 			NiAVObject * object = children->m_data[i];
@@ -265,7 +265,7 @@ std::string PrintNodeToString(NiAVObject *avObj, int depth)
 			auto fgAnimExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenAnimationData);
 			if (fgAnimExtraData) {
 				avInfoStr << extraData->m_pcName << " (facegen anim); ";
-continue;
+				continue;
 			}
 			auto fgModelExtraData = DYNAMIC_CAST(extraData, NiExtraData, BSFaceGenModelExtraData);
 			if (fgModelExtraData) {
@@ -313,24 +313,6 @@ void PrintToFile(std::string entry, std::string filename)
 	file << entry << std::endl;
 	file.close();
 }
-
-/*
-float hkHalfToFloat(hkHalf half)
-{
-	union {
-		int i;
-		float f;
-	} u;
-	u.i = (half << 16);
-	return u.f;
-}
-
-hkHalf floatToHkHalf(float f)
-{
-	int t = ((const int*)&f)[0];
-	return SInt16(t >> 16);
-}
-*/
 
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 {

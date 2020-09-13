@@ -37,6 +37,8 @@
 
 // modified by Aaron to better detect coplanarity
 
+#pragma once
+
 #define ZERO_TEST(x)  (x == 0)
 //#define ZERO_TEST(x)  ((x) > -0.001 && (x) < .001)
 

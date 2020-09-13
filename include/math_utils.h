@@ -49,7 +49,7 @@ inline hkVector4 NiPointToHkVector(NiPoint3 &pt) { return { pt.x, pt.y, pt.z, 0 
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3);
 
-bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmDirection,
+bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos, NiPoint3 palmDirection,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle);
 bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle);

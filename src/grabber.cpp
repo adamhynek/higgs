@@ -1,5 +1,8 @@
 #include <numeric>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #include "skse64/GameRTTI.h"
 #include "skse64/PapyrusActor.h"
 #include "skse64/NiGeometry.h"
@@ -13,6 +16,7 @@
 #include "effects.h"
 #include "math_utils.h"
 #include "vrikinterface001.h"
+#include "finger_curves.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
@@ -291,30 +295,22 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				PlayerCharacter *player = *g_thePlayer;
 
-				//static const NiPoint3 nonThumbNormalHandspace = { 1, 0, 0 }; // points out the thumb like in a thumbs-up for the right hand
-				NiPoint3 nonThumbNormalHandspace = VectorNormalized({ 1, 0.3, 0.2 }); // points out the thumb like in a thumbs-up for the right hand
-				NiPoint3 nonThumbZeroAngleVectorHandspace = VectorNormalized({ 0, -0.5, 1 });
+				NiPoint3 fingerNormalsWorldspace[5];
+				NiPoint3 fingerZeroAngleVecsWorldspace[5];
+				for (int i = 0; i < 5; i++) {
+					NiPoint3 normalHandspace = g_fingerNormals[i];
+					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+					if (isLeft) {
+						// x axis is flipped for left hand
+						zeroAngleVecHandspace.x *= -1;
 
-				NiPoint3 thumbZeroAngleVectorHandspace = VectorNormalized({ 2.2, -1.1, 1 });
-				NiPoint3 thumbNormalHandspace = VectorNormalized({ -0.285, -0.85, -0.443 }); // points out the palm for the right hand
-
-				if (isLeft) {
-					// x axis is flipped for left hand
-					nonThumbZeroAngleVectorHandspace.x *= -1;
-					thumbZeroAngleVectorHandspace.x *= -1;
-
-					// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-					nonThumbNormalHandspace.y *= -1;
-					nonThumbNormalHandspace.z *= -1;
-
-					thumbNormalHandspace.y *= -1;
-					thumbNormalHandspace.z *= -1;
+						// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+						normalHandspace.y *= -1;
+						normalHandspace.z *= -1;
+					}
+					fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
-
-				NiPoint3 thumbNormalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * thumbNormalHandspace);
-				NiPoint3 nonThumbNormalWorldspace = VectorNormalized(handNode->m_worldTransform.rot * nonThumbNormalHandspace);
-				NiPoint3 nonThumbZeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * nonThumbZeroAngleVectorHandspace);
-				NiPoint3 thumbZeroAngleVectorWorldspace = VectorNormalized(handNode->m_worldTransform.rot * thumbZeroAngleVectorHandspace);
 
 				struct FingerData
 				{
@@ -323,13 +319,17 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					float fingerRadius; // full radius of the finger
 				};
 
-				auto FingerCheck = [this, player, handNode, castDirection](TESObjectREFR *refr, int fingerIndex, NiPoint3 zeroAngleVectorWorldspace, NiPoint3 normalWorldspace) -> FingerData
+				auto FingerCheck = [this, player, handNode, palmPos, castDirection, fingerNormalsWorldspace, fingerZeroAngleVecsWorldspace]
+				(TESObjectREFR *refr, int fingerIndex) -> FingerData
 				{
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
 					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][2].data);
 
 					if (startFinger && midFinger && endFinger) {
+						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+
 						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
 						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
 						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
@@ -341,7 +341,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						float furthestDistance = -1;
 						float closestAngle = (std::numeric_limits<float>::max)();
 						NiPoint3 intersection, normal;
-						bool intersects = GetIntersections(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, tipLength, normalWorldspace, zeroAngleVectorWorldspace, castDirection,
+						bool intersects = GetIntersections(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, tipLength, normalWorldspace, zeroAngleVectorWorldspace, palmPos, castDirection,
 							&intersection, &normal, &furthestDistance, &closestAngle);
 						if (intersects) {
 							NiPoint3 centerToIntersect = intersection - startFingerPos;
@@ -370,9 +370,11 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
 
-				float thumbAngle = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace).angle;
+				float thumbAngle = FingerCheck(selectedObj, 0).angle;
 				if (false){//(thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
+					NiPoint3 thumbNormalWorldspace = fingerNormalsWorldspace[0];
+
 					NiPoint3 axis = thumbNormalWorldspace;
 					float angle = minAllowedAngle - thumbAngle;
 
@@ -385,6 +387,8 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
 
 						float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
+						NiPoint3 thumbZeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[0];
+
 						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, minAllowedAngle);
 						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, thumbAngle);
 
@@ -416,7 +420,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 				std::array<FingerData, 5> fingerData;
 				for (int i = 1; i < fingerData.size(); i++) { // No thumb
-					fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace);
+					fingerData[i] = FingerCheck(selectedObj, i);
 				}
 
 				int fingerWithSmallestAngle = -1;
@@ -433,7 +437,8 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				//if (smallestAngle < minAllowedAngle) {
 					// Derotate the object to not have fingers clip through it
 					// TODO: Rotate about closest pt on line that goes through the knuckles, instead of the tripos
-					NiPoint3 axis = nonThumbNormalWorldspace;
+					NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerWithSmallestAngle];
+					NiPoint3 axis = normalWorldspace;
 					float angle = minAllowedAngle - smallestAngle;
 
 					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
@@ -446,8 +451,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
 
 						float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
-						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(nonThumbZeroAngleVectorWorldspace * radius, axis, minAllowedAngle);
-						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(nonThumbZeroAngleVectorWorldspace * radius, axis, smallestAngle);
+						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerWithSmallestAngle];
+						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, minAllowedAngle);
+						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, smallestAngle);
 
 						NiPoint3 ptToCenter = n->m_worldTransform.pos - actualPtPos;
 
@@ -484,13 +490,13 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						// Recompute all fingers
 						for (int i = 1; i < fingerData.size(); i++) { // No thumb
-							fingerData[i] = FingerCheck(selectedObj, i, nonThumbZeroAngleVectorWorldspace, nonThumbNormalWorldspace);
+							fingerData[i] = FingerCheck(selectedObj, i);
 						}
 					}
 				}
 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
-				fingerData[0] = FingerCheck(selectedObj, 0, thumbZeroAngleVectorWorldspace, thumbNormalWorldspace);
+				fingerData[0] = FingerCheck(selectedObj, 0);
 
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
@@ -502,17 +508,36 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						float radiusRatio = 1.0f - data.radius / data.fingerRadius; // 0 to 1, 0 if radius equals fingerRadius
 						_MESSAGE("%d radius ratio: %.2f", i, radiusRatio);
 
-						float angleRatio = min(1, degrees / 180.0f);
+						float angleRatio = max(0, min(1, degrees / 180.0f));
 						float range = angleRatio + (1.0f - angleRatio) * radiusRatio; // amount of curl
 
-						if (i == 0) {
-							// Thumb's got it a bit different
-							//fingerRanges[i] = 1.0f - max(0, min(1, range * 1.5f));
-							fingerRanges[i] = 1.0f;
+						float effectiveAngle = range * M_PI;
+						auto &fingerVals = g_fingerCurveVals[i];
+						for (int j = 0; j < std::size(fingerVals); j++) {
+							float val = fingerVals[j][0];
+							float angle = fingerVals[j][1];
+							float length = fingerVals[j][2];
+
+							if (angle > effectiveAngle) {
+								if (j == 0) {
+									range = val;
+								}
+								break;
+							}
+
+							range = val;
 						}
-						else {
-							fingerRanges[i] = 1.0f - max(0, min(1, range));
-						}
+
+						fingerRanges[i] = range;
+
+						//if (i == 0) {
+						//	// Thumb's got it a bit different
+						//	//fingerRanges[i] = 1.0f - max(0, min(1, range * 1.5f));
+						//	fingerRanges[i] = 1.0f;
+						//}
+						//else {
+						//	fingerRanges[i] = 1.0f - max(0, min(1, range));
+						//}
 
 						fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
 					}
@@ -598,6 +623,12 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	}
 
 	float havokWorldScale = *g_havokWorldScale;
+
+
+	if (!isLeft) {
+		UpdateGenerateFingerCurve(handNodeName, fingerNodeNames, fingerTipLengths);
+	}
+
 
 	if (world->world != handCollBody->m_world) {
 		if (handCollBody->m_world) {
@@ -825,14 +856,32 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				Select(closestObj);
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 				if (newState == State::SelectedClose) {
+					if (g_vrikInterface) {
+						float val = 0.92f;
+						g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
+					}
 					rolloverDisplayTime = g_currentFrameTime;
+				}
+				else if (newState == State::SelectedFar) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
 				}
 			}
 			else if ((state == State::SelectedFar && isSelectedNear) || (state == State::SelectedClose && !isSelectedNear)) {
 				// Same object is selected, but it has become near/far enough to switch states
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 				if (newState == State::SelectedClose) {
+					if (g_vrikInterface) {
+						float val = 0.92f;
+						g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
+					}
 					rolloverDisplayTime = g_currentFrameTime;
+				}
+				else if (newState == State::SelectedFar) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
 				}
 			}
 
@@ -985,6 +1034,18 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
 					// If time has run out and nothing is selected, deselect whatever is selected
+					if (state == State::SelectedClose) {
+						if (g_vrikInterface) {
+							g_vrikInterface->restoreFingers(isLeft);
+						}
+					}
+
+
+					if (!isLeft) {
+						//StartGenerateFingerCurve(isLeft);
+					}
+
+
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					Deselect();
 				}
@@ -1010,6 +1071,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
+							if (g_vrikInterface) {
+								g_vrikInterface->restoreFingers(isLeft);
+							}
 							TransitionHeld(world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
@@ -1018,11 +1082,21 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 					else {
 						// Selected object no longer exists
+						if (state == State::SelectedClose) {
+							if (g_vrikInterface) {
+								g_vrikInterface->restoreFingers(isLeft);
+							}
+						}
 						state = State::Idle;
 					}
 				}
 			}
 			else {
+				if (state == State::SelectedClose) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
+				}
 				state = State::Idle;
 			}
 		}
