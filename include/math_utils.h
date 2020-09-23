@@ -20,6 +20,30 @@ struct Intersection
 	bool hasPt2;
 };
 
+struct Point2
+{
+	float x;
+	float y;
+
+	Point2();
+	Point2(float X, float Y) : x(X), y(Y) { };
+
+	Point2 Point2::operator- () const;
+	Point2 Point2::operator+ (const Point2& pt) const;
+
+	Point2 Point2::operator- (const Point2& pt) const;
+
+	Point2& Point2::operator+= (const Point2& pt);
+	Point2& Point2::operator-= (const Point2& pt);
+
+	// Scalar operations
+	Point2 Point2::operator* (float scalar) const;
+	Point2 Point2::operator/ (float scalar) const;
+
+	Point2& Point2::operator*= (float scalar);
+	Point2& Point2::operator/= (float scalar);
+};
+
 namespace MathUtils
 {
 	struct Result
@@ -49,9 +73,8 @@ inline hkVector4 NiPointToHkVector(NiPoint3 &pt) { return { pt.x, pt.y, pt.z, 0 
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3);
 
-bool GetIntersections(NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos, NiPoint3 palmDirection,
-	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle);
-bool GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, float tipLength, NiPoint3 normal, NiPoint3 zeroAngleVector,
-	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *furthestDistanceSoFar, float *bestPointAngle);
+bool GetIntersections(NiAVObject *root, int fingerIndex, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos, NiPoint3 palmDirection,
+	NiPoint3 *closestPos);
+void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, int fingerIndex, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector);
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
 bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, NiPoint3 direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);

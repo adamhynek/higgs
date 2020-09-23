@@ -336,13 +336,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						_MESSAGE("%d", fingerIndex);
 
-						float tipLength = fingerTipLengths[fingerIndex];
-
-						float furthestDistance = -1;
-						float closestAngle = (std::numeric_limits<float>::max)();
-						NiPoint3 intersection, normal;
-						bool intersects = GetIntersections(refr->loadedState->node, startFingerPos, midFingerPos, endFingerPos, tipLength, normalWorldspace, zeroAngleVectorWorldspace, palmPos, castDirection,
-							&intersection, &normal, &furthestDistance, &closestAngle);
+						NiPoint3 intersection;
+						bool intersects = GetIntersections(refr->loadedState->node, fingerIndex, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace, palmPos, castDirection,
+							&intersection);
 						if (intersects) {
 							NiPoint3 centerToIntersect = intersection - startFingerPos;
 							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorWorldspace));
@@ -350,7 +346,11 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 								// Positive angles are those which curl the finger
 								angle *= -1;
 							}
-							float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos) + tipLength;
+
+							std::array<float, 3> fingerData;
+							LookupFingerByAngle(fingerIndex, angle, &fingerData);
+							float radius = fingerData[2];
+
 							return { angle, VectorLength(centerToIntersect), radius };
 						}
 						else {
@@ -1041,9 +1041,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 					}
 
 
-					if (!isLeft) {
-						//StartGenerateFingerCurve(isLeft);
-					}
+					//if (!isLeft) {
+					//	StartGenerateFingerCurve(isLeft);
+					//}
 
 
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);

@@ -8,6 +8,8 @@ void StartGenerateFingerCurve(bool isLeft);
 void StopGenerateFingerCurve();
 void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString fingerNodeNames[5][3], float fingerTipLengths[5]);
 
+int LookupFingerByAngle(int fingerIndex, float desiredAngle, std::array<float, 3> *out);
+
 
 extern NiPoint3 g_fingerZeroAngleVecs[5];
 extern NiPoint3 g_fingerNormals[5];
