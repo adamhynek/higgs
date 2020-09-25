@@ -857,7 +857,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 				if (newState == State::SelectedClose) {
 					if (g_vrikInterface) {
-						float val = 0.92f;
+						float val = 0.9f;
 						g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
 					}
 					rolloverDisplayTime = g_currentFrameTime;
@@ -873,7 +873,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 				if (newState == State::SelectedClose) {
 					if (g_vrikInterface) {
-						float val = 0.92f;
+						float val = 0.9f;
 						g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
 					}
 					rolloverDisplayTime = g_currentFrameTime;

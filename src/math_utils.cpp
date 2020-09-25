@@ -940,6 +940,7 @@ namespace MathUtils
 
 			auto &fingerVals = g_fingerCurveVals[fingerIndex];
 
+			bool hasPt = false;
 			int end = min(largerIndex, std::size(fingerVals) - 2);
 			for (int i = smallerIndex; i <= end; i++) {
 				float angle = fingerVals[i][1];
@@ -956,25 +957,29 @@ namespace MathUtils
 
 				Point2 intersection;
 				if (LineSegmentIntersectsLineSegment(smallerPt, largerPt, currentPt, nextPt, &intersection)) {
-					// TODO: Use precise intersection point instead of the current angle / length
-					outIntersectionPoint1 = diskCenter + VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
-
-					NiPoint3 centerToIntersect = outIntersectionPoint1 - diskCenter;
-					float _angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVector));
-					_MESSAGE("%.2f, %.2f", angle, _angle);
-					_MESSAGE("%.2f, %.2f", length, VectorLength(centerToIntersect));
-
-					return 1;
+					if (!hasPt) {
+						// TODO: Use precise intersection point instead of the current angle / length
+						outIntersectionPoint1 = diskCenter + VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
+						hasPt = true;
+					}
+					else {
+						// Already intersected once. This is the second time.
+						outIntersectionPoint2 = diskCenter + VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
+						return 2;
+					}
 				}
+			}
+			if (hasPt) {
+				return 1;
 			}
 		}
 		else {
 			// Intersection line is entirely inside the disk
 			//outIntersectionPoint1 = diskCenter + furthestPoint;
-			// TODO: Out of the 2 points on the edge, pick the one in the direction of the finger curl
 			NiPoint3 furthestPoint = GetFurthestPointOnLineSegment(edgeStart, edgeEnd, { 0, 0, 0 }); // circle center is the origin, so {0, 0, 0}
-			outIntersectionPoint1 = diskCenter + furthestPoint;
-			return 1;
+			outIntersectionPoint1 = diskCenter + edgeStart;
+			outIntersectionPoint2 = diskCenter + edgeEnd;
+			return 2;
 		}
 
 		return 0;
@@ -1030,27 +1035,10 @@ void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 					continue;
 				}
 
-				NiPoint3 intersectionPoint;
-				NiPoint3 centerToIntersect;
-				float angle;
 				if (numIntersections == 2) {
-					// Pick the point with the smaller angle
-					NiPoint3 centerToIntersect1 = intersectionPoint1 - centerInNodeSpace;
-					float angle1 = acosf(DotProduct(VectorNormalized(centerToIntersect1), zeroAngleVectorNodespace));
-					NiPoint3 centerToIntersect2 = intersectionPoint2 - centerInNodeSpace;
-					float angle2 = acosf(DotProduct(VectorNormalized(centerToIntersect2), zeroAngleVectorNodespace));
-					bool angle1Smaller = angle1 < angle2;
-					intersectionPoint = angle1Smaller ? intersectionPoint1 : intersectionPoint2;
-					angle = angle1Smaller ? angle1 : angle2;
-					centerToIntersect = angle1Smaller ? centerToIntersect1 : centerToIntersect2;
-
 					intersections.push_back({ nodeTransform * intersectionPoint1, nodeTransform * intersectionPoint2, geom, tri, true });
 				}
 				else { // numIntersections == 1
-					intersectionPoint = intersectionPoint1;
-					centerToIntersect = intersectionPoint - centerInNodeSpace;
-					angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorNodespace));
-
 					intersections.push_back({ nodeTransform * intersectionPoint1, { 0, 0, 0 }, geom, tri, false });
 				}
 			}
@@ -1296,7 +1284,7 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, NiPoint3 center, NiPoin
 		_MESSAGE("angle: %.2f", degrees);
 
 		// TOD: Tune
-		float energy = radiusRatio * 0.9f + (degrees / 180.0f) * 0.1f;
+		float energy = radiusRatio * 0.7f + (degrees / 180.0f) * 0.3f;
 
 		if (energy < smallestEnergy) {
 			std::array<NiPoint3, 3> verts = GetVertices(*intersection);
