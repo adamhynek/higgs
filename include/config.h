@@ -16,7 +16,8 @@ namespace Config {
 		float rolloverScale = 10.0f;
 		float pushPullSpeedThreshold = 90.0f;
 		float pullAngularSpeedThreshold = 9.0f;
-		float grabStartSpeed = 250.0f;
+		float grabStartSpeed = 250.0f; // skyrim units/s
+		float grabStartAngularSpeed = 360.0f; // deg/s
 		float grabLateralWeight = 0.6f;
 		float grabDirectionalWeight = 0.4f;
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore

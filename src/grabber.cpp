@@ -265,7 +265,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			HkMatrixToNiMatrix(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_rotation, desiredTransform.rot);
 			NiTransform inverseHand;
 			handNode->m_worldTransform.Invert(inverseHand);
-			initialObjTransformHandSpace = inverseHand * desiredTransform;
+			desiredObjTransformHandSpace = inverseHand * desiredTransform;
 
 			state = State::HeldBody;
 		}
@@ -362,6 +362,8 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					_ERROR("Could not get finger %d", fingerIndex);
 					return { 0.0f, 0.0f, 99999999.0f };
 				};
+
+				NiTransform originalTransform = n->m_worldTransform;
 
 				// Update transform to snap to the hand
 				desiredTransform = n->m_worldTransform;
@@ -498,6 +500,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				// Now that we've determined (potentially) the object's rotation, figure out the thumb
 				fingerData[0] = FingerCheck(selectedObj, 0);
 
+				// Reset to original transform
+				UpdateKeyframedNodeTransform(n, originalTransform);
+
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
 					for (int i = 0; i < fingerRanges.size(); i++) {
@@ -560,7 +565,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			// Use ninode pos / rot since we set that while holding it
 			NiTransform inverseHand;
 			handNode->m_worldTransform.Invert(inverseHand);
-			initialObjTransformHandSpace = inverseHand * desiredTransform;
+			desiredObjTransformHandSpace = inverseHand * desiredTransform;
 
 			state = State::HeldInit;
 		}
@@ -1412,7 +1417,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
-					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
+					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
 
 					if (state == State::HeldInit) {
 						if (g_currentFrameTime - grabbedTime > 1.0f) {
@@ -1420,13 +1425,47 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							state = State::Held;
 						}
 						else {
-							// TODO: Interpolate not just pos, but rot too...?
-							NiPoint3 delta = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
-							if (VectorLengthSquared(delta) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos)) {
-								// If not close enough, move the object closer to the hand at some velocity
-								newTransform.pos = n->m_worldTransform.pos + delta;
+							// Interpolate pos/rot towards the hand so it doesn't 'snap' too much
+
+							hkQuaternion hkQuat;
+							hkRotation hkRot;
+
+							NiMatrixToHkMatrix(n->m_worldTransform.rot, hkRot);
+							hkQuat.setFromRotationSimd(hkRot);
+							NiQuaternion currentQuat = HkQuatToNiQuat(hkQuat);
+							currentQuat = QuaternionNormalized(currentQuat);
+
+							NiMatrixToHkMatrix(newTransform.rot, hkRot);
+							hkQuat.setFromRotationSimd(hkRot);
+							NiQuaternion desiredQuat = HkQuatToNiQuat(hkQuat);
+							desiredQuat = QuaternionNormalized(desiredQuat);
+
+							float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
+							float quatAngle = 2.0f * acosf(abs(DotProduct(currentQuat, desiredQuat)));
+
+							NiPoint3 deltaPos = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
+
+							bool doRotation = deltaAngle < quatAngle;
+							bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos);
+
+							if (doRotation || doTranslation) {
+								// Rotation or position is not yet close enough
+
+								if (doRotation) {
+									// update rotation
+									double slerpAmount = deltaAngle / quatAngle;
+									NiQuaternion newQuat = slerp(currentQuat, desiredQuat, slerpAmount);
+									newQuat = QuaternionNormalized(newQuat);
+									newTransform.rot = QuaternionToMatrix(newQuat);
+								}
+
+								if (doTranslation) {
+									// If not close enough, move the object closer to the hand at some velocity
+									newTransform.pos = n->m_worldTransform.pos + deltaPos;
+								}
 							}
 							else {
+								// Both position and rotation are close enough to their final values - we're done
 								state = State::Held;
 							}
 						}
@@ -1448,7 +1487,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 				if (n) {
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					NiTransform newTransform = handNode->m_worldTransform * initialObjTransformHandSpace;
+					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
 					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
 					hkRotation desiredRot;
 					NiMatrixToHkMatrix(newTransform.rot, desiredRot);

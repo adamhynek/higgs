@@ -11,13 +11,13 @@
 #include <unordered_set>
 
 
-NiPoint3 VectorNormalized(NiPoint3 vec)
+NiPoint3 VectorNormalized(const NiPoint3 &vec)
 {
 	float length = VectorLength(vec);
 	return length ? vec / length : NiPoint3();
 }
 
-NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2)
+NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2)
 {
 	NiPoint3 result;
 	result.x = vec1.y * vec2.z - vec1.z * vec2.y;
@@ -26,7 +26,7 @@ NiPoint3 CrossProduct(NiPoint3 vec1, NiPoint3 vec2)
 	return result;
 }
 
-NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
+NiMatrix33 MatrixFromAxisAngle(const NiPoint3 &axis, float theta)
 {
 	NiPoint3 a = axis;
 	float cosTheta = cosf(theta);
@@ -48,7 +48,7 @@ NiMatrix33 MatrixFromAxisAngle(NiPoint3 axis, float theta)
 	return result;
 }
 
-NiPoint3 MatrixToEuler(NiMatrix33 &mat)
+NiPoint3 MatrixToEuler(const NiMatrix33 &mat)
 {
 	// Thanks DavidJCobb
 	NiPoint3 output(0, 0, 0);
@@ -75,7 +75,7 @@ NiPoint3 MatrixToEuler(NiMatrix33 &mat)
 	return output;
 }
 
-NiMatrix33 EulerToMatrix(NiPoint3 euler)
+NiMatrix33 EulerToMatrix(const NiPoint3 &euler)
 {
 	// Thanks DavidJCobb
 	NiMatrix33 output;
@@ -106,20 +106,20 @@ NiMatrix33 EulerToMatrix(NiPoint3 euler)
 	return output;
 };
 
-NiPoint3 RotateVectorByAxisAngle(NiPoint3 vector, NiPoint3 axis, float angle)
+NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle)
 {
 	// Rodrigues' rotation formula
 	return vector * cosf(angle) + (CrossProduct(axis, vector) * sinf(angle)) + axis * DotProduct(axis, vector) * (1.0f - cosf(angle));
 }
 
-void NiMatrixToHkMatrix(NiMatrix33 &niMat, hkMatrix3 &hkMat)
+void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat)
 {
 	hkMat.setCols({ niMat.data[0][0], niMat.data[1][0], niMat.data[2][0], 0 },
 		{ niMat.data[0][1], niMat.data[1][1], niMat.data[2][1], 0 },
 		{ niMat.data[0][2], niMat.data[1][2], niMat.data[2][2], 0 });
 }
 
-void HkMatrixToNiMatrix(hkMatrix3 &hkMat, NiMatrix33 &niMat)
+void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat)
 {
 	hkVector4 col0, col1, col2;
 	hkMat.getCols(col0, col1, col2);
@@ -137,6 +137,134 @@ void HkMatrixToNiMatrix(hkMatrix3 &hkMat, NiMatrix33 &niMat)
 	niMat.data[2][2] = col2(2);
 }
 
+NiMatrix33 QuaternionToMatrix(const NiQuaternion &q) {
+	double sqw = q.m_fW*q.m_fW;
+	double sqx = q.m_fX*q.m_fX;
+	double sqy = q.m_fY*q.m_fY;
+	double sqz = q.m_fZ*q.m_fZ;
+
+	NiMatrix33 m;
+
+	// invs (inverse square length) is only required if quaternion is not already normalised
+	double invs = 1 / (sqx + sqy + sqz + sqw);
+	m.data[0][0] = (sqx - sqy - sqz + sqw)*invs; // since sqw + sqx + sqy + sqz =1/invs*invs
+	m.data[1][1] = (-sqx + sqy - sqz + sqw)*invs;
+	m.data[2][2] = (-sqx - sqy + sqz + sqw)*invs;
+
+	double tmp1 = q.m_fX*q.m_fY;
+	double tmp2 = q.m_fZ*q.m_fW;
+	m.data[1][0] = 2.0 * (tmp1 + tmp2)*invs;
+	m.data[0][1] = 2.0 * (tmp1 - tmp2)*invs;
+
+	tmp1 = q.m_fX*q.m_fZ;
+	tmp2 = q.m_fY*q.m_fW;
+	m.data[2][0] = 2.0 * (tmp1 - tmp2)*invs;
+	m.data[0][2] = 2.0 * (tmp1 + tmp2)*invs;
+	tmp1 = q.m_fY*q.m_fZ;
+	tmp2 = q.m_fX*q.m_fW;
+	m.data[2][1] = 2.0 * (tmp1 + tmp2)*invs;
+	m.data[1][2] = 2.0 * (tmp1 - tmp2)*invs;
+
+	return m;
+}
+
+NiQuaternion QuaternionIdentity()
+{
+	return { 1, 0, 0, 0 };
+}
+
+NiQuaternion QuaternionNormalized(const NiQuaternion &q)
+{
+	float length = QuaternionLength(q);
+	if (length) {
+		return QuaternionMultiply(q, 1.0f / length);
+	}
+	return QuaternionIdentity();
+}
+
+NiQuaternion QuaternionMultiply(const NiQuaternion &qa, const NiQuaternion &qb)
+{
+	NiQuaternion multiple;
+	multiple.m_fW = qa.m_fW * qb.m_fW - qa.m_fX * qb.m_fX - qa.m_fY * qb.m_fY - qa.m_fZ * qb.m_fZ;
+	multiple.m_fX = qa.m_fW * qb.m_fX + qa.m_fX * qb.m_fW + qa.m_fY * qb.m_fZ - qa.m_fZ * qb.m_fY;
+	multiple.m_fY = qa.m_fW * qb.m_fY - qa.m_fX * qb.m_fZ + qa.m_fY * qb.m_fW + qa.m_fZ * qb.m_fX;
+	multiple.m_fZ = qa.m_fW * qb.m_fZ + qa.m_fX * qb.m_fY - qa.m_fY * qb.m_fX + qa.m_fZ * qb.m_fW;
+	return multiple;
+}
+
+NiQuaternion QuaternionMultiply(const NiQuaternion &q, float multiplier)
+{
+	NiQuaternion multiple;
+	multiple.m_fW = q.m_fW * multiplier;
+	multiple.m_fX = q.m_fX * multiplier;
+	multiple.m_fY = q.m_fY * multiplier;
+	multiple.m_fZ = q.m_fZ * multiplier;
+	return multiple;
+}
+
+NiQuaternion QuaternionInverse(const NiQuaternion &q)
+{
+	NiQuaternion inverse;
+	float normSquared = q.m_fW*q.m_fW + q.m_fX*q.m_fX + q.m_fY*q.m_fY + q.m_fZ*q.m_fZ;
+	if (!normSquared)
+		normSquared = 1;
+	inverse.m_fW = q.m_fW / normSquared;
+	inverse.m_fX = -q.m_fX / normSquared;
+	inverse.m_fY = -q.m_fY / normSquared;
+	inverse.m_fZ = -q.m_fZ / normSquared;
+	return inverse;
+}
+
+NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
+{
+	// quaternion to return
+	NiQuaternion qm;
+	// Calculate angle between them.
+	double cosHalfTheta = DotProduct(qa, qb);
+	// if qa=qb or qa=-qb then theta = 0 and we can return qa
+	if (abs(cosHalfTheta) >= 0.9995) {
+		qm.m_fW = qa.m_fW;
+		qm.m_fX = qa.m_fX;
+		qm.m_fY = qa.m_fY;
+		qm.m_fZ = qa.m_fZ;
+		return qm;
+	}
+
+	// If the dot product is negative, slerp won't take
+	// the shorter path. Note that qb and -qb are equivalent when
+	// the negation is applied to all four components. Fix by 
+	// reversing one quaternion.
+	NiQuaternion q2 = qb;
+	if (cosHalfTheta < 0) {
+		q2.m_fW *= -1;
+		q2.m_fX *= -1;
+		q2.m_fY *= -1;
+		q2.m_fZ *= -1;
+		cosHalfTheta *= -1;
+	}
+
+	// Calculate temporary values.
+	double halfTheta = acos(cosHalfTheta);
+	double sinHalfTheta = sqrt(1.0 - cosHalfTheta * cosHalfTheta);
+	// if theta = 180 degrees then result is not fully defined
+	// we could rotate around any axis normal to qa or qb
+	if (fabs(sinHalfTheta) < 0.001) { // fabs is floating point absolute
+		qm.m_fW = (qa.m_fW * 0.5 + q2.m_fW * 0.5);
+		qm.m_fX = (qa.m_fX * 0.5 + q2.m_fX * 0.5);
+		qm.m_fY = (qa.m_fY * 0.5 + q2.m_fY * 0.5);
+		qm.m_fZ = (qa.m_fZ * 0.5 + q2.m_fZ * 0.5);
+		return qm;
+	}
+	double ratioA = sin((1 - t) * halfTheta) / sinHalfTheta;
+	double ratioB = sin(t * halfTheta) / sinHalfTheta;
+	//calculate Quaternion.
+	qm.m_fW = (qa.m_fW * ratioA + q2.m_fW * ratioB);
+	qm.m_fX = (qa.m_fX * ratioA + q2.m_fX * ratioB);
+	qm.m_fY = (qa.m_fY * ratioA + q2.m_fY * ratioB);
+	qm.m_fZ = (qa.m_fZ * ratioA + q2.m_fZ * ratioB);
+	return qm;
+}
+
 float Determinant33(const NiMatrix33 &m)
 {
 	float a = m.data[0][0];
@@ -151,7 +279,7 @@ float Determinant33(const NiMatrix33 &m)
 	return a * (e*i - f * h) - b * (d*i - f * g) + c * (d*h - e * g);
 }
 
-NiPoint3 QuadraticFromPoints(NiPoint2 p1, NiPoint2 p2, NiPoint2 p3)
+NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3)
 {
 	// Fit a quadratic to the 3 given points, and return the coefficients of x^2, x^1, x^0
 	float x1sqr = p1.x*p1.x;
@@ -246,7 +374,7 @@ Point2& Point2::operator/= (float scalar)
 
 namespace MathUtils
 {
-	Result GetClosestPointOnTriangle(NiPoint3 const& point, Triangle const& triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	Result GetClosestPointOnTriangle(const NiPoint3 &point, const Triangle &triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
 	{
 		// Taken from https://www.geometrictools.com/GTE//Mathematics/DistPointTriangleExact.h and adapted
 
@@ -455,9 +583,9 @@ namespace MathUtils
 		return result;
 	}
 
-	bool RayIntersectsTriangle(NiPoint3 rayOrigin,
-		NiPoint3 rayVector,
-		Triangle &triangle,
+	bool RayIntersectsTriangle(const NiPoint3 &rayOrigin,
+		const NiPoint3 &rayVector,
+		const Triangle &triangle,
 		NiPoint3 &outIntersectionPoint,
 		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
 	{
@@ -498,9 +626,9 @@ namespace MathUtils
 			return false;
 	}
 
-	bool GetClosestPointOnTriangleToLine(NiPoint3 rayOrigin,
-		NiPoint3 rayVector,
-		Triangle &triangle,
+	bool GetClosestPointOnTriangleToLine(const NiPoint3 &rayOrigin,
+		const NiPoint3 &rayVector,
+		const Triangle &triangle,
 		NiPoint3 &outIntersectionPoint,
 		float &outSqrDistance,
 		bool &outIntersects,
@@ -549,7 +677,7 @@ namespace MathUtils
 		//	return false;
 	}
 
-	NiPoint3 GetClosestPointOnLineSegment(NiPoint3 start, NiPoint3 end, NiPoint3 point) {
+	NiPoint3 GetClosestPointOnLineSegment(const NiPoint3 &start, const NiPoint3 &end, const NiPoint3 &point) {
 		float l2 = VectorLengthSquared(end - start);  // i.e. |w-v|^2
 		if (l2 == 0.0) return start;   // v == w case
 		// Consider the line extending the segment, parameterized as v + t (w - v).
@@ -561,7 +689,7 @@ namespace MathUtils
 		return projection;
 	}
 
-	NiPoint3 GetFurthestPointOnLineSegment(NiPoint3 start, NiPoint3 end, NiPoint3 point) {
+	NiPoint3 GetFurthestPointOnLineSegment(const NiPoint3 &start, const NiPoint3 &end, const NiPoint3 &point) {
 		float l2 = VectorLengthSquared(end - start);
 		if (l2 == 0.0) return start;   // v == w case
 
@@ -570,7 +698,7 @@ namespace MathUtils
 
 	// Returns 1 if the lines intersect, otherwise 0. In addition, if the lines 
 	// intersect the intersection point may be stored in the floats i_x and i_y.
-	bool LineSegmentIntersectsLineSegment(Point2 p0, Point2 p1, Point2 p2, Point2 p3, Point2 *intersection)
+	bool LineSegmentIntersectsLineSegment(const Point2 &p0, const Point2 &p1, const Point2 &p2, const Point2 &p3, Point2 *intersection)
 	{
 		Point2 s1 = p1 - p0;
 		Point2 s2 = p3 - p2;
@@ -594,8 +722,8 @@ namespace MathUtils
 		return false; // No collision
 	}
 
-	bool LinePlaneIntersection(NiPoint3& contact, NiPoint3 ray, NiPoint3 rayOrigin,
-		NiPoint3 normal, NiPoint3 coord) {
+	bool LinePlaneIntersection(NiPoint3 &contact, const NiPoint3 &ray, const NiPoint3 &rayOrigin,
+		const NiPoint3 &normal, const NiPoint3 &coord) {
 		// get d value
 		float d = DotProduct(normal, coord);
 
@@ -612,7 +740,7 @@ namespace MathUtils
 		return true;
 	}
 
-	bool PlaneIntersectsLineSegment(NiPoint3 planePoint, NiPoint3 planeNormal, NiPoint3 segmentStart, NiPoint3 segmentFinish, NiPoint3 &outPoint)
+	bool PlaneIntersectsLineSegment(const NiPoint3 &planePoint, const NiPoint3 &planeNormal, const NiPoint3 &segmentStart, const NiPoint3 &segmentFinish, NiPoint3 &outPoint)
 	{
 		NiPoint3 edge = segmentFinish - segmentStart;
 		float edgeLength = VectorLength(edge);
@@ -640,10 +768,10 @@ namespace MathUtils
 	}
 
 	// Return # of intersection points (0, 1, or 2)
-	int CircleIntersectsTriangle(NiPoint3 circleCenter,
-		NiPoint3 circleNormal,
+	int CircleIntersectsTriangle(const NiPoint3 &circleCenter,
+		const NiPoint3 &circleNormal,
 		float circleRadius,
-		Triangle &triangle,
+		const Triangle &triangle,
 		NiPoint3 &outIntersectionPoint1,
 		NiPoint3 &outIntersectionPoint2,
 		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
@@ -731,10 +859,10 @@ namespace MathUtils
 	}
 
 	// Return # of intersection points (0, 1, or 2)
-	int DiskIntersectsTriangle(NiPoint3 diskCenter,
-		NiPoint3 diskNormal,
+	int DiskIntersectsTriangle(const NiPoint3 &diskCenter,
+		const NiPoint3 &diskNormal,
 		float diskRadius,
-		Triangle &triangle,
+		const Triangle &triangle,
 		NiPoint3 &outIntersectionPoint1,
 		NiPoint3 &outIntersectionPoint2,
 		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
@@ -832,11 +960,11 @@ namespace MathUtils
 
 	// Return # of intersection points (0, 1, or 2)
 	int FingerIntersectsTriangle(int fingerIndex,
-		NiPoint3 diskCenter,
-		NiPoint3 diskNormal,
-		NiPoint3 zeroAngleVector,
+		const NiPoint3 &diskCenter,
+		const NiPoint3 &diskNormal,
+		const NiPoint3 &zeroAngleVector,
 		float scale,
-		Triangle &triangle,
+		const Triangle &triangle,
 		NiPoint3 &outIntersectionPoint1,
 		NiPoint3 &outIntersectionPoint2,
 		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
@@ -923,8 +1051,6 @@ namespace MathUtils
 		Point2 smallerPt = Point2(cosf(smallerAngle), sinf(smallerAngle)) * smallerLength;
 		Point2 largerPt = Point2(cosf(largerAngle), sinf(largerAngle)) * largerLength;
 
-		//NiPoint3 otherPlaneVector = CrossProduct(diskNormal, zeroAngleVector);
-
 		float smallerRadius = -1.0f, largerRadius = -1.0f;
 		std::array<float, 3> fingerData;
 		int smallerIndex = LookupFingerByAngle(fingerIndex, smallerAngle, &fingerData);		
@@ -951,7 +1077,6 @@ namespace MathUtils
 				float nextLength = fingerVals[i + 1][2];
 				nextLength /= scale;
 
-				//NiPoint3 currentPt = (zeroAngleVector * cosf(angle) + otherPlaneVector * sinf(angle)) * length;
 				Point2 currentPt = Point2(cosf(angle), sinf(angle)) * length;
 				Point2 nextPt = Point2(cosf(nextAngle), sinf(nextAngle)) * nextLength;
 
@@ -975,7 +1100,6 @@ namespace MathUtils
 		}
 		else {
 			// Intersection line is entirely inside the disk
-			//outIntersectionPoint1 = diskCenter + furthestPoint;
 			NiPoint3 furthestPoint = GetFurthestPointOnLineSegment(edgeStart, edgeEnd, { 0, 0, 0 }); // circle center is the origin, so {0, 0, 0}
 			outIntersectionPoint1 = diskCenter + edgeStart;
 			outIntersectionPoint2 = diskCenter + edgeEnd;
@@ -987,7 +1111,7 @@ namespace MathUtils
 }
 
 
-void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, int fingerIndex, NiAVObject *root, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector)
+void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersections, int fingerIndex, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1072,7 +1196,7 @@ void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 }
 
 
-NiPoint3 GetClosestPointOnIntersection(NiPoint3 const& point, Intersection &intersection)
+NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const Intersection &intersection)
 {
 	BSTriShape *geom = intersection.node;
 	Triangle tri = intersection.tri;
@@ -1093,7 +1217,7 @@ NiPoint3 GetClosestPointOnIntersection(NiPoint3 const& point, Intersection &inte
 	return nodeTransform * result.closest;
 }
 
-std::array<NiPoint3, 3> GetVertices(Intersection &intersection)
+std::array<NiPoint3, 3> GetVertices(const Intersection &intersection)
 {
 	BSTriShape *geom = intersection.node;
 	Triangle tri = intersection.tri;
@@ -1120,7 +1244,7 @@ std::array<NiPoint3, 3> GetVertices(Intersection &intersection)
 	return { pos0, pos1, pos2 };
 }
 
-bool DoesAnyVertexMatch(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
+bool DoesAnyVertexMatch(const std::array<NiPoint3, 3> &verts1, const std::array<NiPoint3, 3> &verts2)
 {
 	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 3; j++) {
@@ -1132,7 +1256,7 @@ bool DoesAnyVertexMatch(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3>
 	return false;
 }
 
-bool TriangleIntersectsTriangle(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
+bool TriangleIntersectsTriangle(const std::array<NiPoint3, 3> &verts1, const std::array<NiPoint3, 3> &verts2)
 {
 	float *p1 = (float *)&verts1[0];
 	float *q1 = (float *)&verts1[1];
@@ -1145,7 +1269,7 @@ bool TriangleIntersectsTriangle(std::array<NiPoint3, 3> &verts1, std::array<NiPo
 	return tri_tri_overlap_test_3d(p1, q1, r1, p2, q2, r2);
 }
 
-float TriangleTriangleDistance(std::array<NiPoint3, 3> &verts1, std::array<NiPoint3, 3> &verts2)
+float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std::array<NiPoint3, 3> &verts2)
 {
 	float P[3], Q[3];
 	auto S = (float(*)[3])&verts1;
@@ -1175,7 +1299,7 @@ void VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Inter
 	_VisitGraphNodes(graph, intersection, visitor, visited);
 }
 
-bool GetIntersections(NiAVObject *root, int fingerIndex, NiPoint3 center, NiPoint3 point1, NiPoint3 point2, NiPoint3 normal, NiPoint3 zeroAngleVector, NiPoint3 palmPos, NiPoint3 palmDirection,
+bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector, const NiPoint3 &palmPos, const NiPoint3 &palmDirection,
 	NiPoint3 *closestPos)
 {
 	std::vector<Intersection> intersections;
@@ -1216,25 +1340,26 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, NiPoint3 center, NiPoin
 		}
 	}
 
-	// Now find the closest intersection to the palm
+	// Now find the closest intersection to the finger root
 
 	Intersection *closestIntersection = nullptr;
 	float closestDist = (std::numeric_limits<float>::max)();
+
+	NiPoint3 curlDirection = CrossProduct(normal, zeroAngleVector);
 	for (Intersection &intersection : intersections) {
-		NiPoint3 pt = GetClosestPointOnIntersection(palmPos, intersection);
-		float dist = VectorLengthSquared(pt - palmPos);
+		NiPoint3 pt = GetClosestPointOnIntersection(center, intersection);
+		float dist = VectorLengthSquared(pt - center);
 
 		if (dist < closestDist) {
 			std::array<NiPoint3, 3> verts = GetVertices(intersection);
 
 			NiPoint3 triNormal = VectorNormalized(CrossProduct(verts[1] - verts[0], verts[2] - verts[1]));
 
-			//if (DotProduct(triNormal, palmDirection) <= 0) {
-				// TODO: Different direction for thumb?
+			if (DotProduct(triNormal, curlDirection) <= 0) {
 				// Front face of the triangle faces the line
 				closestDist = dist;
 				closestIntersection = &intersection;
-			//}
+			}
 		}
 	}
 
@@ -1283,7 +1408,6 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, NiPoint3 center, NiPoin
 		_MESSAGE("radius ratio: %.3f", radiusRatio);
 		_MESSAGE("angle: %.2f", degrees);
 
-		// TOD: Tune
 		float energy = radiusRatio * 0.7f + (degrees / 180.0f) * 0.3f;
 
 		if (energy < smallestEnergy) {
@@ -1311,7 +1435,7 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, NiPoint3 center, NiPoin
 }
 
 
-bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1401,7 +1525,7 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, NiPoint3 point, NiPoint
 	return false;
 }
 
-bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, NiPoint3 point, NiPoint3 direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {

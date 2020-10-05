@@ -77,7 +77,7 @@ void WorldUpdateHook(bhkWorld *world)
 				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 					NiAVObject *n = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
 					if (n) {
-						NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber->initialObjTransformHandSpace;
+						NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber->desiredObjTransformHandSpace;
 
 						UpdateKeyframedNodeTransform(n, newTransform);
 					}
@@ -96,7 +96,7 @@ void WorldUpdateHook(bhkWorld *world)
 				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 					NiAVObject *n = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
 					if (n) {
-						NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber->initialObjTransformHandSpace;
+						NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber->desiredObjTransformHandSpace;
 
 						UpdateKeyframedNodeTransform(n, newTransform);
 					}

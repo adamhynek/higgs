@@ -139,7 +139,7 @@ struct Grabber
 	NiPoint3 initialGrabbedObjWorldPosition;
 	float initialHandShoulderDistance = 0;
 
-	NiTransform initialObjTransformHandSpace;
+	NiTransform desiredObjTransformHandSpace;
 
 	NiPoint3 prevHandPosWorldspace;
 	NiPoint3 prevHandPosRoomspace;
