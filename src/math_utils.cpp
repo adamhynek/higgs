@@ -109,7 +109,8 @@ NiMatrix33 EulerToMatrix(const NiPoint3 &euler)
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle)
 {
 	// Rodrigues' rotation formula
-	return vector * cosf(angle) + (CrossProduct(axis, vector) * sinf(angle)) + axis * DotProduct(axis, vector) * (1.0f - cosf(angle));
+	float cosTheta = cosf(angle);
+	return vector * cosTheta + (CrossProduct(axis, vector) * sinf(angle)) + axis * DotProduct(axis, vector) * (1.0f - cosTheta);
 }
 
 void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat)
@@ -137,7 +138,8 @@ void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat)
 	niMat.data[2][2] = col2(2);
 }
 
-NiMatrix33 QuaternionToMatrix(const NiQuaternion &q) {
+NiMatrix33 QuaternionToMatrix(const NiQuaternion &q)
+{
 	double sqw = q.m_fW*q.m_fW;
 	double sqx = q.m_fX*q.m_fX;
 	double sqy = q.m_fY*q.m_fY;
@@ -677,7 +679,8 @@ namespace MathUtils
 		//	return false;
 	}
 
-	NiPoint3 GetClosestPointOnLineSegment(const NiPoint3 &start, const NiPoint3 &end, const NiPoint3 &point) {
+	NiPoint3 GetClosestPointOnLineSegment(const NiPoint3 &start, const NiPoint3 &end, const NiPoint3 &point)
+	{
 		float l2 = VectorLengthSquared(end - start);  // i.e. |w-v|^2
 		if (l2 == 0.0) return start;   // v == w case
 		// Consider the line extending the segment, parameterized as v + t (w - v).
@@ -689,11 +692,35 @@ namespace MathUtils
 		return projection;
 	}
 
-	NiPoint3 GetFurthestPointOnLineSegment(const NiPoint3 &start, const NiPoint3 &end, const NiPoint3 &point) {
+	Point2 GetClosestPointOnLineSegment(const Point2 &start, const Point2 &end, const Point2 &point)
+	{
+		float l2 = VectorLengthSquared(end - start);
+		if (l2 == 0.0) return start;
+		float t = max(0, min(1, DotProduct(point - start, end - start) / l2));
+		Point2 projection = start + (end - start) * t;
+		return projection;
+	}
+
+	NiPoint3 GetFurthestPointOnLineSegment(const NiPoint3 &start, const NiPoint3 &end, const NiPoint3 &point)
+	{
 		float l2 = VectorLengthSquared(end - start);
 		if (l2 == 0.0) return start;   // v == w case
 
 		return VectorLengthSquared(start - point) >= VectorLengthSquared(end - point) ? start : end;
+	}
+
+	float LineSegmentLineSegmentDistance(const Point2 &a, const Point2 &b, const Point2 &c, const Point2 &d)
+	{
+		return min(
+			VectorLength(GetClosestPointOnLineSegment(c, d, a) - a),
+			min(
+				VectorLength(GetClosestPointOnLineSegment(c, d, b) - b),
+				min(
+					VectorLength(GetClosestPointOnLineSegment(a, b, c) - c),
+					VectorLength(GetClosestPointOnLineSegment(a, b, d) - d)
+				)
+			)
+		);
 	}
 
 	// Returns 1 if the lines intersect, otherwise 0. In addition, if the lines 
@@ -723,7 +750,8 @@ namespace MathUtils
 	}
 
 	bool LinePlaneIntersection(NiPoint3 &contact, const NiPoint3 &ray, const NiPoint3 &rayOrigin,
-		const NiPoint3 &normal, const NiPoint3 &coord) {
+		const NiPoint3 &normal, const NiPoint3 &coord)
+	{
 		// get d value
 		float d = DotProduct(normal, coord);
 
@@ -1031,14 +1059,21 @@ namespace MathUtils
 			endAngle *= -1;
 		}
 
-		float smallestAngle = min(startAngle, endAngle);
+		bool crossesBehind = false;
 		float angleCorrection = 0;
-		if (smallestAngle < 0) {
-			// Derotate
-			angleCorrection = -smallestAngle;
+		float smallestAngle = min(startAngle, endAngle);
+		if (max(startAngle, endAngle) < g_minAllowedFingerAngle) {
+			// Both ends of the edge are behind the finger. Derotate.
+			angleCorrection = g_minAllowedFingerAngle - smallestAngle;
 
 			startAngle += angleCorrection;
 			endAngle += angleCorrection;
+		}
+		else {
+			if (smallestAngle < g_minAllowedFingerAngle) {
+				// If one end of the edge is behind the finger and the other isn't, then derotate only if the finger missed in the normal case.
+				crossesBehind = true;
+			}
 		}
 
 		bool startSmaller = startAngle < endAngle;
@@ -1052,58 +1087,129 @@ namespace MathUtils
 		Point2 largerPt = Point2(cosf(largerAngle), sinf(largerAngle)) * largerLength;
 
 		float smallerRadius = -1.0f, largerRadius = -1.0f;
-		std::array<float, 3> fingerData;
+		SavedFingerData fingerData;
 		int smallerIndex = LookupFingerByAngle(fingerIndex, smallerAngle, &fingerData);		
-		smallerRadius = fingerData[2];
+		smallerRadius = fingerData.fingerLength;
 		smallerRadius /= scale;
 
 		int largerIndex = LookupFingerByAngle(fingerIndex, largerAngle, &fingerData);
-		largerRadius = fingerData[2];
+		largerRadius = fingerData.fingerLength;
 		largerRadius /= scale;		
 
 		if (smallerLength > smallerRadius || largerLength > largerRadius) {
 			// Edge is not entirely within the curve area. Now we only care if it intersects the curve.
 
+			//_MESSAGE("%.3f\t%.2f %.2f", VectorLength(smallerPt - largerPt), smallerAngle * 57.2958f, largerAngle * 57.2958f);
+
 			auto &fingerVals = g_fingerCurveVals[fingerIndex];
 
-			bool hasPt = false;
 			int end = min(largerIndex, std::size(fingerVals) - 2);
 			for (int i = smallerIndex; i <= end; i++) {
-				float angle = fingerVals[i][1];
-				float length = fingerVals[i][2];
+				float angle = fingerVals[i].angle;
+				float length = fingerVals[i].fingerLength;
 				length /= scale;
 
-				float nextAngle = fingerVals[i + 1][1];
-				float nextLength = fingerVals[i + 1][2];
+				float nextAngle = fingerVals[i + 1].angle;
+				float nextLength = fingerVals[i + 1].fingerLength;
 				nextLength /= scale;
 
 				Point2 currentPt = Point2(cosf(angle), sinf(angle)) * length;
 				Point2 nextPt = Point2(cosf(nextAngle), sinf(nextAngle)) * nextLength;
 
 				Point2 intersection;
-				if (LineSegmentIntersectsLineSegment(smallerPt, largerPt, currentPt, nextPt, &intersection)) {
-					if (!hasPt) {
+				//_MESSAGE("%.3f", LineSegmentLineSegmentDistance(smallerPt, largerPt, currentPt, nextPt));
+				if (LineSegmentIntersectsLineSegment(smallerPt, largerPt, currentPt, nextPt, &intersection) ||
+					LineSegmentLineSegmentDistance(smallerPt, largerPt, currentPt, nextPt) <= 0.015f) {
+
+					NiPoint3 triNormal = VectorNormalized(CrossProduct(vertex1 - vertex0, vertex2 - vertex1));
+
+					NiPoint3 currentPtDiskspace = VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
+					NiPoint3 nextPtDiskspace = VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, nextAngle - angleCorrection)) * nextLength;
+					NiPoint3 tangent = nextPtDiskspace - currentPtDiskspace;
+
+					if (DotProduct(triNormal, tangent) <= 0) {
+						// Front face of the triangle was intersected CCW around the circle
 						// TODO: Use precise intersection point instead of the current angle / length
-						outIntersectionPoint1 = diskCenter + VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
-						hasPt = true;
-					}
-					else {
-						// Already intersected once. This is the second time.
-						outIntersectionPoint2 = diskCenter + VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
-						return 2;
+						_MESSAGE("pt 1: %.2f\t%.2f", angle, angleCorrection);
+						outIntersectionPoint1 = diskCenter + currentPtDiskspace;
+						return 1;
 					}
 				}
 			}
-			if (hasPt) {
-				return 1;
-			}
 		}
 		else {
-			// Intersection line is entirely inside the disk
-			NiPoint3 furthestPoint = GetFurthestPointOnLineSegment(edgeStart, edgeEnd, { 0, 0, 0 }); // circle center is the origin, so {0, 0, 0}
-			outIntersectionPoint1 = diskCenter + edgeStart;
-			outIntersectionPoint2 = diskCenter + edgeEnd;
-			return 2;
+			// Intersection line is entirely inside the disk. Miss.
+		}
+
+		
+		// If one end of the edge is behind the finger and the other isn't, then derotate only if the finger missed in the normal case.
+		if (crossesBehind) {
+			angleCorrection = g_minAllowedFingerAngle - smallestAngle;
+
+			startAngle += angleCorrection;
+			endAngle += angleCorrection;
+
+			bool startSmaller = startAngle < endAngle;
+			float smallerAngle = startSmaller ? startAngle : endAngle;
+			float largerAngle = startSmaller ? endAngle : startAngle;
+
+			float smallerLength = startSmaller ? VectorLength(edgeStart) : VectorLength(edgeEnd);
+			float largerLength = startSmaller ? VectorLength(edgeEnd) : VectorLength(edgeStart);
+
+			Point2 smallerPt = Point2(cosf(smallerAngle), sinf(smallerAngle)) * smallerLength;
+			Point2 largerPt = Point2(cosf(largerAngle), sinf(largerAngle)) * largerLength;
+
+			float smallerRadius = -1.0f, largerRadius = -1.0f;
+			SavedFingerData fingerData;
+			int smallerIndex = LookupFingerByAngle(fingerIndex, smallerAngle, &fingerData);
+			smallerRadius = fingerData.fingerLength;
+			smallerRadius /= scale;
+
+			int largerIndex = LookupFingerByAngle(fingerIndex, largerAngle, &fingerData);
+			largerRadius = fingerData.fingerLength;
+			largerRadius /= scale;
+
+			if (smallerLength > smallerRadius || largerLength > largerRadius) {
+				// Edge is not entirely within the curve area. Now we only care if it intersects the curve.
+
+				auto &fingerVals = g_fingerCurveVals[fingerIndex];
+
+				int end = min(largerIndex, std::size(fingerVals) - 2);
+				for (int i = smallerIndex; i <= end; i++) {
+					float angle = fingerVals[i].angle;
+					float length = fingerVals[i].fingerLength;
+					length /= scale;
+
+					float nextAngle = fingerVals[i + 1].angle;
+					float nextLength = fingerVals[i + 1].fingerLength;
+					nextLength /= scale;
+
+					Point2 currentPt = Point2(cosf(angle), sinf(angle)) * length;
+					Point2 nextPt = Point2(cosf(nextAngle), sinf(nextAngle)) * nextLength;
+
+					Point2 intersection;
+					if (LineSegmentIntersectsLineSegment(smallerPt, largerPt, currentPt, nextPt, &intersection) ||
+						LineSegmentLineSegmentDistance(smallerPt, largerPt, currentPt, nextPt) <= 0.015f) {
+
+						NiPoint3 triNormal = VectorNormalized(CrossProduct(vertex1 - vertex0, vertex2 - vertex1));
+
+						NiPoint3 currentPtDiskspace = VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, angle - angleCorrection)) * length;
+						NiPoint3 nextPtDiskspace = VectorNormalized(RotateVectorByAxisAngle(zeroAngleVector, diskNormal, nextAngle - angleCorrection)) * nextLength;
+						NiPoint3 tangent = nextPtDiskspace - currentPtDiskspace;
+
+						if (DotProduct(triNormal, tangent) <= 0) {
+							// Front face of the triangle was intersected CCW around the circle
+							// TODO: Use precise intersection point instead of the current angle / length
+							_MESSAGE("derot pt 1: %.2f\t%.2f", angle, angleCorrection);
+							outIntersectionPoint1 = diskCenter + currentPtDiskspace;
+							return 1;
+						}
+					}
+				}
+			}
+			else {
+				// Intersection line is entirely inside the disk. Miss.
+			}
 		}
 
 		return 0;
@@ -1325,7 +1431,7 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 
 			std::array<NiPoint3, 3> otherVertices = GetVertices(*otherIntersection);
 
-			if (DoesAnyVertexMatch(vertices, otherVertices) || TriangleIntersectsTriangle(vertices, otherVertices) || TriangleTriangleDistance(vertices, otherVertices) < 1.5f) {
+			//if (DoesAnyVertexMatch(vertices, otherVertices) || TriangleIntersectsTriangle(vertices, otherVertices) || TriangleTriangleDistance(vertices, otherVertices) < 1.5f) {
 				// Add an edge between these two intersections
 				if (graph.count(intersection) == 0) {
 					graph[intersection] = std::unordered_set<Intersection *>();
@@ -1336,7 +1442,7 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 					graph[otherIntersection] = std::unordered_set<Intersection *>();
 				}
 				graph[otherIntersection].insert(intersection);
-			}
+			//}
 		}
 	}
 
@@ -1355,11 +1461,11 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 
 			NiPoint3 triNormal = VectorNormalized(CrossProduct(verts[1] - verts[0], verts[2] - verts[1]));
 
-			if (DotProduct(triNormal, curlDirection) <= 0) {
+			//if (DotProduct(triNormal, curlDirection) <= 0) {
 				// Front face of the triangle faces the line
 				closestDist = dist;
 				closestIntersection = &intersection;
-			}
+			//}
 		}
 	}
 
@@ -1400,9 +1506,9 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 
 		float degrees = angle * 57.2958f;
 
-		std::array<float, 3> fingerData;
+		SavedFingerData fingerData;
 		LookupFingerByAngle(fingerIndex, angle, &fingerData);
-		float radius = fingerData[2];
+		float radius = fingerData.fingerLength;
 		float radiusRatio = 1.0f - VectorLength(centerToIntersect) / radius;
 
 		_MESSAGE("radius ratio: %.3f", radiusRatio);
@@ -1416,11 +1522,11 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 			NiPoint3 triNormal = VectorNormalized(CrossProduct(verts[1] - verts[0], verts[2] - verts[1]));
 
 			NiPoint3 tangentAtIntersection = CrossProduct(normal, centerToIntersect);
-			if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
+			//if (DotProduct(triNormal, tangentAtIntersection) <= 0) {
 				// Front face of the triangle was intersected CCW around the circle
 				smallestEnergy = energy;
 				furthestIntersection = pt;
-			}
+			//}
 		}
 	};
 	VisitGraphNodes(graph, closestIntersection, visit);

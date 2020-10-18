@@ -9,6 +9,8 @@
 #include "vrikinterface001.h"
 
 
+float g_fingerTipLengths[] = { 2.202f, 2.419f, 2.192f, 1.6676f, 1.7275f };
+
 struct FingerCurveData
 {
 	enum class State : UInt8
@@ -81,7 +83,7 @@ void DumpFingerCurve(FingerCurveData *fingerCurve)
 	}
 }
 
-void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString fingerNodeNames[5][3], float fingerTipLengths[5])
+void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString fingerNodeNames[5][3])
 {
 	if (g_fingerCurveData && g_fingerCurveData->state != FingerCurveData::State::Inactive) {
 		bool isLeft = g_fingerCurveData->isLeft;
@@ -107,7 +109,7 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos - fingerStart3rd->m_oldWorldTransform.pos;
 
 						NiPoint3 fingerEndZAxis = { fingerEnd3rd->m_oldWorldTransform.rot.data[0][2], fingerEnd3rd->m_oldWorldTransform.rot.data[1][2], fingerEnd3rd->m_oldWorldTransform.rot.data[2][2] };
-						NiPoint3 tip = fingerEndZAxis * fingerTipLengths[i];
+						NiPoint3 tip = fingerEndZAxis * g_fingerTipLengths[i];
 
 						startToEnd += tip;
 
@@ -141,7 +143,7 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos - fingerStart3rd->m_oldWorldTransform.pos;
 
 						NiPoint3 fingerEndZAxis = { fingerEnd3rd->m_oldWorldTransform.rot.data[0][2], fingerEnd3rd->m_oldWorldTransform.rot.data[1][2], fingerEnd3rd->m_oldWorldTransform.rot.data[2][2] };
-						NiPoint3 tip = fingerEndZAxis * fingerTipLengths[i];
+						NiPoint3 tip = fingerEndZAxis * g_fingerTipLengths[i];
 
 						startToEnd += tip;
 
@@ -161,7 +163,7 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos - fingerStart3rd->m_oldWorldTransform.pos;
 
 						NiPoint3 fingerEndZAxis = { fingerEnd3rd->m_oldWorldTransform.rot.data[0][2], fingerEnd3rd->m_oldWorldTransform.rot.data[1][2], fingerEnd3rd->m_oldWorldTransform.rot.data[2][2] };
-						NiPoint3 tip = fingerEndZAxis * fingerTipLengths[i];
+						NiPoint3 tip = fingerEndZAxis * g_fingerTipLengths[i];
 
 						startToEnd += tip;
 
@@ -183,7 +185,7 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos - fingerStart3rd->m_oldWorldTransform.pos;
 
 						NiPoint3 fingerEndZAxis = { fingerEnd3rd->m_oldWorldTransform.rot.data[0][2], fingerEnd3rd->m_oldWorldTransform.rot.data[1][2], fingerEnd3rd->m_oldWorldTransform.rot.data[2][2] };
-						NiPoint3 tip = fingerEndZAxis * fingerTipLengths[i];
+						NiPoint3 tip = fingerEndZAxis * g_fingerTipLengths[i];
 
 						startToEnd += tip;
 
@@ -203,22 +205,22 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 	}
 }
 
-int _LookupFingerByAngle(int fingerIndex, float desiredAngle, std::array<float, 3> *out)
+int _LookupFingerByAngle(int fingerIndex, float desiredAngle, SavedFingerData *out)
 {
 	auto &fingerVals = g_fingerCurveVals[fingerIndex];
 	size_t size = std::size(fingerVals);
 	int left = 0;
 	int right = size - 1;
 
-	if (desiredAngle < fingerVals[left][1]) {
+	if (desiredAngle < fingerVals[left].angle) {
 		// Clamp to lowest angle
-		*out = { fingerVals[left][0], fingerVals[left][1], fingerVals[left][2] };
+		*out = fingerVals[left];
 		return left;
 	}
 
-	if (desiredAngle > fingerVals[right][1]) {
+	if (desiredAngle > fingerVals[right].angle) {
 		// Clamp to highest angle
-		*out = { fingerVals[right][0], fingerVals[right][1], fingerVals[right][2] };
+		*out = fingerVals[right];
 		return right;
 	}
 
@@ -227,15 +229,15 @@ int _LookupFingerByAngle(int fingerIndex, float desiredAngle, std::array<float, 
 		int middle = floor((left + right) / 2.0f);
 
 		if (middle == size - 1) {
-			*out = { fingerVals[middle][0], fingerVals[middle][1], fingerVals[middle][2] };
+			*out = fingerVals[middle];
 			return middle;
 		}
 
-		float angle = fingerVals[middle][1];
-		float nextAngle = fingerVals[middle + 1][1];
+		float angle = fingerVals[middle].angle;
+		float nextAngle = fingerVals[middle + 1].angle;
 
 		if (desiredAngle >= angle && desiredAngle < nextAngle) {
-			*out = { fingerVals[middle][0], fingerVals[middle][1], fingerVals[middle][2] };
+			*out = fingerVals[middle];
 			return middle;
 		}
 
@@ -250,14 +252,14 @@ int _LookupFingerByAngle(int fingerIndex, float desiredAngle, std::array<float, 
 	return -1;
 }
 
-int LookupFingerByAngle(int fingerIndex, float desiredAngle, std::array<float, 3> *out)
+int LookupFingerByAngle(int fingerIndex, float desiredAngle, SavedFingerData *out)
 {
 	auto &fingerVals = g_fingerCurveVals[fingerIndex];
 	int size = std::size(fingerVals);
 
-	if (desiredAngle < fingerVals[0][1]) {
+	if (desiredAngle < fingerVals[0].angle) {
 		// Clamp to lowest angle
-		*out = { fingerVals[0][0], fingerVals[0][1], fingerVals[0][2] };
+		*out = fingerVals[0];
 		return 0;
 	}
 
@@ -271,22 +273,21 @@ int LookupFingerByAngle(int fingerIndex, float desiredAngle, std::array<float, 3
 
 	for (int i = 0; i < size; i++) {
 		if (i == size - 1) {
-			*out = { fingerVals[i][0], fingerVals[i][1], fingerVals[i][2] };
+			*out = fingerVals[i];
 			return i;
 		}
 
-		float angle = fingerVals[i][1];
-		float nextAngle = fingerVals[i + 1][1];
+		float angle = fingerVals[i].angle;
+		float nextAngle = fingerVals[i + 1].angle;
 
 		if (desiredAngle >= angle && desiredAngle < nextAngle) {
-			*out = { fingerVals[i][0], fingerVals[i][1], fingerVals[i][2] };
+			*out = fingerVals[i];
 			return i;
 		}
 	}
 
 	return -1;
 }
-
 
 NiPoint3 g_fingerZeroAngleVecs[5] = {
 {0.80688, -0.208624, 0.552649},
@@ -305,7 +306,7 @@ NiPoint3 g_fingerNormals[5] = {
 };
 
 // open/closed value, angle (rad), finger length
-float g_fingerCurveVals[5][201][3] = {
+SavedFingerData g_fingerCurveVals[5][201] = {
 // Thumb
 {
 { 1, 0, 7.46358 },

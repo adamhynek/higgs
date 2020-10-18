@@ -5,6 +5,8 @@
 #include "skse64/NiObjects.h"
 
 
+static const float g_minAllowedFingerAngle = 10 * 0.0174533; // 10 degrees
+
 struct Triangle
 {
 	UInt16 vertexIndices[3];
@@ -58,8 +60,11 @@ namespace MathUtils
 }
 
 inline float VectorLengthSquared(const NiPoint3 &vec) { return vec.x*vec.x + vec.y*vec.y + vec.z*vec.z; }
+inline float VectorLengthSquared(const Point2 &vec) { return vec.x*vec.x + vec.y*vec.y; }
 inline float VectorLength(const NiPoint3 &vec) { return sqrtf(VectorLengthSquared(vec)); }
+inline float VectorLength(const Point2 &vec) { return sqrtf(VectorLengthSquared(vec)); }
 inline float DotProduct(const NiPoint3 &vec1, const NiPoint3 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y + vec1.z*vec2.z; }
+inline float DotProduct(const Point2 &vec1, const Point2 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y; }
 inline float DotProduct(const NiQuaternion &q1, const NiQuaternion &q2) { return q1.m_fW*q2.m_fW + q1.m_fX*q2.m_fX + q1.m_fY*q2.m_fY + q1.m_fZ*q2.m_fZ; }
 inline float QuaternionLength(const NiQuaternion &q) { return sqrtf(DotProduct(q, q)); }
 NiPoint3 VectorNormalized(const NiPoint3 &vec);

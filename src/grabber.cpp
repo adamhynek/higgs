@@ -36,7 +36,46 @@ CdBodyPairCollector pairCollector;
 //static hkpWorldRayCastInput rayCastInput(0x02420028);
 hkpWorldRayCastInput rayCastInput;
 
-float fingerTipLengths[] = { 2.202f, 2.419f, 2.192f, 1.6676f, 1.7275f };
+
+UInt32 priorities[] = {
+	3, // head
+	2, // hair
+	9, // body
+	5, // hands
+	6, // forearms
+	1, // amulet
+	4, // ring
+	7, // feet
+	8, // calves
+	10, // shield
+	13, // tail - seems to be used by cloaks
+	11, // longhair
+	0, // circlet
+	12, // ears
+	84, // 14
+	85, // 15
+	14, // 16 - seems to be used by cloaks as well
+	86, // 17
+	87, // 18
+	88, // 19
+	89, // decapitatehead
+	90, // decapitate
+	91, // 22
+	92, // 23
+	93, // 24
+	94, // 25
+	95, // 26
+	96, // 27
+	97, // 28
+	98, // 29
+	99, // 30
+	100  // fx01
+};
+bool CompareBipedIndices(int i1, int i2)
+{
+	// Return true if second index beats first index
+	return priorities[i2] < priorities[i1];
+}
 
 
 // Copied from PapyrusActor.cpp
@@ -84,47 +123,6 @@ void Grabber::Deselect()
 	selectedObject.hitForm = nullptr;
 
 	state = State::Idle;
-}
-
-
-UInt32 priorities[] = {
-	3, // head
-	2, // hair
-	9, // body
-	5, // hands
-	6, // forearms
-	1, // amulet
-	4, // ring
-	7, // feet
-	8, // calves
-	10, // shield
-	13, // tail - seems to be used by cloaks
-	11, // longhair
-	0, // circlet
-	12, // ears
-	84, // 14
-	85, // 15
-	14, // 16 - seems to be used by cloaks as well
-	86, // 17
-	87, // 18
-	88, // 19
-	89, // decapitatehead
-	90, // decapitate
-	91, // 22
-	92, // 23
-	93, // 24
-	94, // 25
-	95, // 26
-	96, // 27
-	97, // 28
-	98, // 29
-	99, // 30
-	100  // fx01
-};
-bool CompareBipedIndices(int i1, int i2)
-{
-	// Return true if second index beats first index
-	return priorities[i2] < priorities[i1];
 }
 
 
@@ -347,9 +345,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 								angle *= -1;
 							}
 
-							std::array<float, 3> fingerData;
+							SavedFingerData fingerData;
 							LookupFingerByAngle(fingerIndex, angle, &fingerData);
-							float radius = fingerData[2];
+							float radius = fingerData.fingerLength;
 
 							return { angle, VectorLength(centerToIntersect), radius };
 						}
@@ -370,15 +368,13 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				desiredTransform.pos += palmPos - triPos;
 				UpdateKeyframedNodeTransform(n, desiredTransform);
 
-				const float minAllowedAngle = 10 * 0.0174533; // 10 degrees
-
 				float thumbAngle = FingerCheck(selectedObj, 0).angle;
 				if (false){//(thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
 					NiPoint3 thumbNormalWorldspace = fingerNormalsWorldspace[0];
 
 					NiPoint3 axis = thumbNormalWorldspace;
-					float angle = minAllowedAngle - thumbAngle;
+					float angle = g_minAllowedFingerAngle - thumbAngle;
 
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][1].data);
@@ -391,7 +387,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
 						NiPoint3 thumbZeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[0];
 
-						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, minAllowedAngle);
+						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, g_minAllowedFingerAngle);
 						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, thumbAngle);
 
 
@@ -441,7 +437,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					// TODO: Rotate about closest pt on line that goes through the knuckles, instead of the tripos
 					NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerWithSmallestAngle];
 					NiPoint3 axis = normalWorldspace;
-					float angle = minAllowedAngle - smallestAngle;
+					float angle = g_minAllowedFingerAngle - smallestAngle;
 
 					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerWithSmallestAngle][0].data);
@@ -454,7 +450,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
 						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerWithSmallestAngle];
-						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, minAllowedAngle);
+						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, g_minAllowedFingerAngle);
 						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, smallestAngle);
 
 						NiPoint3 ptToCenter = n->m_worldTransform.pos - actualPtPos;
@@ -519,9 +515,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 						float effectiveAngle = range * M_PI;
 						auto &fingerVals = g_fingerCurveVals[i];
 						for (int j = 0; j < std::size(fingerVals); j++) {
-							float val = fingerVals[j][0];
-							float angle = fingerVals[j][1];
-							float length = fingerVals[j][2];
+							float val = fingerVals[j].curveVal;
+							float angle = fingerVals[j].angle;
+							float length = fingerVals[j].fingerLength;
 
 							if (angle > effectiveAngle) {
 								if (j == 0) {
@@ -630,9 +626,9 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 	float havokWorldScale = *g_havokWorldScale;
 
 
-	if (!isLeft) {
-		UpdateGenerateFingerCurve(handNodeName, fingerNodeNames, fingerTipLengths);
-	}
+	//if (!isLeft) {
+	//	UpdateGenerateFingerCurve(handNodeName, fingerNodeNames);
+	//}
 
 
 	if (world->world != handCollBody->m_world) {
