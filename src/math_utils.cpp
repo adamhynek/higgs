@@ -993,8 +993,7 @@ namespace MathUtils
 		const NiPoint3 &zeroAngleVector,
 		float scale,
 		const Triangle &triangle,
-		NiPoint3 &outIntersectionPoint1,
-		NiPoint3 &outIntersectionPoint2,
+		float &outAngle,
 		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
 	{
 		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
@@ -1131,7 +1130,7 @@ namespace MathUtils
 						// Front face of the triangle was intersected CCW around the circle
 						// TODO: Use precise intersection point instead of the current angle / length
 						_MESSAGE("pt 1: %.2f\t%.2f", angle, angleCorrection);
-						outIntersectionPoint1 = diskCenter + currentPtDiskspace;
+						outAngle = angle - angleCorrection;
 						return true;
 					}
 				}
@@ -1201,7 +1200,7 @@ namespace MathUtils
 							// Front face of the triangle was intersected CCW around the circle
 							// TODO: Use precise intersection point instead of the current angle / length
 							_MESSAGE("derot pt 1: %.2f\t%.2f", angle, angleCorrection);
-							outIntersectionPoint1 = diskCenter + currentPtDiskspace;
+							outAngle = angle - angleCorrection;
 							return true;
 						}
 					}
@@ -1257,15 +1256,15 @@ void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 			for (int i = 0; i < numTris; i++) {
 				Triangle tri = tris[i];
 				// get closest point on triangle to given point
-				NiPoint3 intersectionPoint1, intersectionPoint2;
-				bool intersects = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, nodeTransform.scale, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
+				float intersectionAngle;
+				bool intersects = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, nodeTransform.scale, tri, intersectionAngle, verts, vertexSize, posOffset);
 				//int numIntersections = MathUtils::DiskIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				//int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				if (!intersects) {
 					continue;
 				}
 
-				intersections.push_back({ nodeTransform * intersectionPoint1, geom, tri });
+				intersections.push_back({ geom, tri, intersectionAngle });
 			}
 		}
 		return;
@@ -1378,27 +1377,6 @@ float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std:
 	return TriDist(P, Q, S, T);
 }
 
-void _VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor, std::unordered_set<Intersection *> &visited)
-{
-	visitor(intersection);
-	visited.insert(intersection);
-
-	if (graph.count(intersection) == 0) {
-		return;
-	}
-
-	for (Intersection *edge : graph[intersection]) {
-		if (visited.count(edge) == 0) {
-			_VisitGraphNodes(graph, edge, visitor, visited);
-		}
-	}
-}
-
-void VisitGraphNodes(std::unordered_map<Intersection *, std::unordered_set<Intersection *>> &graph, Intersection *intersection, std::function<void(Intersection *)> visitor)
-{
-	std::unordered_set<Intersection *> visited;
-	_VisitGraphNodes(graph, intersection, visitor, visited);
-}
 
 bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector, const NiPoint3 &palmPos, const NiPoint3 &palmDirection,
 	float *outAngle)
@@ -1412,79 +1390,9 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 		return false;
 	}
 
-	// Construct a graph where V = all intersected triangles, and E = connections of adjacent triangles
-
-	std::unordered_map<Intersection *, std::unordered_set<Intersection *>> graph; // adjacency list: map intersection -> intersections adjacent to it
-
-	for (int i = 0; i < intersections.size(); i++) {
-		Intersection *intersection = &intersections[i];
-
-		std::array<NiPoint3, 3> vertices = GetVertices(*intersection);
-
-		for (int j = i + 1; j < intersections.size(); j++) {
-			Intersection *otherIntersection = &intersections[j];
-
-			std::array<NiPoint3, 3> otherVertices = GetVertices(*otherIntersection);
-
-			//if (DoesAnyVertexMatch(vertices, otherVertices) || TriangleIntersectsTriangle(vertices, otherVertices) || TriangleTriangleDistance(vertices, otherVertices) < 1.5f) {
-				// Add an edge between these two intersections
-				if (graph.count(intersection) == 0) {
-					graph[intersection] = std::unordered_set<Intersection *>();
-				}
-				graph[intersection].insert(otherIntersection);
-
-				if (graph.count(otherIntersection) == 0) {
-					graph[otherIntersection] = std::unordered_set<Intersection *>();
-				}
-				graph[otherIntersection].insert(intersection);
-			//}
-		}
-	}
-
-	// Now find the closest intersection to the finger root
-
-	Intersection *closestIntersection = nullptr;
-	float closestDist = (std::numeric_limits<float>::max)();
-
-	NiPoint3 curlDirection = CrossProduct(normal, zeroAngleVector);
-	for (Intersection &intersection : intersections) {
-		NiPoint3 pt = GetClosestPointOnIntersection(center, intersection);
-		float dist = VectorLengthSquared(pt - center);
-
-		if (dist < closestDist) {
-			std::array<NiPoint3, 3> verts = GetVertices(intersection);
-
-			NiPoint3 triNormal = VectorNormalized(CrossProduct(verts[1] - verts[0], verts[2] - verts[1]));
-
-			//if (DotProduct(triNormal, curlDirection) <= 0) {
-				// Front face of the triangle faces the line
-				closestDist = dist;
-				closestIntersection = &intersection;
-			//}
-		}
-	}
-
-	if (!closestIntersection) {
-		return false;
-	}
-
-	// Now go through the connected component of the above, and pick the one with the largest radius
-	// Allow backfaces when traversing the connected component, but only choose a final triangle if it is a front face
-
 	float smallestAngle = (std::numeric_limits<float>::max)();
 	auto visit = [fingerIndex, &smallestAngle, &center, &normal, &zeroAngleVector, &point1, &point2](Intersection *intersection) {
-		NiPoint3 centerToIntersect = intersection->pt - center;
-
-		float dist = VectorLength(centerToIntersect);
-		NiPoint3 pt = intersection->pt;
-
-		centerToIntersect = pt - center;
-		float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVector));
-		if (DotProduct(normal, CrossProduct(zeroAngleVector, centerToIntersect)) < 0) {
-			// Positive angles are those which curl the finger
-			angle *= -1;
-		}
-
+		float angle = intersection->angle;
 		float degrees = angle * 57.2958f;
 
 		SavedFingerData fingerData;
@@ -1496,7 +1404,10 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 			smallestAngle = angle;
 		}
 	};
-	VisitGraphNodes(graph, closestIntersection, visit);
+
+	for (auto &intersection : intersections) {
+		visit(&intersection);
+	}
 
 	if (smallestAngle == (std::numeric_limits<float>::max)()) {
 		// No valid tris from the ones in the connected component

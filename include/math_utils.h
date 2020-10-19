@@ -15,9 +15,9 @@ static_assert(sizeof(Triangle) == 0x06);
 
 struct Intersection
 {
-	NiPoint3 pt; // intersection pt
 	BSTriShape *node; // the trishape where the intersected triangle resides
 	Triangle tri; // triangle that was intersected
+	float angle; // angle of the fingertip at intersection pt
 };
 
 struct Point2
