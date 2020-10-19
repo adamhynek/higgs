@@ -310,15 +310,8 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
 
-				struct FingerData
-				{
-					float angle; // angle of hit
-					float radius; // radius of hit
-					float fingerRadius; // full radius of the finger
-				};
-
 				auto FingerCheck = [this, player, handNode, palmPos, castDirection, fingerNormalsWorldspace, fingerZeroAngleVecsWorldspace]
-				(TESObjectREFR *refr, int fingerIndex) -> FingerData
+				(TESObjectREFR *refr, int fingerIndex) -> float
 				{
 					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
@@ -334,31 +327,24 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						_MESSAGE("%d", fingerIndex);
 
-						NiPoint3 intersection;
+						float intersectionAngle;
 						bool intersects = GetIntersections(refr->loadedState->node, fingerIndex, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace, palmPos, castDirection,
-							&intersection);
+							&intersectionAngle);
 						if (intersects) {
-							NiPoint3 centerToIntersect = intersection - startFingerPos;
-							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVectorWorldspace));
-							if (DotProduct(normalWorldspace, CrossProduct(zeroAngleVectorWorldspace, centerToIntersect)) < 0) {
-								// Positive angles are those which curl the finger
-								angle *= -1;
-							}
-
 							SavedFingerData fingerData;
-							LookupFingerByAngle(fingerIndex, angle, &fingerData);
+							LookupFingerByAngle(fingerIndex, intersectionAngle, &fingerData);
 							float radius = fingerData.fingerLength;
 
-							return { angle, VectorLength(centerToIntersect), radius };
+							return intersectionAngle;
 						}
 						else {
 							// No finger intersection, so just close it completely
-							return { 99999999.0f, 0.0f, 99999999.0f }; // some large angle
+							return 99999999.0f; // some large angle
 						}
 					}
 					// Couldn't get the fingers... that's a problem
 					_ERROR("Could not get finger %d", fingerIndex);
-					return { 0.0f, 0.0f, 99999999.0f };
+					return 0;
 				};
 
 				NiTransform originalTransform = n->m_worldTransform;
@@ -368,7 +354,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				desiredTransform.pos += palmPos - triPos;
 				UpdateKeyframedNodeTransform(n, desiredTransform);
 
-				float thumbAngle = FingerCheck(selectedObj, 0).angle;
+				float thumbAngle = FingerCheck(selectedObj, 0);
 				if (false){//(thumbAngle < minAllowedAngle) {
 					// Derotate by thumb angle if it would curl the wrong way
 					NiPoint3 thumbNormalWorldspace = fingerNormalsWorldspace[0];
@@ -416,7 +402,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					}
 				}
 
-				std::array<FingerData, 5> fingerData;
+				std::array<float, 5> fingerData;
 				for (int i = 1; i < fingerData.size(); i++) { // No thumb
 					fingerData[i] = FingerCheck(selectedObj, i);
 				}
@@ -424,7 +410,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				int fingerWithSmallestAngle = -1;
 				float smallestAngle = (std::numeric_limits<float>::max)();
 				for (int i = 1; i < fingerData.size(); i++) {
-					float angle = fingerData[i].angle;
+					float angle = fingerData[i];
 					if (angle < smallestAngle) {
 						smallestAngle = angle;
 						fingerWithSmallestAngle = i;
@@ -502,43 +488,16 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
 					for (int i = 0; i < fingerRanges.size(); i++) {
-						FingerData data = fingerData[i];
-						float degrees = data.angle * 57.2958;
+						float angle = fingerData[i];
+						float degrees = angle * 57.2958;
 						_MESSAGE("%d angle: %.2f", i, degrees);
 
-						float radiusRatio = 1.0f - data.radius / data.fingerRadius; // 0 to 1, 0 if radius equals fingerRadius
-						_MESSAGE("%d radius ratio: %.2f", i, radiusRatio);
-
 						float angleRatio = max(0, min(1, degrees / 180.0f));
-						float range = angleRatio + (1.0f - angleRatio) * radiusRatio; // amount of curl
+						float effectiveAngle = angleRatio * M_PI;
 
-						float effectiveAngle = range * M_PI;
-						auto &fingerVals = g_fingerCurveVals[i];
-						for (int j = 0; j < std::size(fingerVals); j++) {
-							float val = fingerVals[j].curveVal;
-							float angle = fingerVals[j].angle;
-							float length = fingerVals[j].fingerLength;
-
-							if (angle > effectiveAngle) {
-								if (j == 0) {
-									range = val;
-								}
-								break;
-							}
-
-							range = val;
-						}
-
-						fingerRanges[i] = range;
-
-						//if (i == 0) {
-						//	// Thumb's got it a bit different
-						//	//fingerRanges[i] = 1.0f - max(0, min(1, range * 1.5f));
-						//	fingerRanges[i] = 1.0f;
-						//}
-						//else {
-						//	fingerRanges[i] = 1.0f - max(0, min(1, range));
-						//}
+						SavedFingerData sfd;
+						LookupFingerByAngle(i, effectiveAngle, &sfd);
+						fingerRanges[i] = sfd.curveVal;
 
 						fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
 					}
