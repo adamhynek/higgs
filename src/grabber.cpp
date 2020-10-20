@@ -418,7 +418,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				}
 
 				if (false) {
-				//if (smallestAngle < minAllowedAngle) {
+				//if (smallestAngle < g_minAllowedFingerAngle) {
 					// Derotate the object to not have fingers clip through it
 					// TODO: Rotate about closest pt on line that goes through the knuckles, instead of the tripos
 					NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerWithSmallestAngle];

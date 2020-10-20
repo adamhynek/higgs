@@ -1100,7 +1100,7 @@ namespace MathUtils
 
 			//_MESSAGE("%.3f\t%.2f %.2f", VectorLength(smallerPt - largerPt), smallerAngle * 57.2958f, largerAngle * 57.2958f);
 
-			auto &fingerVals = g_fingerCurveVals[fingerIndex];
+			auto &fingerVals = g_fingerTipVals[fingerIndex];
 
 			int end = min(largerIndex, std::size(fingerVals) - 2);
 			for (int i = smallerIndex; i <= end; i++) {
@@ -1171,7 +1171,7 @@ namespace MathUtils
 			if (smallerLength > smallerRadius || largerLength > largerRadius) {
 				// Edge is not entirely within the curve area. Now we only care if it intersects the curve.
 
-				auto &fingerVals = g_fingerCurveVals[fingerIndex];
+				auto &fingerVals = g_fingerTipVals[fingerIndex];
 
 				int end = min(largerIndex, std::size(fingerVals) - 2);
 				for (int i = smallerIndex; i <= end; i++) {
@@ -1269,6 +1269,7 @@ void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &intersecti
 		}
 		return;
 	}
+
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
 		if (node->GetAsNiSwitchNode()) {
