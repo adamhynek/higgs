@@ -57,7 +57,6 @@ void SaveShaderData(NiAVObject *root)
 			if (effectData) {
 				effectDataMap[root] = effectData;
 			}
-			_MESSAGE("%s: %x", root->m_name ? root->m_name : "", effectData);
 		}
 	}
 

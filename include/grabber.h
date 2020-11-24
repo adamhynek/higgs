@@ -124,8 +124,6 @@ struct Grabber
 
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
-	BGSReferenceEffect *itemSelectedEffect = nullptr;
-	BGSReferenceEffect *itemSelectedEffectOffLimits = nullptr;
 
 	std::array<NiPoint3, 5> handVelocitiesWorldspace; // previous n hand velocities in skyrim worldspace
 	std::array<NiPoint3, 5> handVelocitiesRoomspace; // previous n wand velocities in local roomspace

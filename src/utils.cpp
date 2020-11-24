@@ -44,8 +44,76 @@ bool IsAllowedCollidable(const hkpCollidable *collidable)
 		return false;
 
 	auto motion = &rb->m_motion;
-	// Motion types we allow are: Dynamic, SphereInertia, BoxInertia, ThinBoxInertia
-	return (motion->m_type == 1 || motion->m_type == 2 || motion->m_type == 3 || motion->m_type == 6);
+	return (
+		motion->m_type == hkpMotion::MotionType::MOTION_DYNAMIC ||
+		motion->m_type == hkpMotion::MotionType::MOTION_SPHERE_INERTIA ||
+		motion->m_type == hkpMotion::MotionType::MOTION_BOX_INERTIA ||
+		motion->m_type == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
+		);
+}
+
+bool HasGeometryChildren(NiAVObject *obj)
+{
+	NiNode *node = obj->GetAsNiNode();
+	if (!node) {
+		return false;
+	}
+
+	for (int i = 0; i < node->m_children.m_arrayBufLen; ++i) {
+		auto child = node->m_children.m_data[i];
+		if (child && child->GetAsBSGeometry()) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool DoesEntityHaveConstraint(NiAVObject *root, bhkRigidBody *entity)
+{
+	auto collObj = (bhkCollisionObject *)root->unk040;
+	if (collObj) {
+		int numConstraints = collObj->body->numConstraints;
+		if (numConstraints > 0) {
+			bhkConstraint **constraints = collObj->body->constraints;
+			for (int i = 0; i < numConstraints; i++) {
+				bhkConstraint *constraint = constraints[i];
+				if (constraint->constraint->getEntityA() == entity->hkBody || constraint->constraint->getEntityB() == entity->hkBody) {
+					return true;
+				}
+			}
+		}
+	}
+
+	NiNode *rootNode = root->GetAsNiNode();
+	if (rootNode) {
+		for (int i = 0; i < rootNode->m_children.m_emptyRunStart; i++) {
+			NiAVObject *child = rootNode->m_children.m_data[i];
+			if (child) {
+				if (DoesEntityHaveConstraint(child, entity)) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node)
+{
+	auto collObj = (bhkCollisionObject *)node->unk040;
+	if (!collObj) {
+		return false;
+	}
+
+	bhkRigidBody *entity = collObj->body;
+	if (collObj->body->numConstraints > 0) {
+		// Easy case: it's a master entity
+		return true;
+	}
+
+	return DoesEntityHaveConstraint(rootNode, entity);
 }
 
 NiAVObject * GetTorsoNode(Actor *actor)
@@ -88,7 +156,7 @@ void UpdateKeyframedNodeTransform(NiAVObject *node, const NiTransform &transform
 
 	node->m_localTransform = inverseParent * transform;
 	NiAVObject::ControllerUpdateContext ctx;
-	ctx.flags = 0x2000; // makes havok sim more stable?
+	ctx.flags = 0x2000; // makes havok sim more stable
 	ctx.delta = 0;
 	NiAVObject_UpdateObjectUpwards(node, &ctx);
 }
@@ -119,12 +187,15 @@ bool IsBow(const TESObjectWEAP *weap)
 std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
 {
 	if (!actor->actorState.IsWeaponDrawn()) {
-		return std::make_pair(true, true);
+		return { true, true };
 	}
 
 	TESForm *mainhandItem = actor->GetEquippedObject(false);
 	TESForm *offhandItem = actor->GetEquippedObject(true);
 
+	return { !mainhandItem, !offhandItem };
+
+	/*
 	bool isMainValid = false, isOffhandValid = false;
 
 	if (!mainhandItem || mainhandItem->formType == kFormType_Spell) {
@@ -143,6 +214,7 @@ std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
 		isOffhandValid = true;
 	}
 	return std::make_pair(isMainValid, isOffhandValid);
+	*/
 }
 
 void PrintVector(const NiPoint3 &p)

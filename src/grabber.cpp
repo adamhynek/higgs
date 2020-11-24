@@ -7,6 +7,7 @@
 #include "skse64/PapyrusActor.h"
 #include "skse64/NiGeometry.h"
 #include "skse64/GameExtraData.h"
+#include "skse64/GameVR.h"
 
 #include "grabber.h"
 #include "offsets.h"
@@ -133,11 +134,9 @@ void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
 		TESEffectShader *shader;
 		if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
 			shader = itemSelectedShaderOffLimits;
-				
 		}
 		else {
 			shader = itemSelectedShader;
-				
 		}
 		PlayShader(objHandle, node, shader);
 	}
@@ -151,11 +150,9 @@ void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 		TESEffectShader *shader;
 		if (CALL_MEMBER_FN(obj, IsOffLimits)()) {
 			shader = itemSelectedShaderOffLimits;
-				
 		}
 		else {
 			shader = itemSelectedShader;
-				
 		}
 		StopShader(objHandle, node, shader);
 	}
@@ -197,7 +194,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 		}
 		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
-		if (ref) {
+		if (ref && ref != *g_thePlayer) {
 			if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
 					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
@@ -251,7 +248,14 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 		NiPoint3 palmPos = hkPalmNodePos / havokWorldScale;
 
-		if (selectedObject.isActor) {
+		bool hasConstraint = DoesNodeHaveConstraint(selectedObj->loadedState->node, n);
+		if (selectedObject.isActor || hasConstraint || (selectedObj->baseForm && selectedObj->baseForm->formType == kFormType_Ammo)) {
+			// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
+
+			if (!selectedObject.isActor) {
+				SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);;
+			}
+
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
 			NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
 			initialGrabbedObjWorldPosition = centerOfMass;
@@ -327,19 +331,15 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 
 						_MESSAGE("%d", fingerIndex);
 
-						float intersectionAngle;
+						float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
 						bool intersects = GetIntersections(refr->loadedState->node, fingerIndex, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace, palmPos, castDirection,
-							&intersectionAngle);
+							&curveValOrAngle);
 						if (intersects) {
-							SavedFingerData fingerData;
-							LookupFingerByAngle(fingerIndex, intersectionAngle, &fingerData);
-							float radius = fingerData.fingerLength;
-
-							return intersectionAngle;
+							return curveValOrAngle;
 						}
 						else {
 							// No finger intersection, so just close it completely
-							return 99999999.0f; // some large angle
+							return 0.0f; // 0 == closed
 						}
 					}
 					// Couldn't get the fingers... that's a problem
@@ -488,16 +488,18 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 				if (g_vrikInterface) {
 					std::array<float, 5> fingerRanges;
 					for (int i = 0; i < fingerRanges.size(); i++) {
-						float angle = fingerData[i];
-						float degrees = angle * 57.2958;
-						_MESSAGE("%d angle: %.2f", i, degrees);
+						float curveVal = fingerData[i];
 
-						float angleRatio = max(0, min(1, degrees / 180.0f));
-						float effectiveAngle = angleRatio * M_PI;
-
-						SavedFingerData sfd;
-						LookupFingerByAngle(i, effectiveAngle, &sfd);
-						fingerRanges[i] = sfd.curveVal;
+						if (curveVal < 0) {
+							// It's a negative angle - just open the hand
+							_MESSAGE("%d angle: %.2f", i, curveVal);
+							fingerRanges[i] = 1.0f;
+						}
+						else {
+							// Positive => it's a curve val
+							_MESSAGE("%d curve val: %.2f", i, curveVal);
+							fingerRanges[i] = curveVal;
+						}
 
 						fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
 					}
@@ -506,7 +508,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 					//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
 				}
 
-				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
+				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);				
 			}
 			else {
 				// We've got a point on the collision geometry
@@ -636,6 +638,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 		world->worldLock.UnlockWrite();
 	}
+
+	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
+	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
+	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
 	// Put our hand collision where we want it
 	NiPoint3 desiredPos = (handNode->m_worldTransform * (NiPoint3(0, -0.005, 0.08) / havokWorldScale)) * havokWorldScale;
@@ -769,7 +775,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 				}
 				bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
 				NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
-				if (ref) {
+				if (ref && ref != player) {
 					if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
 						if (ref->baseForm->formType == kFormType_Projectile) {
 							auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
@@ -1080,6 +1086,11 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				if (state == State::HeldBody) {
+					if (!selectedObject.isActor) {
+						ResetCollisionInfoForAllCollisionInRefr(selectedObj);
+					}
+				}
 				if (state == State::Held || state == State::HeldInit) {
 					if (g_vrikInterface) {
 						g_vrikInterface->restoreFingers(isLeft);
@@ -1626,7 +1637,7 @@ bool Grabber::ShouldDisplayRollover()
 
 bool Grabber::IsSafeToClearSavedCollision()
 {
-	return (state != State::Held && state != State::HeldInit && pulledObject.handle == *g_invalidRefHandle);
+	return (state != State::Held && state != State::HeldInit && state != State::HeldBody && pulledObject.handle == *g_invalidRefHandle);
 }
 
 void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)

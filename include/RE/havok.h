@@ -71,7 +71,7 @@ struct bhkRigidBody : bhkEntity
 	hkpRigidBody * hkBody; // 10
 	UInt16 flags; // 18 - flags? if or'd with 0x20 (bit 5), it makes havok sim more stable
 	UInt64 unk20; // at least first byte are some flags?
-	bhkConstraint **constraints; // 28 - ptr to array of constraint ptrs. Size it at 0x38
+	bhkConstraint **constraints; // 28 - ptr to array of constraint ptrs. Size is at 0x38
 	UInt64 unk30;
 	UInt32 numConstraints; // 38
 };

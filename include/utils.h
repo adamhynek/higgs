@@ -25,6 +25,7 @@ NiAVObject * GetTorsoNode(Actor *actor);
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
 bool IsAllowedCollidable(const hkpCollidable *collidable);
+bool HasGeometryChildren(NiAVObject *obj);
 
 bool IsTwoHanded(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
@@ -39,6 +40,7 @@ void PrintToFile(std::string entry, std::string filename);
 //float hkHalfToFloat(hkHalf half);
 //hkHalf floatToHkHalf(float half);
 
+bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node);
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
 bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target);

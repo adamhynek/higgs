@@ -61,7 +61,7 @@ void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *eff
 }
 
 void WorldUpdateHook(bhkWorld *world)
-{
+{/*
 	//_MESSAGE("Pre World update hook");
 	// Perform the same operation both in this hook and in the main thread.
 	// Why? We need it here to calm down physics constraints - they freak out if only set in the openvr hook
@@ -103,7 +103,7 @@ void WorldUpdateHook(bhkWorld *world)
 				}
 			}
 		}
-	}
+	}*/
 }
 
 

@@ -52,8 +52,6 @@ bool g_isLoaded = false;
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
-BGSReferenceEffect *g_itemSelectedEffect = nullptr;
-BGSReferenceEffect *g_itemSelectedEffectOffLimits = nullptr;
 
 bool g_hasSavedRumbleIntensity = false;
 float g_normalRumbleIntensity;
@@ -278,51 +276,29 @@ extern "C" {
 	{
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
 		if (!modInfo) {
-			_MESSAGE("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
+			_ERROR("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
 			return;
 		}
 
 		TESForm *shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F00));
 		if (!shaderForm) {
-			_MESSAGE("Failed to get slected item shader form");
+			_ERROR("Failed to get slected item shader form");
 			return;
 		}
 		g_itemSelectedShader = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
 		if (!g_itemSelectedShader) {
-			_MESSAGE("Failed to cast selected item shader form");
+			_ERROR("Failed to cast selected item shader form");
 			return;
 		}
 		
 		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F01));
 		if (!shaderForm) {
-			_MESSAGE("Failed to get slected item off limits shader form");
+			_ERROR("Failed to get slected item off limits shader form");
 			return;
 		}
 		g_itemSelectedShaderOffLimits = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
 		if (!g_itemSelectedShaderOffLimits) {
-			_MESSAGE("Failed to cast selected item off limits shader form");
-			return;
-		}
-
-		TESForm *effectForm = LookupFormByID(GetFullFormID(modInfo, 0x7463));
-		if (!effectForm) {
-			_MESSAGE("Failed to get slected item effect form");
-			return;
-		}
-		g_itemSelectedEffect = DYNAMIC_CAST(effectForm, TESForm, BGSReferenceEffect);
-		if (!g_itemSelectedEffect) {
-			_MESSAGE("Failed to cast selected item effect form");
-			return;
-		}
-
-		effectForm = LookupFormByID(GetFullFormID(modInfo, 0x7464));
-		if (!effectForm) {
-			_MESSAGE("Failed to get slected item off limits effect form");
-			return;
-		}
-		g_itemSelectedEffectOffLimits = DYNAMIC_CAST(effectForm, TESForm, BGSReferenceEffect);
-		if (!g_itemSelectedEffectOffLimits) {
-			_MESSAGE("Failed to cast selected item off limits effect form");
+			_ERROR("Failed to cast selected item off limits shader form");
 			return;
 		}
 		
@@ -389,8 +365,8 @@ extern "C" {
 			},
 		};
 
-		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", rightFingerNames, { 0, -2, 5.5 }, { 7, -5, -2 }, Config::options.delayRightGripInput);
-		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", leftFingerNames, { 0, -2, 5.5 }, { -7, -7, -3 }, Config::options.delayLeftGripInput);
+		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", rightFingerNames, { 0, -2.4, 6 }, { 7, -5, -2 }, Config::options.delayRightGripInput);
+		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", leftFingerNames, { 0, -2.4, 6 }, { -7, -7, -3 }, Config::options.delayLeftGripInput);
 		if (!g_rightGrabber || !g_leftGrabber) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
@@ -398,13 +374,9 @@ extern "C" {
 
 		g_rightGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_rightGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
-		g_rightGrabber->itemSelectedEffect = g_itemSelectedEffectOffLimits;
-		g_rightGrabber->itemSelectedEffectOffLimits = g_itemSelectedEffectOffLimits;
 
 		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
-		g_leftGrabber->itemSelectedEffect = g_itemSelectedEffect;
-		g_leftGrabber->itemSelectedEffectOffLimits = g_itemSelectedEffectOffLimits;
 
 		// Right vector points to the right of the text
 		g_rolloverRotation.data[0][0] = 0;
