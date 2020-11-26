@@ -275,7 +275,6 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNo
 			state = State::HeldBody;
 		}
 		else {
-			// TODO: For e.g. books, I don't think we want the other parts of the book to collide with the hand that's holding it (with the other hand is fine). It can cause physics freakouts.
 			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -801,6 +800,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 							closestObj = ref;
 							closestRigidBody = bRigidBody;
+							closestPoint = pair.second;
 							closestDistance = dist;
 						}
 					}
@@ -1043,6 +1043,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjRelativePosition = relObjPos;
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
+							pulledPointOffset = HkVectorToNiPoint(closestPoint.getPosition()) - hkObjPos;
 							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
@@ -1209,7 +1210,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								}
 							}
 
-							// TODO: Using the hand collision layer means the pulled object does not collide with other npcs. We probably do want it to though.
 							CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
 						}
 
@@ -1351,10 +1351,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
 				if (g_currentFrameTime - pulledTime <= 0.06f) { // just over 5 frames at 90fps
-					NiPoint3 horizontalDelta = hkPalmNodePos - hkObjPos;
+					NiPoint3 objPoint = hkObjPos + pulledPointOffset;
+
+					NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
 					horizontalDelta.z = 0;
 					NiPoint3 velocity = horizontalDelta / duration;
-					float verticalDelta = hkPalmNodePos.z - hkObjPos.z;
+					float verticalDelta = hkPalmNodePos.z - objPoint.z;
 					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
 					SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));

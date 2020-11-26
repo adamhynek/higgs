@@ -134,6 +134,7 @@ struct Grabber
 	SelectedObject selectedObject;
 	PulledObject pulledObject;
 
+	NiPoint3 pulledPointOffset; // Offset from the center of mass of the point we're pulling on the pulled object
 	NiPoint3 initialObjPosRaySpace;
 	NiPoint3 initialGrabbedObjRelativePosition;
 	NiPoint3 initialGrabbedObjWorldPosition;
