@@ -52,14 +52,29 @@ struct CdBodyPairCollector : public hkpCdBodyPairCollector
 	std::vector<hkpCdBody *> m_hits;
 };
 
-void ClearCollisionMap();
-UInt32 GetSavedCollision(UInt32 id);
-UInt32 GetSavedCollisionRefCount(UInt32 id);
-void RemoveSavedCollision(UInt32 id);
-void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup);
-void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup);
-void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, hkpCollidable *skipNode = nullptr);
-void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode = nullptr);
+namespace CollisionMap
+{
+	enum class State : UInt8
+	{
+		Unheld,
+		HeldRight,
+		HeldLeft,
+		HeldBoth
+	};
+
+	struct CollisionMapEntry
+	{
+		UInt32 filterInfo;
+		State state;
+	};
+
+	void ClearCollisionMap();
+	void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup, State reason);
+	void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason);
+	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode = nullptr);
+	void ResetCollisionInfoDownstream(NiAVObject *obj, State reaon, hkpCollidable *skipNode = nullptr);
+	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason);
+}
 
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void SetVelocityForAllCollisionInRefr(TESObjectREFR *refr, hkVector4 velocity);

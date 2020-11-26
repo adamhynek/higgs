@@ -58,6 +58,7 @@ struct Grabber
 
 	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
 		isLeft(isLeft),
+		collisionMapState(isLeft ? CollisionMap::State::HeldLeft : CollisionMap::State::HeldRight),
 		name(name),
 		handNodeName(handNodeName),
 		upperArmNodeName(upperArmNodeName),
@@ -81,14 +82,14 @@ struct Grabber
 
 	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
-	void PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode);
+	void PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
-	void TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
+	void TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
@@ -107,6 +108,7 @@ struct Grabber
 
 	const bool isLeft = false;
 	const bool delayGripInput = false;
+	const CollisionMap::State collisionMapState = CollisionMap::State::HeldRight;
 	const NiPoint3 palmPosHandspace;
 	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
 	BSFixedString name; // Used for logging

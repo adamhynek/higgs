@@ -229,7 +229,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 }
 
 
-void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj)
+void Grabber::TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj)
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
@@ -245,6 +245,9 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 		if (pulledObject.handle == selectedObject.handle) {
 			EndPull();
 		}
+		else if (other.pulledObject.handle == selectedObject.handle) {
+			other.EndPull();
+		}
 
 		NiPoint3 palmPos = hkPalmNodePos / havokWorldScale;
 
@@ -253,7 +256,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 			// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
 
 			if (!selectedObject.isActor) {
-				SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);;
+				SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 			}
 
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
@@ -273,7 +276,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 		}
 		else {
 			// TODO: For e.g. books, I don't think we want the other parts of the book to collide with the hand that's holding it (with the other hand is fine). It can cause physics freakouts.
-			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
 			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
@@ -530,7 +533,7 @@ void Grabber::TransitionHeld(bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 
 }
 
 
-void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWorldNode)
+void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode)
 {
 	//_MESSAGE("%s:, pose update", name);
 	forceInput = false; // 'Consume' the forceinput event
@@ -611,6 +614,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 		// Create our own layer in the first ununsed vanilla layer (56)
 		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
 		UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
+
 		bitfield |= ((UInt64)1 << 56); // collide with ourselves
 		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
 		worldFilter->layerBitfields[56] = bitfield;
@@ -622,12 +626,22 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			}
 		}
 
+		// With these ragdoll layers for the hands,
+		// layer == 1 -> collides with left hand
+		// layer == 5 -> collides with right hand
+		// layer == 3 -> collides with neither
+		// layer == 0 -> collides with both
+		UInt8 ragdollBits = isLeft ? 4 : 2; // 5-bit ragdoll layer. If bit 15 is set, then if layer differs by 1 we don't collide. If layer differs by !=1 we do.
+
+		UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+		filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+		filterInfo |= (ragdollBits << 8);
+
 		// Add collision object for the hand
 		hkpBoxShape_ctor(handCollShape, { 0.05, 0.015, 0.075, 0 }, 0);
 		hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
 		handCollCInfo->m_shape = handCollShape;
-		handCollCInfo->m_collisionFilterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
-		handCollCInfo->m_collisionFilterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+		handCollCInfo->m_collisionFilterInfo = filterInfo;
 		handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
 		handCollCInfo->m_enableDeactivation = false;
 		handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
@@ -1040,7 +1054,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							if (g_vrikInterface) {
 								g_vrikInterface->restoreFingers(isLeft);
 							}
-							TransitionHeld(world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
+							TransitionHeld(other, world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
 						grabRequested = false;
@@ -1088,7 +1102,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (state == State::HeldBody) {
 					if (!selectedObject.isActor) {
-						ResetCollisionInfoForAllCollisionInRefr(selectedObj);
+						ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState);
 					}
 				}
 				if (state == State::Held || state == State::HeldInit) {
@@ -1096,32 +1110,8 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						g_vrikInterface->restoreFingers(isLeft);
 					}
 
-					ResetCollisionInfoForAllCollisionInRefr(selectedObj, selectedObject.collidable); // skip the node we grabbed, we handle that below
-
-					UInt8 savedCollisionRefCount = GetSavedCollisionRefCount(selectedObject.rigidBody->hkBody->m_uid);
-					if (savedCollisionRefCount > 0) {
-						if (savedCollisionRefCount == 1) {
-							UInt32 savedCollision = GetSavedCollision(selectedObject.rigidBody->hkBody->m_uid);
-							// Restore only the original layer first, so it collides with everything except the player
-							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
-							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
-							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-							bhkRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
-
-							selectedObject.collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
-							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-							bhkRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
-						}
-						else { // > 1
-							// use current collision, other hand still has it
-							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
-							bhkRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
-
-							selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
-							bhkRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
-						}
-						RemoveSavedCollision(selectedObject.rigidBody->hkBody->m_uid);
-					}
+					ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState, selectedObject.collidable); // skip the node we grabbed, we handle that below
+					ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState);
 				}
 				if (state == State::SelectionLocked) {
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -1142,7 +1132,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
-				auto TransitionPulled = [this, motion, selectedObj, handNode]()
+				auto TransitionPulled = [this, &other, motion, selectedObj, handNode]()
 				{
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
@@ -1203,6 +1193,10 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						if (pulledObject.handle != selectedObject.handle) {
 							EndPull(); // Cancel an existing pulled collision reset if we're pulling something new
 
+							if (other.pulledObject.handle == selectedObject.handle) {
+								other.EndPull();
+							}
+
 							pulledObject.handle = selectedObject.handle;
 							pulledObject.rigidBody = selectedObject.rigidBody;
 							pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
@@ -1221,7 +1215,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 							}
 
 							// TODO: Using the hand collision layer means the pulled object does not collide with other npcs. We probably do want it to though.
-							SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+							SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionMap::State::Unheld);
 						}
 
 						state = State::Pulled;
@@ -1240,7 +1234,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 
 					// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
 					if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-						TransitionHeld(world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
+						TransitionHeld(other, world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 					}
 				}
 
@@ -1338,7 +1332,7 @@ void Grabber::PoseUpdate(const Grabber &other, bool allowGrab, NiNode *playerWor
 						hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 						pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
 						motion->m_motionState.m_angularDamping = hkHalf(3.0f);
-						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup);
+						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionMap::State::Unheld);
 
 						pulledTime = g_currentFrameTime;
 						state = State::Pulled;
@@ -1598,7 +1592,7 @@ void Grabber::EndPull()
 {
 	NiPointer<TESObjectREFR> pulledObj;
 	if (LookupREFRByHandle(pulledObject.handle, pulledObj)) {
-		ResetCollisionInfoForAllCollisionInRefr(pulledObj);
+		ResetCollisionInfoForAllCollisionInRefr(pulledObj, CollisionMap::State::Unheld);
 		pulledObject.rigidBody->hkBody->m_motion.m_motionState.m_angularDamping = pulledObject.savedAngularDamping;
 	}
 	pulledObject.handle = *g_invalidRefHandle;

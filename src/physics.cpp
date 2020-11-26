@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "physics.h"
 #include "offsets.h"
 
@@ -123,161 +125,272 @@ void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCas
 }
 
 
-// Map havok entity id -> (saved collisionfilterinfo, "refcount" of sorts)
-std::unordered_map<UInt32, std::pair<UInt32, UInt8>> collisionInfoIdMap;
-
-void ClearCollisionMap()
+namespace CollisionMap
 {
-	// Should only be called when you're sure there should be nothing in the map
-	if (collisionInfoIdMap.size() > 0) {
-		collisionInfoIdMap.clear();
-	}
-}
+	// Map havok entity id -> (saved collisionfilterinfo, state of saved collision)
+	std::unordered_map<UInt32, CollisionMapEntry> collisionInfoIdMap;
 
-UInt32 GetSavedCollision(UInt32 id)
-{
-	if (collisionInfoIdMap.count(id) != 0) {
-		return collisionInfoIdMap[id].first;
-	}
-
-	// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
-	return 0;
-}
-
-UInt32 GetSavedCollisionRefCount(UInt32 id)
-{
-	if (collisionInfoIdMap.count(id) != 0) {
-		return collisionInfoIdMap[id].second;
-	}
-
-	// do not have saved filter info for this entity... it must have been added somehow between saving and reseting
-	return 0;
-}
-
-void RemoveSavedCollision(UInt32 id)
-{
-	if (collisionInfoIdMap.count(id) != 0) {
-		auto val = collisionInfoIdMap.at(id);
-		UInt8 count = val.second;
-		UInt32 collisionFilterInfo = val.first;
-		if (count == 1) {
-			// Other hand is not affecting this entity
-			collisionInfoIdMap.erase(id);
-		}
-		else {
-			// Other hand is still affecting this entity - 'decref'
-			collisionInfoIdMap[id] = { collisionFilterInfo, count - 1 };
-		}
-	}
-}
-
-
-void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup)
-{
-	if (obj->unk040) {
-		auto collObj = (bhkCollisionObject *)obj->unk040;
-		hkpRigidBody *entity = collObj->body->hkBody;
-		if (entity->m_world) {
-			hkpCollidable *collidable = &entity->m_collidable;
-
-			// Save collisionfilterinfo by entity id
-			UInt32 entityId = entity->m_uid;
-			UInt8 count = GetSavedCollisionRefCount(entityId);
-			if (count > 0) {
-				// other hand already did the job - 'incRef'
-				UInt32 savedInfo = GetSavedCollision(entityId);
-				collisionInfoIdMap[entityId] = { savedInfo, count + 1 };
-			}
-			else {
-				// Other hand hasn't affected this yet. Set its collision info
-				collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, 1 };
-
-				bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-				world->worldLock.LockForWrite();
-
-				collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-				collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
-				collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
-				collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
-				// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
-				collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
-
-				hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-				world->worldLock.UnlockWrite();
-			}
+	void ClearCollisionMap()
+	{
+		// Should only be called when you're sure there should be nothing in the map
+		if (collisionInfoIdMap.size() > 0) {
+			collisionInfoIdMap.clear();
 		}
 	}
 
-	NiNode *node = obj->GetAsNiNode();
-	if (node) {
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				SetCollisionInfoDownstream(child, collisionGroup);
-			}
-		}
-	}
-}
+	void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason)
+	{
+		if (obj->unk040) {
+			auto collObj = (bhkCollisionObject *)obj->unk040;
+			hkpRigidBody *entity = collObj->body->hkBody;
+			if (entity->m_world) {
+				hkpCollidable *collidable = &entity->m_collidable;
 
-void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup)
-{
-	if (refr->loadedState && refr->loadedState->node) {
-		SetCollisionInfoDownstream(refr->loadedState->node, collisionGroup);
-	}
-}
-
-
-void ResetCollisionInfoDownstream(NiAVObject *obj, hkpCollidable *skipNode)
-{
-	if (obj->unk040) {
-		auto collObj = (bhkCollisionObject *)obj->unk040;
-		hkpRigidBody *entity = collObj->body->hkBody;
-		if (entity->m_world) {
-			hkpCollidable *collidable = &entity->m_collidable;
-			if (collidable != skipNode) {
+				// Save collisionfilterinfo by entity id
 				UInt32 entityId = entity->m_uid;
-				UInt8 refCount = GetSavedCollisionRefCount(entityId);
-				if (refCount > 0) {
-					if (refCount == 1) {
-						// Only actually reset collision info if the other hand isn't involved
-						UInt32 savedCollision = GetSavedCollision(entityId);
+				if (collisionInfoIdMap.count(entityId) != 0) {
+					// Already in the map - state transition
+
+					auto[savedInfo, savedState] = collisionInfoIdMap[entityId];
+
+					if ((savedState == State::HeldLeft && reason == State::HeldRight) ||
+						(savedState == State::HeldRight && reason == State::HeldLeft)) {
+						// One hand holds the object -> 2 hands hold it
+
+						collisionInfoIdMap[entityId] = { savedInfo, State::HeldBoth };
 
 						bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
 						world->worldLock.LockForWrite();
 
-						// Restore only the original layer first, so it collides with everything except the player
-						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
-						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedCollision & 0x7f);
-						hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+						UInt8 ragdollBits = 3;
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
-						// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
-						collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedCollision;
-						hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+						hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 
 						world->worldLock.UnlockWrite();
 					}
-					RemoveSavedCollision(entityId);
+					else if (savedState == State::Unheld && (reason == State::HeldLeft || reason == State::HeldRight)) {
+						// No hand holds it -> one hand holds it
+
+						collisionInfoIdMap[entityId] = { savedInfo, reason };
+
+						bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+						world->worldLock.LockForWrite();
+
+						UInt8 ragdollBits = reason == State::HeldLeft ? 5 : 1;
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+
+						hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+						world->worldLock.UnlockWrite();
+					}
+					else {
+						//std::stringstream ss;
+						//ss << "Invalid collision state transition: " << (UInt8)savedState << " -> " << (UInt8)reason;
+						//ASSERT_STR(false, ss.str().c_str());
+					}
+				}
+				else {
+					// Not in the map yet - init to the necessary state
+
+					collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, reason };
+
+					bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+					world->worldLock.LockForWrite();
+
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+					// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
+
+					if (reason == State::HeldLeft) {
+						UInt8 ragdollBits = 5;
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+					}
+					else if (reason == State::HeldRight) {
+						UInt8 ragdollBits = 1;
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+					}
+					else if (reason == State::Unheld) {
+						UInt8 ragdollBits = 0;
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+					}
+					else {
+						std::stringstream ss;
+						ss << "Invalid initial collision state: " << (UInt8)reason;
+						ASSERT_STR(false, ss.str().c_str());
+					}
+
+					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+					world->worldLock.UnlockWrite();
+				}
+			}
+		}
+
+		NiNode *node = obj->GetAsNiNode();
+		if (node) {
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					SetCollisionInfoDownstream(child, collisionGroup, reason);
 				}
 			}
 		}
 	}
 
-	NiNode *node = obj->GetAsNiNode();
-	if (node) {
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				ResetCollisionInfoDownstream(child, skipNode);
+	void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup, State reason)
+	{
+		if (refr->loadedState && refr->loadedState->node) {
+			SetCollisionInfoDownstream(refr->loadedState->node, collisionGroup, reason);
+		}
+	}
+
+	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason)
+	{
+		UInt32 entityId = entity->hkBody->m_uid;
+		if (collisionInfoIdMap.count(entityId) != 0) {
+			auto[savedInfo, savedState] = collisionInfoIdMap[entityId];
+
+			if (savedState == State::HeldBoth && (reason == State::HeldRight || reason == State::HeldLeft)) {
+				// Two hands hold the object -> one hand lets go, so the other hand holds it
+
+				State otherHand = reason == State::HeldRight ? State::HeldLeft : State::HeldRight;
+				collisionInfoIdMap[entityId] = { savedInfo, otherHand };
+
+				// TODO: Lock world for this line?
+				UInt8 ragdollBits = otherHand == State::HeldLeft ? 5 : 1;
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+
+				// use current collision, other hand still has it
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
+				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = quality;
+				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
+			}
+			else if ((savedState == State::HeldLeft && reason == State::HeldLeft) ||
+				(savedState == State::HeldRight && reason == State::HeldRight) ||
+				(savedState == State::Unheld && reason == State::Unheld)) {
+				// One hand holds the object -> one hand lets go of the object, so none hold it
+				// Or, no hand was holding, and none is holding now
+
+				collisionInfoIdMap.erase(entityId);
+
+				// Restore only the original layer and ragdoll bits first, so it collides with everything except the player (but still the hands)
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (((0 >> 8) & 0x1f) << 8); // no-op, but in case the 0 becomes something else later
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
+				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = quality;
+				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
+			}
+			else {
+				//std::stringstream ss;
+				//ss << "Invalid collision reset state transition: " << (int)savedState << " -> " << (int)reason;
+				//ASSERT_STR(false, ss.str().c_str());
+			}
+		}
+		else {
+			ASSERT_STR(false, "Collision keyframed reset attempted on item that isn't in the collision map");
+		}
+	}
+
+	void ResetCollisionInfoDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode)
+	{
+		if (obj->unk040) {
+			auto collObj = (bhkCollisionObject *)obj->unk040;
+			hkpRigidBody *entity = collObj->body->hkBody;
+			if (entity->m_world) {
+				hkpCollidable *collidable = &entity->m_collidable;
+				if (collidable != skipNode) {
+					UInt32 entityId = entity->m_uid;
+
+					if (collisionInfoIdMap.count(entityId) != 0) {
+						auto[savedInfo, savedState] = collisionInfoIdMap[entityId];
+
+						if (savedState == State::HeldBoth && (reason == State::HeldRight || reason == State::HeldLeft)) {
+							// Two hands hold the object -> one hand lets go, so the other hand holds it
+
+							State otherHand = reason == State::HeldRight ? State::HeldLeft : State::HeldRight;
+							collisionInfoIdMap[entityId] = { savedInfo, otherHand };
+
+							bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+							world->worldLock.LockForWrite();
+
+							UInt8 ragdollBits = otherHand == State::HeldLeft ? 5 : 1;
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+
+							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+							world->worldLock.UnlockWrite();
+						}
+						else if ((savedState == State::HeldLeft && reason == State::HeldLeft) ||
+							(savedState == State::HeldRight && reason == State::HeldRight) ||
+							(savedState == State::Unheld && reason == State::Unheld)) {
+							// One hand holds the object -> one hand lets go of the object, so none hold it
+							// Or, no hand was holding, and none is holding now
+
+							collisionInfoIdMap.erase(entityId);
+
+							bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+							world->worldLock.LockForWrite();
+
+							// Restore only the original layer and ragdoll bits first, so it collides with everything except the player (but still the hands)
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (((0 >> 8) & 0x1f) << 8); // no-op, but in case the 0 becomes something else later
+							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+							// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
+							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+							world->worldLock.UnlockWrite();
+						}
+						else {
+							//std::stringstream ss;
+							//ss << "Invalid collision reset state transition: " << (int)savedState << " -> " << (int)reason;
+							//ASSERT_STR(false, ss.str().c_str());
+						}
+					}
+					else {
+						ASSERT_STR(false, "Collision reset attempted on item that isn't in the collision map");
+					}
+				}
+			}
+		}
+
+		NiNode *node = obj->GetAsNiNode();
+		if (node) {
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					ResetCollisionInfoDownstream(child, reason, skipNode);
+				}
 			}
 		}
 	}
-}
 
-void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, hkpCollidable *skipNode)
-{
-	if (refr->loadedState && refr->loadedState->node) {
-		ResetCollisionInfoDownstream(refr->loadedState->node, skipNode);
+	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode)
+	{
+		if (refr->loadedState && refr->loadedState->node) {
+			ResetCollisionInfoDownstream(refr->loadedState->node, reason, skipNode);
+		}
 	}
 }
 
