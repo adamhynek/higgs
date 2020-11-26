@@ -626,12 +626,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			}
 		}
 
-		// With these ragdoll layers for the hands,
-		// layer == 1 -> collides with left hand
-		// layer == 5 -> collides with right hand
-		// layer == 3 -> collides with neither
-		// layer == 0 -> collides with both
-		UInt8 ragdollBits = isLeft ? 4 : 2; // 5-bit ragdoll layer. If bit 15 is set, then if layer differs by 1 we don't collide. If layer differs by !=1 we do.
+		UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
 
 		UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
 		filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
@@ -1215,7 +1210,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							}
 
 							// TODO: Using the hand collision layer means the pulled object does not collide with other npcs. We probably do want it to though.
-							SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionMap::State::Unheld);
+							CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
 						}
 
 						state = State::Pulled;
@@ -1332,7 +1327,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 						pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
 						motion->m_motionState.m_angularDamping = hkHalf(3.0f);
-						SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionMap::State::Unheld);
+						CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
 
 						pulledTime = g_currentFrameTime;
 						state = State::Pulled;
@@ -1592,7 +1587,7 @@ void Grabber::EndPull()
 {
 	NiPointer<TESObjectREFR> pulledObj;
 	if (LookupREFRByHandle(pulledObject.handle, pulledObj)) {
-		ResetCollisionInfoForAllCollisionInRefr(pulledObj, CollisionMap::State::Unheld);
+		CollisionInfo::ResetCollisionInfoForAllCollisionInRefr(pulledObj, CollisionInfo::State::Unheld);
 		pulledObject.rigidBody->hkBody->m_motion.m_motionState.m_angularDamping = pulledObject.savedAngularDamping;
 	}
 	pulledObject.handle = *g_invalidRefHandle;

@@ -58,7 +58,7 @@ struct Grabber
 
 	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
 		isLeft(isLeft),
-		collisionMapState(isLeft ? CollisionMap::State::HeldLeft : CollisionMap::State::HeldRight),
+		collisionMapState(isLeft ? CollisionInfo::State::HeldLeft : CollisionInfo::State::HeldRight),
 		name(name),
 		handNodeName(handNodeName),
 		upperArmNodeName(upperArmNodeName),
@@ -108,7 +108,7 @@ struct Grabber
 
 	const bool isLeft = false;
 	const bool delayGripInput = false;
-	const CollisionMap::State collisionMapState = CollisionMap::State::HeldRight;
+	const CollisionInfo::State collisionMapState = CollisionInfo::State::HeldRight;
 	const NiPoint3 palmPosHandspace;
 	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
 	BSFixedString name; // Used for logging

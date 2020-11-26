@@ -144,7 +144,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
-		CollisionMap::ClearCollisionMap();
+		CollisionInfo::ClearCollisionMap();
 	}
 
 	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();

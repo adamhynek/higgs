@@ -52,8 +52,19 @@ struct CdBodyPairCollector : public hkpCdBodyPairCollector
 	std::vector<hkpCdBody *> m_hits;
 };
 
-namespace CollisionMap
+namespace CollisionInfo
 {
+	// 5-bit ragdoll layer. If bit 15 is set, then if layer differs by 1 we don't collide. If layer differs by !=1 we do.
+	enum class RagdollLayer : UInt8
+	{
+		SkipNone = 0, // Collides with both hands + held objects
+		SkipRight = 2, // Collides with all except right hand
+		RightHand = 3, // Used for right hand
+		SkipBoth = 4, // Collides with all except right/left hand
+		LeftHand = 5, // Used for left hand
+		SkipLeft = 6 // Collides with all except left hand
+	};
+
 	enum class State : UInt8
 	{
 		Unheld,

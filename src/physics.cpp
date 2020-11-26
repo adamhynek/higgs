@@ -125,7 +125,7 @@ void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCas
 }
 
 
-namespace CollisionMap
+namespace CollisionInfo
 {
 	// Map havok entity id -> (saved collisionfilterinfo, state of saved collision)
 	std::unordered_map<UInt32, CollisionMapEntry> collisionInfoIdMap;
@@ -162,7 +162,7 @@ namespace CollisionMap
 						bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
 						world->worldLock.LockForWrite();
 
-						UInt8 ragdollBits = 3;
+						UInt8 ragdollBits = (UInt8)RagdollLayer::SkipBoth;
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
@@ -172,13 +172,18 @@ namespace CollisionMap
 					}
 					else if (savedState == State::Unheld && (reason == State::HeldLeft || reason == State::HeldRight)) {
 						// No hand holds it -> one hand holds it
+						// I don't think this case is actually possible, since I try to reset a pull when grabbing, but it's here just in case.
 
 						collisionInfoIdMap[entityId] = { savedInfo, reason };
 
 						bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
 						world->worldLock.LockForWrite();
 
-						UInt8 ragdollBits = reason == State::HeldLeft ? 5 : 1;
+						// We don't set the layer when pulling, so now that we're grabbing the object we need to set it.
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+
+						UInt8 ragdollBits = (UInt8)(reason == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
@@ -202,23 +207,23 @@ namespace CollisionMap
 
 					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
 					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
-					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+
 					// set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
 					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 
-					if (reason == State::HeldLeft) {
-						UInt8 ragdollBits = 5;
-						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
-					}
-					else if (reason == State::HeldRight) {
-						UInt8 ragdollBits = 1;
+					if (reason == State::HeldLeft || reason == State::HeldRight) {
+						// Our collision layer negates collisions with other characters
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+
+						UInt8 ragdollBits = (UInt8)(reason == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 					}
 					else if (reason == State::Unheld) {
-						UInt8 ragdollBits = 0;
+						// When pulling, don't set the layer yet. This way it will still collide with other characters.
+
+						UInt8 ragdollBits = (UInt8)RagdollLayer::SkipNone;
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 					}
@@ -266,7 +271,7 @@ namespace CollisionMap
 				collisionInfoIdMap[entityId] = { savedInfo, otherHand };
 
 				// TODO: Lock world for this line?
-				UInt8 ragdollBits = otherHand == State::HeldLeft ? 5 : 1;
+				UInt8 ragdollBits = (UInt8)(otherHand == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
@@ -289,7 +294,7 @@ namespace CollisionMap
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (((0 >> 8) & 0x1f) << 8); // no-op, but in case the 0 becomes something else later
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((((UInt8)RagdollLayer::SkipNone >> 8) & 0x1f) << 8);
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
 				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 
@@ -330,7 +335,7 @@ namespace CollisionMap
 							bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
 							world->worldLock.LockForWrite();
 
-							UInt8 ragdollBits = otherHand == State::HeldLeft ? 5 : 1;
+							UInt8 ragdollBits = (UInt8)(otherHand == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
@@ -353,7 +358,7 @@ namespace CollisionMap
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (((0 >> 8) & 0x1f) << 8); // no-op, but in case the 0 becomes something else later
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((((UInt8)RagdollLayer::SkipNone >> 8) & 0x1f) << 8);
 							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 
 							// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
