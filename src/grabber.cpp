@@ -1359,7 +1359,15 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					float verticalDelta = hkPalmNodePos.z - objPoint.z;
 					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
-					SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));
+					NiAVObject *n = FindCollidableNode(selectedObject.collidable);
+					if (n && DoesNodeHaveConstraint(selectedObj->loadedState->node, n)) {
+						SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));
+					}
+					else {
+						hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
+						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+						motion->m_linearVelocity = NiPointToHkVector(velocity);
+					}
 				}
 				else {
 					idleDesired = true;
