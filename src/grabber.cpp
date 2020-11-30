@@ -947,6 +947,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					}
 				}
 			}
+
 			if (nodeOnWhichToPlayShader) {
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 					if (nodeOnWhichToPlayShader != selectedObject.shaderNode) {
@@ -972,24 +973,45 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				if (selectedObject.handle != prevSelectedHandle) {
 					// New refr is selected. Stopping the shader for the previous ref is done earlier.
-					if (!selectedObject.isActor) {
-						PlaySelectionEffect(selectedObject.handle, nullptr);
-					}
 
 					selectedObject.shaderNode = nullptr;
 					selectedObject.hitNode = nullptr;
 					selectedObject.hitForm = nullptr;
+
+					if (!selectedObject.isActor) {
+						NiAVObject *hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+						if (hitNode) {
+							selectedObject.shaderNode = hitNode;
+						}
+						PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+					}
 				}
 				else if (selectedObject.shaderNode) {
-					// Node was selected before (selectedObject.shaderNode), but not now (nodeOnWhichToPlayShader). Stop the shader on that node.
-					if (breakStickiness) {
-						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+					if (selectedObject.isActor) {
+						// Node was selected before (selectedObject.shaderNode), but not now (nodeOnWhichToPlayShader). Stop the shader on that node.
+						if (breakStickiness) {
+							StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
-						//PlayShader(selectedObject.handle, nullptr, shader);
+							//PlayShader(selectedObject.handle, nullptr, shader);
 
-						selectedObject.shaderNode = nullptr;
-						selectedObject.hitNode = nullptr;
-						selectedObject.hitForm = nullptr;
+							selectedObject.shaderNode = nullptr;
+							selectedObject.hitNode = nullptr;
+							selectedObject.hitForm = nullptr;
+						}
+					}
+					else {
+						NiAVObject *hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+						if (hitNode != selectedObject.shaderNode) {
+							// Moved nodes on the same reference
+							StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+							selectedObject.shaderNode = nullptr;
+							selectedObject.hitNode = nullptr;
+							selectedObject.hitForm = nullptr;
+							selectedObject.shaderNode = hitNode;
+
+							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+						}
 					}
 				}
 			}
@@ -1007,7 +1029,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		if (state == State::SelectedClose || state == State::SelectedFar) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && !isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
+				if (!isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
 					// If time has run out and nothing is selected, deselect whatever is selected
 					if (state == State::SelectedClose) {
 						if (g_vrikInterface) {
@@ -1024,10 +1046,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					Deselect();
 				}
-
-				// Check if we should grab the object. If yes, grab and go to GRABBED
-				if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
-					if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				else {
+					// Check if we should grab the object. If yes, grab and go to GRABBED
+					if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 						if (state == State::SelectedFar) {
 							hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
 							NiPoint3 hkHandPos = handPos * havokWorldScale;
@@ -1056,18 +1077,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						grabRequested = false;
 						wasObjectGrabbed = true; // This variable is not set to false when we push/pull the object
 					}
-					else {
-						// Selected object no longer exists
-						if (state == State::SelectedClose) {
-							if (g_vrikInterface) {
-								g_vrikInterface->restoreFingers(isLeft);
-							}
-						}
-						state = State::Idle;
-					}
 				}
 			}
 			else {
+				// Selected object no longer exists
 				if (state == State::SelectedClose) {
 					if (g_vrikInterface) {
 						g_vrikInterface->restoreFingers(isLeft);
@@ -1356,7 +1369,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
 					horizontalDelta.z = 0;
 					NiPoint3 velocity = horizontalDelta / duration;
-					float verticalDelta = hkPalmNodePos.z - objPoint.z;
+					float verticalDelta = hkPalmNodePos.z - objPoint.z + 0.05f; // Add an extra few cm up so that the object doesn't undershoot
 					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
 					NiAVObject *n = FindCollidableNode(selectedObject.collidable);

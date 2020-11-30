@@ -1,6 +1,7 @@
 #include "effects.h"
 #include "utils.h"
 #include "offsets.h"
+#include "grabber.h"
 
 #include "skse64/NiGeometry.h"
 #include "skse64/GameRTTI.h"
@@ -25,18 +26,8 @@ bool PlayingShader::IsPlaying() const
 	return doesObjExist;
 }
 
-struct BSEffectShaderData
-{
-	inline UInt32 IncRef() { return InterlockedIncrement(&refCount); }
-	inline UInt32 DecRef() { return InterlockedDecrement(&refCount); }
 
-	UInt32 refCount; // 00
-
-	// more...
-};
-
-
-std::unordered_map<NiAVObject *, NiPointer<BSEffectShaderData>> effectDataMap;
+std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> effectDataMap;
 
 void ClearEffectDataMap()
 {
@@ -47,7 +38,7 @@ void ClearEffectDataMap()
 	}
 }
 
-void SaveShaderData(NiAVObject *root)
+void SaveShaderData(UInt32 handle, NiAVObject *root)
 {
 	BSGeometry *geom = root->GetAsBSGeometry();
 	if (geom) {
@@ -55,7 +46,28 @@ void SaveShaderData(NiAVObject *root)
 		if (shaderProperty) {
 			NiPointer<BSEffectShaderData> effectData = (BSEffectShaderData *)shaderProperty->unk68;
 			if (effectData) {
-				effectDataMap[root] = effectData;
+				ProcessLists *processLists = *g_processLists;
+				{
+					SimpleLocker locker(&processLists->magicEffectsLock);
+
+					for (int i = 0; i < processLists->magicEffects.count; i++) {
+						NiPointer<BSTempEffect> effect = processLists->magicEffects.entries[i];
+						ShaderReferenceEffect *shaderReference = DYNAMIC_CAST(effect, BSTempEffect, ShaderReferenceEffect);
+						if (shaderReference) {
+							// We only care about saving shader data if it's a shader effect
+							NiPointer<NiAVObject> attachRoot = (shaderReference->ownController && shaderReference->controller) ? shaderReference->controller->attachRoot : nullptr;
+							if ((shaderReference->target == handle && !attachRoot) || attachRoot == root) {
+								if (shaderReference->effectShaderData == effectData) { // Make sure we save the shader that's actually affecting the node
+									TESEffectShader *shader = shaderReference->effectData;
+									if (shader != g_rightGrabber->itemSelectedShader && shader != g_rightGrabber->itemSelectedShaderOffLimits) {
+										// Only save shader data for shaders that are not our own
+										effectDataMap[root] = shaderReference;
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -65,23 +77,41 @@ void SaveShaderData(NiAVObject *root)
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			NiAVObject *child = node->m_children.m_data[i];
 			if (child) {
-				SaveShaderData(child);
+				SaveShaderData(handle, child);
 			}
 		}
 	}
 }
 
-void RestoreShaderData(NiAVObject *root)
+void RestoreShaderData(UInt32 handle, NiAVObject *root)
 {
 	BSGeometry *geom = root->GetAsBSGeometry();
 	if (geom) {
 		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSLightingShaderProperty);
 		if (shaderProperty) {
 			if (effectDataMap.count(root) != 0) {
-				NiPointer<BSEffectShaderData> shaderData = effectDataMap[root];
-				shaderData->IncRef();
-				*((BSEffectShaderData **)&shaderProperty->unk68) = shaderData;
-				effectDataMap.erase(root);
+				NiPointer<ShaderReferenceEffect> savedShaderReference = effectDataMap[root];
+
+				// Make sure the shader that was playing when we saved the shader data is still playing now that we're restoring its data
+				ProcessLists *processLists = *g_processLists;
+				{
+					SimpleLocker locker(&processLists->magicEffectsLock);
+
+					for (int i = 0; i < processLists->magicEffects.count; i++) {
+						NiPointer<BSTempEffect> effect = processLists->magicEffects.entries[i];
+						ShaderReferenceEffect *shaderReference = DYNAMIC_CAST(effect, BSTempEffect, ShaderReferenceEffect);
+						if (shaderReference) {
+							if (shaderReference->target == handle && shaderReference == savedShaderReference) {
+								NiPointer<BSEffectShaderData> shaderData = shaderReference->effectShaderData;
+								if (shaderData) {
+									shaderData->IncRef();
+									*((BSEffectShaderData **)&shaderProperty->unk68) = shaderData;
+									effectDataMap.erase(root);
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -91,10 +121,19 @@ void RestoreShaderData(NiAVObject *root)
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			NiAVObject *child = node->m_children.m_data[i];
 			if (child) {
-				RestoreShaderData(child);
+				RestoreShaderData(handle, child);
 			}
 		}
 	}
+}
+
+ShaderReferenceEffect *PlayEffectShader(TESEffectShader *shader, TESObjectREFR *refr)
+{
+	ShaderReferenceEffect *shaderReference;
+	g_shaderReferenceToSet = &shaderReference;
+	EffectShader_Play(VM_REGISTRY, 0, shader, refr, 60.0f);
+	g_shaderReferenceToSet = nullptr;
+	return shaderReference;
 }
 
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
@@ -113,7 +152,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 		UInt32 handleCopy = objHandle;
 		if (LookupREFRByHandle(handleCopy, obj)) {
 			if (node) {
-				SaveShaderData(node);
+				SaveShaderData(objHandle, node);
 			}
 
 			PlayingShader &freeShader = _shaders[0];
@@ -121,14 +160,10 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 			freeShader.handle = objHandle;
 			freeShader.shader = shader;
 
-			ShaderReferenceEffect *shaderReference;
-			g_shaderReferenceToSet = &shaderReference;
-			EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, 60.0f);
-			g_shaderReferenceToSet = nullptr;
-			freeShader.shaderReference = shaderReference;
+			freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);
+			freeShader.shaderReference->controller->attachRoot = node;
 
 			freeShader.node = node;
-			freeShader.shaderReference->controller->attachRoot = node;
 		}
 
 		return;
@@ -148,16 +183,11 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 			NiPointer<TESObjectREFR> obj;
 			UInt32 handleCopy = objHandle;
 			if (LookupREFRByHandle(handleCopy, obj)) {
-				SaveShaderData(node);
+				SaveShaderData(objHandle, node);
 
 				freeShader.shader = shader;
 
-				ShaderReferenceEffect *shaderReference;
-				g_shaderReferenceToSet = &shaderReference;
-				EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, 60.0f);
-				g_shaderReferenceToSet = nullptr;
-				freeShader.shaderReference = shaderReference;
-
+				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
 				freeShader.shaderReference->controller->attachRoot = node;
 			}
 		}
@@ -170,12 +200,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 			if (LookupREFRByHandle(handleCopy, obj)) {
 				freeShader.shader = shader;
 
-				ShaderReferenceEffect *shaderReference;
-				g_shaderReferenceToSet = &shaderReference;
-				EffectShader_Play(VM_REGISTRY, 0, freeShader.shader, obj, 60.0f);
-				g_shaderReferenceToSet = nullptr;
-				freeShader.shaderReference = shaderReference;
-
+				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
 				freeShader.shaderReference->controller->attachRoot = node;
 			}
 		}
@@ -220,7 +245,7 @@ void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 		neo.shaderReference->finished = true; // This is all it takes to stop the shader
 
 		if (neo.node) {
-			RestoreShaderData(neo.node);
+			RestoreShaderData(objHandle, neo.node);
 		}
 	}
 	

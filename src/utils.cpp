@@ -252,8 +252,14 @@ std::string PrintNodeToString(NiAVObject *avObj, int depth)
 	if (avObj->m_name) {
 		avInfoStr << " " << avObj->m_name;
 	}
-	if (avObj->unk040) {
-		auto coll = (bhkCollisionObject *)avObj->unk040;
+	BSGeometry *geom = avObj->GetAsBSGeometry();
+	if (geom) {
+		if (geom->m_spSkinInstance) {
+			avInfoStr << " [skinned]";
+		}
+	}
+	auto coll = (bhkCollisionObject *)avObj->unk040;
+	if (coll) {
 		avInfoStr.precision(5);
 		avInfoStr << " m=" << (1.0f / coll->body->hkBody->m_motion.getMassInv().getReal());
 	}

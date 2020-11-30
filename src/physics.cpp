@@ -294,7 +294,7 @@ namespace CollisionInfo
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((((UInt8)RagdollLayer::SkipNone >> 8) & 0x1f) << 8);
+				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
 				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 
@@ -358,7 +358,7 @@ namespace CollisionInfo
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((((UInt8)RagdollLayer::SkipNone >> 8) & 0x1f) << 8);
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
 							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 
 							// Do not do a full check. What that means is it won't colide with the player until they stop colliding.

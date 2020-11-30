@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RE/havok.h"
+#include "effects.h"
 
 #include "skse64_common/Relocation.h"
 #include "skse64/PapyrusVM.h"
@@ -43,6 +44,8 @@ extern RelocPtr<bhkSimpleShapePhantom *> g_pickSphere;
 extern RelocPtr<CrosshairPickData *> g_pickData;
 
 extern RelocPtr<float> g_deltaTime;
+
+extern RelocPtr<ProcessLists *> g_processLists;
 
 
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);

@@ -1287,7 +1287,7 @@ void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInterse
 				Triangle tri = tris[i];
 				// get closest point on triangle to given point
 				float tipAngle, outerAngle, innerAngle;
-				auto [tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, nodeTransform.scale, tri, verts, vertexSize, posOffset,
+				auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, nodeTransform.scale, tri, verts, vertexSize, posOffset,
 					tipAngle, outerAngle, innerAngle, anyUnderOuter, anyUnderInner);
 				//int numIntersections = MathUtils::DiskIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				//int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);

@@ -14,6 +14,8 @@ RelocPtr<CrosshairPickData *> g_pickData(0x2FC60C0);
 
 RelocPtr<float> g_deltaTime(0x1EC8278);
 
+RelocPtr<ProcessLists *> g_processLists(0x1F831B0);
+
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 

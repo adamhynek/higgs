@@ -2,6 +2,19 @@
 
 #include "skse64/GameData.h"
 
+
+// Game Types //
+
+struct BSEffectShaderData
+{
+	inline UInt32 IncRef() { return InterlockedIncrement(&refCount); }
+	inline UInt32 DecRef() { return InterlockedDecrement(&refCount); }
+
+	UInt32 refCount; // 00
+
+	// more...
+};
+
 struct OwnedController
 {
 	void *vtbl; // 00
@@ -15,7 +28,7 @@ struct OwnedController
 };
 static_assert(sizeof(OwnedController) == 0x30);
 
-struct ReferenceEffect : NiObject
+struct BSTempEffect : NiObject
 {
 	float		   lifetime;	 // 10
 	UInt32		   pad14;		 // 14
@@ -26,13 +39,18 @@ struct ReferenceEffect : NiObject
 	UInt16		   pad26;		 // 26
 	UInt32		   effectID;	 // 28
 	UInt32		   pad2C;		 // 2C
-	OwnedController *controller; // 30
-	UInt32			   target;		   // 38
-	UInt32			   aimAtTarget;	   // 3C
-	bool					   finished;	   // 40
-	bool					   ownController;  // 41
-	UInt16					   pad42;		   // 42
-	UInt32					   pad44;		   // 44
+};
+static_assert(sizeof(BSTempEffect) == 0x30);
+
+struct ReferenceEffect : BSTempEffect
+{
+	OwnedController *	controller;		// 30
+	UInt32				target;			// 38
+	UInt32				aimAtTarget;	// 3C
+	bool				finished;		// 40
+	bool				ownController;	// 41
+	UInt16				pad42;			// 42
+	UInt32				pad44;			// 44
 };
 static_assert(offsetof(ReferenceEffect, controller) == 0x30);
 
@@ -48,7 +66,7 @@ struct ShaderReferenceEffect : ReferenceEffect
 	NiPointer<NiAVObject> lastRootNode;		 // 0F8
 	TESBoundObject*		  wornObject;		 // 100
 	TESEffectShader*	  effectData;		 // 108
-	void*	  effectShaderData;	 // 110
+	BSEffectShaderData*	  effectShaderData;	 // 110
 	void*				  unk118;			 // 118 - smart ptr
 	std::uint32_t		  unk120;			 // 120
 	std::uint32_t		  unk124;			 // 124
@@ -70,8 +88,21 @@ struct ModelReferenceEffect : ReferenceEffect
 };
 static_assert(offsetof(ModelReferenceEffect, artObject3D) == 0xC8);
 
+struct ProcessLists
+{
+	UInt8 unk00[0x108];
+	tArray<NiPointer<BSTempEffect>> magicEffects; // 108
+	SimpleLock magicEffectsLock; // 120
+	// more...
+};
+static_assert(offsetof(ProcessLists, magicEffects) == 0x108);
+static_assert(offsetof(ProcessLists, magicEffectsLock) == 0x120);
+
+
 extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
 
+
+// My Types //
 
 struct PlayingShader
 {
