@@ -71,11 +71,11 @@ bool HasGeometryChildren(NiAVObject *obj)
 
 bool DoesEntityHaveConstraint(NiAVObject *root, bhkRigidBody *entity)
 {
-	auto collObj = (bhkCollisionObject *)root->unk040;
-	if (collObj) {
-		int numConstraints = collObj->body->numConstraints;
+	auto rigidBody = GetRigidBody(root);
+	if (rigidBody) {
+		int numConstraints = rigidBody->numConstraints;
 		if (numConstraints > 0) {
-			bhkConstraint **constraints = collObj->body->constraints;
+			bhkConstraint **constraints = rigidBody->constraints;
 			for (int i = 0; i < numConstraints; i++) {
 				bhkConstraint *constraint = constraints[i];
 				if (constraint->constraint->getEntityA() == entity->hkBody || constraint->constraint->getEntityB() == entity->hkBody) {
@@ -102,13 +102,12 @@ bool DoesEntityHaveConstraint(NiAVObject *root, bhkRigidBody *entity)
 
 bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node)
 {
-	auto collObj = (bhkCollisionObject *)node->unk040;
-	if (!collObj) {
+	bhkRigidBody *entity = GetRigidBody(node);
+	if (!entity) {
 		return false;
 	}
 
-	bhkRigidBody *entity = collObj->body;
-	if (collObj->body->numConstraints > 0) {
+	if (entity->numConstraints > 0) {
 		// Easy case: it's a master entity
 		return true;
 	}
@@ -258,10 +257,10 @@ std::string PrintNodeToString(NiAVObject *avObj, int depth)
 			avInfoStr << " [skinned]";
 		}
 	}
-	auto coll = (bhkCollisionObject *)avObj->unk040;
-	if (coll) {
+	auto rigidBody = GetRigidBody(avObj);
+	if (rigidBody) {
 		avInfoStr.precision(5);
-		avInfoStr << " m=" << (1.0f / coll->body->hkBody->m_motion.getMassInv().getReal());
+		avInfoStr << " m=" << (1.0f / rigidBody->hkBody->m_motion.getMassInv().getReal());
 	}
 	if (avObj->m_extraData && avObj->m_extraDataLen > 0) {
 		avInfoStr << " { ";
@@ -392,6 +391,23 @@ void PrintToFile(std::string entry, std::string filename)
 	file.close();
 }
 
+NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj)
+{
+	if (!obj->unk040) return nullptr;
+
+	auto niCollObj = ((NiCollisionObject *)obj->unk040);
+	auto collObj = DYNAMIC_CAST(niCollObj, NiCollisionObject, bhkCollisionObject);
+	if (collObj) {
+		NiPointer<bhkWorldObject> worldObj = collObj->body;
+		auto rigidBody = DYNAMIC_CAST(worldObj, bhkWorldObject, bhkRigidBody);
+		if (rigidBody) {
+			return rigidBody;
+		}
+	}
+
+	return nullptr;
+}
+
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 {
 	if (haystack == target) {
@@ -421,9 +437,10 @@ bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node)
 	return DoesNodeHaveNode(ref->loadedState->node, node);
 }
 
-bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
+bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObject *> &targets)
 {
-	BSGeometry *geom = armorNode->GetAsBSGeometry();
+	// Check if skinnedRoot is skinned to target
+	BSGeometry *geom = skinnedRoot->GetAsBSGeometry();
 	if (geom) {
 		NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 		if (skinInstance) {
@@ -433,7 +450,7 @@ bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 				for (int i = 0; i < numBones; i++) {
 					NiAVObject *bone = skinInstance->m_ppkBones[i];
 					if (bone) {
-						if (bone == target) {
+						if (targets.count(bone) != 0) {
 							return true;
 						}
 					}
@@ -442,20 +459,51 @@ bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target)
 		}
 		return false;
 	}
-	NiNode *node = armorNode->GetAsNiNode();
+	NiNode *node = skinnedRoot->GetAsNiNode();
 	if (node) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			auto child = node->m_children.m_data[i];
 			if (child) {
-				if (IsNodeWithinArmor(child, target)) {
+				if (IsSkinnedToNodes(child, targets)) {
 					return true;
 				}
 			}
 		}
 		return false;
 	}
-	_WARNING("Armor node is not geometry and has no children: %s", armorNode->m_name ? armorNode->m_name : "");
 	return false;
+}
+
+void PopulateTargets(NiAVObject *root, std::unordered_set<NiAVObject *> &targets)
+{
+	if (!root) return;
+
+	// Populate targets with the entire subtree but stop when we hit a node with collision
+
+	targets.insert(root);
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				if (!GetRigidBody(child)) {
+					PopulateTargets(child, targets);
+				}
+			}
+		}
+	}
+}
+
+std::unordered_set<NiAVObject *> targetNodeSet;
+bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target)
+{
+	PopulateTargets(target, targetNodeSet);
+
+	bool result = IsSkinnedToNodes(skinnedRoot, targetNodeSet);
+
+	targetNodeSet.clear();
+	return result;
 }
 
 void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes)

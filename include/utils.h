@@ -40,10 +40,11 @@ void PrintToFile(std::string entry, std::string filename);
 //float hkHalfToFloat(hkHalf half);
 //hkHalf floatToHkHalf(float half);
 
+NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj);
 bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node);
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
-bool IsNodeWithinArmor(NiAVObject *armorNode, NiAVObject *target);
+bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target);
 void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes);
 
 typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);

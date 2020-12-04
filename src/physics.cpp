@@ -2,6 +2,7 @@
 
 #include "physics.h"
 #include "offsets.h"
+#include "utils.h"
 
 #include "skse64/NiNodes.h"
 
@@ -140,9 +141,9 @@ namespace CollisionInfo
 
 	void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason)
 	{
-		if (obj->unk040) {
-			auto collObj = (bhkCollisionObject *)obj->unk040;
-			hkpRigidBody *entity = collObj->body->hkBody;
+		auto rigidBody = GetRigidBody(obj);
+		if (rigidBody) {
+			hkpRigidBody *entity = rigidBody->hkBody;
 			if (entity->m_world) {
 				hkpCollidable *collidable = &entity->m_collidable;
 
@@ -315,9 +316,9 @@ namespace CollisionInfo
 
 	void ResetCollisionInfoDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode)
 	{
-		if (obj->unk040) {
-			auto collObj = (bhkCollisionObject *)obj->unk040;
-			hkpRigidBody *entity = collObj->body->hkBody;
+		auto rigidBody = GetRigidBody(obj);
+		if (rigidBody) {
+			hkpRigidBody *entity = rigidBody->hkBody;
 			if (entity->m_world) {
 				hkpCollidable *collidable = &entity->m_collidable;
 				if (collidable != skipNode) {
@@ -402,9 +403,8 @@ namespace CollisionInfo
 
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
 {
-	if (obj->unk040) {
-		auto collObj = (bhkCollisionObject *)obj->unk040;
-		bhkRigidBody *bRigidBody = collObj->body;
+	auto bRigidBody = GetRigidBody(obj);
+	if (bRigidBody) {
 		hkpRigidBody *rigidBody = bRigidBody->hkBody;
 		if (rigidBody->m_world) {
 			hkpMotion *motion = &rigidBody->m_motion;

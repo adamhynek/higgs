@@ -114,7 +114,7 @@ void Grabber::Select(TESObjectREFR *obj)
 
 void Grabber::Deselect()
 {
-	std::lock_guard<std::mutex> lock(deselectLock);
+	std::scoped_lock lock(deselectLock);
 
 	selectedObject.handle = *g_invalidRefHandle;
 	selectedObject.collidable = nullptr;
@@ -256,7 +256,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNo
 			// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
 
 			if (!selectedObject.isActor) {
-				SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
+				CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 			}
 
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
@@ -275,7 +275,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNo
 			state = State::HeldBody;
 		}
 		else {
-			SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
+			CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
 			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
@@ -578,7 +578,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		return;
 	}
 
-	playerCollisionGroup = ((bhkCollisionObject *)comNode->unk040)->body->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
+	{
+		auto comRigidBody = GetRigidBody(comNode);
+		if (comRigidBody) {
+			playerCollisionGroup = comRigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
+		}
+	}
 
 	bhkWorld *world = GetWorld(cell);
 	if (!world) {
@@ -881,7 +886,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									TESForm *armorForm = bipedData->unk10[i].armor;
 									if (armorForm) {
 										// Now check if we actually hit a node the armor is skinned to
-										bool isArmorHit = IsNodeWithinArmor(geomNode, hitNode);
+										bool isArmorHit = IsSkinnedToNode(geomNode, hitNode);
 										if (isArmorHit) {
 											if (hitIndex == -1 || CompareBipedIndices(hitIndex, i)) {
 												hitIndex = i;
@@ -969,7 +974,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				}
 			}
 			else if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				// No node selected but refr is still selected
+				// No (actor) node selected but refr is still selected
 
 				if (selectedObject.handle != prevSelectedHandle) {
 					// New refr is selected. Stopping the shader for the previous ref is done earlier.
@@ -981,7 +986,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					if (!selectedObject.isActor) {
 						NiAVObject *hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
 						if (hitNode) {
-							selectedObject.shaderNode = hitNode;
+							if (!IsSkinnedToNode(selectedObj->loadedState->node, hitNode)) {
+								selectedObject.shaderNode = hitNode;
+							}
 						}
 						PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					}
@@ -1008,10 +1015,27 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							selectedObject.shaderNode = nullptr;
 							selectedObject.hitNode = nullptr;
 							selectedObject.hitForm = nullptr;
-							selectedObject.shaderNode = hitNode;
+
+							if (!IsSkinnedToNode(selectedObj->loadedState->node, hitNode)) {
+								selectedObject.shaderNode = hitNode;
+							}
 
 							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 						}
+					}
+				}
+				else {
+					// Same refr, no node selected before (skinned?)
+					NiAVObject *hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+					if (hitNode && !IsSkinnedToNode(selectedObj->loadedState->node, hitNode)) {
+						// Only replay the shader if we now have a specific node to play on
+						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+						selectedObject.hitNode = nullptr;
+						selectedObject.hitForm = nullptr;
+						selectedObject.shaderNode = hitNode;
+
+						PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					}
 				}
 			}
@@ -1183,7 +1207,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 										NiPointer<TESObjectREFR> droppedObj;
 										if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-											std::lock_guard<std::mutex> lock(deselectLock);
+											std::scoped_lock lock(deselectLock);
 
 											selectedObject.handle = droppedObjHandle;
 											selectedObject.collidable = nullptr;
@@ -1212,14 +1236,14 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							motion->m_motionState.m_angularDamping = hkHalf(3.0f);
 
 							if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-								auto collObj = (bhkCollisionObject *)selectedObj->loadedState->node->unk040;
-								if (collObj) {
+								auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
+								if (rigidBody) {
 									// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
-									auto collidable = &collObj->body->hkBody->m_collidable;
+									auto collidable = &rigidBody->hkBody->m_collidable;
 									// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
 									collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
 									// Projectiles have 'Fixed' motion type by default, making them unmovable
-									bhkRigidBody_setMotionType(collObj->body, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+									bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 								}
 							}
 
@@ -1323,9 +1347,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
 					// Transition to pulled with the newly spawned item
 
-					auto collObj = (bhkCollisionObject *)selectedObj->loadedState->node->unk040;
-					if (collObj) {
-						selectedObject.rigidBody = collObj->body;
+					auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
+					if (rigidBody) {
+						selectedObject.rigidBody = rigidBody;
 						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
 
 						// Set owner to the player so it doesn't count as stealing
@@ -1355,7 +1379,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 				NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 
-				float distanceFactor = VectorLength(hkPalmNodePos - hkObjPos) / 5.0f;
+				NiPoint3 objPoint = hkObjPos + pulledPointOffset;
+
+				float distanceFactor = VectorLength(hkPalmNodePos - objPoint) / 5.0f;
 				float duration = 0.375f + 0.375f * distanceFactor;
 
 				pulledExpireTime = duration + 1.0f;
@@ -1363,9 +1389,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
+				// TODO: If the player lets go of the trigger/grip, we go straight to idle. It would be better to do the velocity updates for all 5 frames before exiting the pulled state.
 				if (g_currentFrameTime - pulledTime <= 0.06f) { // just over 5 frames at 90fps
-					NiPoint3 objPoint = hkObjPos + pulledPointOffset;
-
 					NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
 					horizontalDelta.z = 0;
 					NiPoint3 velocity = horizontalDelta / duration;

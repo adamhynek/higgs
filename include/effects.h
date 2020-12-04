@@ -1,5 +1,9 @@
 #pragma once
 
+#include <shared_mutex>
+#include <unordered_map>
+#include <unordered_set>
+
 #include "skse64/GameData.h"
 
 
@@ -100,6 +104,9 @@ static_assert(offsetof(ProcessLists, magicEffectsLock) == 0x120);
 
 
 extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
+
+extern std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes; // Map root node to set of geom off of that root
+extern std::shared_mutex g_shaderNodesLock;
 
 
 // My Types //

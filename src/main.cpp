@@ -63,11 +63,13 @@ bool initComplete = false; // Whether grabbers have been initialized
 Grabber *g_rightGrabber;
 Grabber *g_leftGrabber;
 
+std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes;
+
 
 bool TryHook()
 {
 	// This should be sized to the actual amount used by your trampoline
-	static const size_t TRAMPOLINE_SIZE = 2048;
+	static const size_t TRAMPOLINE_SIZE = 4096;
 
 	if (g_trampoline) {
 		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
@@ -365,9 +367,11 @@ extern "C" {
 			},
 		};
 
+		g_shaderNodes = new std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>>;
+
 		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "NPC R UpperArm [RUar]", "RightWandNode", rightFingerNames, { 0, -2.4, 6 }, { 7, -5, -2 }, Config::options.delayRightGripInput);
 		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "NPC L UpperArm [LUar]", "LeftWandNode", leftFingerNames, { 0, -2.4, 6 }, { -7, -7, -3 }, Config::options.delayLeftGripInput);
-		if (!g_rightGrabber || !g_leftGrabber) {
+		if (!g_rightGrabber || !g_leftGrabber || !g_shaderNodes) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
 		}

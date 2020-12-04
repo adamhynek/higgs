@@ -87,7 +87,7 @@ void RestoreShaderData(UInt32 handle, NiAVObject *root)
 {
 	BSGeometry *geom = root->GetAsBSGeometry();
 	if (geom) {
-		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSLightingShaderProperty);
+		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSShaderProperty);
 		if (shaderProperty) {
 			if (effectDataMap.count(root) != 0) {
 				NiPointer<ShaderReferenceEffect> savedShaderReference = effectDataMap[root];
@@ -127,13 +127,97 @@ void RestoreShaderData(UInt32 handle, NiAVObject *root)
 	}
 }
 
-ShaderReferenceEffect *PlayEffectShader(TESEffectShader *shader, TESObjectREFR *refr)
+
+std::shared_mutex g_shaderNodesLock;
+
+
+const size_t g_vtblSize = 0x40; // 0x3F vfuncs + typeinfo above vtable
+uintptr_t g_vtblCopy[g_vtblSize];
+uintptr_t *g_vfuncsCopy = g_vtblCopy + 1;
+uintptr_t g_shaderReferenceEffectDtor = 0;
+bool g_isVtblCopied = false;
+
+typedef void(*_ShaderReferenceEffectDtor)(ShaderReferenceEffect *_this);
+void HookedShaderReferenceEffectDtor(ShaderReferenceEffect *_this)
+{
+	_MESSAGE("HookedShaderReferenceEffectDtor");
+
+	{
+		// Clear the nodes from the map for this reference effect
+		std::unique_lock lock(g_shaderNodesLock);
+		g_shaderNodes->erase(_this);
+	}
+
+	((_ShaderReferenceEffectDtor)g_shaderReferenceEffectDtor)(_this);
+}
+
+void FillGeometryNodes(NiAVObject *root, std::unordered_set<BSGeometry *> &geometryNodes, bool terminateAtCollision)
+{
+	// Populate geometry nodes until we hit nodes with their own collision
+
+	BSGeometry *geom = root->GetAsBSGeometry();
+	if (geom) {
+		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSShaderProperty);
+		if (shaderProperty) {
+			if (shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Facegen_Detail_Map ||
+				shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_FaceGen_RGB_Tint) {
+
+				// It's skin geometry, so don't play the shader on it
+			}
+			else {
+				geometryNodes.insert(geom);
+			}
+		}
+	}
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			NiAVObject *child = node->m_children.m_data[i];
+			if (child) {
+				if (!GetRigidBody(child) || !terminateAtCollision) {
+					FillGeometryNodes(child, geometryNodes, terminateAtCollision);
+				}
+			}
+		}
+	}
+}
+
+ShaderReferenceEffect * PlayEffectShader(TESEffectShader *shader, TESObjectREFR *refr)
 {
 	ShaderReferenceEffect *shaderReference;
+
 	g_shaderReferenceToSet = &shaderReference;
 	EffectShader_Play(VM_REGISTRY, 0, shader, refr, 60.0f);
 	g_shaderReferenceToSet = nullptr;
+
+	if (!g_isVtblCopied) {
+		g_isVtblCopied = true;
+
+		// Copy the vtable
+		uintptr_t *vtbl = *((uintptr_t **)shaderReference);
+		memcpy(g_vfuncsCopy - 1, vtbl - 1, g_vtblSize * sizeof(uintptr_t)); // Need to copy the typeinfo as well as the vfuncs
+
+		// Replace the destructor with our hooked one
+		g_shaderReferenceEffectDtor = g_vfuncsCopy[0];
+		g_vfuncsCopy[0] = (uintptr_t)HookedShaderReferenceEffectDtor;
+	}
+
+	// Replace the shader reference's vtable with the copied/modified one
+	*((UInt64 **)shaderReference) = ((UInt64 *)(g_vfuncsCopy));
+
 	return shaderReference;
+}
+
+void CommitShaderNodes(ShaderReferenceEffect *shaderReference, NiAVObject *node, bool terminateAtCollision)
+{
+	// The nodes that get put into the set are the ones that actually get the shader to play on them
+
+	std::unordered_set<BSGeometry *> geometryNodes;
+	FillGeometryNodes(node, geometryNodes, terminateAtCollision);
+
+	std::unique_lock lock(g_shaderNodesLock);
+	(*g_shaderNodes)[shaderReference] = std::move(geometryNodes);
 }
 
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
@@ -163,6 +247,8 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 			freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);
 			freeShader.shaderReference->controller->attachRoot = node;
 
+			CommitShaderNodes(freeShader.shaderReference, node ? node : obj->loadedState->node, node);
+
 			freeShader.node = node;
 		}
 
@@ -187,8 +273,10 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 
 				freeShader.shader = shader;
 
-				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
+				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);
 				freeShader.shaderReference->controller->attachRoot = node;
+
+				CommitShaderNodes(freeShader.shaderReference, node, true);
 			}
 		}
 	}
@@ -201,7 +289,9 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 				freeShader.shader = shader;
 
 				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
-				freeShader.shaderReference->controller->attachRoot = node;
+				freeShader.shaderReference->controller->attachRoot = node; // node is null
+
+				CommitShaderNodes(freeShader.shaderReference, obj->loadedState->node, false);
 			}
 		}
 	}

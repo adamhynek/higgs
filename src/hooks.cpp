@@ -36,6 +36,12 @@ auto pickRayCastHookLoc = RelocAddr<uintptr_t>(0x3BA787);
 auto shaderSetEffectDataHookLoc = RelocAddr<uintptr_t>(0x2292AE);
 auto shaderSetEffectDataHookedFunc = RelocAddr<uintptr_t>(0x22A280); // BSLightingShaderProperty::SetEffectShaderData
 
+uintptr_t shaderSetEffectDataInitHookedFuncAddr = 0;
+auto shaderSetEffectDataInitHookLoc = RelocAddr<uintptr_t>(0x56761E);
+auto shaderSetEffectDataInitHookedFunc = RelocAddr<uintptr_t>(0x2291F0); // TESEffectShader::SetEffectShaderData
+
+auto shaderCheckFlagsHookLoc = RelocAddr<uintptr_t>(0x229243);
+
 
 ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
 void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
@@ -45,15 +51,22 @@ void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE T
 	}
 }
 
+BSGeometry *g_shaderGeometry = nullptr; // This gets set shortly before the below hook gets called
+ShaderReferenceEffect *g_shaderReference = nullptr; // This gets set before the SetEffectData calls
+
 typedef void(*_ShaderProperty_SetEffectData)(BSLightingShaderProperty *shaderProperty, void *effectShaderData);
 void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *effectShaderData, TESEffectShader *shader)
 {
-	if (shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Facegen_Detail_Map ||
-		shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_FaceGen_RGB_Tint) {
-		if (shader == g_rightGrabber->itemSelectedShader || shader == g_rightGrabber->itemSelectedShaderOffLimits) {
+	if (shader == g_rightGrabber->itemSelectedShader || shader == g_rightGrabber->itemSelectedShaderOffLimits) {
+		{
+			if (!g_shaderReference) return;
 
-			// It's skin geometry, skip this one
-			return;
+			std::shared_lock lock(g_shaderNodesLock);
+
+			// We only play the shader on geometry that's in the set
+			auto &shaderNodes = *g_shaderNodes;
+			if (shaderNodes.count(g_shaderReference) == 0) return;
+			if (shaderNodes[g_shaderReference].count(g_shaderGeometry) == 0) return;
 		}
 	}
 
@@ -67,7 +80,7 @@ void WorldUpdateHook(bhkWorld *world)
 	// Why? We need it here to calm down physics constraints - they freak out if only set in the openvr hook
 	// We also need to do it there though, since otherwise we get flickering lighting on the object.
 	{
-		std::lock_guard<std::mutex> lock(g_rightGrabber->deselectLock);
+		std::scoped_lock lock(g_rightGrabber->deselectLock);
 
 		if (g_rightGrabber->state == Grabber::State::Held) {
 			PlayerCharacter *player = *g_thePlayer;
@@ -86,7 +99,7 @@ void WorldUpdateHook(bhkWorld *world)
 		}
 	}
 	{
-		std::lock_guard<std::mutex> lock(g_leftGrabber->deselectLock);
+		std::scoped_lock lock(g_leftGrabber->deselectLock);
 
 		if (g_leftGrabber->state == Grabber::State::Held) {
 			PlayerCharacter *player = *g_thePlayer;
@@ -126,6 +139,7 @@ void PerformHooks(void)
 	shaderHookedFuncAddr = shaderHookedFunc.GetUIntPtr();
 	pickHookedFuncAddr = pickHookedFunc.GetUIntPtr();
 	pickLinearCastHookedFuncAddr = pickLinearCastHookedFunc.GetUIntPtr();
+	shaderSetEffectDataInitHookedFuncAddr = shaderSetEffectDataInitHookedFunc.GetUIntPtr();
 
 	{
 		struct Code : Xbyak::CodeGenerator {
@@ -331,5 +345,77 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(shaderSetEffectDataHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Shader SetEffectShaderData hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// The node the shader is considering playing on is at rdx at this point.
+				// During this hooked function call, rdx gets overwritten so we need to grab it here.
+				push(rax);
+				mov(rax, (uintptr_t)&g_shaderGeometry);
+				mov(ptr[rax], rdx);
+				pop(rax);
+
+				// Original code
+				call(ptr[rax + 0x1C8]);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(shaderCheckFlagsHookLoc.GetUIntPtr() + 6);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(shaderCheckFlagsHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Shader check flags hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// The ShaderReferenceEffect is at rsi at this point.
+				push(rax);
+				mov(rax, (uintptr_t)&g_shaderReference);
+				mov(ptr[rax], rsi);
+				pop(rax);
+
+				// Original code
+				mov(rax, shaderSetEffectDataInitHookedFuncAddr);
+				call(rax);
+
+				// Set g_shaderReference to null so that other calls to SetEffectData (if there are any...) don't use it
+				// We're cool to use rcx and rdx at this point, because they're caller-save and could have been overwritten with anything.
+				mov(rcx, (uintptr_t)&g_shaderReference);
+				mov(rdx, 0);
+				mov(ptr[rcx], rdx);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(shaderSetEffectDataInitHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(shaderSetEffectDataInitHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Shader SetEffectShaderDataInit hook complete");
 	}
 }

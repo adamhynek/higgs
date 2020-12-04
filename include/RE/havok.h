@@ -61,7 +61,12 @@ struct bhkConstraint : NiRefObject
 	hkpConstraintInstance *constraint; // 10
 };
 
-struct bhkEntity : NiRefObject
+struct bhkWorldObject : NiObject
+{
+
+};
+
+struct bhkEntity : bhkWorldObject
 {
 
 };
@@ -86,12 +91,15 @@ struct bhkRigidBodyT : bhkRigidBody
 static_assert(offsetof(bhkRigidBodyT, unkRot) == 0x40);
 static_assert(offsetof(bhkRigidBodyT, unkPos) == 0x50);
 
-struct bhkCollisionObject : NiRefObject
+struct NiCollisionObject : NiObject
 {
-	NiNode * node; // 10 - points back to the NiNode pointing to this
+	NiAVObject * node; // 10 - points back to the NiAVObject pointing to this
+};
+
+struct bhkCollisionObject : NiCollisionObject
+{
 	UInt64 unk18; // bit 3 is set => we should update rotation of NiNode?
-	bhkRigidBody * body; // 20
-	// more?
+	NiPointer<bhkWorldObject> body; // 20
 };
 static_assert(offsetof(bhkCollisionObject, body) == 0x20);
 
