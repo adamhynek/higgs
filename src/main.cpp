@@ -141,8 +141,36 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 	bool isLeftHanded = *g_leftHandedMode;
 
-	g_rightGrabber->PoseUpdate(*g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
-	g_leftGrabber->PoseUpdate(*g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
+	bool isRightHeld = g_rightGrabber->state == Grabber::State::HeldInit || g_rightGrabber->state == Grabber::State::Held;
+	bool isLeftHeld = g_leftGrabber->state == Grabber::State::HeldInit || g_leftGrabber->state == Grabber::State::Held;
+
+	Grabber *firstGrabberToUpdate = g_rightGrabber;
+	Grabber *lastGrabberToUpdate = g_leftGrabber;
+	if (isRightHeld && isLeftHeld && g_rightGrabber->selectedObject.handle == g_leftGrabber->selectedObject.handle) {
+		// Both hands are holding something using the transform method, and they belong to the same object reference.
+		// We need to see if one of the held nodes is a child of the other, and make sure to do the update for the child node last.
+
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+			NiAVObject *leftNode = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
+			NiAVObject *rightNode = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
+			if (leftNode && rightNode) {
+				if (DoesNodeHaveNode(leftNode, rightNode)) {
+					// Right is the child
+					firstGrabberToUpdate = g_leftGrabber;
+					lastGrabberToUpdate = g_rightGrabber;
+				}
+				else if (DoesNodeHaveNode(rightNode, leftNode)) {
+					// Left is the child
+					firstGrabberToUpdate = g_rightGrabber;
+					lastGrabberToUpdate = g_leftGrabber;
+				}
+			}
+		}
+	}
+
+	firstGrabberToUpdate->PoseUpdate(*g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
+	lastGrabberToUpdate->PoseUpdate(*g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
 
 	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
