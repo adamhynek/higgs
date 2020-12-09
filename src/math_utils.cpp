@@ -1475,69 +1475,87 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 		visit(&intersection, tipAngle);
 	}
 
-	// All other cases, choose from all - if one doesn't intersect, then just don't use it
-
 	float smallestAngle = min(innerAngle, min(outerAngle, tipAngle));
 	if (smallestAngle < 0) {
 		*outAngle = smallestAngle;
 		return true;
 	}
 
-	// Get curve val for each
-	float tipVal = 0, outerVal = 0, innerVal = 0;
 
+	float curveVal = 0;
 	SavedFingerData fingerData;
-
-	if (tipAngle != (std::numeric_limits<float>::max)()) {
-		LookupFingerByAngle(g_fingerTipVals[fingerIndex], tipAngle, &fingerData);
-		tipVal = fingerData.curveVal;
-	}
-	if (outerAngle != (std::numeric_limits<float>::max)()) {
-		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], outerAngle, &fingerData);
-		outerVal = fingerData.curveVal;
-	}
 	if (innerAngle != (std::numeric_limits<float>::max)()) {
 		LookupFingerByAngle(g_fingerInnerVals[fingerIndex], innerAngle, &fingerData);
-		innerVal = fingerData.curveVal;
+		curveVal = fingerData.curveVal;
+	}
+	else if (outerAngle != (std::numeric_limits<float>::max)()) {
+		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], outerAngle, &fingerData);
+		curveVal = fingerData.curveVal;
+	}
+	else if (tipAngle != (std::numeric_limits<float>::max)()) {
+		LookupFingerByAngle(g_fingerTipVals[fingerIndex], tipAngle, &fingerData);
+		curveVal = fingerData.curveVal;
+	}
+	else {
+		return false;
 	}
 
-	// Pick largest curve val (most 'open' value)
-	float maxVal = max(tipVal, max(outerVal, innerVal));
-	if (tipVal == maxVal) {
-		// TODO: Change to tip angle
-		*outAngle = tipVal;
+	_MESSAGE("%.2f", curveVal);
+
+	std::vector<float> outerCurveVals, tipCurveVals;
+	for (auto &intersection : outerIntersections) {
+		float angle = intersection.angle;
+		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], angle, &fingerData);
+		outerCurveVals.push_back(fingerData.curveVal);
+		_MESSAGE("outer: %.2f", fingerData.curveVal);
 	}
-	else if (outerVal == maxVal) {
-		// TODO: Get tip angle from outer val
-		*outAngle = outerVal;
+	for (auto &intersection : tipIntersections) {
+		float angle = intersection.angle;
+		LookupFingerByAngle(g_fingerTipVals[fingerIndex], angle, &fingerData);
+		tipCurveVals.push_back(fingerData.curveVal);
+		_MESSAGE("tip: %.2f", fingerData.curveVal);
 	}
-	else { // innerVal == maxVal
-		// TODO: Get tip angle from inner val
-		*outAngle = innerVal;
+	std::sort(outerCurveVals.begin(), outerCurveVals.end());
+	std::sort(tipCurveVals.begin(), tipCurveVals.end());
+
+	if (outerCurveVals.size() > 0) {
+		float outerVal = outerCurveVals[0];
+		for (int i = 1; i < outerCurveVals.size(); i++) {
+			float val = outerCurveVals[i];
+			if (val > outerVal) {
+				if (val - outerVal > 0.25f && outerVal >= curveVal) {
+					// Do not accept finger curl amount jumps that are above some threshold
+					break;
+				}
+				outerVal = val;
+			}
+		}
+
+		if (outerVal > curveVal) {
+			curveVal = outerVal;
+		}
 	}
 
+	if (tipCurveVals.size() > 0) {
+		float tipVal = tipCurveVals[0];
+		for (int i = 1; i < tipCurveVals.size(); i++) {
+			float val = tipCurveVals[i];
+			if (val > tipVal) {
+				if (val - tipVal > 0.25f && tipVal >= curveVal) {
+					// Do not accept finger curl amount jumps that are above some threshold
+					break;
+				}
+				tipVal = val;
+			}
+		}
+
+		if (tipVal > curveVal) {
+			curveVal = tipVal;
+		}
+	}
+
+	*outAngle = curveVal;
 	return true;
-
-	/*
-	if (innerIntersections.size() > 0 && outerIntersections.size() == 0 && tipIntersections.size() == 0) {
-		// Only inner intersects - use inner
-	}
-
-	if (innerIntersections.size() == 0 && outerIntersections.size() > 0 && tipIntersections.size() == 0) {
-		// Only outer intersects - use outer
-	}
-
-	if (innerIntersections.size() > 0 && outerIntersections.size() > 0 && tipIntersections.size() == 0) {
-		// Only inner and outer  - decide on one of them
-	}
-
-	if (innerIntersections.size() == 0 && outerIntersections.size() > 0 && tipIntersections.size() > 0) {
-		// Outer and tip - decide on one of them
-	}
-
-	if (innerIntersections.size() > 0 && outerIntersections.size() > 0 && tipIntersections.size() > 0) {
-		// All intersects - decide from all
-	}*/
 }
 
 

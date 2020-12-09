@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <array>
+#include <deque>
 
 #include "skse64/InternalVR.h"
 #include "RE/havok.h"
@@ -65,7 +66,8 @@ struct Grabber
 		wandNodeName(wandNodeName),
 		palmPosHandspace(palmPosHandspace),
 		rolloverOffset(rolloverOffset),
-		delayGripInput(delayGripInput)
+		delayGripInput(delayGripInput),
+		controllerVelocities(10, NiPoint3())
 	{
 		for (int i = 0; i < 5; i++) {
 			for (int j = 0; j < 3; j++) {
@@ -127,9 +129,10 @@ struct Grabber
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	std::array<NiPoint3, 5> handVelocitiesWorldspace; // previous n hand velocities in skyrim worldspace
+	std::array<NiPoint3, 5> playerVelocitiesWorldspace; // previous n player velocities in skyrim worldspace
 	std::array<NiPoint3, 5> handVelocitiesRoomspace; // previous n wand velocities in local roomspace
 	std::array<NiPoint3, 5> handDirectionVelocities; // previous n hand direction velocities
+	std::deque<NiPoint3> controllerVelocities;
 
 	SelectedObject selectedObject;
 	PulledObject pulledObject;
@@ -142,7 +145,7 @@ struct Grabber
 
 	NiTransform desiredObjTransformHandSpace;
 
-	NiPoint3 prevHandPosWorldspace;
+	NiPoint3 prevPlayerPosWorldspace;
 	NiPoint3 prevHandPosRoomspace;
 	NiPoint3 prevHandDirectionRoomspace;
 

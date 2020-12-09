@@ -140,8 +140,6 @@ bool g_isVtblCopied = false;
 typedef void(*_ShaderReferenceEffectDtor)(ShaderReferenceEffect *_this);
 void HookedShaderReferenceEffectDtor(ShaderReferenceEffect *_this)
 {
-	_MESSAGE("HookedShaderReferenceEffectDtor");
-
 	{
 		// Clear the nodes from the map for this reference effect
 		std::unique_lock lock(g_shaderNodesLock);
@@ -175,7 +173,8 @@ void FillGeometryNodes(NiAVObject *root, std::unordered_set<BSGeometry *> &geome
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			NiAVObject *child = node->m_children.m_data[i];
 			if (child) {
-				if (!GetRigidBody(child) || !terminateAtCollision) {
+				auto rigidBody = GetRigidBody(child);
+				if (!rigidBody || !IsAllowedCollidable(&rigidBody->hkBody->m_collidable) || !terminateAtCollision) {
 					FillGeometryNodes(child, geometryNodes, terminateAtCollision);
 				}
 			}

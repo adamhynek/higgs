@@ -259,7 +259,7 @@ namespace CollisionInfo
 		}
 	}
 
-	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason)
+	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll)
 	{
 		UInt32 entityId = entity->hkBody->m_uid;
 		if (collisionInfoIdMap.count(entityId) != 0) {
@@ -294,8 +294,12 @@ namespace CollisionInfo
 				// Restore only the original layer and ragdoll bits first, so it collides with everything except the player (but still the hands)
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
-				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-				entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+
+				if (collideAll) {
+					entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+					entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+				}
+
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
 				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 
@@ -314,7 +318,7 @@ namespace CollisionInfo
 		}
 	}
 
-	void ResetCollisionInfoDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode)
+	void ResetCollisionInfoDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode, bool collideAll)
 	{
 		auto rigidBody = GetRigidBody(obj);
 		if (rigidBody) {
@@ -358,8 +362,12 @@ namespace CollisionInfo
 							// Restore only the original layer and ragdoll bits first, so it collides with everything except the player (but still the hands)
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
 							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
-							collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-							collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+
+							if (collideAll) {
+								collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+								collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+							}
+
 							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 
 							// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
@@ -386,16 +394,16 @@ namespace CollisionInfo
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					ResetCollisionInfoDownstream(child, reason, skipNode);
+					ResetCollisionInfoDownstream(child, reason, skipNode, collideAll);
 				}
 			}
 		}
 	}
 
-	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode)
+	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode, bool collideAll)
 	{
 		if (refr->loadedState && refr->loadedState->node) {
-			ResetCollisionInfoDownstream(refr->loadedState->node, reason, skipNode);
+			ResetCollisionInfoDownstream(refr->loadedState->node, reason, skipNode, collideAll);
 		}
 	}
 }

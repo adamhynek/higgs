@@ -7,6 +7,7 @@
 #include <chrono>
 #include <limits>
 #include <atomic>
+
 #include "common/IDebugLog.h"  // IDebugLog
 #include "skse64_common/skse_version.h"  // RUNTIME_VERSION
 #include "skse64/PluginAPI.h"  // SKSEInterface, PluginInfo
@@ -134,6 +135,94 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!playerWorldNode)
 		return true;
 
+	static BSFixedString rightWandStr("RightWandNode");
+	NiAVObject *rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
+	if (!rightWandObj) {
+		return true;
+	}
+	NiNode *rightWandNode = rightWandObj->GetAsNiNode();
+
+	static BSFixedString leftWandStr("LeftWandNode");
+	NiAVObject *leftWandObj = playerWorldObj->GetObjectByName(&leftWandStr.data);
+	if (!leftWandObj)
+		return true;
+	NiNode *leftWandNode = leftWandObj->GetAsNiNode();
+
+	static BSFixedString hmdStr("HmdNode");
+	NiAVObject *hmdObj = playerWorldObj->GetObjectByName(&hmdStr.data);
+	if (!hmdObj)
+		return true;
+	NiNode *hmdNode = hmdObj->GetAsNiNode();
+
+	if (g_openVR && *g_openVR) {
+		BSOpenVR *openVR = *g_openVR;
+		vr_src::IVRSystem *vrSystem = openVR->vrSystem;
+		if (vrSystem) {
+			vr_src::TrackedDeviceIndex_t rightIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand);
+			vr_src::TrackedDeviceIndex_t leftIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand);
+			vr_src::TrackedDeviceIndex_t hmdIndex = vr_src::k_unTrackedDeviceIndex_Hmd;
+
+			if (unGamePoseArrayCount > hmdIndex && vrSystem->IsTrackedDeviceConnected(hmdIndex) && hmdNode) {
+				vr_src::TrackedDevicePose_t &hmdPose = pGamePoseArray[hmdIndex];
+				if (hmdPose.bDeviceIsConnected && hmdPose.bPoseIsValid && hmdPose.eTrackingResult == vr_src::ETrackingResult::TrackingResult_Running_OK) {
+					vr_src::HmdMatrix34_t &hmdMatrix = hmdPose.mDeviceToAbsoluteTracking;
+
+					NiTransform hmdTransform;
+					HmdMatrixToNiTransform(hmdTransform, hmdMatrix);
+
+					// Use the transform between the openvr hmd pose and skyrim's hmdnode transform to get the transform from openvr space to skyrim worldspace
+					NiMatrix33 openvrToSkyrimWorldTransform = hmdNode->m_worldTransform.rot * hmdTransform.rot.Transpose();
+
+					bool isRightConnected = vrSystem->IsTrackedDeviceConnected(rightIndex);
+					bool isLeftConnected = vrSystem->IsTrackedDeviceConnected(leftIndex);
+
+					for (int i = hmdIndex + 1; i < unGamePoseArrayCount; i++) {
+						if (i == rightIndex && isRightConnected) {
+							vr_src::TrackedDevicePose_t &pose = pGamePoseArray[i];
+							if (pose.bDeviceIsConnected && pose.bPoseIsValid && pose.eTrackingResult == vr_src::ETrackingResult::TrackingResult_Running_OK) {
+
+								// SteamVR
+								// +y is up
+								// +x is to the right
+								// -z is forward
+
+								// Skyrim
+								// +z is up
+								// +x is to the right
+								// +y is forward
+
+								// So, SteamVR -> Skyrim
+								// x <- x
+								// y <- -z
+								// z <- y
+
+								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
+								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
+
+								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
+
+								g_rightGrabber->controllerVelocities.pop_back();
+								g_rightGrabber->controllerVelocities.push_front(velocityWorldspace);
+							}
+						}
+						else if (i == leftIndex && isLeftConnected) {
+							vr_src::TrackedDevicePose_t &pose = pGamePoseArray[i];
+							if (pose.bDeviceIsConnected && pose.bPoseIsValid && pose.eTrackingResult == vr_src::ETrackingResult::TrackingResult_Running_OK) {
+								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
+								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
+
+								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
+
+								g_leftGrabber->controllerVelocities.pop_back();
+								g_leftGrabber->controllerVelocities.push_front(velocityWorldspace);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	std::pair<bool, bool> validItems = { true, true };
 	if (!Config::options.ignoreWeaponChecks) {
 		validItems = AreEquippedItemsValid(player);
@@ -179,19 +268,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
 	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
-
-	static BSFixedString rightWandStr("RightWandNode");
-	NiAVObject *rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
-	if (!rightWandObj) {
-		return true;
-	}
-	NiNode *rightWandNode = rightWandObj->GetAsNiNode();
-
-	static BSFixedString leftWandStr("LeftWandNode");
-	NiAVObject *leftWandObj = playerWorldObj->GetObjectByName(&leftWandStr.data);
-	if (!leftWandObj)
-		return true;
-	NiNode *leftWandNode = leftWandObj->GetAsNiNode();
 
 	if (displayRight || displayLeft) {
 		// Something is grabbed

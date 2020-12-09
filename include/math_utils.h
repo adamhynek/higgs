@@ -5,7 +5,7 @@
 #include "skse64/NiObjects.h"
 
 
-static const float g_minAllowedFingerAngle = 10 * 0.0174533; // 10 degrees
+static const float g_minAllowedFingerAngle = 5 * 0.0174533; // 5 degrees
 
 struct Triangle
 {

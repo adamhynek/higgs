@@ -251,8 +251,8 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNo
 
 		NiPoint3 palmPos = hkPalmNodePos / havokWorldScale;
 
-		bool hasConstraint = DoesNodeHaveConstraint(selectedObj->loadedState->node, n);
-		if (selectedObject.isActor || hasConstraint || (selectedObj->baseForm && selectedObj->baseForm->formType == kFormType_Ammo)) {
+		bool usePhysicsBasedGrab = DoesNodeHaveConstraint(selectedObj->loadedState->node, n) || IsSkinnedToNode(selectedObj->loadedState->node, n);
+		if (selectedObject.isActor || usePhysicsBasedGrab || (selectedObj->baseForm && selectedObj->baseForm->formType == kFormType_Ammo)) {
 			// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
 
 			if (!selectedObject.isActor) {
@@ -561,6 +561,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 	NiPoint3 hmdPos = hmdNode->m_worldTransform.pos;
 
+	// Skyrim coords: +x: right vector, +y: forward vector, +z: up vector
 	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][1], hmdNode->m_worldTransform.rot.data[1][1], hmdNode->m_worldTransform.rot.data[2][1] };
 
 	NiAVObject *wandNode = playerWorldNode->GetObjectByName(&wandNodeName.data);
@@ -664,15 +665,15 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	desiredQuat.setFromRotationSimd(desiredRot);
 	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 
-	NiPoint3 handVelocityWorldspace = (handPos - prevHandPosWorldspace) / *g_deltaTime;
+	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;
 
 	// Update velocities array to this frame
-	for (int i = handVelocitiesWorldspace.size() - 1; i >= 1; i--) {
-		handVelocitiesWorldspace[i] = handVelocitiesWorldspace[i - 1];
+	for (int i = playerVelocitiesWorldspace.size() - 1; i >= 1; i--) {
+		playerVelocitiesWorldspace[i] = playerVelocitiesWorldspace[i - 1];
 	}
-	handVelocitiesWorldspace[0] = handVelocityWorldspace;
+	playerVelocitiesWorldspace[0] = playerVelocityWorldspace;
 
-	NiPoint3 avgVelocityWorldspace = std::accumulate(handVelocitiesWorldspace.begin(), handVelocitiesWorldspace.end(), NiPoint3()) / handVelocitiesWorldspace.size();
+	NiPoint3 avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
 
 	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
 	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) / *g_deltaTime;
@@ -1089,6 +1090,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 							pulledPointOffset = HkVectorToNiPoint(closestPoint.getPosition()) - hkObjPos;
+
+							if (g_vrikInterface) {
+								float val = 0.7f;
+								g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
+							}
+
 							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
@@ -1121,7 +1128,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	NiPointer<TESObjectREFR> selectedObj;
-	if (state == State::SelectionLocked || state == State::Pulled || state == State::PrepullItem || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+	if (state == State::SelectionLocked || state == State::PrepullItem || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 		// Check if we should drop the object. If yes, go to IDLE
 		if (releaseRequested) {
 			releaseRequested = false;
@@ -1133,375 +1140,418 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				if (state == State::HeldBody) {
-					if (!selectedObject.isActor) {
-						ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState);
-					}
-				}
-				if (state == State::Held || state == State::HeldInit) {
+				if (state == State::SelectionLocked) {
 					if (g_vrikInterface) {
 						g_vrikInterface->restoreFingers(isLeft);
 					}
 
-					ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState, selectedObject.collidable); // skip the node we grabbed, we handle that below
-					ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState);
-				}
-				if (state == State::SelectionLocked) {
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 				}
 				if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
-					// TODO: Do a bit of lookback, we probably want the velocity from some time before we actually let go of the object
+
+					float largestSpeed = -1;
+					int largestIndex = -1;
+					for (int i = 0; i < controllerVelocities.size(); i++) {
+						NiPoint3 velocity = controllerVelocities[i];
+						float speed = VectorLength(velocity);
+						if (speed > largestSpeed) {
+							largestSpeed = speed;
+							largestIndex = i;
+						}
+					}
+
+					NiPoint3 velocity;
+					if (largestIndex == 0) {
+						// Max is the first value
+						velocity = controllerVelocities[0];
+					}
+					else if (largestIndex == controllerVelocities.size() - 1) {
+						// Max is the last value
+						velocity = controllerVelocities[largestIndex];
+					}
+					else {
+						// Regular case - avg 3 values centered at the peak
+						velocity = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
+					}
+
+					velocity = (avgPlayerVelocityWorldspace * *g_havokWorldScale) + velocity; // add the player velocity
+
+					bool collideWithHandWhenLettingGo = VectorLength(velocity) <= Config::options.throwVelocityThreshold;
+
+					if (state == State::HeldBody) {
+						if (!selectedObject.isActor) {
+							ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState, nullptr, collideWithHandWhenLettingGo);
+						}
+					}
+					if (state == State::Held || state == State::HeldInit) {
+						if (g_vrikInterface) {
+							g_vrikInterface->restoreFingers(isLeft);
+						}
+
+						ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
+						ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
+					}
+
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(avgVelocityWorldspace * 1.1f * havokWorldScale); // Boost the velocity a bit
+					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocity);
 				}
 			}
 
 			Deselect();
 		}
+	}
 
-		NiPoint3 hkHandPos = handPos * havokWorldScale;
+	if (state == State::SelectionLocked) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+			hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
-		if (state == State::SelectionLocked) {
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
+			auto TransitionPulled = [this, &other, motion, selectedObj, handNode]()
+			{
+				StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
-				auto TransitionPulled = [this, &other, motion, selectedObj, handNode]()
-				{
-					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+				pulledTime = g_currentFrameTime;
 
-					pulledTime = g_currentFrameTime;
+				if (selectedObject.hitForm) {
+					// Trying to pull armor off a body
 
-					if (selectedObject.hitForm) {
-						// Trying to pull armor off a body
+					state = State::Idle; // If things don't go right, fallback to idle
 
-						state = State::Idle; // If things don't go right, fallback to idle
+					Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
+					if (actor) {
+						// drop the armor
+						ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
+						if (containerChanges) {
+							MatchByForm matcher(selectedObject.hitForm);
+							EquipData equipData = containerChanges->FindEquipped(matcher);
+							TESForm *itemForm = equipData.pForm;
+							BaseExtraList *armorExtraData = equipData.pExtraData;
+							if (itemForm) {
+								TESBoundObject *item = DYNAMIC_CAST(itemForm, TESForm, TESBoundObject);
+								if (item) {
+									// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
+									// Actor::RemoveItem is at 0x607F60
 
-						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
-						if (actor) {
-							// drop the armor
-							ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
-							if (containerChanges) {
-								MatchByForm matcher(selectedObject.hitForm);
-								EquipData equipData = containerChanges->FindEquipped(matcher);
-								TESForm *itemForm = equipData.pForm;
-								BaseExtraList *armorExtraData = equipData.pExtraData;
-								if (itemForm) {
-									TESBoundObject *item = DYNAMIC_CAST(itemForm, TESForm, TESBoundObject);
-									if (item) {
-										// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
-										// Actor::RemoveItem is at 0x607F60
+									UInt64 *vtbl = *((UInt64 **)actor);
+									UInt32 droppedObjHandle = *g_invalidRefHandle;
+									if (DYNAMIC_CAST(item, TESBoundObject, TESObjectWEAP)) {
+										// For dropped weapons, make the drop pos / rot equal to where it was before
+										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
+										NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
+										((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
+									}
+									else {
+										NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
+										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
+										((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
+									}
 
-										UInt64 *vtbl = *((UInt64 **)actor);
-										UInt32 droppedObjHandle = *g_invalidRefHandle;
-										if (DYNAMIC_CAST(item, TESBoundObject, TESObjectWEAP)) {
-											// For dropped weapons, make the drop pos / rot equal to where it was before
-											NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
-											NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
-											((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
-										}
-										else {
-											NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
-											NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
-											((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
-										}
+									NiPointer<TESObjectREFR> droppedObj;
+									if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+										std::scoped_lock lock(deselectLock);
 
-										NiPointer<TESObjectREFR> droppedObj;
-										if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-											std::scoped_lock lock(deselectLock);
+										selectedObject.handle = droppedObjHandle;
+										selectedObject.collidable = nullptr;
+										selectedObject.rigidBody = nullptr;
 
-											selectedObject.handle = droppedObjHandle;
-											selectedObject.collidable = nullptr;
-											selectedObject.rigidBody = nullptr;
-
-											state = State::PrepullItem;
-										}
+										state = State::PrepullItem;
 									}
 								}
 							}
 						}
 					}
-					else {
-						// Not trying to pull armor off a body
-
-						if (pulledObject.handle != selectedObject.handle) {
-							EndPull(); // Cancel an existing pulled collision reset if we're pulling something new
-
-							if (other.pulledObject.handle == selectedObject.handle) {
-								other.EndPull();
-							}
-
-							pulledObject.handle = selectedObject.handle;
-							pulledObject.rigidBody = selectedObject.rigidBody;
-							pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
-							motion->m_motionState.m_angularDamping = hkHalf(3.0f);
-
-							if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-								auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
-								if (rigidBody) {
-									// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
-									auto collidable = &rigidBody->hkBody->m_collidable;
-									// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
-									collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
-									// Projectiles have 'Fixed' motion type by default, making them unmovable
-									bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
-								}
-							}
-
-							CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
-						}
-
-						state = State::Pulled;
-					}
-				};
-
-				bool isSelectedNear = false;
-
-				if (g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
-					NiPointer<TESObjectREFR> closestObj;
-					NiPointer<bhkRigidBody> closestRigidBody;
-					hkContactPoint closestPoint;
-
-					isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, castDirection, sphere,
-						&closestObj, &closestRigidBody, &closestPoint);
-
-					// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
-					if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-						TransitionHeld(other, world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
-					}
 				}
+				else {
+					// Not trying to pull armor off a body
 
-				if (!isSelectedNear) {
-					hkVector4 translation = motion->m_motionState.m_transform.m_translation;
-					NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
-					NiPoint3 relObjPos = hkObjPos - hkHandPos;
+					if (pulledObject.handle != selectedObject.handle) {
+						EndPull(); // Cancel an existing pulled collision reset if we're pulling something new
 
-					float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));
-					//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
-					//	PrintToFile(std::to_string(VectorLength(handDirectionVelocityRoomspace)), "hand_delta_dir_r.txt");
-					//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
-					//}
-
-					bool pull = false;
-					if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pushPullSpeedThreshold) {
-						if (IsObjectPullable()) {
-							pull = true;
+						if (other.pulledObject.handle == selectedObject.handle) {
+							other.EndPull();
 						}
-					}
-
-					if (pull) {
-						TransitionPulled();
-					}
-					else {
-						// Hold object selected while hand doesn't point too far away from original location. If far enough, deselect.
-						NiPoint3 forward = castDirection;
-						NiPoint3 worldUp = { 0, 0, 1 };
-						NiPoint3 right = CrossProduct(forward, worldUp);
-						NiPoint3 up = CrossProduct(right, forward);
-						NiPoint3 initialObjPos = forward * initialObjPosRaySpace.x + right * initialObjPosRaySpace.y + up * initialObjPosRaySpace.z;
-
-						// Determine the position where we want the object to be
-						// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-						float maxHeight = 4.0f;
-						NiPoint3 horiz;
-						float h;
-						if (castDirection.z <= 0.9999f) {
-							float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
-							float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
-							float tanTheta = tanf(theta);
-							h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
-							horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
-						}
-						else {
-							// Degenerate case
-							h = maxHeight;
-							horiz = { 0, 0, 0 };
-						}
-
-						NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
-
-						// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
-						float handShoulderDistance = VectorLength(handPos - upperArmPos);
-						float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
-						desiredPos *= handDistanceRatio;
-
-						NiPoint3 deltaPos = desiredPos - relObjPos;
-
-						if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 1.5f) {
-							//grab = true;
-							idleDesired = true;
-						}
-					}
-				}
-			}
-			else {
-				// Grabbed object doesn't exist - go back to IDLE
-				state = State::Idle;
-			}
-		}
-
-		if (state == State::PrepullItem) {
-			if (g_currentFrameTime - pulledTime > 0.5f) { // half a second for the item to spawn in
-				state = State::Idle;
-			}
-			else {
-				if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-					// Transition to pulled with the newly spawned item
-
-					auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
-					if (rigidBody) {
-						selectedObject.rigidBody = rigidBody;
-						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
-
-						// Set owner to the player so it doesn't count as stealing
-						TESObjectREFR_SetActorOwner(nullptr, 0, selectedObj, player->baseForm);
-
-						// Cancel an existing pulled collision reset
-						EndPull();
 
 						pulledObject.handle = selectedObject.handle;
 						pulledObject.rigidBody = selectedObject.rigidBody;
-
-						hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 						pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
 						motion->m_motionState.m_angularDamping = hkHalf(3.0f);
-						CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
 
-						pulledTime = g_currentFrameTime;
-						state = State::Pulled;
+						if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+							auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
+							if (rigidBody) {
+								// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
+								auto collidable = &rigidBody->hkBody->m_collidable;
+								// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
+								collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
+								// Projectiles have 'Fixed' motion type by default, making them unmovable
+								bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+							}
+						}
+
+						CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
 					}
+
+					state = State::Pulled;
+				}
+			};
+
+			bool isSelectedNear = false;
+
+			if (g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
+				NiPointer<TESObjectREFR> closestObj;
+				NiPointer<bhkRigidBody> closestRigidBody;
+				hkContactPoint closestPoint;
+
+				isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, castDirection, sphere,
+					&closestObj, &closestRigidBody, &closestPoint);
+
+				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
+				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
+					TransitionHeld(other, world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 				}
 			}
-		}
 
-		if (state == State::Pulled) {
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+			if (!isSelectedNear) {
+				hkVector4 translation = motion->m_motionState.m_transform.m_translation;
+				NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
+				NiPoint3 hkHandPos = handPos * havokWorldScale;
+				NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
-				NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
+				float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));
+				//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
+				//	PrintToFile(std::to_string(VectorLength(handDirectionVelocityRoomspace)), "hand_delta_dir_r.txt");
+				//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
+				//}
 
-				NiPoint3 objPoint = hkObjPos + pulledPointOffset;
-
-				float distanceFactor = VectorLength(hkPalmNodePos - objPoint) / 5.0f;
-				float duration = 0.375f + 0.375f * distanceFactor;
-
-				pulledExpireTime = duration + 1.0f;
-
-				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
-				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
-
-				// TODO: If the player lets go of the trigger/grip, we go straight to idle. It would be better to do the velocity updates for all 5 frames before exiting the pulled state.
-				if (g_currentFrameTime - pulledTime <= 0.06f) { // just over 5 frames at 90fps
-					NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
-					horizontalDelta.z = 0;
-					NiPoint3 velocity = horizontalDelta / duration;
-					float verticalDelta = hkPalmNodePos.z - objPoint.z + 0.05f; // Add an extra few cm up so that the object doesn't undershoot
-					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
-
-					NiAVObject *n = FindCollidableNode(selectedObject.collidable);
-					if (n && DoesNodeHaveConstraint(selectedObj->loadedState->node, n)) {
-						SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));
+				bool pull = false;
+				if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pushPullSpeedThreshold) {
+					if (IsObjectPullable()) {
+						pull = true;
 					}
-					else {
-						hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
-						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-						motion->m_linearVelocity = NiPointToHkVector(velocity);
+				}
+
+				if (pull) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
 					}
+					TransitionPulled();
 				}
 				else {
-					idleDesired = true;
-				}
-			}
-			else {
-				state = State::Idle;
-			}
-		}
+					// Hold object selected while hand doesn't point too far away from original location. If far enough, deselect.
+					NiPoint3 forward = castDirection;
+					NiPoint3 worldUp = { 0, 0, 1 };
+					NiPoint3 right = CrossProduct(forward, worldUp);
+					NiPoint3 up = CrossProduct(right, forward);
+					NiPoint3 initialObjPos = forward * initialObjPosRaySpace.x + right * initialObjPosRaySpace.y + up * initialObjPosRaySpace.z;
 
-		if (state == State::HeldInit || state == State::Held) {
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
-				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
-				if (n) {
-					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
-
-					if (state == State::HeldInit) {
-						if (g_currentFrameTime - grabbedTime > 1.0f) {
-							// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
-							state = State::Held;
-						}
-						else {
-							// Interpolate pos/rot towards the hand so it doesn't 'snap' too much
-
-							hkQuaternion hkQuat;
-							hkRotation hkRot;
-
-							NiMatrixToHkMatrix(n->m_worldTransform.rot, hkRot);
-							hkQuat.setFromRotationSimd(hkRot);
-							NiQuaternion currentQuat = HkQuatToNiQuat(hkQuat);
-							currentQuat = QuaternionNormalized(currentQuat);
-
-							NiMatrixToHkMatrix(newTransform.rot, hkRot);
-							hkQuat.setFromRotationSimd(hkRot);
-							NiQuaternion desiredQuat = HkQuatToNiQuat(hkQuat);
-							desiredQuat = QuaternionNormalized(desiredQuat);
-
-							float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
-							float quatAngle = 2.0f * acosf(abs(DotProduct(currentQuat, desiredQuat)));
-
-							NiPoint3 deltaPos = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
-
-							bool doRotation = deltaAngle < quatAngle;
-							bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos);
-
-							if (doRotation || doTranslation) {
-								// Rotation or position is not yet close enough
-
-								if (doRotation) {
-									// update rotation
-									double slerpAmount = deltaAngle / quatAngle;
-									NiQuaternion newQuat = slerp(currentQuat, desiredQuat, slerpAmount);
-									newQuat = QuaternionNormalized(newQuat);
-									newTransform.rot = QuaternionToMatrix(newQuat);
-								}
-
-								if (doTranslation) {
-									// If not close enough, move the object closer to the hand at some velocity
-									newTransform.pos = n->m_worldTransform.pos + deltaPos;
-								}
-							}
-							else {
-								// Both position and rotation are close enough to their final values - we're done
-								state = State::Held;
-							}
-						}
+					// Determine the position where we want the object to be
+					// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
+					float maxHeight = 4.0f;
+					NiPoint3 horiz;
+					float h;
+					if (castDirection.z <= 0.9999f) {
+						float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
+						float theta = asinf(castDirection.z); // vertical angle of hand relative to horizontal
+						float tanTheta = tanf(theta);
+						h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
+						horiz = VectorNormalized(NiPoint3(castDirection.x, castDirection.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
+					}
+					else {
+						// Degenerate case
+						h = maxHeight;
+						horiz = { 0, 0, 0 };
 					}
 
-					UpdateKeyframedNodeTransform(n, newTransform);
+					NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
+
+					// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
+					float handShoulderDistance = VectorLength(handPos - upperArmPos);
+					float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
+					desiredPos *= handDistanceRatio;
+
+					NiPoint3 deltaPos = desiredPos - relObjPos;
+
+					if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, castDirection)) > 1.5f) {
+						//grab = true;
+						idleDesired = true;
+					}
 				}
-			}
-			else {
-				if (g_vrikInterface) {
-					g_vrikInterface->restoreFingers(isLeft);
-				}
-				state = State::Idle;
 			}
 		}
+		else {
+			// Grabbed object doesn't exist - go back to idle
+			if (g_vrikInterface) {
+				g_vrikInterface->restoreFingers(isLeft);
+			}
 
-		if (state == State::HeldBody) {
+			state = State::Idle;
+		}
+	}
+
+	if (state == State::PrepullItem) {
+		if (g_currentFrameTime - pulledTime > 0.5f) { // half a second for the item to spawn in
+			state = State::Idle;
+		}
+		else {
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+				// Transition to pulled with the newly spawned item
+
+				auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
+				if (rigidBody) {
+					selectedObject.rigidBody = rigidBody;
+					selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
+
+					// Set owner to the player so it doesn't count as stealing
+					TESObjectREFR_SetActorOwner(nullptr, 0, selectedObj, player->baseForm);
+
+					// Cancel an existing pulled collision reset
+					EndPull();
+
+					pulledObject.handle = selectedObject.handle;
+					pulledObject.rigidBody = selectedObject.rigidBody;
+
+					hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
+					pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
+					motion->m_motionState.m_angularDamping = hkHalf(3.0f);
+					CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
+
+					pulledTime = g_currentFrameTime;
+					state = State::Pulled;
+				}
+			}
+		}
+	}
+
+	if (state == State::Pulled) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+
+			hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
+			NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
+
+			NiPoint3 objPoint = hkObjPos + pulledPointOffset;
+
+			float distanceFactor = VectorLength(hkPalmNodePos - objPoint) / 5.0f;
+			float duration = 0.375f + 0.375f * distanceFactor;
+
+			pulledExpireTime = duration + 1.0f;
+
+			// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
+			// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
+
+			if (g_currentFrameTime - pulledTime <= 0.06f) { // just over 5 frames at 90fps
+				NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
+				horizontalDelta.z = 0;
+				NiPoint3 velocity = horizontalDelta / duration;
+				float verticalDelta = hkPalmNodePos.z - objPoint.z + 0.05f; // Add an extra few cm up so that the object doesn't undershoot
+				velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
+
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
-				if (n) {
+				if (n && DoesNodeHaveConstraint(selectedObj->loadedState->node, n)) {
+					SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));
+				}
+				else {
+					hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
-					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
-					hkRotation desiredRot;
-					NiMatrixToHkMatrix(newTransform.rot, desiredRot);
-					hkQuaternion desiredQuat;
-					desiredQuat.setFromRotationSimd(desiredRot);
-					hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+					motion->m_linearVelocity = NiPointToHkVector(velocity);
 				}
 			}
 			else {
-				state = State::Idle;
+				// Time's up, deselect the object and go back to idle
+				Deselect();
 			}
+		}
+		else {
+			state = State::Idle;
+		}
+	}
+
+	if (state == State::HeldInit || state == State::Held) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+			NiAVObject *n = FindCollidableNode(selectedObject.collidable);
+			if (n) {
+				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+
+				if (state == State::HeldInit) {
+					if (g_currentFrameTime - grabbedTime > 1.0f) {
+						// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
+						state = State::Held;
+					}
+					else {
+						// Interpolate pos/rot towards the hand so it doesn't 'snap' too much
+
+						hkQuaternion hkQuat;
+						hkRotation hkRot;
+
+						NiMatrixToHkMatrix(n->m_worldTransform.rot, hkRot);
+						hkQuat.setFromRotationSimd(hkRot);
+						NiQuaternion currentQuat = HkQuatToNiQuat(hkQuat);
+						currentQuat = QuaternionNormalized(currentQuat);
+
+						NiMatrixToHkMatrix(newTransform.rot, hkRot);
+						hkQuat.setFromRotationSimd(hkRot);
+						NiQuaternion desiredQuat = HkQuatToNiQuat(hkQuat);
+						desiredQuat = QuaternionNormalized(desiredQuat);
+
+						float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
+						float quatAngle = 2.0f * acosf(abs(DotProduct(currentQuat, desiredQuat)));
+
+						NiPoint3 deltaPos = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
+
+						bool doRotation = deltaAngle < quatAngle;
+						bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos);
+
+						if (doRotation || doTranslation) {
+							// Rotation or position is not yet close enough
+
+							if (doRotation) {
+								// update rotation
+								double slerpAmount = deltaAngle / quatAngle;
+								NiQuaternion newQuat = slerp(currentQuat, desiredQuat, slerpAmount);
+								newQuat = QuaternionNormalized(newQuat);
+								newTransform.rot = QuaternionToMatrix(newQuat);
+							}
+
+							if (doTranslation) {
+								// If not close enough, move the object closer to the hand at some velocity
+								newTransform.pos = n->m_worldTransform.pos + deltaPos;
+							}
+						}
+						else {
+							// Both position and rotation are close enough to their final values - we're done
+							state = State::Held;
+						}
+					}
+				}
+
+				UpdateKeyframedNodeTransform(n, newTransform);
+			}
+		}
+		else {
+			if (g_vrikInterface) {
+				g_vrikInterface->restoreFingers(isLeft);
+			}
+			state = State::Idle;
+		}
+	}
+
+	if (state == State::HeldBody) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+			NiAVObject *n = FindCollidableNode(selectedObject.collidable);
+			if (n) {
+				bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+				NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+				hkRotation desiredRot;
+				NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+				hkQuaternion desiredQuat;
+				desiredQuat.setFromRotationSimd(desiredRot);
+				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+			}
+		}
+		else {
+			state = State::Idle;
 		}
 	}
 
@@ -1510,7 +1560,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	//}
 
 	prevState = state;
-	prevHandPosWorldspace = handPos;
+	prevPlayerPosWorldspace = player->pos;
 	prevHandPosRoomspace = handPosRoomspace;
 	prevHandDirectionRoomspace = handDirectionRoomspace;
 }

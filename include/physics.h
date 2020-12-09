@@ -82,9 +82,9 @@ namespace CollisionInfo
 	void ClearCollisionMap();
 	void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup, State reason);
 	void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason);
-	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode = nullptr);
-	void ResetCollisionInfoDownstream(NiAVObject *obj, State reaon, hkpCollidable *skipNode = nullptr);
-	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason);
+	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode = nullptr, bool collideAll = true);
+	void ResetCollisionInfoDownstream(NiAVObject *obj, State reaon, hkpCollidable *skipNode = nullptr, bool collideAll = true);
+	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll = true);
 }
 
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
