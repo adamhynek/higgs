@@ -29,6 +29,8 @@ RelocAddr<_VisualEffect_Play> VisualEffect_Play(0x9A4E00);
 
 RelocAddr<_VisualEffect_Stop> VisualEffect_Stop(0x9A4F80);
 
+RelocAddr<_Sound_Play> Sound_Play(0x9EF150);
+
 RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership(0x1309A0);
 
 RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm(0x11E0C0);
@@ -108,9 +110,22 @@ RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReference(0xA0
 
 RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference(0xA01340);
 
+RelocAddr<_GetMaterialType> GetMaterialType(0x2D8B60);
+
+RelocAddr<_BGSImpactDataSet_GetImpactData> BGSImpactDataSet_GetImpactData(0x2D4C00);
+
 //bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);
 
 // 1st arg: ptr to BipedAnim. 2nd arg: ptr to NiNode
 //CreateArmorNode(0x1DB680);
+
+struct BGSImpactManager
+{
+	void *vtbl; // 00
+	BSTEventSink<void> compatImpactEventSink; // 08 - BSTEventSink<BGSCombatImpactEvent>
+	BSTEventSink<void> collisionSoundEventSink; // 10 - BSTEventSink<BGSCollisionSoundEvent>
+	// sound event passes in ptr to skyrimhavokmaterial id in rdx (actually it's the 2 material ids, then at 0x14 (I think?) is the magnitude of the impact or something - it's used to determine which sound to play, high or low)
+};
+RelocPtr<BGSImpactManager> g_impactManager(0x2FEBD60);

@@ -174,7 +174,10 @@ void FillGeometryNodes(NiAVObject *root, std::unordered_set<BSGeometry *> &geome
 			NiAVObject *child = node->m_children.m_data[i];
 			if (child) {
 				auto rigidBody = GetRigidBody(child);
-				if (!rigidBody || !IsAllowedCollidable(&rigidBody->hkBody->m_collidable) || !terminateAtCollision) {
+				bool isSelected = rigidBody == g_rightGrabber->selectedObject.rigidBody || rigidBody == g_leftGrabber->selectedObject.rigidBody;
+				// Do not play the shader on nodes that have collision and have a motion type that actually makes them interact with physics
+				// If the rigidbody does not interact with physics, if one of the hands is holding it, do not play the shader on it
+				if (!rigidBody || (!IsAllowedCollidable(&rigidBody->hkBody->m_collidable) && !isSelected) || !terminateAtCollision) {
 					FillGeometryNodes(child, geometryNodes, terminateAtCollision);
 				}
 			}

@@ -98,6 +98,7 @@ struct Grabber
 	bool HasExclusiveObject() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void SetSelectedHandles(bool isLeftHanded);
+	void TriggerHapticPulse(unsigned short duration);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void EndPull();

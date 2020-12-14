@@ -13,14 +13,14 @@
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastCollectorOutput.h>
 
-struct bhkBoxShape : NiRefObject
+struct bhkShape : NiRefObject
 {
-	hkpBoxShape * hkBoxShape; // 10 - points to hkpBoxShape
-
+	hkpShape *shape; // 10
 	UInt64 unk18; // == 0?
-	UInt64 unk20;
+	UInt32 materialId; // 20
+	UInt32 pad28;
 };
-static_assert(sizeof(bhkBoxShape) == 0x28);
+static_assert(sizeof(bhkShape) == 0x28);
 
 struct bhkCollisionFilter : hkpCollisionFilter
 {

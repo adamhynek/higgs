@@ -66,6 +66,9 @@ extern RelocAddr<_VisualEffect_Play> VisualEffect_Play;
 typedef void(*_VisualEffect_Stop)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target);
 extern RelocAddr<_VisualEffect_Stop> VisualEffect_Stop;
 
+typedef UInt32(*_Sound_Play)(VMClassRegistry* registry, UInt32 stackId, BGSSoundDescriptorForm *sound, TESObjectREFR *source);
+extern RelocAddr<_Sound_Play> Sound_Play;
+
 typedef void(*_BSExtraDataList_RemoveOwnership)(BaseExtraList *_this);
 extern RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership;
 
@@ -185,3 +188,9 @@ extern RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReferen
 
 typedef void(*_hkReferencedObject_removeReference)(hkReferencedObject *_this);
 extern RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference;
+
+typedef BGSMaterialType * (*_GetMaterialType)(UInt32 materialId); // materialId is gotten from the bhkShape at offset 0x20
+extern RelocAddr<_GetMaterialType> GetMaterialType;
+
+typedef BGSImpactData * (*_BGSImpactDataSet_GetImpactData)(BGSImpactDataSet *_this, BGSMaterialType *material);
+extern RelocAddr<_BGSImpactDataSet_GetImpactData> BGSImpactDataSet_GetImpactData;

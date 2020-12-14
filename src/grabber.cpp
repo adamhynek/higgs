@@ -90,6 +90,21 @@ public:
 };
 
 
+void Grabber::TriggerHapticPulse(unsigned short duration)
+{
+	if (g_openVR && *g_openVR) {
+		BSOpenVR *openVR = *g_openVR;
+		vr_src::IVRSystem *vrSystem = openVR->vrSystem;
+		if (vrSystem) {
+			vr_src::TrackedDeviceIndex_t controllerIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(
+				isLeft ? vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand : vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand
+			);
+			vrSystem->TriggerHapticPulse(controllerIndex, 0, duration);
+		}
+	}
+}
+
+
 void Grabber::Select(TESObjectREFR *obj)
 {
 	selectedObject.handle = GetOrCreateRefrHandle(obj);
@@ -234,6 +249,46 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNo
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
 		StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+		TriggerHapticPulse(1000);
+
+		static UInt32 stoneMaterialId = 0xdf02f237;
+
+		BGSSoundDescriptorForm *sound = nullptr;
+		// Try and get the sound that plays when the object hits stone first, as the grab sound
+		if (selectedObject.collidable->m_shape && selectedObject.collidable->m_shape->m_userData) {
+			auto shape = (bhkShape *)selectedObject.collidable->m_shape->m_userData;
+			if (shape) {
+				UInt32 materialId = shape->materialId;
+				BGSMaterialType *material = GetMaterialType(materialId);
+				BGSMaterialType *stoneMaterial = GetMaterialType(stoneMaterialId);
+				if (material && material->impactDataSet && stoneMaterial) {
+					auto impactDataSet = DYNAMIC_CAST(material->impactDataSet, TESForm, BGSImpactDataSet);
+					if (impactDataSet) {
+						BGSImpactData *impactData = BGSImpactDataSet_GetImpactData(impactDataSet, stoneMaterial);
+						if (impactData) {
+							// [0] is quieter sound, [1] is louder sound
+							sound = impactData->sounds[0];
+							if (!sound) {
+								sound = impactData->sounds[1];
+							}
+						}
+					}
+				}
+			}
+		}
+		if (!sound) {
+			// Failed to get the physics sound, just use the generic pickup sound instead
+			static RelocPtr<BGSDefaultObjectManager> defaultObjectManager(0x01F81D90);
+			TESForm *defaultPickupSound = defaultObjectManager->objects[113]; // kPickupSoundGeneric
+			if (defaultPickupSound) {
+				sound = DYNAMIC_CAST(defaultPickupSound, TESForm, BGSSoundDescriptorForm);
+			}
+		}
+		if (sound) {
+			// TODO: RE and play the sound at the node location, not the location of the root of the refr
+			Sound_Play(VM_REGISTRY, 0, sound, selectedObj);
+		}
 
 		grabbedTime = g_currentFrameTime;
 		rolloverDisplayTime = g_currentFrameTime;
@@ -1072,7 +1127,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					Deselect();
 				}
 				else {
-					// Check if we should grab the object. If yes, grab and go to GRABBED
+					// Check if we should lock in the selection
 					if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 						if (state == State::SelectedFar) {
 							hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
@@ -1090,11 +1145,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 							pulledPointOffset = HkVectorToNiPoint(closestPoint.getPosition()) - hkObjPos;
-
-							if (g_vrikInterface) {
-								float val = 0.7f;
-								g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
-							}
 
 							state = State::SelectionLocked;
 						}
@@ -1141,10 +1191,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (state == State::SelectionLocked) {
-					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
-					}
-
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 				}
 				if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
@@ -1306,9 +1352,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
 				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
-					}
 					TransitionHeld(other, world, hkPalmNodePos, castDirection, closestPoint, havokWorldScale, handNode, selectedObj);
 				}
 			}
@@ -1333,9 +1376,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				}
 
 				if (pull) {
-					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
-					}
 					TransitionPulled();
 				}
 				else {
@@ -1377,15 +1417,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						//grab = true;
 						idleDesired = true;
 					}
+
+					TriggerHapticPulse(50);
 				}
 			}
 		}
 		else {
-			// Grabbed object doesn't exist - go back to idle
-			if (g_vrikInterface) {
-				g_vrikInterface->restoreFingers(isLeft);
-			}
-
 			state = State::Idle;
 		}
 	}
