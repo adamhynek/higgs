@@ -87,7 +87,7 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t);
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
 
-bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector, const NiPoint3 &palmPos, const NiPoint3 &palmDirection,
+bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle);
 void GetDiskIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections, bool &anyUnderOuter, bool &anyUnderInner,
 	int fingerIndex, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);

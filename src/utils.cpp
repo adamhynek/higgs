@@ -534,3 +534,22 @@ void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skin
 		}
 	}
 }
+
+UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location)
+{
+	UInt32 formId = sound->formID;
+
+	SoundData soundData;
+	BSAudioManager_InitSoundData(*g_audioManager, &soundData, formId, 16);
+	if (soundData.id == -1) {
+		return 0;
+	}
+
+	SoundData_SetPosition(&soundData, location.x, location.y, location.z);
+	SoundData_SetNode(&soundData, node);
+	if (SoundData_Play(&soundData)) {
+		return soundData.id;
+	}
+
+	return 0;
+}

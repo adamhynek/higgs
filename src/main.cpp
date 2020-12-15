@@ -223,10 +223,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		}
 	}
 
-	std::pair<bool, bool> validItems = { true, true };
-	if (!Config::options.ignoreWeaponChecks) {
-		validItems = AreEquippedItemsValid(player);
-	}
+	std::pair<bool, bool> validItems = AreEquippedItemsValid(player);
 
 	bool isLeftHanded = *g_leftHandedMode;
 

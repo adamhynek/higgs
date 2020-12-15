@@ -91,7 +91,7 @@ struct Grabber
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
-	void TransitionHeld(Grabber &other, bhkWorld *world, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, hkContactPoint &closestPoint, float havokWorldScale, NiAVObject *handNode, TESObjectREFR *selectedObj);
+	void TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const hkContactPoint &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
@@ -102,6 +102,7 @@ struct Grabber
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void EndPull();
+	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 

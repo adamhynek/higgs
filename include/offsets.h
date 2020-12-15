@@ -32,6 +32,14 @@ struct CrosshairPickData
 static_assert(offsetof(CrosshairPickData, rigidBodies) == 0x50);
 static_assert(offsetof(CrosshairPickData, sphere) == 0x78);
 
+struct SoundData
+{
+	UInt32 id = -1; // 00
+	UInt8 unk04 = 0;
+	UInt32 unk08 = 0; // set to 1 when playing
+};
+static_assert(sizeof(SoundData) == 0x0C);
+
 
 // Multiply skyrim coords by this to get havok coords
 // It's the number of meters per skyrim unit
@@ -46,6 +54,9 @@ extern RelocPtr<CrosshairPickData *> g_pickData;
 extern RelocPtr<float> g_deltaTime;
 
 extern RelocPtr<ProcessLists *> g_processLists;
+
+struct BSAudioManager { /* TODO */ };
+extern RelocPtr<BSAudioManager *> g_audioManager;
 
 
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
@@ -194,3 +205,17 @@ extern RelocAddr<_GetMaterialType> GetMaterialType;
 
 typedef BGSImpactData * (*_BGSImpactDataSet_GetImpactData)(BGSImpactDataSet *_this, BGSMaterialType *material);
 extern RelocAddr<_BGSImpactDataSet_GetImpactData> BGSImpactDataSet_GetImpactData;
+
+
+
+typedef void(*_BSAudioManager_InitSoundData)(BSAudioManager *audioManager, SoundData *soundData, UInt32 formId, int a4); // just pass 16 in a4
+extern RelocAddr<_BSAudioManager_InitSoundData> BSAudioManager_InitSoundData;
+
+typedef bool(*_SoundData_SetPosition)(SoundData *soundData, float x, float y, float z);
+extern RelocAddr<_SoundData_SetPosition> SoundData_SetPosition;
+
+typedef void(*_SoundData_SetNode)(SoundData *soundData, NiAVObject *node);
+extern RelocAddr<_SoundData_SetNode> SoundData_SetNode;
+
+typedef bool(*_SoundData_Play)(SoundData *SoundData);
+extern RelocAddr<_SoundData_Play> SoundData_Play;

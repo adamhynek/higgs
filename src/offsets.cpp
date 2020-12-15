@@ -16,6 +16,8 @@ RelocPtr<float> g_deltaTime(0x1EC8278);
 
 RelocPtr<ProcessLists *> g_processLists(0x1F831B0);
 
+RelocPtr<BSAudioManager *> g_audioManager(0x30C1D30);
+
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 
@@ -114,12 +116,21 @@ RelocAddr<_GetMaterialType> GetMaterialType(0x2D8B60);
 
 RelocAddr<_BGSImpactDataSet_GetImpactData> BGSImpactDataSet_GetImpactData(0x2D4C00);
 
+RelocAddr<_BSAudioManager_InitSoundData> BSAudioManager_InitSoundData(0xC29D20);
+
+RelocAddr<_SoundData_SetPosition> SoundData_SetPosition(0xC287D0);
+
+RelocAddr<_SoundData_SetNode> SoundData_SetNode(0xC289C0);
+
+RelocAddr<_SoundData_Play> SoundData_Play(0xC283E0);
+
 //bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);
 
 // 1st arg: ptr to BipedAnim. 2nd arg: ptr to NiNode
 //CreateArmorNode(0x1DB680);
+
 
 struct BGSImpactManager
 {

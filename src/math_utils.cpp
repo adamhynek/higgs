@@ -1418,7 +1418,7 @@ float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std:
 }
 
 
-bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector, const NiPoint3 &palmPos, const NiPoint3 &palmDirection,
+bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle)
 {
 	std::vector<Intersection> tipIntersections, outerIntersections, innerIntersections;

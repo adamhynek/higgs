@@ -21,25 +21,50 @@ namespace Config {
 
 	bool ReadConfigOptions()
 	{
-		float handAdjustX, handAdjustY, handAdjustZ;
-		if (!GetConfigOptionFloat("Settings", "HandAdjustX", &handAdjustX)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandAdjustY", &handAdjustY)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandAdjustZ", &handAdjustZ)) return false;
+		float palmVectorX, palmVectorY, palmVectorZ;
+		if (!GetConfigOptionFloat("Settings", "PalmVectorX", &palmVectorX)) return false;
+		if (!GetConfigOptionFloat("Settings", "PalmVectorY", &palmVectorY)) return false;
+		if (!GetConfigOptionFloat("Settings", "PalmVectorZ", &palmVectorZ)) return false;
 
-		NiPoint3 handAdjust = { handAdjustX, handAdjustY, handAdjustZ };
-		if (VectorLength(handAdjust) > 0.0001f) {
-			options.handAdjust = VectorNormalized(handAdjust);
+		NiPoint3 palmVector = { palmVectorX, palmVectorY, palmVectorZ };
+		if (VectorLength(palmVector) > 0.0001f) {
+			options.palmVector = VectorNormalized(palmVector);
 		}
 		else {
-			_WARNING("Supplied hand adjust vector is too small");
+			_WARNING("Supplied palm vector is too small");
 			return false;
 		}
 
-		if (!GetConfigOptionFloat("Settings", "CastRadius", &options.castRadius)) return false;
-		if (!GetConfigOptionFloat("Settings", "CastDistance", &options.castDistance)) return false;
+		float pointingVectorX, pointingVectorY, pointingVectorZ;
+		if (!GetConfigOptionFloat("Settings", "PointingVectorX", &pointingVectorX)) return false;
+		if (!GetConfigOptionFloat("Settings", "PointingVectorY", &pointingVectorY)) return false;
+		if (!GetConfigOptionFloat("Settings", "PointingVectorZ", &pointingVectorZ)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "GrabRadius", &options.wideGrabRadius)) return false;
-		if (!GetConfigOptionFloat("Settings", "WideGrabRadius", &options.wideGrabRadius)) return false;
+		NiPoint3 pointingVector = { pointingVectorX, pointingVectorY, pointingVectorZ };
+		if (VectorLength(pointingVector) > 0.0001f) {
+			options.pointingVector = VectorNormalized(pointingVector);
+		}
+		else {
+			_WARNING("Supplied pointing vector is too small");
+			return false;
+		}
+
+		float handCollisionBoxHalfExtentsX, handCollisionBoxHalfExtentsY, handCollisionBoxHalfExtentsZ;
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsX", &handCollisionBoxHalfExtentsX)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsY", &handCollisionBoxHalfExtentsY)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsZ", &handCollisionBoxHalfExtentsZ)) return false;
+		options.handCollisionBoxHalfExtents = { handCollisionBoxHalfExtentsX, handCollisionBoxHalfExtentsY, handCollisionBoxHalfExtentsZ };
+
+		float handCollisionBoxOffsetX, handCollisionBoxOffsetY, handCollisionBoxOffsetZ;
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxOffsetX", &handCollisionBoxOffsetX)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxOffsetY", &handCollisionBoxOffsetY)) return false;
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxOffsetZ", &handCollisionBoxOffsetZ)) return false;
+		options.handCollisionBoxOffset = { handCollisionBoxOffsetX, handCollisionBoxOffsetY, handCollisionBoxOffsetZ };
+
+		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxRadius", &options.handCollisionBoxRadius)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "FarCastRadius", &options.farCastRadius)) return false;
+		if (!GetConfigOptionFloat("Settings", "FarCastDistance", &options.farCastDistance)) return false;
 
 		float castDirectionRequiredHalfAngle;
 		if (!GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
@@ -49,21 +74,36 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "GrabAngleThreshold", &grabbedAngleThreshold)) return false;
 		options.grabbedDotProductThreshold = cosf(grabbedAngleThreshold * 0.0174533); // degrees to radians
 
-		float normalSnapAngle;
-		if (!GetConfigOptionFloat("Settings", "NormalSnapAngle", &normalSnapAngle)) return false;
-		options.normalSnapAngle = cosf(normalSnapAngle * 0.0174533); // degrees to radians
-
 		if (!GetConfigOptionDouble("Settings", "SelectedFadeTime", &options.selectedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "PulledInitTime", &options.pulledInitTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "PulledLootSpawnInTime", &options.pulledLootSpawnInTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
 
-		if (!GetConfigOptionBool("Settings", "IgnoreWeaponChecks", &options.ignoreWeaponChecks)) return false;
-
-		if (!GetConfigOptionFloat("Settings", "PushPullSpeedThreshold", &options.pushPullSpeedThreshold)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullSpeedThreshold", &options.pullSpeedThreshold)) return false;
 		if (!GetConfigOptionFloat("Settings", "PullAngularSpeedThreshold", &options.pullAngularSpeedThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "ThrowVelocityThreshold", &options.throwVelocityThreshold)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "PullDestinationZOffset", &options.pullDestinationZOffset)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "PulledAngularDamping", &options.pulledAngularDamping)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "MinPullDuration", &options.minPullDuration)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullDurationExtensionDuration", &options.pullDurationExtensionDuration)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullDurationExtensionDistance", &options.pullDurationExtensionDistance)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "GrabLateralWeight", &options.grabLateralWeight)) return false;
+		if (!GetConfigOptionFloat("Settings", "GrabDirectionalWeight", &options.grabDirectionalWeight)) return false;
+
+		if (!GetConfigOptionBool("Settings", "UseLoudSoundGrab", &options.useLoudSoundGrab)) return false;
+		if (!GetConfigOptionBool("Settings", "UseLoudSoundDrop", &options.useLoudSoundDrop)) return false;
+		if (!GetConfigOptionBool("Settings", "UseLoudSoundPull", &options.useLoudSoundPull)) return false;
+
+		if (!GetConfigOptionBool("Settings", "DisableShaders", &options.disableShaders)) return false;
 
 		if (!GetConfigOptionBool("Settings", "EnableTrigger", &options.enableTrigger)) return false;
 		if (!GetConfigOptionBool("Settings", "EnableGrip", &options.enableGrip)) return false;
