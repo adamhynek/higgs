@@ -1070,16 +1070,85 @@ namespace MathUtils
 			bool crossesBehind = false;
 			float smallestAngle = min(startAngle, endAngle);
 			float minAllowedAngle = fingerVals[0].angle + g_minAllowedFingerAngle;
-			if (max(startAngle, endAngle) < minAllowedAngle) {
-				// Both ends of the edge are behind the finger. Derotate.
 
+			auto CircleIntersection = [&]() -> bool
+			{
 				NiPoint3 circleIntersection1, circleIntersection2;
 				int numCircleIntersections = CircleIntersectsTriangle(fingerCenter, fingerNormal, fingerVals[0].fingerLength / scale, triangle, circleIntersection1, circleIntersection2, vertices, vertexStride, vertexPosOffset);
 				if (numCircleIntersections > 0) {
-					outAngle = -1; // Something negative
-					return true;
+					NiPoint3 triNormal = VectorNormalized(CrossProduct(vertex1 - vertex0, vertex2 - vertex1));
+					if (numCircleIntersections > 1) {
+						NiPoint3 centerToIntersect1 = circleIntersection1 - fingerCenter;
+						NiPoint3 centerToIntersect2 = circleIntersection2 - fingerCenter;
+
+						float angle1 = acosf(DotProduct(VectorNormalized(centerToIntersect1), zeroAngleVector));
+						float angle2 = acosf(DotProduct(VectorNormalized(centerToIntersect2), zeroAngleVector));
+
+						NiPoint3 tangent1 = CrossProduct(fingerNormal, centerToIntersect1);
+						NiPoint3 tangent2 = CrossProduct(fingerNormal, centerToIntersect2);
+
+						bool angle1Smaller = angle1 <= angle2;
+						float smallerAngle = angle1Smaller ? angle1 : angle2;
+						float largerAngle = angle1Smaller ? angle2 : angle1;
+						NiPoint3 smallerAngleTangent = angle1Smaller ? tangent1 : tangent2;
+						NiPoint3 largerAngleTangent = angle1Smaller ? tangent2 : tangent1;
+						NiPoint3 smallerAngleCenterToIntersect = angle1Smaller ? centerToIntersect1 : centerToIntersect2;
+						NiPoint3 largerAngleCenterToIntersect = angle1Smaller ? centerToIntersect2 : centerToIntersect1;
+
+						if (DotProduct(triNormal, smallerAngleTangent) <= 0) {
+							float angle = smallerAngle;
+							if (DotProduct(fingerNormal, CrossProduct(zeroAngleVector, smallerAngleCenterToIntersect)) < 0) {
+								// Positive angles are those which curl the finger
+								angle *= -1;
+							}
+
+							if (angle > 0) {
+								// If the circle intersected at a positive angle but the finger missed, we don't care.
+								// We only do the circle intersection to catch points that are behind the finger...
+								return false;
+							}
+
+							_MESSAGE("pt: %.2f", angle);
+							outAngle = angle;
+							return true;
+						}
+						else if (DotProduct(triNormal, largerAngleTangent) <= 0) {
+							float angle = -largerAngle;
+							_MESSAGE("pt: %.2f", angle);
+							outAngle = angle;
+							return true;
+						}
+					}
+					else {
+						NiPoint3 centerToIntersect = circleIntersection1 - fingerCenter;
+						NiPoint3 tangent = CrossProduct(fingerNormal, centerToIntersect);
+
+						if (DotProduct(triNormal, tangent) <= 0) {
+							float angle = acosf(DotProduct(VectorNormalized(centerToIntersect), zeroAngleVector));
+							if (DotProduct(fingerNormal, CrossProduct(zeroAngleVector, centerToIntersect)) < 0) {
+								// Positive angles are those which curl the finger
+								angle *= -1;
+							}
+
+							if (angle > 0) {
+								// If the circle intersected at a positive angle but the finger missed, we don't care.
+								// We only do the circle intersection to catch points that are behind the finger...
+								return false;
+							}
+
+							_MESSAGE("pt: %.2f", angle);
+							outAngle = angle; // Something negative
+							return true;
+						}
+					}
 				}
 				return false;
+			};
+
+			if (max(startAngle, endAngle) < minAllowedAngle) {
+				// Both ends of the edge are behind the finger. Derotate.
+
+				return CircleIntersection();
 			}
 			else {
 				if (smallestAngle < minAllowedAngle) {
@@ -1141,7 +1210,7 @@ namespace MathUtils
 						if (DotProduct(triNormal, tangent) <= 0) {
 							// Front face of the triangle was intersected CCW around the circle
 							// TODO: Use precise intersection point instead of the current angle / length
-							_MESSAGE("pt 1: %.2f", angle);
+							_MESSAGE("pt: %.2f", angle);
 							outAngle = angle;
 							return true;
 						}
@@ -1157,13 +1226,7 @@ namespace MathUtils
 
 			// If one end of the edge is behind the finger and the other isn't, then derotate only if the finger missed in the normal case.
 			if (crossesBehind) {
-				NiPoint3 circleIntersection1, circleIntersection2;
-				int numCircleIntersections = CircleIntersectsTriangle(fingerCenter, fingerNormal, fingerVals[0].fingerLength / scale, triangle, circleIntersection1, circleIntersection2, vertices, vertexStride, vertexPosOffset);
-				if (numCircleIntersections > 0) {
-					outAngle = -1; // Something negative
-					return true;
-				}
-				return false;
+				return CircleIntersection();
 			}
 
 			return false;
@@ -1393,35 +1456,51 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 	}
 	*/
 
-	auto visit = [fingerIndex, &center, &normal, &zeroAngleVector, &point1, &point2](Intersection *intersection, float &smallestAngle) {
+	auto visit = [](Intersection *intersection, float &smallestAngle)
+	{
 		float angle = intersection->angle;
 		float degrees = angle * 57.2958f;
 
 		_MESSAGE("angle: %.2f", degrees);
 
-		if (angle < smallestAngle) {
+		if (angle >= 0 && angle < smallestAngle) {
 			smallestAngle = angle;
 		}
+	};
+
+	auto CheckNegativeWithinAngle = [](const std::vector<Intersection> &intersections, float angle) -> bool
+	{
+		// Return true if there is a negative intersection angle whose magnitude is within the given angle
+
+		for (auto &intersection : intersections) {
+			float intersectionAngle = intersection.angle;
+			if (intersectionAngle < 0 && abs(intersectionAngle) < angle) {
+				return true;
+			}
+		}
+		return false;
 	};
 
 	float innerAngle = (std::numeric_limits<float>::max)();
 	for (auto &intersection : innerIntersections) {
 		visit(&intersection, innerAngle);
 	}
+	bool isInnerNegative = CheckNegativeWithinAngle(innerIntersections, innerAngle);
 
 	float outerAngle = (std::numeric_limits<float>::max)();
 	for (auto &intersection : outerIntersections) {
 		visit(&intersection, outerAngle);
 	}
+	bool isOuterNegative = CheckNegativeWithinAngle(outerIntersections, outerAngle);
 
 	float tipAngle = (std::numeric_limits<float>::max)();
 	for (auto &intersection : tipIntersections) {
 		visit(&intersection, tipAngle);
 	}
+	bool isTipNegative = CheckNegativeWithinAngle(tipIntersections, tipAngle);
 
-	float smallestAngle = min(innerAngle, min(outerAngle, tipAngle));
-	if (smallestAngle < 0) {
-		*outAngle = smallestAngle;
+	if (isInnerNegative || isOuterNegative || isTipNegative) {
+		*outAngle = -1;
 		return true;
 	}
 
@@ -1449,12 +1528,18 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 	std::vector<float> outerCurveVals, tipCurveVals;
 	for (auto &intersection : outerIntersections) {
 		float angle = intersection.angle;
+		if (angle < 0) {
+			continue;
+		}
 		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], angle, &fingerData);
 		outerCurveVals.push_back(fingerData.curveVal);
 		_MESSAGE("outer: %.2f", fingerData.curveVal);
 	}
 	for (auto &intersection : tipIntersections) {
 		float angle = intersection.angle;
+		if (angle < 0) {
+			continue;
+		}
 		LookupFingerByAngle(g_fingerTipVals[fingerIndex], angle, &fingerData);
 		tipCurveVals.push_back(fingerData.curveVal);
 		_MESSAGE("tip: %.2f", fingerData.curveVal);
