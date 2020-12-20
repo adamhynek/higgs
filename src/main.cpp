@@ -120,6 +120,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!rootObj)
 		return true;
 
+	Config::ReloadIfModified(); // TODO: Remove
+
 	g_currentFrameTime = GetTime();
 
 	NiNode *rootNode = rootObj->GetAsNiNode();

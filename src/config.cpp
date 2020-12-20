@@ -1,4 +1,5 @@
 #include <chrono>
+#include <filesystem>
 
 #include "config.h"
 #include "math_utils.h"
@@ -112,6 +113,26 @@ namespace Config {
 		if (!GetConfigOptionBool("Settings", "DelayLeftGripInput", &options.delayLeftGripInput)) return false;
 
 		return true;
+	}
+
+	bool ReloadIfModified()
+	{
+		namespace fs = std::filesystem;
+
+		static long long lastModifiedConfigTime = 0;
+
+		const std::string &path = GetConfigPath();
+		auto ftime = fs::last_write_time(path);
+		auto time = ftime.time_since_epoch().count();
+		if (time > lastModifiedConfigTime) {
+			lastModifiedConfigTime = time;
+
+			// Reload config if file has been modified since we last read it
+			ReadConfigOptions();
+			return true;
+		}
+
+		return false;
 	}
 
 	const std::string & GetConfigPath()

@@ -56,6 +56,8 @@ namespace Config {
 	// Fills Options struct from INI file
 	bool ReadConfigOptions();
 
+	bool ReloadIfModified();
+
 	const std::string & GetConfigPath();
 
 	std::string GetConfigOption(const char * section, const char * key);
