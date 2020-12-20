@@ -291,7 +291,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
-void Grabber::TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const hkContactPoint &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj)
+void Grabber::TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj)
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
@@ -306,7 +306,7 @@ void Grabber::TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, cons
 		grabbedTime = g_currentFrameTime;
 		rolloverDisplayTime = g_currentFrameTime;
 
-		NiPoint3 ptPos = HkVectorToNiPoint(closestPoint.getPosition());
+		NiPoint3 ptPos = closestPoint;
 		//NiPoint3 normal = HkVectorToNiPoint(closestPoint.m_separatingNormal); // vec from sphere center to point
 
 		// Cancel a collision reset from pulling if we're grabbing the object
@@ -422,133 +422,10 @@ void Grabber::TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, cons
 				desiredTransform.pos += palmPos - triPos;
 				UpdateKeyframedNodeTransform(n, desiredTransform);
 
-				float thumbAngle = FingerCheck(selectedObj, 0);
-				if (false){//(thumbAngle < minAllowedAngle) {
-					// Derotate by thumb angle if it would curl the wrong way
-					NiPoint3 thumbNormalWorldspace = fingerNormalsWorldspace[0];
-
-					NiPoint3 axis = thumbNormalWorldspace;
-					float angle = g_minAllowedFingerAngle - thumbAngle;
-
-					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][0].data);
-					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][1].data);
-					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[0][2].data);
-					if (startFinger && midFinger && endFinger) {
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
-						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
-
-						float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
-						NiPoint3 thumbZeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[0];
-
-						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, g_minAllowedFingerAngle);
-						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(thumbZeroAngleVectorWorldspace * radius, axis, thumbAngle);
-
-
-						NiPoint3 ptToCenter = n->m_worldTransform.pos - actualPtPos;
-
-						NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(ptToCenter, axis, angle);
-						NiPoint3 desiredPos = desiredPtPos + rotatedPtToCenter;
-
-						desiredTransform = n->m_worldTransform;
-						desiredTransform.pos = desiredPos;
-
-						NiMatrix33 rotMatrix = MatrixFromAxisAngle(axis, angle);
-						desiredTransform.rot = rotMatrix * desiredTransform.rot;
-
-						UpdateKeyframedNodeTransform(n, desiredTransform);
-
-						// Compute the palm attach pos again
-						/*NiPoint3 triPos, triNormal;
-						float closestDist = (std::numeric_limits<float>::max)();
-						bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, palmPos, castDirection, &triPos, &triNormal, &closestDist);
-
-						// Update transform to snap to the hand
-						desiredTransform = n->m_worldTransform;
-						desiredTransform.pos += palmPos - triPos;
-						UpdateKeyframedNodeTransform(n, desiredTransform);*/
-					}
-				}
-
 				std::array<float, 5> fingerData;
-				for (int i = 1; i < fingerData.size(); i++) { // No thumb
+				for (int i = 0; i < fingerData.size(); i++) {
 					fingerData[i] = FingerCheck(selectedObj, i);
 				}
-
-				int fingerWithSmallestAngle = -1;
-				float smallestAngle = (std::numeric_limits<float>::max)();
-				for (int i = 1; i < fingerData.size(); i++) {
-					float angle = fingerData[i];
-					if (angle < smallestAngle) {
-						smallestAngle = angle;
-						fingerWithSmallestAngle = i;
-					}
-				}
-
-				if (false) {
-				//if (smallestAngle < g_minAllowedFingerAngle) {
-					// Derotate the object to not have fingers clip through it
-					// TODO: Rotate about closest pt on line that goes through the knuckles, instead of the tripos
-					NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerWithSmallestAngle];
-					NiPoint3 axis = normalWorldspace;
-					float angle = g_minAllowedFingerAngle - smallestAngle;
-
-					// First, rotate the center of the object relative to the closest point, then rotate the object itself by the angle
-					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerWithSmallestAngle][0].data);
-					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerWithSmallestAngle][1].data);
-					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerWithSmallestAngle][2].data);
-					if (startFinger && midFinger && endFinger) {
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
-						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
-
-						float radius = VectorLength(endFingerPos - midFingerPos) + VectorLength(midFingerPos - startFingerPos);
-						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerWithSmallestAngle];
-						NiPoint3 desiredPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, g_minAllowedFingerAngle);
-						NiPoint3 actualPtPos = startFingerPos + RotateVectorByAxisAngle(zeroAngleVectorWorldspace * radius, axis, smallestAngle);
-
-						NiPoint3 ptToCenter = n->m_worldTransform.pos - actualPtPos;
-
-						NiPoint3 rotatedPtToCenter = RotateVectorByAxisAngle(ptToCenter, axis, angle);
-						NiPoint3 desiredPos = desiredPtPos + rotatedPtToCenter;
-						//NiPoint3 ptToCenter = rotatedPtToCenter * havokWorldScale;
-
-						//NiPoint3 desiredPos = (hkPalmNodePos + ptToCenter) / havokWorldScale; // in skyrim coords
-						desiredTransform = n->m_worldTransform;
-						desiredTransform.pos = desiredPos;
-
-						NiMatrix33 rotMatrix = MatrixFromAxisAngle(axis, angle);
-						desiredTransform.rot = rotMatrix * desiredTransform.rot;
-
-						UpdateKeyframedNodeTransform(n, desiredTransform);
-
-						//for (int i = 1; i < fingerAngles.size(); i++) {
-						//	fingerAngles[i] += angle;
-						//}
-
-						// Move the object away from the hand a bit
-						//desiredTransform = n->m_worldTransform;
-						//desiredTransform.pos += castDirection * 5; // ~7cm
-						//UpdateKeyframedNodeTransform(n, desiredTransform);
-
-						// Compute the palm attach pos again
-						float closestDist = (std::numeric_limits<float>::max)();
-						bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, palmPos, castDirection, &triPos, &triNormal, &closestDist);
-
-						// Update transform to snap to the hand
-						desiredTransform = n->m_worldTransform;
-						desiredTransform.pos += palmPos - triPos;
-						UpdateKeyframedNodeTransform(n, desiredTransform);
-
-						// Recompute all fingers
-						for (int i = 1; i < fingerData.size(); i++) { // No thumb
-							fingerData[i] = FingerCheck(selectedObj, i);
-						}
-					}
-				}
-
-				// Now that we've determined (potentially) the object's rotation, figure out the thumb
-				fingerData[0] = FingerCheck(selectedObj, 0);
 
 				// Reset to original transform
 				UpdateKeyframedNodeTransform(n, originalTransform);
@@ -898,6 +775,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		if (closestObj) {
 			State newState = state; // We only want to set state after the collidable is updated, for threading reasons
 
+			// We save this while the casts hit so that during fade time when the casts don't hit, we still have a point to use.
+			selectedObject.point = HkVectorToNiPoint(closestPoint.getPosition());
+
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) || closestObj != selectedObj) {
 				if (selectedObj) {
@@ -1161,7 +1041,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjRelativePosition = relObjPos;
 							initialGrabbedObjWorldPosition = hkObjPos;
 							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
-							pulledPointOffset = HkVectorToNiPoint(closestPoint.getPosition()) - hkObjPos;
+							pulledPointOffset = selectedObject.point - hkObjPos;
 
 							state = State::SelectionLocked;
 						}
@@ -1169,7 +1049,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							if (g_vrikInterface) {
 								g_vrikInterface->restoreFingers(isLeft);
 							}
-							TransitionHeld(other, hkPalmNodePos, palmVector, closestPoint, havokWorldScale, handNode, selectedObj);
+							TransitionHeld(other, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
 						grabRequested = false;
@@ -1378,7 +1258,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
 				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-					TransitionHeld(other, hkPalmNodePos, palmVector, closestPoint, havokWorldScale, handNode, selectedObj);
+					TransitionHeld(other, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
 				}
 			}
 

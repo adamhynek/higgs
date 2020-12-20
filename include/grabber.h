@@ -22,6 +22,7 @@ struct Grabber
 		TESForm *hitForm;
 		NiPointer<NiAVObject> shaderNode;
 		NiPointer<NiAVObject> hitNode;
+		NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
 		UInt32 handle = 0;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
@@ -91,7 +92,7 @@ struct Grabber
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
-	void TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const hkContactPoint &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
+	void TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
