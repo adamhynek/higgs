@@ -178,6 +178,68 @@ void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 }
 
 
+void Grabber::ResetNearbyDamping()
+{
+	if (nearbyBodies.size() > 0) {
+		for (NiPointer<bhkRigidBody> body : nearbyBodies) {
+			if (nearbyBodyMap.count(body) != 0) {
+				auto[linearDamping, angularDamping] = nearbyBodyMap[body];
+				body->hkBody->m_motion.m_motionState.m_linearDamping = linearDamping;
+				body->hkBody->m_motion.m_motionState.m_angularDamping = angularDamping;
+			}
+		}
+
+		nearbyBodies.clear();
+		nearbyBodyMap.clear();
+	}
+}
+
+
+std::unordered_set<bhkRigidBody *> _nearbyBodies; // prevent duplicates due to multiple contact points
+void Grabber::FindBodiesToFreeze(bhkWorld &world)
+{
+	nearbyBodies.clear();
+	nearbyBodyMap.clear();
+	_nearbyBodies.clear();
+
+	world.worldLock.LockForRead();
+
+	hkpWorld_GetClosestPoints(world.world, selectedObject.collidable, world.world->m_collisionInput, &cdPointCollector);
+
+	// Process result of cast
+	float closestDistance = (std::numeric_limits<float>::max)();
+	for (auto &pair : cdPointCollector.m_hits) {
+		auto collidable = static_cast<hkpCollidable *>(pair.first);
+		hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+		if (!rigidBody || !rigidBody->m_userData) {
+			continue; // No rigidbody -> no movement :/
+		}
+		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
+		if (bRigidBody && IsAllowedCollidable(collidable)) {
+			hkContactPoint &contactPoint = pair.second;
+			if (contactPoint.getDistance() < Config::options.nearbyGrabBodyRadius) {
+				hkpMotion &motion = rigidBody->m_motion;
+
+				_MESSAGE("linear: %.3f\tangular: %.3f", VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)), VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)));
+
+				if (VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
+					VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
+					if (_nearbyBodies.count(bRigidBody) == 0) {
+						_nearbyBodies.insert(bRigidBody);
+						nearbyBodies.push_back(bRigidBody);
+						nearbyBodyMap[bRigidBody] = { motion.m_motionState.m_linearDamping, motion.m_motionState.m_angularDamping };
+						motion.m_motionState.m_linearDamping = hkHalf(Config::options.nearbyGrabLinearDamping);
+						motion.m_motionState.m_angularDamping = hkHalf(Config::options.nearbyGrabAngularDamping);
+					}
+				}
+			}
+		}
+	}
+
+	world.worldLock.UnlockRead();
+}
+
+
 bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 	NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint)
 {
@@ -291,7 +353,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
-void Grabber::TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj)
+void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj)
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
@@ -341,6 +403,8 @@ void Grabber::TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, cons
 			state = State::HeldBody;
 		}
 		else {
+			FindBodiesToFreeze(world);
+
 			CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -614,54 +678,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	desiredQuat.setFromRotationSimd(desiredRot);
 	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 
+	// Update velocities to this frame
 	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;
 
-	// Update velocities array to this frame
-	for (int i = playerVelocitiesWorldspace.size() - 1; i >= 1; i--) {
-		playerVelocitiesWorldspace[i] = playerVelocitiesWorldspace[i - 1];
-	}
-	playerVelocitiesWorldspace[0] = playerVelocityWorldspace;
+	playerVelocitiesWorldspace.pop_back();
+	playerVelocitiesWorldspace.push_front(playerVelocityWorldspace);
 
 	NiPoint3 avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
-
-	NiPoint3 handPosRoomspace = wandNode->m_localTransform.pos;
-	NiPoint3 handVelocityRoomspace = (handPosRoomspace - prevHandPosRoomspace) / *g_deltaTime;
-
-	// Update velocities array to this frame
-	for (int i = handVelocitiesRoomspace.size() - 1; i >= 1; i--) {
-		handVelocitiesRoomspace[i] = handVelocitiesRoomspace[i - 1];
-	}
-	handVelocitiesRoomspace[0] = handVelocityRoomspace;
-
-	NiPoint3 avgVelocityRoomspace = std::accumulate(handVelocitiesRoomspace.begin(), handVelocitiesRoomspace.end(), NiPoint3()) / handVelocitiesRoomspace.size();
-
-	// Get whatever transform takes the wand position from room space to skyrim worldspace
-	NiMatrix33 localToWorldTransform = wandNode->m_worldTransform.rot * wandNode->m_localTransform.rot.Transpose();
-	NiMatrix33 worldToLocalTransform = localToWorldTransform.Transpose();
-
-	NiPoint3 localVelocityWorldspace = localToWorldTransform * avgVelocityRoomspace;
-
-	NiPoint3 handDirectionRoomspace = worldToLocalTransform * pointingVector;
-	NiPoint3 deltaHandDirectionRoomspace = handDirectionRoomspace - prevHandDirectionRoomspace;
-	NiPoint3 handDirectionVelocityRoomspace = deltaHandDirectionRoomspace / *g_deltaTime;
-
-	// Update velocities array to this frame
-	for (int i = handDirectionVelocities.size() - 1; i >= 1; i--) {
-		handDirectionVelocities[i] = handDirectionVelocities[i - 1];
-	}
-	handDirectionVelocities[0] = handDirectionVelocityRoomspace;
-
-	NiPoint3 avgDirectionVelocityRoomspace = std::accumulate(handDirectionVelocities.begin(), handDirectionVelocities.end(), NiPoint3()) / handDirectionVelocities.size();
-
-	//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
-	//	PrintToFile(std::to_string(VectorLength(avgDirectionVelocityRoomspace)), "hand_dir_speed_r.txt");
-	//}
-
-	NiAVObject *upperArmNode = player->GetNiRootNode(0)->GetObjectByName(&upperArmNodeName.data);
-	if (!upperArmNode)
-		return;
-
-	NiPoint3 upperArmPos = upperArmNode->m_worldTransform.pos;
 
 	if (g_currentFrameTime - pulledTime > pulledExpireTime) {
 		EndPull();
@@ -1040,7 +1063,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							rolloverDisplayTime = g_currentFrameTime;
 							initialGrabbedObjRelativePosition = relObjPos;
 							initialGrabbedObjWorldPosition = hkObjPos;
-							initialHandShoulderDistance = VectorLength(handPos - upperArmPos);
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
 							state = State::SelectionLocked;
@@ -1049,7 +1071,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							if (g_vrikInterface) {
 								g_vrikInterface->restoreFingers(isLeft);
 							}
-							TransitionHeld(other, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+							TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
 						grabRequested = false;
@@ -1076,7 +1098,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 	NiPointer<TESObjectREFR> selectedObj;
 	if (state == State::SelectionLocked || state == State::PrepullItem || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
-		// Check if we should drop the object. If yes, go to IDLE
+		// Check if we should drop the object
 		if (releaseRequested) {
 			releaseRequested = false;
 			wasObjectGrabbed = false;
@@ -1131,6 +1153,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						if (g_vrikInterface) {
 							g_vrikInterface->restoreFingers(isLeft);
 						}
+
+						ResetNearbyDamping();
 
 						ResetCollisionInfoForAllCollisionInRefr(selectedObj, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
 						ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
@@ -1258,7 +1282,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
 				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-					TransitionHeld(other, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
+					TransitionHeld(other, *world, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
 				}
 			}
 
@@ -1268,14 +1292,16 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				NiPoint3 hkHandPos = handPos * havokWorldScale;
 				NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-				float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));
+				//float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));
+				NiPoint3 controllerVelocity = controllerVelocities[0];
+				float controllerSpeedDirectionalized = DotProduct(controllerVelocity, VectorNormalized(-relObjPos));
 				//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
 				//	PrintToFile(std::to_string(VectorLength(handDirectionVelocityRoomspace)), "hand_delta_dir_r.txt");
 				//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
 				//}
 
 				bool pull = false;
-				if ((VectorLength(avgDirectionVelocityRoomspace) > Config::options.pullAngularSpeedThreshold && handSpeedInObjDirection < 0) || handSpeedInObjDirection < -Config::options.pullSpeedThreshold) {
+				if (controllerSpeedDirectionalized > Config::options.pullSpeedThreshold) {
 					if (IsObjectPullable()) {
 						pull = true;
 					}
@@ -1312,11 +1338,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 					NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
 
-					// Use distance from upper arm (shoulder-ish) to hand to control how far away from us we want the object to be
-					float handShoulderDistance = VectorLength(handPos - upperArmPos);
-					float handDistanceRatio = (handShoulderDistance - 10.0f) / (initialHandShoulderDistance - 10.0f);
-					desiredPos *= handDistanceRatio;
-
 					NiPoint3 deltaPos = desiredPos - relObjPos;
 
 					if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, pointingVector)) > 1.5f) {
@@ -1324,7 +1345,11 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						idleDesired = true;
 					}
 
-					TriggerHapticPulse(50);
+					//if (!isLeft) {
+					//	PrintToFile(std::to_string(controllerSpeedDirectionalized), "controllerSpeedR");
+					//}
+					float hapticStrength = Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeedDirectionalized / Config::options.pullSpeedThreshold));
+					TriggerHapticPulse(hapticStrength);
 				}
 			}
 		}
@@ -1428,6 +1453,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				if (state == State::HeldInit) {
 					if (g_currentFrameTime - grabbedTime > 1.0f) {
 						// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
+						heldTime = g_currentFrameTime;
 						state = State::Held;
 					}
 					else {
@@ -1447,9 +1473,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						desiredQuat = QuaternionNormalized(desiredQuat);
 
 						float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
-						float quatAngle = 2.0f * acosf(abs(DotProduct(currentQuat, desiredQuat)));
+						float quatAngle = QuaternionAngle(currentQuat, desiredQuat);
 
-						NiPoint3 deltaPos = VectorNormalized(newTransform.pos - n->m_worldTransform.pos) * Config::options.grabStartSpeed * *g_deltaTime;
+						NiPoint3 deltaDir = VectorNormalized(newTransform.pos - n->m_worldTransform.pos);
+						NiPoint3 deltaPos = deltaDir * Config::options.grabStartSpeed * *g_deltaTime;
 
 						bool doRotation = deltaAngle < quatAngle;
 						bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos);
@@ -1469,21 +1496,33 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								// If not close enough, move the object closer to the hand at some velocity
 								newTransform.pos = n->m_worldTransform.pos + deltaPos;
 							}
+
+							UpdateKeyframedNodeTransform(n, newTransform);
 						}
 						else {
 							// Both position and rotation are close enough to their final values - we're done
+							heldTime = g_currentFrameTime;
 							state = State::Held;
 						}
 					}
 				}
 
-				UpdateKeyframedNodeTransform(n, newTransform);
+				if (state == State::Held) {
+					UpdateKeyframedNodeTransform(n, newTransform);
+
+					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
+						ResetNearbyDamping();
+					}
+				}
 			}
 		}
 		else {
 			if (g_vrikInterface) {
 				g_vrikInterface->restoreFingers(isLeft);
 			}
+
+			ResetNearbyDamping();
+
 			state = State::Idle;
 		}
 	}
@@ -1513,8 +1552,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 	prevState = state;
 	prevPlayerPosWorldspace = player->pos;
-	prevHandPosRoomspace = handPosRoomspace;
-	prevHandDirectionRoomspace = handDirectionRoomspace;
 }
 
 

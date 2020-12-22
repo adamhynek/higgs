@@ -41,13 +41,13 @@ struct Grabber
 	{
 		Idle, // not pointing at anything meaningful
 		SelectedFar, // pointing at something meaningful that isn't close
-		SelectedClose, // selected something that's next to the hand
-		SelectionLocked, // player has locked in their selection
-		PrepullItem , // player wants to pull a piece of armor off
-		Pulled, // player is pulling the object towards them
+		SelectedClose, // pointing at something that's next to the hand
+		SelectionLocked, // player has locked in their selection, i.e. is holding the button
+		PrepullItem , // player wants to pull a piece of armor off, wait for it to spawn
+		Pulled, // first few frames when a player is pulling the object towards them
 		HeldInit, // held object is moving towards hand
 		Held, // player is holding the object in their hand
-		HeldBody // player is holding a body
+		HeldBody // player is holding a body / other constrained object
 	};
 
 	enum class InputState : UInt8
@@ -58,17 +58,17 @@ struct Grabber
 		Force
 	};
 
-	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString upperArmNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
+	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
 		isLeft(isLeft),
 		collisionMapState(isLeft ? CollisionInfo::State::HeldLeft : CollisionInfo::State::HeldRight),
 		name(name),
 		handNodeName(handNodeName),
-		upperArmNodeName(upperArmNodeName),
 		wandNodeName(wandNodeName),
 		palmPosHandspace(palmPosHandspace),
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput),
-		controllerVelocities(10, NiPoint3())
+		controllerVelocities(10, NiPoint3()),
+		playerVelocitiesWorldspace(5, NiPoint3())
 	{
 		for (int i = 0; i < 5; i++) {
 			for (int j = 0; j < 3; j++) {
@@ -90,9 +90,11 @@ struct Grabber
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
+	void Grabber::ResetNearbyDamping();
+	void FindBodiesToFreeze(bhkWorld &world);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
-	void TransitionHeld(Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
+	void TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision();
 	bool IsObjectPullable();
@@ -118,7 +120,6 @@ struct Grabber
 	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
 	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
-	BSFixedString upperArmNodeName;
 	BSFixedString wandNodeName;
 
 	std::mutex deselectLock;
@@ -132,10 +133,11 @@ struct Grabber
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	std::array<NiPoint3, 5> playerVelocitiesWorldspace; // previous n player velocities in skyrim worldspace
-	std::array<NiPoint3, 5> handVelocitiesRoomspace; // previous n wand velocities in local roomspace
-	std::array<NiPoint3, 5> handDirectionVelocities; // previous n hand direction velocities
+	std::deque<NiPoint3> playerVelocitiesWorldspace; // previous n player velocities in skyrim worldspace
 	std::deque<NiPoint3> controllerVelocities;
+
+	std::vector<NiPointer<bhkRigidBody>> nearbyBodies; // This only exists to hold the NiPointers
+	std::unordered_map<bhkRigidBody *, std::pair<hkHalf, hkHalf>> nearbyBodyMap;
 
 	SelectedObject selectedObject;
 	PulledObject pulledObject;
@@ -144,13 +146,10 @@ struct Grabber
 	NiPoint3 initialObjPosRaySpace;
 	NiPoint3 initialGrabbedObjRelativePosition;
 	NiPoint3 initialGrabbedObjWorldPosition;
-	float initialHandShoulderDistance = 0;
 
 	NiTransform desiredObjTransformHandSpace;
 
 	NiPoint3 prevPlayerPosWorldspace;
-	NiPoint3 prevHandPosRoomspace;
-	NiPoint3 prevHandDirectionRoomspace;
 
 	bool idleDesired = false;
 
@@ -160,6 +159,7 @@ struct Grabber
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
+	double heldTime = 0;
 
 	State state = State::Idle;
 	State prevState = State::Idle;

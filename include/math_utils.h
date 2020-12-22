@@ -83,7 +83,9 @@ NiQuaternion QuaternionNormalized(const NiQuaternion &q);
 NiQuaternion QuaternionMultiply(const NiQuaternion &qa, const NiQuaternion &qb);
 NiQuaternion QuaternionMultiply(const NiQuaternion &q, float multiplier);
 NiQuaternion QuaternionInverse(const NiQuaternion &q);
+inline float QuaternionAngle(const NiQuaternion &qa, const NiQuaternion &qb) { return 2.0f * acosf(abs(DotProduct(qa, qb))); }
 NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t);
+inline NiPoint3 lerp(const NiPoint3 &a, const NiPoint3 &b, float t) { return a * t + b * (1.0f - t); }
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
 

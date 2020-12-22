@@ -10,12 +10,12 @@ namespace Config {
 		float farCastRadius = 0.3f;
 		float nearCastRadius = 0.05f;
 		float nearCastDistance = 0.1f;
+		float nearbyGrabBodyRadius = 0.1f;
 		float requiredCastDotProduct = cosf(50.0f * 0.0174533);
 		float grabbedDotProductThreshold = cosf(45.0f * 0.0174533);
 		float rolloverScale = 10.0f;
-		float pullSpeedThreshold = 90.0f;
-		float pullAngularSpeedThreshold = 9.0f;
-		float grabStartSpeed = 250.0f; // skyrim units/s
+		float pullSpeedThreshold = 1.2f; // m/s
+		float grabStartSpeed = 200.0f; // skyrim units/s
 		float grabStartAngularSpeed = 360.0f; // deg/s
 		float grabLateralWeight = 0.6f;
 		float grabDirectionalWeight = 0.4f;
@@ -23,14 +23,23 @@ namespace Config {
 		float pullDestinationZOffset = 0.05f; // in meters, z offset above the palm at which to target the pulled object
 		float pulledAngularDamping = 3.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
 
+		float nearbyGrabMaxLinearVelocity = 0.1f;
+		float nearbyGrabMaxAngularVelocity = 0.1f;
+		float nearbyGrabLinearDamping = 500.0f;
+		float nearbyGrabAngularDamping = 50.0f;
+
 		float minPullDuration = 0.375f; // in s, duration of a pull for an object right next to the player
 		float pullDurationExtensionDuration = 0.375f; // in s, duration to extend the pull over the below distance
 		float pullDurationExtensionDistance = 5.0f; // in meters, distance over which to extend the pull by the above value
+
+		float selectionLockedBaseHapticStrength = 50.0f;
+		float selectionLockedProportionalHapticStrength = 3000.0f;
 
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double pulledInitTime = 0.1; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
 		double pulledLootSpawnInTime = 0.5f; // in s, amount of time to wait for a pulled looted item to spawn in before giving up
+		double grabFreezeNearbyVelocityTime = 0.1f; // in s, amount of time during which to zero-out velocity of objects near the grabbed object when grabbing
 
 		bool disableShaders = false;
 

@@ -67,6 +67,8 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "FarCastRadius", &options.farCastRadius)) return false;
 		if (!GetConfigOptionFloat("Settings", "FarCastDistance", &options.farCastDistance)) return false;
 
+		if (!GetConfigOptionFloat("Settings", "NearbyGrabBodyRadius", &options.nearbyGrabBodyRadius)) return false;
+
 		float castDirectionRequiredHalfAngle;
 		if (!GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
 		options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
@@ -79,11 +81,12 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PulledInitTime", &options.pulledInitTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PulledLootSpawnInTime", &options.pulledLootSpawnInTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
+		if (!GetConfigOptionFloat("Settings", "GrabStartAngularSpeed", &options.grabStartAngularSpeed)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "PullSpeedThreshold", &options.pullSpeedThreshold)) return false;
-		if (!GetConfigOptionFloat("Settings", "PullAngularSpeedThreshold", &options.pullAngularSpeedThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
 
@@ -92,6 +95,15 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "PullDestinationZOffset", &options.pullDestinationZOffset)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "PulledAngularDamping", &options.pulledAngularDamping)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "SelectionLockedBaseHapticStrength", &options.selectionLockedBaseHapticStrength)) return false;
+		if (!GetConfigOptionFloat("Settings", "SelectionLockedProportionalHapticStrength", &options.selectionLockedProportionalHapticStrength)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "NearbyGrabLinearDamping", &options.nearbyGrabLinearDamping)) return false;
+		if (!GetConfigOptionFloat("Settings", "NearbyGrabAngularDamping", &options.nearbyGrabAngularDamping)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "NearbyGrabMaxLinearVelocity", &options.nearbyGrabMaxLinearVelocity)) return false;
+		if (!GetConfigOptionFloat("Settings", "NearbyGrabMaxAngularVelocity", &options.nearbyGrabMaxAngularVelocity)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "MinPullDuration", &options.minPullDuration)) return false;
 		if (!GetConfigOptionFloat("Settings", "PullDurationExtensionDuration", &options.pullDurationExtensionDuration)) return false;
@@ -128,7 +140,13 @@ namespace Config {
 			lastModifiedConfigTime = time;
 
 			// Reload config if file has been modified since we last read it
-			ReadConfigOptions();
+			if (Config::ReadConfigOptions()) {
+				_MESSAGE("Successfully reloaded config parameters");
+			}
+			else {
+				_WARNING("[WARNING] Failed to reload config options");
+			}
+
 			return true;
 		}
 
