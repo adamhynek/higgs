@@ -92,7 +92,9 @@ RelocAddr<_GetWorld> GetWorld(0x276A90);
 
 RelocAddr<_ActivatePickRef> ActivatePickRef(0x6CBCE0);
 
-RelocAddr<_GetMass> GetMass(0x9CED20);
+RelocAddr<_TESObjectREFR_GetMass> TESObjectREFR_GetMass(0x9CED20);
+
+RelocAddr<_NiAVObject_GetMass> NiAVObject_GetMass(0x3B5B50);
 
 RelocAddr<_StartGrabObject> StartGrabObject(0x006CC000);
 

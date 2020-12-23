@@ -12,6 +12,8 @@
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastCollectorOutput.h>
+#include <Physics/Collide/Shape/Compound/Tree/Mopp/hkpMoppBvTreeShape.h>
+
 
 struct bhkShape : NiRefObject
 {

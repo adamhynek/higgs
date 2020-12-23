@@ -169,8 +169,11 @@ extern RelocAddr<_GetWorld> GetWorld;
 typedef void(*_ActivatePickRef)(PlayerCharacter *player);
 extern RelocAddr<_ActivatePickRef> ActivatePickRef;
 
-typedef float(*_GetMass)(float sum, bool firstPerson, TESObjectREFR *obj);
-extern RelocAddr<_GetMass> GetMass;
+typedef float(*_TESObjectREFR_GetMass)(float sum, bool firstPerson, TESObjectREFR *obj);
+extern RelocAddr<_TESObjectREFR_GetMass> TESObjectREFR_GetMass;
+
+typedef float(*_NiAVObject_GetMass)(NiAVObject *node, float sum);
+extern RelocAddr<_NiAVObject_GetMass> NiAVObject_GetMass;
 
 typedef void(*_StartGrabObject)(PlayerCharacter *_this, UInt64 isRightHand);
 extern RelocAddr<_StartGrabObject> StartGrabObject;

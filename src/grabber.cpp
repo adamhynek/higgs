@@ -7,7 +7,6 @@
 #include "skse64/PapyrusActor.h"
 #include "skse64/NiGeometry.h"
 #include "skse64/GameExtraData.h"
-#include "skse64/GameVR.h"
 
 #include "grabber.h"
 #include "offsets.h"
@@ -90,17 +89,59 @@ public:
 };
 
 
-void Grabber::TriggerHapticPulse(unsigned short duration)
+void HapticsManager::TriggerHapticPulse(float duration)
 {
 	if (g_openVR && *g_openVR) {
 		BSOpenVR *openVR = *g_openVR;
-		vr_src::IVRSystem *vrSystem = openVR->vrSystem;
-		if (vrSystem) {
-			vr_src::TrackedDeviceIndex_t controllerIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(
-				isLeft ? vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand : vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand
-			);
-			vrSystem->TriggerHapticPulse(controllerIndex, 0, duration);
+		openVR->TriggerHapticPulse(hand, duration);
+	}
+}
+
+void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, float duration)
+{
+	HapticsManager::HapticEvent hapticEvent;
+	hapticEvent.startStrength = startStrength;
+	hapticEvent.endStrength = endStrength;
+	hapticEvent.duration = duration;
+	hapticEvent.startTime = g_currentFrameTime;
+
+	events.push_back(hapticEvent);
+}
+
+void HapticsManager::QueueHapticPulse(float strength)
+{
+	HapticEvent evnt;
+	evnt.startStrength = strength;
+	evnt.endStrength = strength;
+	evnt.duration = 0;
+	evnt.startTime = g_currentFrameTime;
+
+	events.push_back(evnt);
+}
+
+void HapticsManager::Update()
+{
+	size_t numEvents = events.size();
+	if (numEvents > 0) {
+		// Just play the last event that was added
+		HapticEvent &lastEvent = events[numEvents - 1];
+
+		float strength;
+		if (lastEvent.duration == 0) {
+			strength = lastEvent.startStrength;
 		}
+		else {
+			// Simple lerp from start to end strength over duration
+			double elapsedTime = g_currentFrameTime - lastEvent.startTime;
+			strength = lerp(lastEvent.startStrength, lastEvent.endStrength, min(1.0f, elapsedTime / lastEvent.duration));
+		}
+		TriggerHapticPulse(strength);
+
+		// Cleanup events that are past their duration
+		auto end = std::remove_if(events.begin(), events.end(),
+			[](HapticEvent &evnt) { return g_currentFrameTime - evnt.startTime > evnt.duration; }
+		);
+		events.erase(end, events.end());
 	}
 }
 
@@ -320,6 +361,19 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 		auto shape = (bhkShape *)selectedObject.collidable->m_shape->m_userData;
 		if (shape) {
 			UInt32 materialId = shape->materialId;
+
+			// Handle MOPP shape, as it doesn't have a material on the MOPP shape itself, only the child collection shape...
+			auto moppShape = DYNAMIC_CAST(shape->shape, hkpShape, hkpMoppBvTreeShape);
+			if (moppShape) {
+				const hkpShape *childShape = moppShape->getChild();
+				if (childShape) {
+					auto bChildShape = (bhkShape *)childShape->m_userData;
+					if (bChildShape) {
+						materialId = bChildShape->materialId;
+					}
+				}
+			}
+
 			BGSMaterialType *material = GetMaterialType(materialId);
 			BGSMaterialType *stoneMaterial = GetMaterialType(stoneMaterialId);
 			if (material && material->impactDataSet && stoneMaterial) {
@@ -341,7 +395,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 	}
 	if (!sound) {
 		// Failed to get the physics sound, just use the generic pickup sound instead
-		static RelocPtr<BGSDefaultObjectManager> defaultObjectManager(0x01F81D90);
+		static RelocPtr<BGSDefaultObjectManager> defaultObjectManager(0x01F81D90); // The SKSE one is broken, it's a RelocPtr to a RelocPtr<BGSDefaultObjectManager*>
 		TESForm *defaultPickupSound = defaultObjectManager->objects[113]; // kPickupSoundGeneric
 		if (defaultPickupSound) {
 			sound = DYNAMIC_CAST(defaultPickupSound, TESForm, BGSSoundDescriptorForm);
@@ -363,7 +417,9 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
 
-		TriggerHapticPulse(1000);
+		float mass = NiAVObject_GetMass(n, 0);
+		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+		haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
 
 		grabbedTime = g_currentFrameTime;
 		rolloverDisplayTime = g_currentFrameTime;
@@ -596,6 +652,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			playerCollisionGroup = comRigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
 		}
 	}
+
+	haptics.Update();
 
 	bhkWorld *world = GetWorld(cell);
 	if (!world) {
@@ -1163,6 +1221,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocity);
 
+					float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
+					float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+					haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+
 					PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
 				}
 			}
@@ -1260,7 +1322,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, CollisionInfo::State::Unheld);
 					}
 
-					TriggerHapticPulse(1000);
+					float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength);
+					haptics.QueueHapticEvent(hapticStrength, 0, Config::options.pullHapticFadeTime);
 
 					NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 					NiPoint3 objPoint = (hkObjPos + pulledPointOffset) * *g_inverseHavokWorldScale;
@@ -1345,11 +1408,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						idleDesired = true;
 					}
 
-					//if (!isLeft) {
-					//	PrintToFile(std::to_string(controllerSpeedDirectionalized), "controllerSpeedR");
-					//}
-					float hapticStrength = Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeedDirectionalized / Config::options.pullSpeedThreshold));
-					TriggerHapticPulse(hapticStrength);
+					float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeedDirectionalized / Config::options.pullSpeedThreshold)));
+					haptics.QueueHapticPulse(hapticStrength);
 				}
 			}
 		}
@@ -1387,7 +1447,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 					pulledTime = g_currentFrameTime;
 
-					TriggerHapticPulse(1000);
+					float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength);
+					haptics.QueueHapticEvent(hapticStrength, 0, Config::options.pullHapticFadeTime);
 
 					NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 					NiPoint3 objPoint = (hkObjPos + pulledPointOffset) * *g_inverseHavokWorldScale;

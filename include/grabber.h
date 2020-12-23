@@ -5,12 +5,38 @@
 #include <deque>
 
 #include "skse64/InternalVR.h"
+#include "skse64/GameVR.h"
+
 #include "RE/havok.h"
 #include "physics.h"
 #include "utils.h"
 #include "havok_ref_ptr.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
+
+
+struct HapticsManager
+{
+	struct HapticEvent
+	{
+		float startStrength;
+		float endStrength;
+		double duration;
+		double startTime;
+	};
+
+	HapticsManager(BSVRInterface::BSControllerHand hand) :
+		hand(hand)
+	{}
+
+	BSVRInterface::BSControllerHand hand;
+	std::vector<HapticEvent> events;
+
+	void TriggerHapticPulse(float duration);
+	void QueueHapticEvent(float startStrength, float endStrength, float duration);
+	void QueueHapticPulse(float duration);
+	void Update();
+};
 
 
 struct Grabber
@@ -68,7 +94,8 @@ struct Grabber
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput),
 		controllerVelocities(10, NiPoint3()),
-		playerVelocitiesWorldspace(5, NiPoint3())
+		playerVelocitiesWorldspace(5, NiPoint3()),
+		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right)
 	{
 		for (int i = 0; i < 5; i++) {
 			for (int j = 0; j < 3; j++) {
@@ -101,13 +128,14 @@ struct Grabber
 	bool HasExclusiveObject() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void SetSelectedHandles(bool isLeftHanded);
-	void TriggerHapticPulse(unsigned short duration);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
+
+	HapticsManager haptics;
 
 	hkpBoxShape *handCollShape;
 	hkpRigidBodyCinfo *handCollCInfo;

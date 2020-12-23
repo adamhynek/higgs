@@ -82,6 +82,8 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "PulledInitTime", &options.pulledInitTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PulledLootSpawnInTime", &options.pulledLootSpawnInTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "PullHapticFadeTime", &options.pullHapticFadeTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabStartAngularSpeed", &options.grabStartAngularSpeed)) return false;
@@ -98,6 +100,9 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "SelectionLockedBaseHapticStrength", &options.selectionLockedBaseHapticStrength)) return false;
 		if (!GetConfigOptionFloat("Settings", "SelectionLockedProportionalHapticStrength", &options.selectionLockedProportionalHapticStrength)) return false;
+		if (!GetConfigOptionFloat("Settings", "GrabBaseHapticStrength", &options.grabBaseHapticStrength)) return false;
+		if (!GetConfigOptionFloat("Settings", "GrabProportionalHapticStrength", &options.grabProportionalHapticStrength)) return false;
+		if (!GetConfigOptionFloat("Settings", "GrabHapticMassExponent", &options.grabHapticMassExponent)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabLinearDamping", &options.nearbyGrabLinearDamping)) return false;
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabAngularDamping", &options.nearbyGrabAngularDamping)) return false;

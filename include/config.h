@@ -32,14 +32,20 @@ namespace Config {
 		float pullDurationExtensionDuration = 0.375f; // in s, duration to extend the pull over the below distance
 		float pullDurationExtensionDistance = 5.0f; // in meters, distance over which to extend the pull by the above value
 
-		float selectionLockedBaseHapticStrength = 50.0f;
-		float selectionLockedProportionalHapticStrength = 3000.0f;
+		float selectionLockedBaseHapticStrength = 0.05f;
+		float selectionLockedProportionalHapticStrength = 0.3f;
+
+		float grabBaseHapticStrength = 0.25f;
+		float grabProportionalHapticStrength = 0.06f;
+		float grabHapticMassExponent = 0.6f;
 
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double pulledInitTime = 0.1; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
 		double pulledLootSpawnInTime = 0.5f; // in s, amount of time to wait for a pulled looted item to spawn in before giving up
 		double grabFreezeNearbyVelocityTime = 0.1f; // in s, amount of time during which to zero-out velocity of objects near the grabbed object when grabbing
+		double pullHapticFadeTime = 0.15f; // in s, amount of time over which to fade down the haptic strength after a pull
+		double grabHapticFadeTime = 0.1f;
 
 		bool disableShaders = false;
 

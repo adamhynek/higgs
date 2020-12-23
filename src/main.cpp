@@ -54,8 +54,6 @@ bool g_isLoaded = false;
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 
-bool g_hasSavedRumbleIntensity = false;
-float g_normalRumbleIntensity;
 bool g_hasSavedRollover = false;
 NiTransform g_normalRolloverTransform;
 
@@ -120,7 +118,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!rootObj)
 		return true;
 
-	Config::ReloadIfModified(); // TODO: Remove
+	//Config::ReloadIfModified(); // TODO: Remove
 
 	g_currentFrameTime = GetTime();
 
@@ -271,13 +269,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (displayRight || displayLeft) {
 		// Something is grabbed
 
-		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-		if (!g_hasSavedRumbleIntensity) {
-			g_hasSavedRumbleIntensity = true;
-			g_normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
-		}
-		activateRumbleIntensitySetting->SetDouble(0);
-
 		if (!g_hasSavedRollover) {
 			NiAVObject *rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
 			if (rolloverNode) {
@@ -343,11 +334,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		}
 		if (g_hasSavedRollover) {
 			rolloverNode->m_localTransform = g_normalRolloverTransform;
-		}
-
-		if (g_hasSavedRumbleIntensity) {
-			Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-			activateRumbleIntensitySetting->data.f32 = g_normalRumbleIntensity;
 		}
 	}
 
