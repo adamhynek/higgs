@@ -23,8 +23,8 @@ namespace Config {
 		float pullDestinationZOffset = 0.05f; // in meters, z offset above the palm at which to target the pulled object
 		float pulledAngularDamping = 3.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
 
-		float nearbyGrabMaxLinearVelocity = 0.1f;
-		float nearbyGrabMaxAngularVelocity = 0.1f;
+		float nearbyGrabMaxLinearVelocity = 0.2f;
+		float nearbyGrabMaxAngularVelocity = 1.0f;
 		float nearbyGrabLinearDamping = 500.0f;
 		float nearbyGrabAngularDamping = 50.0f;
 
@@ -60,6 +60,7 @@ namespace Config {
 
 		NiPoint3 palmVector = { -0.018, -0.965, 0.261 };
 		NiPoint3 pointingVector = { 0, 0, 1 };
+		NiPoint3 palmPosition = { 0, -2.4, 6 }; // in handspace, skyrim units
 
 		NiPoint3 handCollisionBoxHalfExtents = { 0.05, 0.015, 0.075 }; // in meters
 		NiPoint3 handCollisionBoxOffset = { 0, -0.005, 0.08 }; // offset from hand node, in meters

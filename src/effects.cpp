@@ -105,6 +105,7 @@ void RestoreShaderData(UInt32 handle, NiAVObject *root)
 								NiPointer<BSEffectShaderData> shaderData = shaderReference->effectShaderData;
 								if (shaderData) {
 									shaderData->IncRef();
+									// TODO: DecRef on the current one?
 									*((BSEffectShaderData **)&shaderProperty->unk68) = shaderData;
 									effectDataMap.erase(root);
 								}

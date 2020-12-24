@@ -991,16 +991,15 @@ namespace MathUtils
 		const NiPoint3 &fingerCenter,
 		const NiPoint3 &fingerNormal,
 		const NiPoint3 &zeroAngleVector,
-		float scale,
+		float handScale,
+		float nodeScale,
 		const Triangle &triangle,
 		uintptr_t vertices,
 		UInt8 vertexStride,
 		UInt32 vertexPosOffset,
 		float &outTipAngle,
 		float &outOuterAngle,
-		float &outInnerAngle,
-		bool &anyUnderOuter,
-		bool &anyUnderInner)
+		float &outInnerAngle)
 	{
 		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
 		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
@@ -1064,8 +1063,10 @@ namespace MathUtils
 			endAngle *= -1;
 		}
 
+		float scale = nodeScale;
+
 		auto CurveCheck = [=, &fingerNormal, &zeroAngleVector, &vertex0, &vertex1, &vertex2]
-		(SavedFingerData fingerVals[], float startAngle, float endAngle, float &outAngle, bool &anyUnder) -> bool
+		(SavedFingerData fingerVals[], float startAngle, float endAngle, float &outAngle) -> bool
 		{
 			bool crossesBehind = false;
 			float smallestAngle = min(startAngle, endAngle);
@@ -1219,9 +1220,6 @@ namespace MathUtils
 			}
 			else {
 				// Edge is entirely 'under' the curve
-				if (largerIndex < g_numFingerVals - 1 && smallerIndex > 0) { // Strict > and < because we clamp to the edges so if it's beyond the edges it will still equal the edges
-					anyUnder = true;
-				}
 			}
 
 			// If one end of the edge is behind the finger and the other isn't, then derotate only if the finger missed in the normal case.
@@ -1233,13 +1231,12 @@ namespace MathUtils
 		};
 
 		float tipAngle, outerAngle, innerAngle;
-		bool anyUnderTip; // unused
-		bool tipIntersects = CurveCheck(g_fingerTipVals[fingerIndex], startAngle, endAngle, tipAngle, anyUnderTip);
-		bool outerIntersects = CurveCheck(g_fingerOuterVals[fingerIndex], startAngle, endAngle, outerAngle, anyUnderOuter);
-		bool innerIntersects = CurveCheck(g_fingerInnerVals[fingerIndex], startAngle, endAngle, innerAngle, anyUnderInner);
+		bool tipIntersects = CurveCheck(g_fingerTipVals[fingerIndex], startAngle, endAngle, tipAngle);
+		bool outerIntersects = CurveCheck(g_fingerOuterVals[fingerIndex], startAngle, endAngle, outerAngle);
+		bool innerIntersects = CurveCheck(g_fingerInnerVals[fingerIndex], startAngle, endAngle, innerAngle);
 
 		if (tipIntersects || outerIntersects || innerIntersects) {
-			_MESSAGE("%d %d %d", innerIntersects, outerIntersects, tipIntersects);
+			_MESSAGE("inner outer tip intersects: %d %d %d", innerIntersects, outerIntersects, tipIntersects);
 		}
 
 		outTipAngle = tipAngle;
@@ -1250,8 +1247,8 @@ namespace MathUtils
 }
 
 
-void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections, bool &anyUnderOuter, bool &anyUnderInner,
-	int fingerIndex, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
+void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
+	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1281,8 +1278,6 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 			NiTransform inverseTransform;
 			nodeTransform.Invert(inverseTransform);
 			NiPoint3 centerInNodeSpace = inverseTransform * center;
-			NiPoint3 point1InNodeSpace = inverseTransform * point1;
-			NiPoint3 point2InNodeSpace = inverseTransform * point2;
 
 			NiMatrix33 inverseRot = nodeTransform.rot.Transpose();
 			NiPoint3 zeroAngleVectorNodespace = inverseRot * zeroAngleVector;
@@ -1292,8 +1287,8 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 				Triangle tri = tris[i];
 				// get closest point on triangle to given point
 				float tipAngle, outerAngle, innerAngle;
-				auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, nodeTransform.scale, tri, verts, vertexSize, posOffset,
-					tipAngle, outerAngle, innerAngle, anyUnderOuter, anyUnderInner);
+				auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, handScale, nodeTransform.scale, tri, verts, vertexSize, posOffset,
+					tipAngle, outerAngle, innerAngle);
 				//int numIntersections = MathUtils::DiskIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				//int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				if (!tipIntersects && !outerIntersects && !innerIntersects) {
@@ -1321,7 +1316,7 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, anyUnderOuter, anyUnderInner, fingerIndex, child, center, point1, point2, normal, zeroAngleVector);
+					GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
 					return;
 				}
 			}
@@ -1331,7 +1326,7 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, anyUnderOuter, anyUnderInner, fingerIndex, child, center, point1, point2, normal, zeroAngleVector);
+					GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
 				}
 			}
 			return;
@@ -1423,16 +1418,13 @@ float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std:
 }
 
 
-bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center, const NiPoint3 &point1, const NiPoint3 &point2, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
+bool GetIntersections(NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle)
 {
 	std::vector<Intersection> tipIntersections, outerIntersections, innerIntersections;
 
 	// Populate intersections
-	bool anyUnderOuter = false, anyUnderInner = false; // Need to initialize these to false
-	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, anyUnderOuter, anyUnderInner, fingerIndex, root, center, point1, point2, normal, zeroAngleVector);
-
-	_MESSAGE("%d %d", anyUnderInner, anyUnderOuter);
+	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, root, center, normal, zeroAngleVector);
 
 	/*
 	if (innerIntersections.size() == 0 && anyUnderInner) {
@@ -1505,82 +1497,24 @@ bool GetIntersections(NiAVObject *root, int fingerIndex, const NiPoint3 &center,
 	}
 
 
-	float curveVal = 0;
+	float innerVal = -1, outerVal = -1, tipVal = -1;
 	SavedFingerData fingerData;
 	if (innerAngle != (std::numeric_limits<float>::max)()) {
 		LookupFingerByAngle(g_fingerInnerVals[fingerIndex], innerAngle, &fingerData);
-		curveVal = fingerData.curveVal;
+		innerVal = fingerData.curveVal;
 	}
-	else if (outerAngle != (std::numeric_limits<float>::max)()) {
+	if (outerAngle != (std::numeric_limits<float>::max)()) {
 		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], outerAngle, &fingerData);
-		curveVal = fingerData.curveVal;
+		outerVal = fingerData.curveVal;
 	}
-	else if (tipAngle != (std::numeric_limits<float>::max)()) {
+	if (tipAngle != (std::numeric_limits<float>::max)()) {
 		LookupFingerByAngle(g_fingerTipVals[fingerIndex], tipAngle, &fingerData);
-		curveVal = fingerData.curveVal;
+		tipVal = fingerData.curveVal;
 	}
-	else {
+
+	float curveVal = max(innerVal, max(outerVal, tipVal));
+	if (curveVal == -1) {
 		return false;
-	}
-
-	_MESSAGE("%.2f", curveVal);
-
-	std::vector<float> outerCurveVals, tipCurveVals;
-	for (auto &intersection : outerIntersections) {
-		float angle = intersection.angle;
-		if (angle < 0) {
-			continue;
-		}
-		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], angle, &fingerData);
-		outerCurveVals.push_back(fingerData.curveVal);
-		_MESSAGE("outer: %.2f", fingerData.curveVal);
-	}
-	for (auto &intersection : tipIntersections) {
-		float angle = intersection.angle;
-		if (angle < 0) {
-			continue;
-		}
-		LookupFingerByAngle(g_fingerTipVals[fingerIndex], angle, &fingerData);
-		tipCurveVals.push_back(fingerData.curveVal);
-		_MESSAGE("tip: %.2f", fingerData.curveVal);
-	}
-	std::sort(outerCurveVals.begin(), outerCurveVals.end());
-	std::sort(tipCurveVals.begin(), tipCurveVals.end());
-
-	if (outerCurveVals.size() > 0) {
-		float outerVal = outerCurveVals[0];
-		for (int i = 1; i < outerCurveVals.size(); i++) {
-			float val = outerCurveVals[i];
-			if (val > outerVal) {
-				if (val - outerVal > 0.25f && outerVal >= curveVal) {
-					// Do not accept finger curl amount jumps that are above some threshold
-					break;
-				}
-				outerVal = val;
-			}
-		}
-
-		if (outerVal > curveVal) {
-			curveVal = outerVal;
-		}
-	}
-
-	if (tipCurveVals.size() > 0) {
-		float tipVal = tipCurveVals[0];
-		for (int i = 1; i < tipCurveVals.size(); i++) {
-			float val = tipCurveVals[i];
-			if (val > tipVal) {
-				if (val - tipVal > 0.25f && tipVal >= curveVal) {
-					// Do not accept finger curl amount jumps that are above some threshold
-					break;
-				}
-				tipVal = val;
-			}
-		}
-
-		if (tipVal > curveVal) {
-			curveVal = tipVal;
-		}
 	}
 
 	*outAngle = curveVal;

@@ -481,76 +481,78 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 			if (success) {
 				// We've got a point on the graphics geometry
-				ptPos = triPos * havokWorldScale;
-
-				PlayerCharacter *player = *g_thePlayer;
-
-				NiPoint3 fingerNormalsWorldspace[5];
-				NiPoint3 fingerZeroAngleVecsWorldspace[5];
-				for (int i = 0; i < 5; i++) {
-					NiPoint3 normalHandspace = g_fingerNormals[i];
-					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
-					if (isLeft) {
-						// x axis is flipped for left hand
-						zeroAngleVecHandspace.x *= -1;
-
-						// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-						normalHandspace.y *= -1;
-						normalHandspace.z *= -1;
-					}
-					fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
-				}
-
-				auto FingerCheck = [this, player, handNode, palmPos, fingerNormalsWorldspace, fingerZeroAngleVecsWorldspace]
-				(TESObjectREFR *refr, int fingerIndex) -> float
-				{
-					NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
-					NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
-					NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][2].data);
-
-					if (startFinger && midFinger && endFinger) {
-						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
-
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-						NiPoint3 midFingerPos = midFinger->m_worldTransform.pos;
-						NiPoint3 endFingerPos = endFinger->m_worldTransform.pos;
-
-						_MESSAGE("%d", fingerIndex);
-
-						float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
-						bool intersects = GetIntersections(refr->loadedState->node, fingerIndex, startFingerPos, midFingerPos, endFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-							&curveValOrAngle);
-						if (intersects) {
-							return curveValOrAngle;
-						}
-						else {
-							// No finger intersection, so just close it completely
-							return 0.0f; // 0 == closed
-						}
-					}
-					// Couldn't get the fingers... that's a problem
-					_ERROR("Could not get finger %d", fingerIndex);
-					return 0;
-				};
-
-				NiTransform originalTransform = n->m_worldTransform;
-
-				// Update transform to snap to the hand
-				desiredTransform = n->m_worldTransform;
-				desiredTransform.pos += palmPos - triPos;
-				UpdateKeyframedNodeTransform(n, desiredTransform);
-
-				std::array<float, 5> fingerData;
-				for (int i = 0; i < fingerData.size(); i++) {
-					fingerData[i] = FingerCheck(selectedObj, i);
-				}
-
-				// Reset to original transform
-				UpdateKeyframedNodeTransform(n, originalTransform);
 
 				if (g_vrikInterface) {
+					double handSize = g_vrikInterface->getSettingDouble("handSize");
+					float handScale = handSize / 0.85; // 0.85 is the vrik default hand size
+
+					PlayerCharacter *player = *g_thePlayer;
+
+					NiPoint3 fingerNormalsWorldspace[5];
+					NiPoint3 fingerZeroAngleVecsWorldspace[5];
+					for (int i = 0; i < 5; i++) {
+						NiPoint3 normalHandspace = g_fingerNormals[i];
+						NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+						if (isLeft) {
+							// x axis is flipped for left hand
+							zeroAngleVecHandspace.x *= -1;
+
+							// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+							normalHandspace.y *= -1;
+							normalHandspace.z *= -1;
+						}
+						fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+						fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+					}
+
+					auto FingerCheck = [this, player, handNode, palmPos, fingerNormalsWorldspace, fingerZeroAngleVecsWorldspace, handScale]
+					(TESObjectREFR *refr, int fingerIndex) -> float
+					{
+						NiAVObject *startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
+						NiAVObject *midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
+						NiAVObject *endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][2].data);
+
+						if (startFinger && midFinger && endFinger) {
+							NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+							NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+
+							NiPoint3 handPos = handNode->m_worldTransform.pos;
+							NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
+							startFingerPos = ((startFingerPos - handPos) * handScale) + handPos;
+
+							_MESSAGE("finger %d", fingerIndex);
+
+							float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
+							bool intersects = GetIntersections(refr->loadedState->node, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+								&curveValOrAngle);
+							if (intersects) {
+								return curveValOrAngle;
+							}
+							else {
+								// No finger intersection, so just close it completely
+								return 0.0f; // 0 == closed
+							}
+						}
+						// Couldn't get the fingers... that's a problem
+						_ERROR("Could not get finger %d", fingerIndex);
+						return 0;
+					};
+
+					NiTransform originalTransform = n->m_worldTransform;
+
+					// Update transform to snap to the hand
+					desiredTransform = n->m_worldTransform;
+					desiredTransform.pos += palmPos - triPos;
+					UpdateKeyframedNodeTransform(n, desiredTransform);
+
+					std::array<float, 5> fingerData;
+					for (int i = 0; i < fingerData.size(); i++) {
+						fingerData[i] = FingerCheck(selectedObj, i);
+					}
+
+					// Reset to original transform
+					UpdateKeyframedNodeTransform(n, originalTransform);
+
 					std::array<float, 5> fingerRanges;
 					for (int i = 0; i < fingerRanges.size(); i++) {
 						float curveVal = fingerData[i];
@@ -573,7 +575,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
 				}
 
-				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);				
+				_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
 			}
 			else {
 				// We've got a point on the collision geometry

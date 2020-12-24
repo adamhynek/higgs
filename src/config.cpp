@@ -50,6 +50,12 @@ namespace Config {
 			return false;
 		}
 
+		float palmPositionX, palmPositionY, palmPositionZ;
+		if (!GetConfigOptionFloat("Settings", "PalmPositionX", &palmPositionX)) return false;
+		if (!GetConfigOptionFloat("Settings", "PalmPositionY", &palmPositionY)) return false;
+		if (!GetConfigOptionFloat("Settings", "PalmPositionZ", &palmPositionZ)) return false;
+		options.palmPosition = { palmPositionX, palmPositionY, palmPositionZ };
+
 		float handCollisionBoxHalfExtentsX, handCollisionBoxHalfExtentsY, handCollisionBoxHalfExtentsZ;
 		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsX", &handCollisionBoxHalfExtentsX)) return false;
 		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsY", &handCollisionBoxHalfExtentsY)) return false;

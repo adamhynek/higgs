@@ -458,8 +458,12 @@ extern "C" {
 
 		g_shaderNodes = new std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>>;
 
-		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, { 0, -2.4, 6 }, { 7, -5, -2 }, Config::options.delayRightGripInput);
-		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, { 0, -2.4, 6 }, { -7, -7, -3 }, Config::options.delayLeftGripInput);
+		NiPoint3 rightPalm = Config::options.palmPosition;
+		NiPoint3 leftPalm = rightPalm;
+		leftPalm.x *= -1;
+
+		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, { 7, -5, -2 }, Config::options.delayRightGripInput);
+		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, { -7, -7, -3 }, Config::options.delayLeftGripInput);
 		if (!g_rightGrabber || !g_leftGrabber || !g_shaderNodes) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
