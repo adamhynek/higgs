@@ -104,9 +104,7 @@ void RestoreShaderData(UInt32 handle, NiAVObject *root)
 							if (shaderReference->target == handle && shaderReference == savedShaderReference) {
 								NiPointer<BSEffectShaderData> shaderData = shaderReference->effectShaderData;
 								if (shaderData) {
-									shaderData->IncRef();
-									// TODO: DecRef on the current one?
-									*((BSEffectShaderData **)&shaderProperty->unk68) = shaderData;
+									*((NiPointer<BSEffectShaderData> *)&shaderProperty->unk68) = shaderData;
 									effectDataMap.erase(root);
 								}
 							}
@@ -223,7 +221,7 @@ void CommitShaderNodes(ShaderReferenceEffect *shaderReference, NiAVObject *node,
 	(*g_shaderNodes)[shaderReference] = std::move(geometryNodes);
 }
 
-void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
+void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool saveCurrentShader)
 {
 	bool isFirstShaderPlaying = _shaders[0].IsPlaying();
 	bool isSecondShaderPlaying = _shaders[1].IsPlaying();
@@ -239,7 +237,9 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 		UInt32 handleCopy = objHandle;
 		if (LookupREFRByHandle(handleCopy, obj)) {
 			if (node) {
-				SaveShaderData(objHandle, node);
+				if (saveCurrentShader) {
+					SaveShaderData(objHandle, node);
+				}
 			}
 
 			PlayingShader &freeShader = _shaders[0];
@@ -272,7 +272,9 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 			NiPointer<TESObjectREFR> obj;
 			UInt32 handleCopy = objHandle;
 			if (LookupREFRByHandle(handleCopy, obj)) {
-				SaveShaderData(objHandle, node);
+				if (saveCurrentShader) {
+					SaveShaderData(objHandle, node);
+				}
 
 				freeShader.shader = shader;
 
@@ -300,7 +302,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 	}
 }
 
-void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
+void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool restoreCurrentShader)
 {
 	bool isFirstShaderPlaying = _shaders[0].IsPlaying();
 	bool isSecondShaderPlaying = _shaders[1].IsPlaying();
@@ -338,7 +340,9 @@ void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader)
 		neo.shaderReference->finished = true; // This is all it takes to stop the shader
 
 		if (neo.node) {
-			RestoreShaderData(objHandle, neo.node);
+			if (restoreCurrentShader) {
+				RestoreShaderData(objHandle, neo.node);
+			}
 		}
 	}
 	

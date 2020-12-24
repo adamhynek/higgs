@@ -120,5 +120,5 @@ struct PlayingShader
 
 	bool IsPlaying() const;
 };
-void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
-void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader);
+void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool saveCurrentShader);
+void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool restoreCurrentShader);

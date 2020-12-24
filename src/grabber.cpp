@@ -196,7 +196,7 @@ void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
 		else {
 			shader = itemSelectedShader;
 		}
-		PlayShader(objHandle, node, shader);
+		PlayShader(objHandle, node, shader, selectedObject.isActor);
 	}
 }
 
@@ -214,7 +214,7 @@ void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 		else {
 			shader = itemSelectedShader;
 		}
-		StopShader(objHandle, node, shader);
+		StopShader(objHandle, node, shader, selectedObject.isActor);
 	}
 }
 
@@ -482,6 +482,8 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			if (success) {
 				// We've got a point on the graphics geometry
 
+				desiredTransform.pos += palmPos - triPos;
+
 				if (g_vrikInterface) {
 					double handSize = g_vrikInterface->getSettingDouble("handSize");
 					float handScale = handSize / 0.85; // 0.85 is the vrik default hand size
@@ -541,8 +543,6 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					NiTransform originalTransform = n->m_worldTransform;
 
 					// Update transform to snap to the hand
-					desiredTransform = n->m_worldTransform;
-					desiredTransform.pos += palmPos - triPos;
 					UpdateKeyframedNodeTransform(n, desiredTransform);
 
 					std::array<float, 5> fingerData;
