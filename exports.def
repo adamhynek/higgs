@@ -1,4 +1,4 @@
-LIBRARY	"forcepull_vr"
+LIBRARY	"higgs_vr"
 EXPORTS
 SKSEPlugin_Query
 SKSEPlugin_Load

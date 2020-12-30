@@ -379,7 +379,7 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 extern "C" {
 	void OnDataLoaded()
 	{
-		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("ForcePullVR.esp");
+		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("higgs_vr.esp");
 		if (!modInfo) {
 			_ERROR("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
 			return;
@@ -551,14 +551,14 @@ extern "C" {
 
 	bool SKSEPlugin_Query(const SKSEInterface* skse, PluginInfo* info)
 	{
-		gLog.OpenRelative(CSIDL_MYDOCUMENTS, "\\My Games\\Skyrim VR\\SKSE\\ForcePullVR.log");
+		gLog.OpenRelative(CSIDL_MYDOCUMENTS, "\\My Games\\Skyrim VR\\SKSE\\higgs_vr.log");
 		gLog.SetPrintLevel(IDebugLog::kLevel_DebugMessage);
 		gLog.SetLogLevel(IDebugLog::kLevel_DebugMessage);
 
-		_MESSAGE("ForcePullVR v%s", FPVR_VERSION_VERSTRING);
+		_MESSAGE("HIGGS VR v%s", FPVR_VERSION_VERSTRING);
 
 		info->infoVersion = PluginInfo::kInfoVersion;
-		info->name = "ForcePullVR";
+		info->name = "Hand Interaction and Gravity Gloves for Skyrim VR";
 		info->version = FPVR_VERSION_MAJOR;
 
 		g_pluginHandle = skse->GetPluginHandle();
@@ -577,7 +577,7 @@ extern "C" {
 
 	bool SKSEPlugin_Load(const SKSEInterface * skse)
 	{	// Called by SKSE to load this plugin
-		_MESSAGE("ForcePullVR loaded");
+		_MESSAGE("Hand Interaction and Gravity Gloves for Skyrim VR loaded");
 
 		if (Config::ReadConfigOptions()) {
 			_MESSAGE("Successfully read config parameters");
