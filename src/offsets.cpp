@@ -51,6 +51,12 @@ RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity(0xAB0CB0);
 
 RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity(0xAB0E50);
 
+RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener(0xAB5580);
+
+RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener(0xC9F180);
+
+RelocAddr<_bhkWorld_addContactListener> bhkWorld_addContactListener(0xDA5C50);
+
 RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity(0xAB3110);
 
 RelocAddr<_bhkWorld_UpdateCollisionFilterOnEntity> bhkWorld_UpdateCollisionFilterOnEntity(0xDFFE50);
@@ -63,11 +69,19 @@ RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation(0x
 
 RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform(0xAA9060);
 
+RelocAddr<_hkpEntity_getNumConstraints> hkpEntity_getNumConstraints(0xAA73B0);
+
+RelocAddr<_hkpEntity_addContactListener> hkpEntity_addContactListener(0xAA6FE0);
+
+RelocAddr<_hkpEntity_removeContactListener> hkpEntity_removeContactListener(0xAA7080);
+
 RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor(0xAA89C0);
 
 RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor(0xAC5FE0); // just sets all the fields to defaults
 
 RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor(0xA93600);
+
+RelocAddr<_hkpTriggerVolume_ctor> hkpTriggerVolume_ctor(0xAFFCE0);
 
 RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrame(0xAF6DD0);
 RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrameAsynchronously(0xAF7100);

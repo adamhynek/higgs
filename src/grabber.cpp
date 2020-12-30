@@ -261,8 +261,6 @@ void Grabber::FindBodiesToFreeze(bhkWorld &world)
 			if (contactPoint.getDistance() < Config::options.nearbyGrabBodyRadius) {
 				hkpMotion &motion = rigidBody->m_motion;
 
-				_MESSAGE("linear: %.3f\tangular: %.3f", VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)), VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)));
-
 				if (VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
 					VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
 					if (_nearbyBodies.count(bRigidBody) == 0) {
@@ -1228,6 +1226,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
 
 					PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
+
+					// TODO: Send 'Drop' event
 				}
 			}
 

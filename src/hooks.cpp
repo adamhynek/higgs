@@ -199,9 +199,9 @@ void PerformHooks(void)
 
 		g_branchTrampoline.Write5Branch(shaderHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
-		_MESSAGE("Shader hook complete");
+		_MESSAGE("ShaderReferenceEffect ctor hook complete");
 	}
-
+	/*
 	{
 		struct Code : Xbyak::CodeGenerator {
 			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
@@ -261,7 +261,7 @@ void PerformHooks(void)
 
 		_MESSAGE("World update hook complete");
 	}
-
+	*/
 	{
 		struct Code : Xbyak::CodeGenerator {
 			Code(void * buf) : Xbyak::CodeGenerator(256, buf)

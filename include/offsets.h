@@ -9,6 +9,7 @@
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
+#include <Physics/Utilities/Collide/TriggerVolume/hkpTriggerVolume.h>
 
 
 // 0x1F8319C: selected handle as well?
@@ -107,6 +108,15 @@ extern RelocAddr<_hkpWorld_AddEntity> hkpWorld_AddEntity;
 typedef hkpEntity* (*_hkpWorld_RemoveEntity)(hkpWorld *world, hkBool *ret, hkpEntity* entity);
 extern RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity;
 
+typedef void* (*_hkpWorld_addContactListener)(hkpWorld *world, hkpContactListener* worldListener);
+extern RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener;
+
+typedef void* (*_hkpWorld_removeContactListener)(hkpWorld *world, hkpContactListener* worldListener);
+extern RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener;
+
+typedef void* (*_bhkWorld_addContactListener)(bhkWorld *world, hkpContactListener* worldListener);
+extern RelocAddr<_bhkWorld_addContactListener> bhkWorld_addContactListener;
+
 typedef void(*_hkpWorld_UpdateCollisionFilterOnEntity)(hkpWorld *world, hkpEntity* entity, hkpUpdateCollisionFilterOnEntityMode updateMode, hkpUpdateCollectionFilterMode updateShapeCollectionFilter);
 extern RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity;
 
@@ -125,6 +135,15 @@ extern RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRota
 typedef void(*_hkpEntity_setTransform)(hkpEntity *_this, const hkTransform& transform);
 extern RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform;
 
+typedef int(*_hkpEntity_getNumConstraints)(hkpEntity *_this);
+extern RelocAddr<_hkpEntity_getNumConstraints> hkpEntity_getNumConstraints;
+
+typedef void* (*_hkpEntity_addContactListener)(hkpEntity *_this, hkpContactListener* cl);
+extern RelocAddr<_hkpEntity_addContactListener> hkpEntity_addContactListener;
+
+typedef void* (*_hkpEntity_removeContactListener)(hkpEntity *_this, hkpContactListener* cl);
+extern RelocAddr<_hkpEntity_removeContactListener> hkpEntity_removeContactListener;
+
 typedef void(*_hkpRigidBody_ctor)(hkpRigidBody *_this, hkpRigidBodyCinfo *info);
 extern RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor;
 
@@ -133,6 +152,9 @@ extern RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor;
 
 typedef hkpBoxShape* (*_hkpBoxShape_ctor)(hkpBoxShape *_this, const hkVector4& halfExtents, float radius);
 extern RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor;
+
+typedef hkpTriggerVolume* (*_hkpTriggerVolume_ctor)(hkpTriggerVolume *_this, hkpRigidBody* triggerBody);
+extern RelocAddr<_hkpTriggerVolume_ctor> hkpTriggerVolume_ctor;
 
 typedef void(*_hkpKeyFrameUtility_applyHardKeyFrame)(const hkVector4& nextPosition, const hkQuaternion& nextOrientation, hkReal invDeltaTime, hkpRigidBody* body);
 extern RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrame;
@@ -208,8 +230,6 @@ extern RelocAddr<_GetMaterialType> GetMaterialType;
 
 typedef BGSImpactData * (*_BGSImpactDataSet_GetImpactData)(BGSImpactDataSet *_this, BGSMaterialType *material);
 extern RelocAddr<_BGSImpactDataSet_GetImpactData> BGSImpactDataSet_GetImpactData;
-
-
 
 typedef void(*_BSAudioManager_InitSoundData)(BSAudioManager *audioManager, SoundData *soundData, UInt32 formId, int a4); // just pass 16 in a4
 extern RelocAddr<_BSAudioManager_InitSoundData> BSAudioManager_InitSoundData;
