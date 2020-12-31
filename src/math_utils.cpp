@@ -1236,7 +1236,7 @@ namespace MathUtils
 		bool innerIntersects = CurveCheck(g_fingerInnerVals[fingerIndex], startAngle, endAngle, innerAngle);
 
 		if (tipIntersects || outerIntersects || innerIntersects) {
-			_MESSAGE("inner outer tip intersects: %d %d %d", innerIntersects, outerIntersects, tipIntersects);
+			_MESSAGE("inner outer tip: %d %d %d", innerIntersects, outerIntersects, tipIntersects);
 		}
 
 		outTipAngle = tipAngle;

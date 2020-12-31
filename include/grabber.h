@@ -73,7 +73,8 @@ struct Grabber
 		Pulled, // first few frames when a player is pulling the object towards them
 		HeldInit, // held object is moving towards hand
 		Held, // player is holding the object in their hand
-		HeldBody // player is holding a body / other constrained object
+		HeldBody, // player is holding a body / other constrained object
+		GrabFromOtherHand // wait after requesting the other hand to drop the object so that we can grab it
 	};
 
 	enum class InputState : UInt8
@@ -123,9 +124,10 @@ struct Grabber
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
 	void TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool ShouldDisplayRollover();
-	bool IsSafeToClearSavedCollision();
+	bool IsSafeToClearSavedCollision() const;
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
+	bool CanOtherGrab() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void SetSelectedHandles(bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
@@ -180,6 +182,8 @@ struct Grabber
 	NiPoint3 prevPlayerPosWorldspace;
 
 	bool idleDesired = false;
+
+	int otherGrabFrameCount = 0;
 
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
 	double grabRequestedTime = 0; // Timestamp when the trigger was pressed

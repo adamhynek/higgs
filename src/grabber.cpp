@@ -298,6 +298,8 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	linearCastInput.m_to = NiPointToHkVector(targetPos);
 	cdPointCollector.reset();
 
+	bool otherObjectIsGrabbable = other.CanOtherGrab();
+
 	world->worldLock.LockForRead();
 	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 
@@ -305,17 +307,16 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	float closestDistance = (std::numeric_limits<float>::max)();
 	for (auto pair : cdPointCollector.m_hits) {
 		auto collidable = static_cast<hkpCollidable *>(pair.first);
-		if (!allowGrab || (collidable == other.selectedObject.collidable && other.HasExclusiveObject())) {
+		if (!allowGrab) {
 			continue;
 		}
 		hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
 		if (!rigidBody || !rigidBody->m_userData) {
 			continue; // No rigidbody -> no movement :/
 		}
-		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 		if (ref && ref != *g_thePlayer) {
-			if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
+			if (IsAllowedCollidable(collidable) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
 					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
 					if (!impactData) {
@@ -330,7 +331,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 				float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
 				if (dist < closestDistance) {
 					*closestObj = ref;
-					*closestRigidBody = bRigidBody;
+					*closestRigidBody = (bhkRigidBody *)rigidBody->m_userData;
 					*closestPoint = pair.second;
 					closestDistance = dist;
 					isSomethingSelected = true;
@@ -760,6 +761,21 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	float radiusBefore = sphereShape->getRadius();
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
+	if (state == State::GrabFromOtherHand) {
+		if (otherGrabFrameCount < 1) {
+			otherGrabFrameCount++;
+		}
+		else {
+			NiPointer<TESObjectREFR> selectedObj;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+			}
+			else {
+				state = State::Idle;
+			}
+		}
+	}
+
 	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar) {
 
 		// See if there's something near the hand to pick up
@@ -1024,7 +1040,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								selectedObject.shaderNode = hitNode;
 							}
 						}
-						PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+						if (closestRigidBody != other.selectedObject.rigidBody) {
+							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+						}
 					}
 				}
 				else if (selectedObject.shaderNode) {
@@ -1054,7 +1073,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								selectedObject.shaderNode = hitNode;
 							}
 
-							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+							if (closestRigidBody != other.selectedObject.rigidBody) {
+								PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+							}
 						}
 					}
 				}
@@ -1069,7 +1090,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						selectedObject.hitForm = nullptr;
 						selectedObject.shaderNode = hitNode;
 
-						PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+						if (closestRigidBody != other.selectedObject.rigidBody) {
+							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+						}
 					}
 				}
 			}
@@ -1129,7 +1152,16 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							if (g_vrikInterface) {
 								g_vrikInterface->restoreFingers(isLeft);
 							}
-							TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+
+							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
+								// Grabbing the object from the other hand - make the other hand drop it and wait
+								other.idleDesired = true;
+								otherGrabFrameCount = 0;
+								state = State::GrabFromOtherHand;
+							}
+							else {
+								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+							}
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
 						grabRequested = false;
@@ -1760,6 +1792,11 @@ bool Grabber::HasExclusiveObject() const
 	return state == State::Pulled || state == State::SelectionLocked || state == State::Held || state == State::HeldInit || state == State::HeldBody;
 }
 
+bool Grabber::CanOtherGrab() const
+{
+	return state == State::Held || state == State::HeldInit || state == State::HeldBody;
+}
+
 
 bool Grabber::ShouldDisplayRollover()
 {
@@ -1774,9 +1811,12 @@ bool Grabber::ShouldDisplayRollover()
 }
 
 
-bool Grabber::IsSafeToClearSavedCollision()
+bool Grabber::IsSafeToClearSavedCollision() const
 {
-	return (state != State::Held && state != State::HeldInit && state != State::HeldBody && pulledObject.handle == *g_invalidRefHandle);
+	return (
+		(state == State::Idle || state == State::SelectedFar || state == State::SelectedClose || state == State::SelectionLocked || state == State::PrepullItem || state == State::GrabFromOtherHand)
+		&& pulledObject.handle == *g_invalidRefHandle
+		);
 }
 
 void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)
