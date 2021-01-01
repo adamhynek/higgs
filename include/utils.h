@@ -46,6 +46,7 @@ bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
 bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target);
 void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes);
+bhkRigidBody * GetFirstCollision(NiAVObject *root);
 UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location);
 
 typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);

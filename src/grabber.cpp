@@ -236,12 +236,12 @@ void Grabber::ResetNearbyDamping()
 }
 
 
-std::unordered_set<bhkRigidBody *> _nearbyBodies; // prevent duplicates due to multiple contact points
+std::unordered_set<bhkRigidBody *> g_nearbyBodies; // prevent duplicates due to multiple contact points
 void Grabber::FindBodiesToFreeze(bhkWorld &world)
 {
 	nearbyBodies.clear();
 	nearbyBodyMap.clear();
-	_nearbyBodies.clear();
+	g_nearbyBodies.clear();
 
 	world.worldLock.LockForRead();
 
@@ -263,8 +263,8 @@ void Grabber::FindBodiesToFreeze(bhkWorld &world)
 
 				if (VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
 					VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
-					if (_nearbyBodies.count(bRigidBody) == 0) {
-						_nearbyBodies.insert(bRigidBody);
+					if (g_nearbyBodies.count(bRigidBody) == 0) {
+						g_nearbyBodies.insert(bRigidBody);
 						nearbyBodies.push_back(bRigidBody);
 						nearbyBodyMap[bRigidBody] = { motion.m_motionState.m_linearDamping, motion.m_motionState.m_angularDamping };
 						motion.m_motionState.m_linearDamping = hkHalf(Config::options.nearbyGrabLinearDamping);
@@ -596,6 +596,40 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 }
 
 
+bool Grabber::GrabExternalObject(TESObjectREFR *refr)
+{
+	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar) {
+		if (refr && refr->loadedState && refr->loadedState->node) {
+			NiNode *rootNode = refr->loadedState->node;
+			bhkRigidBody *rigidBody = GetFirstCollision(rootNode);
+			if (rigidBody) {
+				if (state == State::SelectedClose) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
+				}
+
+				if (state == State::SelectedClose || state == State::SelectedFar) {
+					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+				}
+
+				Deselect();
+				Select(refr);
+
+				selectedObject.rigidBody = rigidBody;
+				selectedObject.collidable = &rigidBody->hkBody->m_collidable;
+
+				state = State::GrabExternal;
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
 void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode)
 {
 	//_MESSAGE("%s:, pose update", name);
@@ -773,6 +807,21 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			else {
 				state = State::Idle;
 			}
+		}
+	}
+
+	if (state == State::GrabExternal) {
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			// TODO: We need to set selectedObject.point for objects that get physics-grabbed
+
+			TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+
+			grabRequested = false;
+			wasObjectGrabbed = true;
+		}
+		else {
+			state = State::Idle;
 		}
 	}
 
@@ -1018,6 +1067,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								StopSelectionEffect(prevSelectedHandle, selectedObject.shaderNode);
 							}
 						}
+
+						// Playing the shader is fine if the other hand holds it if it's an actor's armor that's getting selected I guess
 						PlaySelectionEffect(selectedObject.handle, nodeOnWhichToPlayShader);
 						selectedObject.shaderNode = nodeOnWhichToPlayShader;
 					}
@@ -1041,7 +1092,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							}
 						}
 
-						if (closestRigidBody != other.selectedObject.rigidBody) {
+						if (closestRigidBody != other.selectedObject.rigidBody || !other.CanOtherGrab()) {
 							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 						}
 					}
@@ -1073,7 +1124,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								selectedObject.shaderNode = hitNode;
 							}
 
-							if (closestRigidBody != other.selectedObject.rigidBody) {
+							if (closestRigidBody != other.selectedObject.rigidBody || !other.CanOtherGrab()) {
 								PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 							}
 						}
@@ -1090,7 +1141,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						selectedObject.hitForm = nullptr;
 						selectedObject.shaderNode = hitNode;
 
-						if (closestRigidBody != other.selectedObject.rigidBody) {
+						if (closestRigidBody != other.selectedObject.rigidBody || !other.CanOtherGrab()) {
 							PlaySelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 						}
 					}
@@ -1146,7 +1197,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjWorldPosition = hkObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
-							state = State::SelectionLocked;
+							other.GrabExternalObject(selectedObj);
+							//state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
 							if (g_vrikInterface) {
@@ -1188,6 +1240,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 	NiPointer<TESObjectREFR> selectedObj;
 	if (state == State::SelectionLocked || state == State::PrepullItem || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+
+		grabRequested = false; // Consume grab event here as we cannot grab from any of these states and don't want to grab immediately upon exiting them
+
 		// Check if we should drop the object
 		if (releaseRequested) {
 			releaseRequested = false;

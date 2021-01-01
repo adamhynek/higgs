@@ -103,12 +103,6 @@ static_assert(offsetof(ProcessLists, magicEffects) == 0x108);
 static_assert(offsetof(ProcessLists, magicEffectsLock) == 0x120);
 
 
-extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
-
-extern std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes; // Map root node to set of geom off of that root
-extern std::shared_mutex g_shaderNodesLock;
-
-
 // My Types //
 
 struct PlayingShader
@@ -122,3 +116,12 @@ struct PlayingShader
 };
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool saveCurrentShader);
 void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool restoreCurrentShader);
+
+
+extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
+
+extern PlayingShader *g_playingShaders; // size == 2
+extern std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
+
+extern std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes; // Map root node to set of geom off of that root
+extern std::shared_mutex g_shaderNodesLock;

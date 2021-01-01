@@ -66,6 +66,9 @@ Grabber *g_leftGrabber;
 
 std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes;
 
+PlayingShader *g_playingShaders; // size == 2
+std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
+
 
 bool TryHook()
 {
@@ -470,7 +473,11 @@ extern "C" {
 			},
 		};
 
+		// Need to heap-allocate and "leak" anything with NiPointers since if they're statically allocated we crash when the game exits and these objects destruct
 		g_shaderNodes = new std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>>;
+
+		g_playingShaders = new PlayingShader[2];
+		g_effectDataMap = new std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>>;
 
 		NiPoint3 rightPalm = Config::options.palmPosition;
 		NiPoint3 leftPalm = rightPalm;
