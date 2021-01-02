@@ -417,7 +417,7 @@ bool Grabber::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node)
 }
 
 
-void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj)
+void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform)
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
@@ -477,7 +477,12 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
 
+			NiTransform originalTransform = n->m_worldTransform;
 			initialGrabbedObjWorldPosition = n->m_worldTransform.pos;
+
+			if (initialTransform) {
+				UpdateKeyframedNodeTransform(n, *initialTransform);
+			}
 
 			NiPoint3 triPos, triNormal;
 			float closestDist = (std::numeric_limits<float>::max)();
@@ -546,8 +551,6 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 						_ERROR("Could not get finger %d", fingerIndex);
 						return 0;
 					};
-
-					NiTransform originalTransform = n->m_worldTransform;
 
 					// Update transform to snap to the hand
 					UpdateKeyframedNodeTransform(n, desiredTransform);
@@ -835,6 +838,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						hkpShapeType shapeType = selectedObject.collidable->m_shape->m_type;
 						hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
 						if (closestPointsFunc) {
+							// Position the object in the direction of the palm for better grab results
+							selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos + palmVector * 1.0f);
+
 							const int maxIterations = 5;
 							int numIterations = 0;
 
@@ -874,7 +880,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 				}
 				else {
-					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+					selectedObject.point = n->m_worldTransform.pos; // Fallback to the center of the object
+
+					// Position the object in the direction of the palm for better grab results
+					NiTransform initialTransform = n->m_worldTransform;
+					initialTransform.pos = (hkPalmNodePos + palmVector * 1.0f) / havokWorldScale;
+
+					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
 
 					// Set the transform here to kind of skip the HeldInit state
 					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
@@ -982,6 +994,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			sphereShape->m_radius = radiusBefore;
 			sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
 		}
+
 
 		// Check if we should select something new. If yes, stay in SELECTED but select the new object
 		bool isSelectedThisFrame = false;

@@ -75,6 +75,7 @@ struct Grabber
 		Held, // player is holding the object in their hand
 		HeldBody, // player is holding a body / other constrained object
 		GrabFromOtherHand, // wait after requesting the other hand to drop the object so that we can grab it
+		PreGrabExternal,
 		GrabExternal
 	};
 
@@ -124,7 +125,7 @@ struct Grabber
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
 	bool ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node);
-	void TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
+	void TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr);
 	bool GrabExternalObject(TESObjectREFR *refr);
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision() const;
