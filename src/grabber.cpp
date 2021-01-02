@@ -21,6 +21,7 @@
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
 #include <Physics/Collide/Agent3/Machine/Nn/hkpLinkedCollidable.h>
+#include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
 
 
 BSFixedString hmdNodeStr("HmdNode");
@@ -243,6 +244,8 @@ void Grabber::FindBodiesToFreeze(bhkWorld &world)
 	nearbyBodyMap.clear();
 	g_nearbyBodies.clear();
 
+	cdPointCollector.reset();
+
 	world.worldLock.LockForRead();
 
 	hkpWorld_GetClosestPoints(world.world, selectedObject.collidable, world.world->m_collisionInput, &cdPointCollector);
@@ -406,6 +409,14 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
+bool Grabber::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node)
+{
+	// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
+	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(refr->loadedState->node, node) || IsSkinnedToNode(refr->loadedState->node, node);
+	return selectedObject.isActor || usePhysicsBasedGrab || (refr->baseForm && refr->baseForm->formType == kFormType_Ammo);
+}
+
+
 void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj)
 {
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
@@ -434,10 +445,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			other.EndPull();
 		}
 
-		bool usePhysicsBasedGrab = DoesNodeHaveConstraint(selectedObj->loadedState->node, n) || IsSkinnedToNode(selectedObj->loadedState->node, n);
-		if (selectedObject.isActor || usePhysicsBasedGrab || (selectedObj->baseForm && selectedObj->baseForm->formType == kFormType_Ammo)) {
-			// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
-
+		if (ShouldUsePhysicsBasedGrab(selectedObj, n)) {
 			if (!selectedObject.isActor) {
 				CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
 			}
@@ -647,7 +655,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	if (!handNode)
 		return;
 
+	float havokWorldScale = *g_havokWorldScale;
+
 	NiPoint3 handPos = handNode->m_worldTransform.pos;
+	NiPoint3 hkHandPos = handPos * havokWorldScale;
 
 	NiPoint3 palmVectorHandspace = Config::options.palmVector;
 	if (isLeft) palmVectorHandspace.x *= -1;
@@ -695,8 +706,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		_MESSAGE("Could not get havok world from player cell");
 		return;
 	}
-
-	float havokWorldScale = *g_havokWorldScale;
 
 
 	//if (!isLeft) {
@@ -813,12 +822,71 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	if (state == State::GrabExternal) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			// TODO: We need to set selectedObject.point for objects that get physics-grabbed
+			NiAVObject *n = FindCollidableNode(selectedObject.collidable);
+			if (n) {
+				if (ShouldUsePhysicsBasedGrab(selectedObj, n)) {
+					// We need to find a point on the collision geometry to have the hand grab
 
-			TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+					NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
+					selectedObject.point = centerOfMass; // Fallback to the center of the object
 
-			grabRequested = false;
-			wasObjectGrabbed = true;
+					hkpCollisionDispatcher *dispatcher = world->world->m_collisionDispatcher;
+					if (dispatcher) {
+						hkpShapeType shapeType = selectedObject.collidable->m_shape->m_type;
+						hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
+						if (closestPointsFunc) {
+							const int maxIterations = 5;
+							int numIterations = 0;
+
+							sphereShape->m_radius = VectorLength(centerOfMass - hkHandPos) + 0.02f; // Add some fudge
+
+							float closestDistance;
+							// Do a series of closest points queries, starting with the object just within a sphere, and progressively shrink the radius to being just outside the object
+							do {
+								numIterations++;
+
+								cdPointCollector.reset();
+								closestPointsFunc(*selectedObject.collidable, sphere->phantom->m_collidable, *world->world->m_collisionInput, cdPointCollector);
+
+								NiPoint3 closestPoint;
+								closestDistance = (std::numeric_limits<float>::max)();
+								if (cdPointCollector.m_hits.size() > 0) {
+									for (auto pair : cdPointCollector.m_hits) {
+										hkContactPoint &contactPoint = pair.second;
+										float dist = contactPoint.getDistance();
+										if (dist < closestDistance) {
+											closestPoint = HkVectorToNiPoint(pair.second.getPosition());
+											closestDistance = dist;
+										}
+									}
+
+									selectedObject.point = closestPoint;
+								}
+
+								if (closestDistance < 0) {
+									sphereShape->m_radius += closestDistance - 0.02f;
+									sphereShape->m_radius = max(0.01f, sphereShape->m_radius);
+								}
+							} while (closestDistance < 0 && numIterations < maxIterations);
+						}
+					}
+
+					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+				}
+				else {
+					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+
+					// Set the transform here to kind of skip the HeldInit state
+					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+					UpdateKeyframedNodeTransform(n, newTransform);
+				}
+
+				grabRequested = false;
+				wasObjectGrabbed = true;
+			}
+			else {
+				state = State::Idle;
+			}
 		}
 		else {
 			state = State::Idle;
@@ -1183,7 +1251,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 						if (state == State::SelectedFar) {
 							hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
-							NiPoint3 hkHandPos = handPos * havokWorldScale;
 							NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 							NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
@@ -1441,7 +1508,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			if (!isSelectedNear) {
 				hkVector4 translation = motion->m_motionState.m_transform.m_translation;
 				NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
-				NiPoint3 hkHandPos = handPos * havokWorldScale;
 				NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
 				//float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));

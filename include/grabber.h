@@ -123,6 +123,7 @@ struct Grabber
 	void FindBodiesToFreeze(bhkWorld &world);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
+	bool ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node);
 	void TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj);
 	bool GrabExternalObject(TESObjectREFR *refr);
 	bool ShouldDisplayRollover();
