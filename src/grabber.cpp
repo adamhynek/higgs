@@ -1288,9 +1288,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjWorldPosition = hkObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
-							other.externalGrabRequested = true;
-							other.externalGrabRequestedObject = selectedObj;
-							//state = State::SelectionLocked;
+							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
 							if (g_vrikInterface) {
