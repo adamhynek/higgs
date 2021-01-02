@@ -828,6 +828,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::GrabExternal) {
+		_MESSAGE("External grab");
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 			NiAVObject *n = FindCollidableNode(selectedObject.collidable);
@@ -844,7 +845,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
 						if (closestPointsFunc) {
 							// Position the object in the direction of the palm for better grab results
-							hkVector4 objPosBefore = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
 							selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos + palmVector * 1.0f);
 
 							const int maxIterations = 5;
@@ -886,8 +886,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 							sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
 							sphereShape->m_radius = radiusBefore;
-
-							selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = objPosBefore;
 						}
 					}
 
@@ -1290,7 +1288,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjWorldPosition = hkObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
-							state = State::SelectionLocked;
+							other.externalGrabRequested = true;
+							other.externalGrabRequestedObject = selectedObj;
+							//state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
 							if (g_vrikInterface) {
