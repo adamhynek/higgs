@@ -187,6 +187,9 @@ struct Grabber
 
 	bool idleDesired = false;
 
+	bool externalGrabRequested = false;
+	TESObjectREFR *externalGrabRequestedObject = nullptr;
+
 	int otherGrabFrameCount = 0;
 
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid

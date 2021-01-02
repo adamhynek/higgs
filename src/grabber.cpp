@@ -807,6 +807,11 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	float radiusBefore = sphereShape->getRadius();
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
+	if (externalGrabRequested) {
+		externalGrabRequested = false;
+		GrabExternalObject(externalGrabRequestedObject);
+	}
+
 	if (state == State::GrabFromOtherHand) {
 		if (otherGrabFrameCount < 1) {
 			otherGrabFrameCount++;
@@ -839,6 +844,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
 						if (closestPointsFunc) {
 							// Position the object in the direction of the palm for better grab results
+							hkVector4 objPosBefore = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
 							selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos + palmVector * 1.0f);
 
 							const int maxIterations = 5;
@@ -876,8 +882,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								}
 							} while (closestDistance < 0 && numIterations < maxIterations);
 
+							_MESSAGE("%d external grab closest point iterations", numIterations);
+
 							sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
 							sphereShape->m_radius = radiusBefore;
+
+							selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = objPosBefore;
 						}
 					}
 
@@ -1280,8 +1290,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjWorldPosition = hkObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
-							other.GrabExternalObject(selectedObj);
-							//state = State::SelectionLocked;
+							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
 							if (g_vrikInterface) {

@@ -18,6 +18,10 @@ RelocPtr<ProcessLists *> g_processLists(0x1F831B0);
 
 RelocPtr<BSAudioManager *> g_audioManager(0x30C1D30);
 
+RelocPtr<ShadowSceneNode *> g_shadowSceneNode(0x3423080);
+
+
+RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList(0x12F89E0);
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 

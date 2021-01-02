@@ -6,6 +6,7 @@
 #include "skse64_common/Relocation.h"
 #include "skse64/PapyrusVM.h"
 #include "skse64/GameReferences.h"
+#include "skse64/NiNodes.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
@@ -59,6 +60,12 @@ extern RelocPtr<ProcessLists *> g_processLists;
 struct BSAudioManager { /* TODO */ };
 extern RelocPtr<BSAudioManager *> g_audioManager;
 
+struct ShadowSceneNode : NiNode { /* TODO */ };
+extern RelocPtr<ShadowSceneNode *> g_shadowSceneNode;
+
+
+typedef void(*_ShadowSceneNode_UpdateNodeList)(ShadowSceneNode *sceneNode, NiAVObject *node, bool useOtherList);
+extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList;
 
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 extern RelocAddr<_IsInMenuMode> IsInMenuMode;

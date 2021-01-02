@@ -158,6 +158,8 @@ void UpdateKeyframedNodeTransform(NiAVObject *node, const NiTransform &transform
 	ctx.flags = 0x2000; // makes havok sim more stable
 	ctx.delta = 0;
 	NiAVObject_UpdateObjectUpwards(node, &ctx);
+
+	ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false);
 }
 
 bool IsTwoHanded(const TESObjectWEAP *weap)
