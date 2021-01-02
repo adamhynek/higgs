@@ -844,6 +844,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							const int maxIterations = 5;
 							int numIterations = 0;
 
+							sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
 							sphereShape->m_radius = VectorLength(centerOfMass - hkHandPos) + 0.02f; // Add some fudge
 
 							float closestDistance;
@@ -874,6 +875,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									sphereShape->m_radius = max(0.01f, sphereShape->m_radius);
 								}
 							} while (closestDistance < 0 && numIterations < maxIterations);
+
+							sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
+							sphereShape->m_radius = radiusBefore;
 						}
 					}
 
@@ -994,7 +998,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			sphereShape->m_radius = radiusBefore;
 			sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
 		}
-
 
 		// Check if we should select something new. If yes, stay in SELECTED but select the new object
 		bool isSelectedThisFrame = false;
