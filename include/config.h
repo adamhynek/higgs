@@ -46,6 +46,7 @@ namespace Config {
 		double grabFreezeNearbyVelocityTime = 0.1f; // in s, amount of time during which to zero-out velocity of objects near the grabbed object when grabbing
 		double pullHapticFadeTime = 0.15f; // in s, amount of time over which to fade down the haptic strength after a pull
 		double grabHapticFadeTime = 0.1f;
+		double grabStartMaxTime = 0.5f;
 
 		bool disableShaders = false;
 

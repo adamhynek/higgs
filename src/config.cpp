@@ -90,6 +90,7 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PullHapticFadeTime", &options.pullHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "GrabStartMaxTime", &options.grabStartMaxTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabStartAngularSpeed", &options.grabStartAngularSpeed)) return false;

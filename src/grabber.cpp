@@ -1692,7 +1692,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
 
 				if (state == State::HeldInit) {
-					if (g_currentFrameTime - grabbedTime > 1.0f) {
+					if (g_currentFrameTime - grabbedTime > Config::options.grabStartMaxTime) {
 						// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
 						heldTime = g_currentFrameTime;
 						state = State::Held;
