@@ -198,6 +198,7 @@
     <ClCompile Include="src\math_utils.cpp" />
     <ClCompile Include="src\menu_checker.cpp" />
     <ClCompile Include="src\offsets.cpp" />
+    <ClCompile Include="src\papyrusapi.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\effects.cpp" />
     <ClCompile Include="src\utils.cpp" />
@@ -205,6 +206,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\finger_curves.h" />
+    <ClInclude Include="include\papyrusapi.h" />
     <ClInclude Include="include\PQP\MatVec.h" />
     <ClInclude Include="include\PQP\TriDist.h" />
     <ClInclude Include="include\triangle_triangle_intersection.h" />

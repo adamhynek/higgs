@@ -34,6 +34,7 @@
 #include "offsets.h"
 #include "hooks.h"
 #include "vrikinterface001.h"
+#include "papyrusapi.h"
 
 
 // SKSE globals
@@ -42,6 +43,7 @@ static SKSEMessagingInterface *g_messaging = nullptr;
 
 SKSEVRInterface *g_vrInterface = nullptr;
 SKSETrampolineInterface *g_trampoline = nullptr;
+SKSEPapyrusInterface *g_papyrus = nullptr;
 
 vrikPluginApi::IVrikInterface001 * g_vrikInterface;
 
@@ -604,6 +606,15 @@ extern "C" {
 		}
 		g_vrInterface->RegisterForControllerState(g_pluginHandle, 0, ControllerStateCB);
 		g_vrInterface->RegisterForPoses(g_pluginHandle, 0, WaitPosesCB);
+
+		g_papyrus = (SKSEPapyrusInterface *)skse->QueryInterface(kInterface_Papyrus);
+		if (!g_papyrus) {
+			_ERROR("[CRITICAL] Couldn't get Papyrus interface");
+			return false;
+		}
+		if (g_papyrus->Register(PapyrusAPI::RegisterPapyrusFuncs)) {
+			_MESSAGE("Successfully registered papyrus functions");
+		}
 
 		g_trampoline = (SKSETrampolineInterface *)skse->QueryInterface(kInterface_Trampoline);
 		if (!g_trampoline) {

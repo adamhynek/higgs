@@ -54,6 +54,9 @@
     <ClCompile Include="src\finger_curves.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\papyrusapi.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\version.h">
@@ -105,6 +108,9 @@
       <Filter>include\PQP</Filter>
     </ClInclude>
     <ClInclude Include="include\finger_curves.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\papyrusapi.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

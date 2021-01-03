@@ -75,8 +75,7 @@ struct Grabber
 		Held, // player is holding the object in their hand
 		HeldBody, // player is holding a body / other constrained object
 		GrabFromOtherHand, // wait after requesting the other hand to drop the object so that we can grab it
-		PreGrabExternal,
-		GrabExternal
+		GrabExternal // want to grab an object that we didn't have selected already
 	};
 
 	enum class InputState : UInt8
@@ -131,6 +130,8 @@ struct Grabber
 	bool IsSafeToClearSavedCollision() const;
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
+	bool CanGrabObject() const;
+	bool HasHeldObject() const;
 	bool CanOtherGrab() const;
 	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
 	void SetSelectedHandles(bool isLeftHanded);

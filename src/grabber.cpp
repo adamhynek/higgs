@@ -17,6 +17,7 @@
 #include "math_utils.h"
 #include "vrikinterface001.h"
 #include "finger_curves.h"
+#include "papyrusapi.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
@@ -609,7 +610,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 {
-	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar) {
+	if (CanGrabObject()) {
 		if (refr && refr->loadedState && refr->loadedState->node) {
 			NiNode *rootNode = refr->loadedState->node;
 			bhkRigidBody *rigidBody = GetFirstCollision(rootNode);
@@ -1404,7 +1405,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 					PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
 
-					// TODO: Send 'Drop' event
+					// Trigger the papyrus 'drop' event
+					PapyrusAPI::OnDropEvent(selectedObj, isLeft);
 				}
 			}
 
@@ -1936,9 +1938,19 @@ bool Grabber::HasExclusiveObject() const
 	return state == State::Pulled || state == State::SelectionLocked || state == State::Held || state == State::HeldInit || state == State::HeldBody;
 }
 
-bool Grabber::CanOtherGrab() const
+bool Grabber::CanGrabObject() const
+{
+	return state == State::Idle || state == State::SelectedClose || state == State::SelectedFar;
+}
+
+bool Grabber::HasHeldObject() const
 {
 	return state == State::Held || state == State::HeldInit || state == State::HeldBody;
+}
+
+bool Grabber::CanOtherGrab() const
+{
+	return HasHeldObject();
 }
 
 
