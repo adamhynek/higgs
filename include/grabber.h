@@ -191,8 +191,6 @@ struct Grabber
 	bool externalGrabRequested = false;
 	TESObjectREFR *externalGrabRequestedObject = nullptr;
 
-	int otherGrabFrameCount = 0;
-
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
 	double grabRequestedTime = 0; // Timestamp when the trigger was pressed
 	double rolloverDisplayTime = 0; // Timestamp when we performed the last action that warrants showing the rollover text

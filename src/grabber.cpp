@@ -814,17 +814,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::GrabFromOtherHand) {
-		if (otherGrabFrameCount < 1) {
-			otherGrabFrameCount++;
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 		}
 		else {
-			NiPointer<TESObjectREFR> selectedObj;
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
-			}
-			else {
-				state = State::Idle;
-			}
+			state = State::Idle;
 		}
 	}
 
@@ -1299,7 +1294,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
 								// Grabbing the object from the other hand - make the other hand drop it and wait
 								other.idleDesired = true;
-								otherGrabFrameCount = 0;
 								state = State::GrabFromOtherHand;
 							}
 							else {
@@ -1716,11 +1710,14 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
 						float quatAngle = QuaternionAngle(currentQuat, desiredQuat);
 
-						NiPoint3 deltaDir = VectorNormalized(newTransform.pos - n->m_worldTransform.pos);
+						NiPoint3 deltaPlayerPos = player->pos - prevPlayerPosWorldspace;
+						NiPoint3 currentPosCompensated = n->m_worldTransform.pos + deltaPlayerPos;
+
+						NiPoint3 deltaDir = VectorNormalized(newTransform.pos - currentPosCompensated);
 						NiPoint3 deltaPos = deltaDir * Config::options.grabStartSpeed * *g_deltaTime;
 
 						bool doRotation = deltaAngle < quatAngle;
-						bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - n->m_worldTransform.pos);
+						bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - currentPosCompensated);
 
 						if (doRotation || doTranslation) {
 							// Rotation or position is not yet close enough
@@ -1735,7 +1732,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 							if (doTranslation) {
 								// If not close enough, move the object closer to the hand at some velocity
-								newTransform.pos = n->m_worldTransform.pos + deltaPos;
+								newTransform.pos = currentPosCompensated + deltaPos;
 							}
 
 							UpdateKeyframedNodeTransform(n, newTransform);
