@@ -1063,7 +1063,7 @@ namespace MathUtils
 			endAngle *= -1;
 		}
 
-		float scale = nodeScale;
+		float scale = handScale / nodeScale;
 
 		auto CurveCheck = [=, &fingerNormal, &zeroAngleVector, &vertex0, &vertex1, &vertex2]
 		(SavedFingerData fingerVals[], float startAngle, float endAngle, float &outAngle) -> bool
@@ -1075,7 +1075,7 @@ namespace MathUtils
 			auto CircleIntersection = [&]() -> bool
 			{
 				NiPoint3 circleIntersection1, circleIntersection2;
-				int numCircleIntersections = CircleIntersectsTriangle(fingerCenter, fingerNormal, fingerVals[0].fingerLength / scale, triangle, circleIntersection1, circleIntersection2, vertices, vertexStride, vertexPosOffset);
+				int numCircleIntersections = CircleIntersectsTriangle(fingerCenter, fingerNormal, fingerVals[0].fingerLength * scale, triangle, circleIntersection1, circleIntersection2, vertices, vertexStride, vertexPosOffset);
 				if (numCircleIntersections > 0) {
 					NiPoint3 triNormal = VectorNormalized(CrossProduct(vertex1 - vertex0, vertex2 - vertex1));
 					if (numCircleIntersections > 1) {
@@ -1173,11 +1173,11 @@ namespace MathUtils
 			SavedFingerData fingerData;
 			int smallerIndex = LookupFingerByAngle(fingerVals, smallerAngle, &fingerData);
 			radiusAtSmallerAngle = fingerData.fingerLength;
-			radiusAtSmallerAngle /= scale;
+			radiusAtSmallerAngle *= scale;
 
 			int largerIndex = LookupFingerByAngle(fingerVals, largerAngle, &fingerData);
 			radiusAtLargerAngle = fingerData.fingerLength;
-			radiusAtLargerAngle /= scale;
+			radiusAtLargerAngle *= scale;
 
 			if (lengthAtSmallerAngle > radiusAtSmallerAngle || lengthAtLargerAngle > radiusAtLargerAngle) {
 				// Edge is not entirely within the curve area. Now we only care if it intersects the curve.
@@ -1188,11 +1188,11 @@ namespace MathUtils
 				for (int i = smallerIndex; i <= end; i++) {
 					float angle = fingerVals[i].angle;
 					float length = fingerVals[i].fingerLength;
-					length /= scale;
+					length *= scale;
 
 					float nextAngle = fingerVals[i + 1].angle;
 					float nextLength = fingerVals[i + 1].fingerLength;
-					nextLength /= scale;
+					nextLength *= scale;
 
 					Point2 currentPt = Point2(cosf(angle), sinf(angle)) * length;
 					Point2 nextPt = Point2(cosf(nextAngle), sinf(nextAngle)) * nextLength;

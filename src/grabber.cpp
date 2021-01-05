@@ -533,7 +533,6 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 							NiPoint3 handPos = handNode->m_worldTransform.pos;
 							NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-							startFingerPos = ((startFingerPos - handPos) * handScale) + handPos;
 
 							_MESSAGE("finger %d", fingerIndex);
 
