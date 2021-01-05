@@ -607,6 +607,33 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 }
 
 
+bool Grabber::IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const
+{
+	float speed = 0;
+	for (auto velocity : controllerVelocities) {
+		speed += VectorLength(velocity);
+	}
+	speed /= std::size(controllerVelocities);
+
+	if (speed < Config::options.shoulderVelocityThreshold) {
+		NiPoint3 rightShoulderPos = hmdNode->m_worldTransform * Config::options.rightShoulderHmdOffset;
+		float rightShoulderDistance = VectorLength(handPos - rightShoulderPos);
+		if (rightShoulderDistance < Config::options.rightShoulderRadius) {
+			return true;
+		}
+		else {
+			NiPoint3 leftShoulderPos = hmdNode->m_worldTransform * Config::options.leftShoulderHmdOffset;
+			float leftShoulderDistance = VectorLength(handPos - leftShoulderPos);
+			if (leftShoulderDistance < Config::options.leftShoulderRadius) {
+				return true;
+			}
+		}
+	}
+	
+	return false;
+}
+
+
 bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 {
 	if (CanGrabObject()) {
@@ -1392,14 +1419,23 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocity);
 
-					float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
-					float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
-					haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+					if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos)) {
+						// Object deposited in the shoulder
 
-					PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
+						TESObjectREFR_Activate(VM_REGISTRY, 0, selectedObj, player, false);
 
-					// Trigger the papyrus 'drop' event
-					PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+						haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
+					}
+					else {
+						float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
+						float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+						haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+
+						PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
+
+						// Trigger the papyrus 'drop' event
+						PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+					}
 				}
 			}
 
@@ -1750,6 +1786,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
 					}
+
+					if (IsHandNearShoulder(hmdNode, handPos)) {
+						haptics.QueueHapticPulse(Config::options.shoulderConstantHapticStrength);
+					}
 				}
 			}
 		}
@@ -1776,6 +1816,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				hkQuaternion desiredQuat;
 				desiredQuat.setFromRotationSimd(desiredRot);
 				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+
+				if (!selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos)) { // Don't do shoulder deposit for actual bodies
+					haptics.QueueHapticPulse(Config::options.shoulderConstantHapticStrength);
+				}
 			}
 		}
 		else {

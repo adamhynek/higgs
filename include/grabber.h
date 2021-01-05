@@ -126,6 +126,7 @@ struct Grabber
 	bool ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node);
 	void TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr);
 	bool GrabExternalObject(TESObjectREFR *refr);
+	bool IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const;
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision() const;
 	bool IsObjectPullable();

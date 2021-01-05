@@ -20,6 +20,7 @@ namespace Config {
 		float grabLateralWeight = 0.6f;
 		float grabDirectionalWeight = 0.4f;
 		float throwVelocityThreshold = 1.0f; // m/s
+		float shoulderVelocityThreshold = 0.7f; // m/s
 		float pullDestinationZOffset = 0.05f; // in meters, z offset above the palm at which to target the pulled object
 		float pulledAngularDamping = 3.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
 
@@ -39,6 +40,9 @@ namespace Config {
 		float grabProportionalHapticStrength = 0.06f;
 		float grabHapticMassExponent = 0.6f;
 
+		float shoulderConstantHapticStrength = 0.2f;
+		float shoulderDropHapticStrength = 0.5f;
+
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double pulledInitTime = 0.1; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
@@ -47,6 +51,7 @@ namespace Config {
 		double pullHapticFadeTime = 0.15f; // in s, amount of time over which to fade down the haptic strength after a pull
 		double grabHapticFadeTime = 0.1f;
 		double grabStartMaxTime = 0.5f;
+		double shoulderDropHapticFadeTime = 0.2f;
 
 		bool disableShaders = false;
 
@@ -66,6 +71,12 @@ namespace Config {
 		NiPoint3 handCollisionBoxHalfExtents = { 0.05, 0.015, 0.075 }; // in meters
 		NiPoint3 handCollisionBoxOffset = { 0, -0.005, 0.08 }; // offset from hand node, in meters
 		float handCollisionBoxRadius = 0; // in meters
+
+		NiPoint3 rightShoulderHmdOffset = { 17.5, -5.0, -6.85 };
+		NiPoint3 leftShoulderHmdOffset = { -17.5, -5.0, -6.85 };
+
+		float rightShoulderRadius = 10.0f;
+		float leftShoulderRadius = 10.0f;
 	};
 	extern Options options; // global object containing options
 

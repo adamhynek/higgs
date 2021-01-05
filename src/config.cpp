@@ -70,6 +70,22 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxRadius", &options.handCollisionBoxRadius)) return false;
 
+		float rightShoulderHmdOffsetX, rightShoulderHmdOffsetY, rightShoulderHmdOffsetZ;
+		if (!GetConfigOptionFloat("Settings", "RightShoulderHmdOffsetX", &rightShoulderHmdOffsetX)) return false;
+		if (!GetConfigOptionFloat("Settings", "RightShoulderHmdOffsetY", &rightShoulderHmdOffsetY)) return false;
+		if (!GetConfigOptionFloat("Settings", "RightShoulderHmdOffsetZ", &rightShoulderHmdOffsetZ)) return false;
+		options.rightShoulderHmdOffset = { rightShoulderHmdOffsetX, rightShoulderHmdOffsetY, rightShoulderHmdOffsetZ };
+
+		if (!GetConfigOptionFloat("Settings", "RightShoulderRadius", &options.rightShoulderRadius)) return false;
+
+		float leftShoulderHmdOffsetX, leftShoulderHmdOffsetY, leftShoulderHmdOffsetZ;
+		if (!GetConfigOptionFloat("Settings", "LeftShoulderHmdOffsetX", &leftShoulderHmdOffsetX)) return false;
+		if (!GetConfigOptionFloat("Settings", "LeftShoulderHmdOffsetY", &leftShoulderHmdOffsetY)) return false;
+		if (!GetConfigOptionFloat("Settings", "LeftShoulderHmdOffsetZ", &leftShoulderHmdOffsetZ)) return false;
+		options.leftShoulderHmdOffset = { leftShoulderHmdOffsetX, leftShoulderHmdOffsetY, leftShoulderHmdOffsetZ };
+
+		if (!GetConfigOptionFloat("Settings", "LeftShoulderRadius", &options.leftShoulderRadius)) return false;
+
 		if (!GetConfigOptionFloat("Settings", "FarCastRadius", &options.farCastRadius)) return false;
 		if (!GetConfigOptionFloat("Settings", "FarCastDistance", &options.farCastDistance)) return false;
 
@@ -91,6 +107,7 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "PullHapticFadeTime", &options.pullHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabStartMaxTime", &options.grabStartMaxTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "ShoulderDropHapticFadeTime", &options.shoulderDropHapticFadeTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabStartAngularSpeed", &options.grabStartAngularSpeed)) return false;
@@ -100,6 +117,7 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "ThrowVelocityThreshold", &options.throwVelocityThreshold)) return false;
+		if (!GetConfigOptionFloat("Settings", "ShoulderVelocityThreshold", &options.shoulderVelocityThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "PullDestinationZOffset", &options.pullDestinationZOffset)) return false;
 
@@ -110,6 +128,9 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "GrabBaseHapticStrength", &options.grabBaseHapticStrength)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabProportionalHapticStrength", &options.grabProportionalHapticStrength)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabHapticMassExponent", &options.grabHapticMassExponent)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "ShoulderConstantHapticStrength", &options.shoulderConstantHapticStrength)) return false;
+		if (!GetConfigOptionFloat("Settings", "ShoulderDropHapticStrength", &options.shoulderDropHapticStrength)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabLinearDamping", &options.nearbyGrabLinearDamping)) return false;
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabAngularDamping", &options.nearbyGrabAngularDamping)) return false;

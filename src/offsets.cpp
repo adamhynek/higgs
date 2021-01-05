@@ -25,7 +25,7 @@ RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList(0x12F8
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 
-RelocAddr<_Activate> Activate(0x009CD750);
+RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate(0x009CD750);
 
 RelocAddr<_EffectShader_Play> EffectShader_Play(0x9BCAF0);
 

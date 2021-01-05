@@ -70,8 +70,8 @@ extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 extern RelocAddr<_IsInMenuMode> IsInMenuMode;
 
-typedef bool(*_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
-extern RelocAddr<_Activate> Activate;
+typedef bool(*_TESObjectREFR_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
+extern RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate;
 
 typedef void(*_EffectShader_Play)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target, float duration);
 extern RelocAddr<_EffectShader_Play> EffectShader_Play;
