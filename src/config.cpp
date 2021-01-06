@@ -150,6 +150,8 @@ namespace Config {
 		if (!GetConfigOptionBool("Settings", "UseLoudSoundPull", &options.useLoudSoundPull)) return false;
 
 		if (!GetConfigOptionBool("Settings", "DisableShaders", &options.disableShaders)) return false;
+		if (!GetConfigOptionBool("Settings", "DisableFarCastWhileAimingAtNPCRight", &options.disableFarCastWhileAimingAtNPCRight)) return false;
+		if (!GetConfigOptionBool("Settings", "DisableFarCastWhileAimingAtNPCLeft", &options.disableFarCastWhileAimingAtNPCLeft)) return false;
 
 		if (!GetConfigOptionBool("Settings", "EnableTrigger", &options.enableTrigger)) return false;
 		if (!GetConfigOptionBool("Settings", "EnableGrip", &options.enableGrip)) return false;

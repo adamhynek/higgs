@@ -41,7 +41,7 @@ namespace PapyrusAPI
 	{
 		if (!object)
 		{
-			_MESSAGE("Attempt to register for drop event with null parameter");
+			_WARNING("[WARNING] Attempt to register for drop event with null parameter");
 			return;
 		}
 		g_dropEventRegs.Register(object->GetFormType(), object);
@@ -54,7 +54,7 @@ namespace PapyrusAPI
 	{
 		if (!object)
 		{
-			_MESSAGE("Attempt to unregister for drop event with null parameter");
+			_WARNING("[WARNING] Attempt to unregister for drop event with null parameter");
 			return;
 		}
 		g_dropEventRegs.Unregister(object->GetFormType(), object);

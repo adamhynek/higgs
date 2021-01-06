@@ -55,6 +55,9 @@ namespace Config {
 
 		bool disableShaders = false;
 
+		bool disableFarCastWhileAimingAtNPCRight = true;
+		bool disableFarCastWhileAimingAtNPCLeft = false;
+
 		bool useLoudSoundGrab = false;
 		bool useLoudSoundDrop = false;
 		bool useLoudSoundPull = true;

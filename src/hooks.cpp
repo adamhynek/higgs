@@ -119,6 +119,8 @@ void WorldUpdateHook(bhkWorld *world)
 	}*/
 }
 
+UInt64 g_pickValue = 0; // This gets set shortly before the below hook gets called
+UInt32 g_pickedHandle = 0;
 
 void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector)
 {
@@ -130,6 +132,14 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 	}
 
 	((_hkpWorld_LinearCast)pickLinearCastHookedFuncAddr)(world, collA, input, castCollector, startCollector);
+
+	if (g_pickValue == 2) {
+		CrosshairPickData *pickData = *g_pickData;
+		if (pickData) {
+			bool isLeftHanded = *g_leftHandedMode;
+			g_pickedHandle = isLeftHanded ? pickData->leftHandle1 : pickData->rightHandle1;
+		}
+	}
 }
 
 
@@ -282,6 +292,12 @@ void PerformHooks(void)
 				movsd(ptr[rsp + 0x30], xmm3);
 				movsd(ptr[rsp + 0x40], xmm4);
 				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Save r14, as it has a value that determines if we should read the selected handles or not
+				push(rax);
+				mov(rax, (uintptr_t)&g_pickValue);
+				mov(ptr[rax], r14);
+				pop(rax);
 
 				// Call our hook
 				mov(rax, (uintptr_t)PickLinearCastHook);
