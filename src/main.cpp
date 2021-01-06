@@ -113,15 +113,15 @@ bool TryHook()
 
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
-	if (!initComplete || !g_isLoaded) return true;
+	if (!initComplete) return true;
 
 	if (MenuChecker::isGameStopped()) return true;
 
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player || !player->loadedState || !player->loadedState->node)
+	if (!player || !player->GetNiNode())
 		return true;
 
-	NiAVObject *rootObj = GetHighestParent(player->loadedState->node);
+	NiAVObject *rootObj = GetHighestParent(player->GetNiNode());
 	if (!rootObj)
 		return true;
 
@@ -248,7 +248,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		// We need to see if one of the held nodes is a child of the other, and make sure to do the update for the child node last.
 
 		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+		if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiAVObject *leftNode = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
 			NiAVObject *rightNode = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
 			if (leftNode && rightNode) {
@@ -370,12 +370,12 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, uint32_t unControllerStateSize, bool& state)
 {
-	if (!initComplete || !g_isLoaded) return;
+	if (!initComplete) return;
 
 	if (MenuChecker::isGameStopped()) return;
 
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player || !player->loadedState || !player->loadedState->node)
+	if (!player || !player->GetNiNode())
 		return;
 
 	vr_src::ETrackedControllerRole rightControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand;

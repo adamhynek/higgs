@@ -87,7 +87,7 @@ void WorldUpdateHook(bhkWorld *world)
 			NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&g_rightGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
-				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+				if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 					NiAVObject *n = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
 					if (n) {
 						NiTransform newTransform = handNode->m_worldTransform * g_rightGrabber->desiredObjTransformHandSpace;
@@ -106,7 +106,7 @@ void WorldUpdateHook(bhkWorld *world)
 			NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&g_leftGrabber->handNodeName.data);
 			if (handNode) {
 				NiPointer<TESObjectREFR> selectedObj;
-				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+				if (LookupREFRByHandle(g_leftGrabber->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 					NiAVObject *n = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
 					if (n) {
 						NiTransform newTransform = handNode->m_worldTransform * g_leftGrabber->desiredObjTransformHandSpace;

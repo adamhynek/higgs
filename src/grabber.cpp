@@ -415,7 +415,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 bool Grabber::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node)
 {
 	// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
-	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(refr->loadedState->node, node) || IsSkinnedToNode(refr->loadedState->node, node);
+	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(refr->GetNiNode(), node) || IsSkinnedToNode(refr->GetNiNode(), node);
 	return selectedObject.isActor || usePhysicsBasedGrab || (refr->baseForm && refr->baseForm->formType == kFormType_Ammo);
 }
 
@@ -490,7 +490,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			NiPoint3 triPos, triNormal;
 			float closestDist = (std::numeric_limits<float>::max)();
 			double t = GetTime();
-			bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->loadedState->node, palmPos, castDirection, &triPos, &triNormal, &closestDist);
+			bool success = GetClosestPointOnGraphicsGeometryToLine(selectedObj->GetNiNode(), palmPos, castDirection, &triPos, &triNormal, &closestDist);
 
 			NiTransform desiredTransform = n->m_worldTransform;
 
@@ -539,7 +539,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 							_MESSAGE("finger %d", fingerIndex);
 
 							float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
-							bool intersects = GetIntersections(refr->loadedState->node, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+							bool intersects = GetIntersections(refr->GetNiNode(), fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
 								&curveValOrAngle);
 							if (intersects) {
 								return curveValOrAngle;
@@ -639,8 +639,8 @@ bool Grabber::IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const
 bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 {
 	if (CanGrabObject()) {
-		if (refr && refr->loadedState && refr->loadedState->node) {
-			NiNode *rootNode = refr->loadedState->node;
+		if (refr && refr->GetNiNode()) {
+			NiNode *rootNode = refr->GetNiNode();
 			bhkRigidBody *rigidBody = GetFirstCollision(rootNode);
 			if (rigidBody) {
 				if (state == State::SelectedClose) {
@@ -676,7 +676,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	forceInput = false; // 'Consume' the forceinput event
 
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player || !player->loadedState || !player->loadedState->node)
+	if (!player || !player->GetNiNode())
 		return;
 
 	TESObjectCELL* cell = player->parentCell;
@@ -1220,7 +1220,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					if (!selectedObject.isActor) {
 						NiAVObject *hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
 						if (hitNode) {
-							if (!IsSkinnedToNode(selectedObj->loadedState->node, hitNode)) {
+							if (!IsSkinnedToNode(selectedObj->GetNiNode(), hitNode)) {
 								selectedObject.shaderNode = hitNode;
 							}
 						}
@@ -1253,7 +1253,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							selectedObject.hitNode = nullptr;
 							selectedObject.hitForm = nullptr;
 
-							if (!IsSkinnedToNode(selectedObj->loadedState->node, hitNode)) {
+							if (!IsSkinnedToNode(selectedObj->GetNiNode(), hitNode)) {
 								selectedObject.shaderNode = hitNode;
 							}
 
@@ -1266,7 +1266,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				else {
 					// Same refr, no node selected before (skinned?)
 					NiAVObject *hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
-					if (hitNode && !IsSkinnedToNode(selectedObj->loadedState->node, hitNode)) {
+					if (hitNode && !IsSkinnedToNode(selectedObj->GetNiNode(), hitNode)) {
 						// Only replay the shader if we now have a specific node to play on
 						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
@@ -1463,7 +1463,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::SelectionLocked) {
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
 			auto TransitionPulled = [this, &other, motion, selectedObj, handNode]()
@@ -1537,7 +1537,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						motion->m_motionState.m_angularDamping = hkHalf(Config::options.pulledAngularDamping);
 
 						if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-							auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
+							auto rigidBody = GetRigidBody(selectedObj->GetNiNode());
 							if (rigidBody) {
 								// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 								auto collidable = &rigidBody->hkBody->m_collidable;
@@ -1651,10 +1651,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			state = State::Idle;
 		}
 		else {
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 				// Transition to pulled with the newly spawned item
 
-				auto rigidBody = GetRigidBody(selectedObj->loadedState->node);
+				auto rigidBody = GetRigidBody(selectedObj->GetNiNode());
 				if (rigidBody) {
 					selectedObject.rigidBody = rigidBody;
 					selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
@@ -1691,7 +1691,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::Pulled) {
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 
 			hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 			NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
@@ -1714,7 +1714,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
 				NiAVObject *n = FindCollidableNode(selectedObject.collidable);
-				if (n && DoesNodeHaveConstraint(selectedObj->loadedState->node, n)) {
+				if (n && DoesNodeHaveConstraint(selectedObj->GetNiNode(), n)) {
 					SetVelocityForAllCollisionInRefr(selectedObj, NiPointToHkVector(velocity));
 				}
 				else {
@@ -1734,7 +1734,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::HeldInit || state == State::Held) {
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 			if (n) {
 				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
@@ -1824,7 +1824,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::HeldBody) {
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->loadedState && selectedObj->loadedState->node) {
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 			if (n) {
 				bhkRigidBody_setActivated(selectedObject.rigidBody, true);

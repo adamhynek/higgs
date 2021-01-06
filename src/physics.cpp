@@ -254,8 +254,8 @@ namespace CollisionInfo
 
 	void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup, State reason)
 	{
-		if (refr->loadedState && refr->loadedState->node) {
-			SetCollisionInfoDownstream(refr->loadedState->node, collisionGroup, reason);
+		if (refr->GetNiNode()) {
+			SetCollisionInfoDownstream(refr->GetNiNode(), collisionGroup, reason);
 		}
 	}
 
@@ -402,8 +402,8 @@ namespace CollisionInfo
 
 	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode, bool collideAll)
 	{
-		if (refr->loadedState && refr->loadedState->node) {
-			ResetCollisionInfoDownstream(refr->loadedState->node, reason, skipNode, collideAll);
+		if (refr->GetNiNode()) {
+			ResetCollisionInfoDownstream(refr->GetNiNode(), reason, skipNode, collideAll);
 		}
 	}
 }
@@ -435,7 +435,7 @@ void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
 
 void SetVelocityForAllCollisionInRefr(TESObjectREFR *refr, hkVector4 velocity)
 {
-	if (refr->loadedState && refr->loadedState->node) {
-		SetVelocityDownstream(refr->loadedState->node, velocity);
+	if (refr->GetNiNode()) {
+		SetVelocityDownstream(refr->GetNiNode(), velocity);
 	}
 }

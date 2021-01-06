@@ -432,11 +432,11 @@ bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node)
 {
-	if (!node || !ref || !ref->loadedState || !ref->loadedState->node) {
+	if (!node || !ref || !ref->GetNiNode()) {
 		return false;
 	}
 
-	return DoesNodeHaveNode(ref->loadedState->node, node);
+	return DoesNodeHaveNode(ref->GetNiNode(), node);
 }
 
 bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObject *> &targets)

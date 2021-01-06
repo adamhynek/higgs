@@ -246,7 +246,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, boo
 			freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);
 			freeShader.shaderReference->controller->attachRoot = node;
 
-			CommitShaderNodes(freeShader.shaderReference, node ? node : obj->loadedState->node, node);
+			CommitShaderNodes(freeShader.shaderReference, node ? node : obj->GetNiNode(), node);
 
 			freeShader.node = node;
 		}
@@ -292,7 +292,7 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, boo
 				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
 				freeShader.shaderReference->controller->attachRoot = node; // node is null
 
-				CommitShaderNodes(freeShader.shaderReference, obj->loadedState->node, false);
+				CommitShaderNodes(freeShader.shaderReference, obj->GetNiNode(), false);
 			}
 		}
 	}
