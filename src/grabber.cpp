@@ -1855,7 +1855,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 }
 
 
-void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState)
+void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab)
 {
 	bool triggerDownBefore = triggerDown;
 	bool gripDownBefore = gripDown;
@@ -1876,7 +1876,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	bool gripFallingEdge = !gripDown && gripDownBefore;
 
 	if (inputState == InputState::Idle) {
-		if (triggerRisingEdge || gripRisingEdge) {
+		if ((triggerRisingEdge || gripRisingEdge) && allowGrab) {
 			grabRequestedTime = GetTime();
 			grabRequested = true;
 

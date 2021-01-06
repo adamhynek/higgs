@@ -115,7 +115,7 @@ struct Grabber
 	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
 	void PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode);
-	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
+	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);

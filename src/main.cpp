@@ -230,15 +230,19 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		}
 	}
 
-	std::pair<bool, bool> validItems = AreEquippedItemsValid(player);
-
 	bool isLeftHanded = *g_leftHandedMode;
+
+	std::pair<bool, bool> validItems = AreEquippedItemsValid(player);
+	bool isRightValid = isLeftHanded ? validItems.second : validItems.first;
+	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
 
 	bool isRightHeld = g_rightGrabber->state == Grabber::State::HeldInit || g_rightGrabber->state == Grabber::State::Held;
 	bool isLeftHeld = g_leftGrabber->state == Grabber::State::HeldInit || g_leftGrabber->state == Grabber::State::Held;
 
 	Grabber *firstGrabberToUpdate = g_rightGrabber;
 	Grabber *lastGrabberToUpdate = g_leftGrabber;
+	bool isFirstValid = isRightValid;
+	bool isLastValid = isLeftValid;
 	if (isRightHeld && isLeftHeld && g_rightGrabber->selectedObject.handle == g_leftGrabber->selectedObject.handle) {
 		// Both hands are holding something using the transform method, and they belong to the same object reference.
 		// We need to see if one of the held nodes is a child of the other, and make sure to do the update for the child node last.
@@ -251,19 +255,23 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				if (DoesNodeHaveNode(leftNode, rightNode)) {
 					// Right is the child
 					firstGrabberToUpdate = g_leftGrabber;
+					isFirstValid = isLeftValid;
 					lastGrabberToUpdate = g_rightGrabber;
+					isLastValid = isRightValid;
 				}
 				else if (DoesNodeHaveNode(rightNode, leftNode)) {
 					// Left is the child
 					firstGrabberToUpdate = g_rightGrabber;
+					isFirstValid = isRightValid;
 					lastGrabberToUpdate = g_leftGrabber;
+					isLastValid = isLeftValid;
 				}
 			}
 		}
 	}
 
-	firstGrabberToUpdate->PoseUpdate(*g_leftGrabber, isLeftHanded ? validItems.second : validItems.first, playerWorldNode);
-	lastGrabberToUpdate->PoseUpdate(*g_rightGrabber, isLeftHanded ? validItems.first : validItems.second, playerWorldNode);
+	firstGrabberToUpdate->PoseUpdate(*lastGrabberToUpdate, isFirstValid, playerWorldNode);
+	lastGrabberToUpdate->PoseUpdate(*firstGrabberToUpdate, isLastValid, playerWorldNode);
 
 	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
@@ -362,9 +370,13 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, uint32_t unControllerStateSize, bool& state)
 {
-	if (!initComplete) return;
+	if (!initComplete || !g_isLoaded) return;
 
 	if (MenuChecker::isGameStopped()) return;
+
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player || !player->loadedState || !player->loadedState->node)
+		return;
 
 	vr_src::ETrackedControllerRole rightControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand;
 	vr_src::TrackedDeviceIndex_t rightController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(rightControllerRole);
@@ -372,11 +384,17 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 	vr_src::ETrackedControllerRole leftControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand;
 	vr_src::TrackedDeviceIndex_t leftController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(leftControllerRole);
 
+	bool isLeftHanded = *g_leftHandedMode;
+
+	std::pair<bool, bool> validItems = AreEquippedItemsValid(player);
+	bool isRightValid = isLeftHanded ? validItems.second : validItems.first;
+	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
+
 	if (unControllerDeviceIndex == rightController) {
-		g_rightGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
+		g_rightGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isRightValid);
 	}
 	else if (unControllerDeviceIndex == leftController) {
-		g_leftGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
+		g_leftGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isLeftValid);
 	}
 }
 
