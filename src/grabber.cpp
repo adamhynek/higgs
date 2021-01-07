@@ -1400,23 +1400,29 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						}
 					}
 
-					NiPoint3 velocity;
+					NiPoint3 velocityHandComponent;
 					if (largestIndex == 0) {
 						// Max is the first value
-						velocity = controllerVelocities[0];
+						velocityHandComponent = controllerVelocities[0];
 					}
 					else if (largestIndex == controllerVelocities.size() - 1) {
 						// Max is the last value
-						velocity = controllerVelocities[largestIndex];
+						velocityHandComponent = controllerVelocities[largestIndex];
 					}
 					else {
 						// Regular case - avg 3 values centered at the peak
-						velocity = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
+						velocityHandComponent = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
 					}
 
-					velocity = (avgPlayerVelocityWorldspace * *g_havokWorldScale) + velocity; // add the player velocity
+					if (VectorLength(velocityHandComponent) > Config::options.throwVelocityThreshold) {
+						velocityHandComponent *= Config::options.throwVelocityBoostFactor;
+					}
 
-					bool velocityAboveThreshold = VectorLength(velocity) > Config::options.throwVelocityThreshold;
+					NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * *g_havokWorldScale;
+
+					NiPoint3 totalVelocity = velocityPlayerComponent + velocityHandComponent; // add the player velocity
+
+					bool velocityAboveThreshold = VectorLength(totalVelocity) > Config::options.throwVelocityThreshold;
 					bool collideWithHandWhenLettingGo = !velocityAboveThreshold;
 
 					if (state == State::HeldBody) {
@@ -1436,7 +1442,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					}
 
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocity);
+					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
 
 					if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos)) {
 						// Object deposited in the shoulder

@@ -20,6 +20,7 @@ namespace Config {
 		float grabLateralWeight = 0.6f;
 		float grabDirectionalWeight = 0.4f;
 		float throwVelocityThreshold = 1.0f; // m/s
+		float throwVelocityBoostFactor = 1.0f;
 		float shoulderVelocityThreshold = 0.7f; // m/s
 		float pullDestinationZOffset = 0.05f; // in meters, z offset above the palm at which to target the pulled object
 		float pulledAngularDamping = 3.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.

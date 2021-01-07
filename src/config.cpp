@@ -117,6 +117,8 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "ThrowVelocityThreshold", &options.throwVelocityThreshold)) return false;
+		if (!GetConfigOptionFloat("Settings", "ThrowVelocityBoostFactor", &options.throwVelocityBoostFactor)) return false;
+
 		if (!GetConfigOptionFloat("Settings", "ShoulderVelocityThreshold", &options.shoulderVelocityThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "PullDestinationZOffset", &options.pullDestinationZOffset)) return false;
