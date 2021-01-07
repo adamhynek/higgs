@@ -35,6 +35,43 @@ namespace PapyrusAPI
 		return grabber->CanGrabObject();
 	}
 
+	std::atomic<int> rightDisableCount = 0;
+	std::atomic<int> leftDisableCount = 0;
+	void PapyrusDisableHand(StaticFunctionTag *base, bool isLeft)
+	{
+		if (isLeft) {
+			leftDisableCount++;
+		}
+		else {
+			rightDisableCount++;
+		}
+	}
+
+	void PapyrusEnableHand(StaticFunctionTag *base, bool isLeft)
+	{
+		if (isLeft) {
+			leftDisableCount--;
+		}
+		else {
+			rightDisableCount--;
+		}
+	}
+
+	bool IsDisabled(bool isLeft)
+	{
+		if (isLeft) {
+			return leftDisableCount > 0;
+		}
+		else {
+			return rightDisableCount > 0;
+		}
+	}
+
+	bool PapyrusIsDisabled(StaticFunctionTag *base, bool isLeft)
+	{
+		return IsDisabled(isLeft);
+	}
+
 	BSFixedString dropEventName("OnObjectDropped");
 	RegistrationSetHolder<TESForm*> g_dropEventRegs;
 	void RegisterForDropEvent(StaticFunctionTag *base, TESForm* object)
@@ -78,6 +115,9 @@ namespace PapyrusAPI
 		registry->RegisterFunction(new NativeFunction2 <StaticFunctionTag, void, TESObjectREFR*, bool>("GrabObject", "HiggsVR", PapyrusGrabObject, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, TESObjectREFR*, bool>("GetGrabbedObject", "HiggsVR", PapyrusGetGrabbedObject, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("CanGrabObject", "HiggsVR", PapyrusCanGrabObject, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("DisableHand", "HiggsVR", PapyrusDisableHand, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("EnableHand", "HiggsVR", PapyrusEnableHand, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("IsDisabled", "HiggsVR", PapyrusIsDisabled, registry));
 
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("RegisterForDropEvent", "HiggsVR", RegisterForDropEvent, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("UnregisterForDropEvent", "HiggsVR", UnregisterForDropEvent, registry));

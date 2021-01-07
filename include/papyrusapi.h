@@ -1,3 +1,5 @@
+#include <atomic>
+
 #include "skse64/PapyrusNativeFunctions.h"
 #include "skse64/PapyrusEvents.h"
 
@@ -42,4 +44,9 @@ namespace PapyrusAPI
 	bool RegisterPapyrusFuncs(VMClassRegistry* registry);
 
 	void OnDropEvent(TESObjectREFR *refr, bool isLeft);
+
+	bool IsDisabled(bool isLeft);
+
+	extern std::atomic<int> rightDisableCount;
+	extern std::atomic<int> leftDisableCount;
 }

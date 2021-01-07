@@ -236,6 +236,9 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	bool isRightValid = isLeftHanded ? validItems.second : validItems.first;
 	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
 
+	isRightValid &= !PapyrusAPI::IsDisabled(false);
+	isLeftValid &= !PapyrusAPI::IsDisabled(true);
+
 	bool isRightHeld = g_rightGrabber->state == Grabber::State::HeldInit || g_rightGrabber->state == Grabber::State::Held;
 	bool isLeftHeld = g_leftGrabber->state == Grabber::State::HeldInit || g_leftGrabber->state == Grabber::State::Held;
 
