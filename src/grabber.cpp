@@ -1575,20 +1575,15 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				}
 			};
 
-			bool isSelectedNear = false;
+			NiPointer<TESObjectREFR> closestObj;
+			NiPointer<bhkRigidBody> closestRigidBody;
+			hkContactPoint closestPoint;
+			bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, palmVector, sphere,
+				&closestObj, &closestRigidBody, &closestPoint);
 
-			if (g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
-				NiPointer<TESObjectREFR> closestObj;
-				NiPointer<bhkRigidBody> closestRigidBody;
-				hkContactPoint closestPoint;
-
-				isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, palmVector, sphere,
-					&closestObj, &closestRigidBody, &closestPoint);
-
-				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
-				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-					TransitionHeld(other, *world, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
-				}
+			// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
+			if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
+				TransitionHeld(other, *world, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
 			}
 
 			if (!isSelectedNear) {
