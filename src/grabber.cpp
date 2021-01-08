@@ -420,8 +420,10 @@ bool Grabber::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node)
 }
 
 
-void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform)
+bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform)
 {
+	bool wereFingersSet = false;
+
 	NiAVObject *n = FindCollidableNode(selectedObject.collidable);
 	if (n) {
 		StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -584,6 +586,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					}
 
 					g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
+					wereFingersSet = true;
 					//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
 				}
 
@@ -606,6 +609,8 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			state = State::HeldInit;
 		}
 	}
+
+	return wereFingersSet;
 }
 
 
@@ -840,9 +845,16 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	if (state == State::GrabFromOtherHand) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+			bool wereFingersSet = TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+			if (!wereFingersSet && g_vrikInterface) {
+				g_vrikInterface->restoreFingers(isLeft);
+			}
 		}
 		else {
+			if (g_vrikInterface) {
+				g_vrikInterface->restoreFingers(isLeft);
+			}
+
 			state = State::Idle;
 		}
 	}
@@ -1328,17 +1340,16 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
-							if (g_vrikInterface) {
-								g_vrikInterface->restoreFingers(isLeft);
-							}
-
 							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
 								// Grabbing the object from the other hand - make the other hand drop it and wait
 								other.idleDesired = true;
 								state = State::GrabFromOtherHand;
 							}
 							else {
-								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+								bool wereFingersSet = TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+								if (!wereFingersSet && g_vrikInterface) {
+									g_vrikInterface->restoreFingers(isLeft);
+								}
 							}
 						}
 						// Set to false only here, so that you can hold the trigger until the cast hits something valid
