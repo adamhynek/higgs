@@ -134,7 +134,7 @@ struct Grabber
 	bool CanGrabObject() const;
 	bool HasHeldObject() const;
 	bool CanOtherGrab() const;
-	void SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded);
+	void SetupRollover(NiAVObject *rolloverNode, NiNode *playerWorldNode, bool isLeftHanded);
 	void SetSelectedHandles(bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
 	void Deselect();

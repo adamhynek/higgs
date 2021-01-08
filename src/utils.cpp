@@ -148,12 +148,19 @@ void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext 
 	}
 }
 
-void UpdateKeyframedNodeTransform(NiAVObject *node, const NiTransform &transform)
+void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
 {
+	// Given world transform, set the necessary local transform
 	NiTransform inverseParent;
 	node->m_parent->m_worldTransform.Invert(inverseParent);
 
-	node->m_localTransform = inverseParent * transform;
+	node->m_localTransform = inverseParent * worldTransform;
+}
+
+void UpdateKeyframedNode(NiAVObject *node, const NiTransform &transform)
+{
+	UpdateNodeTransformLocal(node, transform);
+
 	NiAVObject::ControllerUpdateContext ctx;
 	ctx.flags = 0x2000; // makes havok sim more stable
 	ctx.delta = 0;

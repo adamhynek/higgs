@@ -111,6 +111,7 @@ bool TryHook()
 }
 
 
+bool wasRolloverSet = false;
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
 	if (!initComplete) return true;
@@ -284,7 +285,10 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
 	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
 
-	if (displayRight || displayLeft) {
+	NiAVObject *rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
+
+	bool isRolloverSet = displayRight || displayLeft;
+	if (isRolloverSet) {
 		// Something is grabbed
 
 		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
@@ -295,7 +299,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		activateRumbleIntensitySetting->SetDouble(0);
 
 		if (!g_hasSavedRollover) {
-			NiAVObject *rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
 			if (rolloverNode) {
 				g_normalRolloverTransform = rolloverNode->m_localTransform;
 				g_hasSavedRollover = true;
@@ -305,59 +308,39 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		if (displayRight && displayLeft) {
 			// Pick whichever hand grabbed last
 			if (g_leftGrabber->rolloverDisplayTime > g_rightGrabber->rolloverDisplayTime) {
-				NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
-				if (!rolloverNode) {
-					// Switch menu to left hand if it's on the right
-					rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
-					leftWandNode->AttachChild(rolloverNode, false);
-					rightWandNode->RemoveChild(rolloverNode);
+				if (rolloverNode) {
+					g_leftGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
 				}
-				g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
 			}
 			else {
-				NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
-				if (!rolloverNode) {
-					// Switch menu to right hand if it's on the left
-					rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
-					rightWandNode->AttachChild(rolloverNode, false);
-					leftWandNode->RemoveChild(rolloverNode);
+				if (rolloverNode) {
+					g_rightGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
 				}
-				g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
 			}
 		}
 		else if (displayRight) {
-			NiAVObject *rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
-			if (!rolloverNode) {
-				// Switch menu to right hand if it's on the left
-				rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
-				rightWandNode->AttachChild(rolloverNode, false);
-				leftWandNode->RemoveChild(rolloverNode);
+			if (rolloverNode) {
+				g_rightGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
+				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
 			}
-			g_rightGrabber->SetupRollover(rolloverNode, isLeftHanded);
 		}
 		else if (displayLeft) {
-			NiAVObject *rolloverNode = leftWandNode->GetObjectByName(&rolloverNodeStr.data);
-			if (!rolloverNode) {
-				// Switch menu to left hand if it's on the right
-				rolloverNode = rightWandNode->GetObjectByName(&rolloverNodeStr.data);
-				leftWandNode->AttachChild(rolloverNode, false);
-				rightWandNode->RemoveChild(rolloverNode);
+			if (rolloverNode) {
+				g_leftGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
+				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
 			}
-			g_leftGrabber->SetupRollover(rolloverNode, isLeftHanded);
 		}
 	}
-	else {
+	else if (wasRolloverSet) {
 		// Nothing is grabbed
 
-		NiNode *mainWandNode = isLeftHanded ? leftWandNode : rightWandNode;
-		NiNode *offhandWandNode = isLeftHanded ? rightWandNode : leftWandNode;
-		NiAVObject *rolloverNode = mainWandNode->GetObjectByName(&rolloverNodeStr.data);
-		if (!rolloverNode) {
-			rolloverNode = offhandWandNode->GetObjectByName(&rolloverNodeStr.data);
-			mainWandNode->AttachChild(rolloverNode, false);
-			offhandWandNode->RemoveChild(rolloverNode);
-		}
-		if (g_hasSavedRollover) {
+		if (rolloverNode && g_hasSavedRollover) {
 			rolloverNode->m_localTransform = g_normalRolloverTransform;
 		}
 
@@ -366,6 +349,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 			activateRumbleIntensitySetting->data.f32 = g_normalRumbleIntensity;
 		}
 	}
+
+	wasRolloverSet = isRolloverSet;
 
 	return true;
 }

@@ -18,7 +18,8 @@ extern double g_currentFrameTime;
 
 NiAVObject * GetHighestParent(NiAVObject *node);
 void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx);
-void UpdateKeyframedNodeTransform(NiAVObject *node, const NiTransform &transform);
+void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);
+void UpdateKeyframedNode(NiAVObject *node, const NiTransform &transform);
 
 NiAVObject * GetTorsoNode(Actor *actor);
 

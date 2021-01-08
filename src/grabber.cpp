@@ -484,7 +484,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			initialGrabbedObjWorldPosition = n->m_worldTransform.pos;
 
 			if (initialTransform) {
-				UpdateKeyframedNodeTransform(n, *initialTransform);
+				UpdateKeyframedNode(n, *initialTransform);
 			}
 
 			NiPoint3 triPos, triNormal;
@@ -555,7 +555,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					};
 
 					// Update transform to snap to the hand
-					UpdateKeyframedNodeTransform(n, desiredTransform);
+					UpdateKeyframedNode(n, desiredTransform);
 
 					std::array<float, 5> fingerData;
 					for (int i = 0; i < fingerData.size(); i++) {
@@ -563,7 +563,7 @@ void Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					}
 
 					// Reset to original transform
-					UpdateKeyframedNodeTransform(n, originalTransform);
+					UpdateKeyframedNode(n, originalTransform);
 
 					std::array<float, 5> fingerRanges;
 					for (int i = 0; i < fingerRanges.size(); i++) {
@@ -708,10 +708,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 	// Skyrim coords: +x: right vector, +y: forward vector, +z: up vector
 	NiPoint3 hmdForward = { hmdNode->m_worldTransform.rot.data[0][1], hmdNode->m_worldTransform.rot.data[1][1], hmdNode->m_worldTransform.rot.data[2][1] };
-
-	NiAVObject *wandNode = playerWorldNode->GetObjectByName(&wandNodeName.data);
-	if (!wandNode)
-		return;
 
 	static BSFixedString comName("NPC COM [COM ]");
 	NiAVObject *comNode = player->GetNiRootNode(0)->GetObjectByName(&comName.data);
@@ -926,7 +922,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 					// Set the transform here to kind of skip the HeldInit state
 					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
-					UpdateKeyframedNodeTransform(n, newTransform);
+					UpdateKeyframedNode(n, newTransform);
 				}
 
 				grabRequested = false;
@@ -1795,7 +1791,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								newTransform.pos = currentPosCompensated + deltaPos;
 							}
 
-							UpdateKeyframedNodeTransform(n, newTransform);
+							UpdateKeyframedNode(n, newTransform);
 						}
 						else {
 							// Both position and rotation are close enough to their final values - we're done
@@ -1806,7 +1802,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				}
 
 				if (state == State::Held) {
-					UpdateKeyframedNodeTransform(n, newTransform);
+					UpdateKeyframedNode(n, newTransform);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
@@ -2040,16 +2036,27 @@ bool Grabber::IsSafeToClearSavedCollision() const
 		);
 }
 
-void Grabber::SetupRollover(NiAVObject *rolloverNode, bool isLeftHanded)
+void Grabber::SetupRollover(NiAVObject *rolloverNode, NiNode *playerWorldNode, bool isLeftHanded)
 {
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 		// Give the hud with info about the object you're floating
 
 		// First, change rotation/position/scale of the hud prompt
-		rolloverNode->m_localTransform.pos = rolloverOffset;
-		rolloverNode->m_localTransform.rot = rolloverRotation;
-		rolloverNode->m_localTransform.scale = rolloverScale;
+
+		NiAVObject *wandNode = playerWorldNode->GetObjectByName(&wandNodeName.data);
+		if (!wandNode)
+			return;
+
+		NiTransform handLocal;
+		handLocal.pos = rolloverOffset;
+		handLocal.rot = rolloverRotation;
+		handLocal.scale = rolloverScale;
+
+		// World transform where we would like the rollover node to be
+		NiTransform desiredWorld = wandNode->m_worldTransform * handLocal;
+
+		UpdateNodeTransformLocal(rolloverNode, desiredWorld);
 
 		SetSelectedHandles(isLeftHanded);
 	}
