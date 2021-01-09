@@ -450,6 +450,18 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			other.EndPull();
 		}
 
+		if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+			auto rigidBody = GetRigidBody(selectedObj->GetNiNode());
+			if (rigidBody) {
+				// Do not use selectedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
+				auto collidable = &rigidBody->hkBody->m_collidable;
+				// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
+				collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
+				// Projectiles have 'Fixed' motion type by default, making them unmovable
+				bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+			}
+		}
+
 		if (ShouldUsePhysicsBasedGrab(selectedObj, n)) {
 			if (!selectedObject.isActor) {
 				CollisionInfo::SetCollisionInfoForAllCollisionInRefr(selectedObj, playerCollisionGroup, collisionMapState);
