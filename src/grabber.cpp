@@ -1136,15 +1136,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								NiAVObject *geomNode = bipedData->unk10[i].object;
 								if (geomNode) {
 									TESForm *armorForm = bipedData->unk10[i].armor;
-									if (armorForm) {
-										if (armorForm->IsPlayable()) {
-											// Now check if we actually hit a node the armor is skinned to
-											bool isArmorHit = IsSkinnedToNode(geomNode, hitNode);
-											if (isArmorHit) {
-												if (hitIndex == -1 || CompareBipedIndices(hitIndex, i)) {
-													hitIndex = i;
-													hitForm = armorForm;
-												}
+									if (armorForm && armorForm->IsPlayable()) {
+										// Now check if we actually hit a node the armor is skinned to
+										bool isArmorHit = IsSkinnedToNode(geomNode, hitNode);
+										if (isArmorHit) {
+											if (hitIndex == -1 || CompareBipedIndices(hitIndex, i)) {
+												hitIndex = i;
+												hitForm = armorForm;
 											}
 										}
 									}
@@ -1156,10 +1154,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								bool hasCollision = false;
 								if (geomNode) {
 									if (DoesNodeHaveNode(geomNode, hitNode)) {
-										// We collided with the weapon, so it must not be attached to the character
-										hitIndex = i;
-										hitForm = bipedData->unk10[i].armor;
-										break;
+										TESForm *form = bipedData->unk10[i].armor;
+										if (form && form->IsPlayable()) {
+											// We collided with the weapon, so it must not be attached to the character
+											hitIndex = i;
+											hitForm = form;
+											break;
+										}
 									}
 									else {
 										// Weapon is attached to the character - get the nearest parent node that does have collision
@@ -1172,9 +1173,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 											nodeWithCollision = nodeWithCollision->m_parent;
 										}
 										if (hasCollision && nodeWithCollision == hitNode) {
-											hitIndex = i;
-											hitForm = bipedData->unk10[i].armor;
-											break;
+											TESForm *form = bipedData->unk10[i].armor;
+											if (form && form->IsPlayable()) {
+												hitIndex = i;
+												hitForm = form;
+												break;
+											}
 										}
 									}
 								}
