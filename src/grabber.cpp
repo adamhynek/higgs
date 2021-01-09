@@ -1125,12 +1125,14 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								if (geomNode) {
 									TESForm *armorForm = bipedData->unk10[i].armor;
 									if (armorForm) {
-										// Now check if we actually hit a node the armor is skinned to
-										bool isArmorHit = IsSkinnedToNode(geomNode, hitNode);
-										if (isArmorHit) {
-											if (hitIndex == -1 || CompareBipedIndices(hitIndex, i)) {
-												hitIndex = i;
-												hitForm = armorForm;
+										if (armorForm->IsPlayable()) {
+											// Now check if we actually hit a node the armor is skinned to
+											bool isArmorHit = IsSkinnedToNode(geomNode, hitNode);
+											if (isArmorHit) {
+												if (hitIndex == -1 || CompareBipedIndices(hitIndex, i)) {
+													hitIndex = i;
+													hitForm = armorForm;
+												}
 											}
 										}
 									}
