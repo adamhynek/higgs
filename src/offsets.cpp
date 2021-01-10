@@ -25,7 +25,9 @@ RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList(0x12F8
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 
-RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate(0x009CD750);
+RelocAddr<_ObjectReference_Activate> ObjectReference_Activate(0x009CD750);
+
+RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate(0x2A8300);
 
 RelocAddr<_EffectShader_Play> EffectShader_Play(0x9BCAF0);
 
@@ -143,6 +145,8 @@ RelocAddr<_SoundData_SetPosition> SoundData_SetPosition(0xC287D0);
 RelocAddr<_SoundData_SetNode> SoundData_SetNode(0xC289C0);
 
 RelocAddr<_SoundData_Play> SoundData_Play(0xC283E0);
+
+RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount(0x123D90);
 
 //bhkWorld_Update(0xDFB460);
 

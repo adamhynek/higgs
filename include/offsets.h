@@ -70,7 +70,10 @@ extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 extern RelocAddr<_IsInMenuMode> IsInMenuMode;
 
-typedef bool(*_TESObjectREFR_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
+typedef bool(*_ObjectReference_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
+extern RelocAddr<_ObjectReference_Activate> ObjectReference_Activate;
+
+typedef bool(*_TESObjectREFR_Activate)(TESObjectREFR* activatee, TESObjectREFR* activator, UInt32 unk01, UInt32 unk02, UInt32 count, bool defaultProcessingOnly); // unks are 0, 0
 extern RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate;
 
 typedef void(*_EffectShader_Play)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target, float duration);
@@ -249,3 +252,6 @@ extern RelocAddr<_SoundData_SetNode> SoundData_SetNode;
 
 typedef bool(*_SoundData_Play)(SoundData *SoundData);
 extern RelocAddr<_SoundData_Play> SoundData_Play;
+
+typedef UInt32(*_BSExtraList_GetCount)(BaseExtraList *extraList);
+extern RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount;
