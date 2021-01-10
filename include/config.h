@@ -54,6 +54,8 @@ namespace Config {
 		double grabStartMaxTime = 0.5f;
 		double shoulderDropHapticFadeTime = 0.2f;
 
+		bool disableHeadBobbingWhileGrabbed = true;
+
 		bool disableShaders = false;
 
 		bool disableFarCastWhileAimingAtNPCRight = true;

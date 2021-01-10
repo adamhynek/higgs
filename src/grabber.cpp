@@ -26,6 +26,9 @@
 #include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
 
 
+int isHeadBobbingSavedCount = 0;
+double savedHeadBobbingHeight = 0.0;
+
 BSFixedString hmdNodeStr("HmdNode");
 
 // Gets callbacks from havok linear cast
@@ -451,7 +454,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-			auto rigidBody = GetRigidBody(selectedObj->GetNiNode());
+			auto rigidBody = GetFirstRigidBody(selectedObj->GetNiNode());
 			if (rigidBody) {
 				// Do not use selectedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 				auto collidable = &rigidBody->hkBody->m_collidable;
@@ -460,6 +463,11 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 				// Projectiles have 'Fixed' motion type by default, making them unmovable
 				bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 			}
+		}
+
+		if (Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0 && g_vrikInterface) {
+			savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
+			g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
 		}
 
 		if (ShouldUsePhysicsBasedGrab(selectedObj, n)) {
@@ -658,7 +666,7 @@ bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 	if (CanGrabObject()) {
 		if (refr && refr->GetNiNode()) {
 			NiNode *rootNode = refr->GetNiNode();
-			bhkRigidBody *rigidBody = GetFirstCollision(rootNode);
+			auto rigidBody = GetFirstRigidBody(rootNode);
 			if (rigidBody) {
 				if (state == State::SelectedClose) {
 					if (g_vrikInterface) {
@@ -1466,6 +1474,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
 					}
 
+					if (--isHeadBobbingSavedCount == 0 && g_vrikInterface) {
+						g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+					}
+
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
 
@@ -1680,13 +1692,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 				// Transition to pulled with the newly spawned item
 
-				auto rigidBody = GetRigidBody(selectedObj->GetNiNode());
+				auto rigidBody = GetFirstRigidBody(selectedObj->GetNiNode());
 				if (rigidBody) {
 					selectedObject.rigidBody = rigidBody;
 					selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
 
 					// Set owner to the player so it doesn't count as stealing
-					TESObjectREFR_SetActorOwner(nullptr, 0, selectedObj, player->baseForm);
+					TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
 
 					// Cancel an existing pulled collision reset
 					EndPull();
@@ -1843,6 +1855,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				g_vrikInterface->restoreFingers(isLeft);
 			}
 
+			if (--isHeadBobbingSavedCount == 0 && g_vrikInterface) {
+				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+			}
+
 			ResetNearbyDamping();
 
 			state = State::Idle;
@@ -1868,6 +1884,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			}
 		}
 		else {
+			if (--isHeadBobbingSavedCount == 0 && g_vrikInterface) {
+				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+			}
+
 			state = State::Idle;
 		}
 	}

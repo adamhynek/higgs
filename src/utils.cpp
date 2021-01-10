@@ -544,9 +544,9 @@ void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skin
 	}
 }
 
-bhkRigidBody * GetFirstCollision(NiAVObject *root)
+NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root)
 {
-	bhkRigidBody *rigidBody = GetRigidBody(root);
+	auto rigidBody = GetRigidBody(root);
 	if (rigidBody) {
 		return rigidBody;
 	}
@@ -556,7 +556,7 @@ bhkRigidBody * GetFirstCollision(NiAVObject *root)
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 			auto child = node->m_children.m_data[i];
 			if (child) {
-				return GetFirstCollision(child);
+				return GetFirstRigidBody(child);
 			}
 		}
 	}
