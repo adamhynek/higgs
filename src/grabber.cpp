@@ -171,6 +171,8 @@ void Grabber::Select(TESObjectREFR *obj)
 	if (actor) {
 		selectedObject.isActor = true;
 	}
+
+	isExternallyGrabbedFrom = false;
 }
 
 
@@ -185,6 +187,8 @@ void Grabber::Deselect()
 	selectedObject.hitNode = nullptr;
 	selectedObject.hitForm = nullptr;
 	selectedObject.isDisconnected = false;
+
+	isExternallyGrabbedFrom = false;
 
 	state = State::Idle;
 }
@@ -424,7 +428,7 @@ bool Grabber::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node)
 }
 
 
-bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform)
+bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
 {
 	bool wereFingersSet = false;
 
@@ -434,7 +438,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		NiPoint3 palmPos = hkPalmNodePos / havokWorldScale;
 
-		PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
+		if (playSound) {
+			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
+		}
 
 		float mass = NiAVObject_GetMass(n, 0);
 		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
@@ -1377,6 +1383,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						else if (state == State::SelectedClose) {
 							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
 								// Grabbing the object from the other hand - make the other hand drop it and wait
+								other.isExternallyGrabbedFrom = true;
 								other.idleDesired = true;
 								state = State::GrabFromOtherHand;
 							}
@@ -1503,10 +1510,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
 						haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
 
-						PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
+						if (!isExternallyGrabbedFrom) {
+							PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
 
-						// Trigger the papyrus 'drop' event
-						PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+							// Trigger the papyrus 'drop' event
+							PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+						}
 					}
 				}
 			}
