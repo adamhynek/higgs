@@ -314,7 +314,7 @@ namespace CollisionInfo
 			}
 		}
 		else {
-			ASSERT_STR(false, "Collision keyframed reset attempted on item that isn't in the collision map");
+			//ASSERT_STR(false, "Collision keyframed reset attempted on item that isn't in the collision map");
 		}
 	}
 
@@ -383,7 +383,7 @@ namespace CollisionInfo
 						}
 					}
 					else {
-						ASSERT_STR(false, "Collision reset attempted on item that isn't in the collision map");
+						//ASSERT_STR(false, "Collision reset attempted on item that isn't in the collision map");
 					}
 				}
 			}

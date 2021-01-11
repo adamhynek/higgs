@@ -44,19 +44,19 @@ hkpWorldRayCastInput rayCastInput;
 
 
 UInt32 priorities[] = {
-	3, // head
-	2, // hair
-	9, // body
-	5, // hands
-	6, // forearms
-	1, // amulet
-	4, // ring
-	7, // feet
-	8, // calves
-	10, // shield
+	4, // head
+	3, // hair
+	10, // body
+	6, // hands
+	7, // forearms
+	2, // amulet
+	5, // ring
+	8, // feet
+	9, // calves
+	0, // shield
 	13, // tail - seems to be used by cloaks
 	11, // longhair
-	0, // circlet
+	1, // circlet
 	12, // ears
 	84, // 14
 	85, // 15
@@ -184,6 +184,7 @@ void Grabber::Deselect()
 	selectedObject.shaderNode = nullptr;
 	selectedObject.hitNode = nullptr;
 	selectedObject.hitForm = nullptr;
+	selectedObject.isDisconnected = false;
 
 	state = State::Idle;
 }
@@ -1139,6 +1140,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						if (bipedData) {
 							int hitIndex = -1;
 							TESForm *hitForm = nullptr;
+							bool isDisconnected = false;
 							for (int i = 0; i < equippedWeaponSlotBase; i++) {
 								// For skinned armor, the nodes are not attached to the skeleton. Find nodes the armor is skinned to and see if one of them was hit
 								NiAVObject *geomNode = bipedData->unk10[i].object;
@@ -1146,11 +1148,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									TESForm *armorForm = bipedData->unk10[i].armor;
 									if (armorForm && armorForm->IsPlayable()) {
 										// Now check if we actually hit a node the armor is skinned to
-										bool isArmorHit = IsSkinnedToNode(geomNode, hitNode);
-										if (isArmorHit) {
+										bool isArmorDisconnected = DoesNodeHaveNode(geomNode, hitNode); // This is mainly for shields that are off the body
+										if (IsSkinnedToNode(geomNode, hitNode) || isArmorDisconnected) {
 											if (hitIndex == -1 || CompareBipedIndices(hitIndex, i)) {
 												hitIndex = i;
 												hitForm = armorForm;
+												isDisconnected = isArmorDisconnected;
 											}
 										}
 									}
@@ -1167,6 +1170,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 											// We collided with the weapon, so it must not be attached to the character
 											hitIndex = i;
 											hitForm = form;
+											isDisconnected = true;
 											break;
 										}
 									}
@@ -1185,6 +1189,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 											if (form && form->IsPlayable()) {
 												hitIndex = i;
 												hitForm = form;
+												isDisconnected = false;
 												break;
 											}
 										}
@@ -1205,6 +1210,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 											nodeOnWhichToPlayShader = hitBipedData->object;
 											selectedObject.hitForm = hitForm;
 											selectedObject.hitNode = hitNode;
+											selectedObject.isDisconnected = isDisconnected;
 										}
 									}
 									else {
@@ -1546,8 +1552,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 										UInt64 *vtbl = *((UInt64 **)actor);
 										UInt32 droppedObjHandle = *g_invalidRefHandle;
-										if (DYNAMIC_CAST(item, TESBoundObject, TESObjectWEAP)) {
-											// For dropped weapons, make the drop pos / rot equal to where it was before
+										if (selectedObject.isDisconnected) {
+											// For dropped weapons/shields, make the drop pos / rot equal to where it was before
 											NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
 											NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
 											((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
@@ -1594,7 +1600,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						motion->m_motionState.m_angularDamping = hkHalf(Config::options.pulledAngularDamping);
 
 						if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-							auto rigidBody = GetRigidBody(selectedObj->GetNiNode());
+							auto rigidBody = GetFirstRigidBody(selectedObj->GetNiNode());
 							if (rigidBody) {
 								// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 								auto collidable = &rigidBody->hkBody->m_collidable;
@@ -2089,7 +2095,7 @@ bool Grabber::ShouldDisplayRollover()
 bool Grabber::IsSafeToClearSavedCollision() const
 {
 	return (
-		(state == State::Idle || state == State::SelectedFar || state == State::SelectedClose || state == State::SelectionLocked || state == State::PrepullItem || state == State::GrabFromOtherHand)
+		(state == State::Idle || state == State::SelectedFar || state == State::SelectedClose)
 		&& pulledObject.handle == *g_invalidRefHandle
 		);
 }
