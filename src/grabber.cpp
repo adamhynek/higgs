@@ -2056,7 +2056,15 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	if (inputState == InputState::Block) {
 		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
 			releaseRequested = true;
-			inputState = InputState::Idle;
+
+			double currentTime = g_currentFrameTime;
+			if (state == State::SelectionLocked && currentTime - grabRequestedTime <= Config::options.inputLeewayTime) {
+				forceInput = true;
+				inputState = InputState::Force;
+			}
+			else {
+				inputState = InputState::Idle;
+			}
 		}
 		else {
 			pControllerState->ulButtonPressed &= ~triggerMask;
