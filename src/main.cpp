@@ -360,8 +360,6 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 {
 	if (!initComplete) return;
 
-	if (MenuChecker::isGameStopped()) return;
-
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode())
 		return;

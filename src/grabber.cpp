@@ -1497,7 +1497,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
 
-					if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos)) {
+					if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos) && !isExternallyGrabbedFrom) {
 						// Object deposited in the shoulder
 
 						UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
@@ -1932,10 +1932,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab)
 {
+	// Check inputs and calculate rising/falling edge even if a menu is open
 	bool triggerDownBefore = triggerDown;
 	bool gripDownBefore = gripDown;
-
-	//_MESSAGE("%s:, controller update", name);
 
 	uint64_t triggerMask = vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
 	uint64_t gripMask = vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_Grip);
@@ -1950,6 +1949,9 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	bool gripRisingEdge = gripDown && !gripDownBefore;
 	bool gripFallingEdge = !gripDown && gripDownBefore;
 
+	if (MenuChecker::isGameStopped()) return;
+
+	// Only advance states if no menus are open
 	if (inputState == InputState::Idle) {
 		if ((triggerRisingEdge || gripRisingEdge) && allowGrab) {
 			grabRequestedTime = g_currentFrameTime;
