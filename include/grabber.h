@@ -124,7 +124,7 @@ struct Grabber
 	void FindBodiesToFreeze(bhkWorld &world);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
-	bool ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, NiAVObject *node);
+	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
 	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	bool GrabExternalObject(TESObjectREFR *refr);
 	bool IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const;
@@ -193,7 +193,7 @@ struct Grabber
 	bool isExternallyGrabbedFrom = false;
 
 	bool externalGrabRequested = false;
-	TESObjectREFR *externalGrabRequestedObject = nullptr;
+	NiPointer<TESObjectREFR> externalGrabRequestedObject = nullptr;
 
 	double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
 	double grabRequestedTime = 0; // Timestamp when the trigger was pressed

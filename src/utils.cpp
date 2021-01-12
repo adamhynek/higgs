@@ -88,7 +88,7 @@ bool DoesEntityHaveConstraint(NiAVObject *root, bhkRigidBody *entity)
 	NiNode *rootNode = root->GetAsNiNode();
 	if (rootNode) {
 		for (int i = 0; i < rootNode->m_children.m_emptyRunStart; i++) {
-			NiAVObject *child = rootNode->m_children.m_data[i];
+			NiPointer<NiAVObject> child = rootNode->m_children.m_data[i];
 			if (child) {
 				if (DoesEntityHaveConstraint(child, entity)) {
 					return true;
@@ -115,16 +115,16 @@ bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node)
 	return DoesEntityHaveConstraint(rootNode, entity);
 }
 
-NiAVObject * GetTorsoNode(Actor *actor)
+NiPointer<NiAVObject> GetTorsoNode(Actor *actor)
 {
 	TESRace *race = actor->race;
 	BGSBodyPartData *partData = race->bodyPartData;
 	if (partData) {
 		auto torsoData = partData->part[0];
 		if (torsoData && torsoData->unk08.data) {
-			NiAVObject *actorNode = actor->GetNiNode();
+			NiPointer<NiNode> actorNode = actor->GetNiNode();
 			if (actorNode) {
-				NiAVObject *torsoNode = actorNode->GetObjectByName(&torsoData->unk08.data);
+				NiPointer<NiAVObject> torsoNode = actorNode->GetObjectByName(&torsoData->unk08.data);
 				if (torsoNode) {
 					return torsoNode;
 				}
@@ -240,7 +240,7 @@ bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> funct
 
 		auto children = &node->m_children;
 		for (UInt32 i = 0; i < children->m_emptyRunStart; i++) {
-			NiAVObject * object = children->m_data[i];
+			NiPointer<NiAVObject> object = children->m_data[i];
 			if (object) {
 				if (VisitNodes(object, functor, depth + 1))
 					return true;
@@ -426,7 +426,7 @@ bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 	NiNode *node = haystack->GetAsNiNode();
 	if (node) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			NiAVObject *child = node->m_children.m_data[i];
+			NiPointer<NiAVObject> child = node->m_children.m_data[i];
 			if (child) {
 				if (DoesNodeHaveNode(child, target)) {
 					return true;
@@ -439,11 +439,16 @@ bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target)
 
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node)
 {
-	if (!node || !ref || !ref->GetNiNode()) {
+	if (!node || !ref) {
 		return false;
 	}
 
-	return DoesNodeHaveNode(ref->GetNiNode(), node);
+	NiPointer<NiNode> rootObj = ref->GetNiNode();
+	if (!rootObj) {
+		return false;
+	}
+
+	return DoesNodeHaveNode(rootObj, node);
 }
 
 bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObject *> &targets)
@@ -457,7 +462,7 @@ bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObje
 			if (skinData) {
 				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
 				for (int i = 0; i < numBones; i++) {
-					NiAVObject *bone = skinInstance->m_ppkBones[i];
+					NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
 					if (bone) {
 						if (targets.count(bone) != 0) {
 							return true;
@@ -525,7 +530,7 @@ void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skin
 			if (skinData) {
 				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
 				for (int i = 0; i < numBones; i++) {
-					NiAVObject *bone = skinInstance->m_ppkBones[i];
+					NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
 					if (bone) {
 						skinnedNodes.insert(bone);
 					}

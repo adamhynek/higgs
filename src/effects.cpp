@@ -232,23 +232,26 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, boo
 		NiPointer<TESObjectREFR> obj;
 		UInt32 handleCopy = objHandle;
 		if (LookupREFRByHandle(handleCopy, obj)) {
-			if (node) {
-				if (saveCurrentShader) {
-					SaveShaderData(objHandle, node);
+			NiPointer<NiNode> objRoot = obj->GetNiNode();
+			if (objRoot) {
+				if (node) {
+					if (saveCurrentShader) {
+						SaveShaderData(objHandle, node);
+					}
 				}
+
+				PlayingShader &freeShader = g_playingShaders[0];
+
+				freeShader.handle = objHandle;
+				freeShader.shader = shader;
+
+				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);
+				freeShader.shaderReference->controller->attachRoot = node;
+
+				CommitShaderNodes(freeShader.shaderReference, node ? node : objRoot, node);
+
+				freeShader.node = node;
 			}
-
-			PlayingShader &freeShader = g_playingShaders[0];
-
-			freeShader.handle = objHandle;
-			freeShader.shader = shader;
-
-			freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);
-			freeShader.shaderReference->controller->attachRoot = node;
-
-			CommitShaderNodes(freeShader.shaderReference, node ? node : obj->GetNiNode(), node);
-
-			freeShader.node = node;
 		}
 
 		return;
@@ -287,12 +290,15 @@ void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, boo
 			NiPointer<TESObjectREFR> obj;
 			UInt32 handleCopy = objHandle;
 			if (LookupREFRByHandle(handleCopy, obj)) {
-				freeShader.shader = shader;
+				NiPointer<NiNode> objRoot = obj->GetNiNode();
+				if (objRoot) {
+					freeShader.shader = shader;
 
-				freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
-				freeShader.shaderReference->controller->attachRoot = node; // node is null
+					freeShader.shaderReference = PlayEffectShader(freeShader.shader, obj);;
+					freeShader.shaderReference->controller->attachRoot = node; // node is null
 
-				CommitShaderNodes(freeShader.shaderReference, obj->GetNiNode(), false);
+					CommitShaderNodes(freeShader.shaderReference, objRoot, false);
+				}
 			}
 		}
 	}

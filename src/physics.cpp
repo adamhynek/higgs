@@ -252,13 +252,6 @@ namespace CollisionInfo
 		}
 	}
 
-	void SetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, UInt32 collisionGroup, State reason)
-	{
-		if (refr->GetNiNode()) {
-			SetCollisionInfoDownstream(refr->GetNiNode(), collisionGroup, reason);
-		}
-	}
-
 	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll)
 	{
 		UInt32 entityId = entity->hkBody->m_uid;
@@ -399,13 +392,6 @@ namespace CollisionInfo
 			}
 		}
 	}
-
-	void ResetCollisionInfoForAllCollisionInRefr(TESObjectREFR *refr, State reason, hkpCollidable *skipNode, bool collideAll)
-	{
-		if (refr->GetNiNode()) {
-			ResetCollisionInfoDownstream(refr->GetNiNode(), reason, skipNode, collideAll);
-		}
-	}
 }
 
 
@@ -430,12 +416,5 @@ void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
 				SetVelocityDownstream(child, velocity);
 			}
 		}
-	}
-}
-
-void SetVelocityForAllCollisionInRefr(TESObjectREFR *refr, hkVector4 velocity)
-{
-	if (refr->GetNiNode()) {
-		SetVelocityDownstream(refr->GetNiNode(), velocity);
 	}
 }

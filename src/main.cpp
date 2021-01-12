@@ -122,7 +122,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!player || !player->GetNiNode())
 		return true;
 
-	NiAVObject *rootObj = GetHighestParent(player->GetNiNode());
+	NiPointer<NiAVObject> rootObj = GetHighestParent(player->GetNiNode());
 	if (!rootObj)
 		return true;
 
@@ -135,7 +135,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		return true;
 
 	static BSFixedString playerWorldNodeName("PlayerWorldNode");
-	NiAVObject *playerWorldObj = rootNode->GetObjectByName(&playerWorldNodeName.data);
+	NiPointer<NiAVObject> playerWorldObj = rootNode->GetObjectByName(&playerWorldNodeName.data);
 	if (!playerWorldObj)
 		return true;
 
@@ -144,20 +144,20 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		return true;
 
 	static BSFixedString rightWandStr("RightWandNode");
-	NiAVObject *rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
+	NiPointer<NiAVObject> rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
 	if (!rightWandObj) {
 		return true;
 	}
 	NiNode *rightWandNode = rightWandObj->GetAsNiNode();
 
 	static BSFixedString leftWandStr("LeftWandNode");
-	NiAVObject *leftWandObj = playerWorldObj->GetObjectByName(&leftWandStr.data);
+	NiPointer<NiAVObject> leftWandObj = playerWorldObj->GetObjectByName(&leftWandStr.data);
 	if (!leftWandObj)
 		return true;
 	NiNode *leftWandNode = leftWandObj->GetAsNiNode();
 
 	static BSFixedString hmdStr("HmdNode");
-	NiAVObject *hmdObj = playerWorldObj->GetObjectByName(&hmdStr.data);
+	NiPointer<NiAVObject> hmdObj = playerWorldObj->GetObjectByName(&hmdStr.data);
 	if (!hmdObj)
 		return true;
 	NiNode *hmdNode = hmdObj->GetAsNiNode();
@@ -253,8 +253,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiAVObject *leftNode = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
-			NiAVObject *rightNode = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
+			NiPointer<NiAVObject> leftNode = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
+			NiPointer<NiAVObject> rightNode = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
 			if (leftNode && rightNode) {
 				if (DoesNodeHaveNode(leftNode, rightNode)) {
 					// Right is the child
@@ -285,7 +285,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
 	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
 
-	NiAVObject *rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
+	NiPointer<NiAVObject> rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
 
 	bool isRolloverSet = displayRight || displayLeft;
 	if (isRolloverSet) {

@@ -21,7 +21,7 @@ void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext 
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);
 void UpdateKeyframedNode(NiAVObject *node, const NiTransform &transform);
 
-NiAVObject * GetTorsoNode(Actor *actor);
+NiPointer<NiAVObject> GetTorsoNode(Actor *actor);
 
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
