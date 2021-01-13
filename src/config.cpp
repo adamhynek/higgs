@@ -102,6 +102,7 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "SelectedFadeTime", &options.selectedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "InputLeewayTime", &options.inputLeewayTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "ForceInputTime", &options.forceInputTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PulledInitTime", &options.pulledInitTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PulledLootSpawnInTime", &options.pulledLootSpawnInTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;

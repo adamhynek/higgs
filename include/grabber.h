@@ -202,6 +202,7 @@ struct Grabber
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 	double heldTime = 0;
+	double forceInputTime = 0;
 
 	State state = State::Idle;
 	State prevState = State::Idle;
@@ -210,7 +211,6 @@ struct Grabber
 	bool inputTrigger = false;
 	bool inputGrip = false;
 
-	bool forceInput = false;
 	bool triggerDown = false; // Whether the trigger was down last frame
 	bool gripDown = false;
 	bool grabRequested = false; // True on rising edge of trigger press

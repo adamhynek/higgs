@@ -711,7 +711,6 @@ bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode)
 {
 	//_MESSAGE("%s:, pose update", name);
-	forceInput = false; // 'Consume' the forceinput event
 
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode())
@@ -2015,7 +2014,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				inputState = InputState::Idle;
 			}
 			else {
-				forceInput = true;
+				forceInputTime = g_currentFrameTime;
 				inputState = InputState::Force;
 			}
 		}
@@ -2046,7 +2045,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				}
 				else {
 					// Leeway time has run out
-					forceInput = true;
+					forceInputTime = g_currentFrameTime;
 					inputState = InputState::Force;
 				}
 			}
@@ -2059,7 +2058,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 
 			double currentTime = g_currentFrameTime;
 			if (state == State::SelectionLocked && currentTime - grabRequestedTime <= Config::options.inputLeewayTime) {
-				forceInput = true;
+				forceInputTime = g_currentFrameTime;
 				inputState = InputState::Force;
 			}
 			else {
@@ -2073,7 +2072,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	}
 
 	if (inputState == InputState::Force) {
-		if (forceInput) {
+		if (g_currentFrameTime - forceInputTime <= Config::options.forceInputTime) {
 			if (inputTrigger) {
 				pControllerState->ulButtonPressed |= triggerMask;
 			}
