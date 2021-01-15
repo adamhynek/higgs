@@ -390,8 +390,12 @@ extern "C" {
 	{
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("higgs_vr.esp");
 		if (!modInfo) {
-			_ERROR("[CRITICAL] Could not get modinfo. Most likely the .esp is not loaded.");
+			_ERROR("[CRITICAL] Could not get modinfo. Most likely the .esp doesn't exist.");
 			return;
+		}
+
+		if (!modInfo->IsActive()) {
+			_ERROR("[CRITICAL] The .esp is not active");
 		}
 
 		TESForm *shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F00));

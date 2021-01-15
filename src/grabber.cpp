@@ -1209,7 +1209,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									}
 								}
 							}
-							if (hitForm) {
+							if (hitForm && (!Config::options.disableLooting || isDisconnected)) {
 								// Make sure the armor we hit is actually equipped. When nothing is equipped, there can still be 'naked' armor in the biped data that's not really equipped armor.
 								ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
 								ExtraContainerChanges::Data* containerData = containerChanges ? containerChanges->data : nullptr;

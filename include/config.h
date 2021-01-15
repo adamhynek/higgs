@@ -60,6 +60,8 @@ namespace Config {
 
 		bool disableShaders = false;
 
+		bool disableLooting = false;
+
 		bool disableFarCastWhileAimingAtNPCRight = true;
 		bool disableFarCastWhileAimingAtNPCLeft = false;
 
