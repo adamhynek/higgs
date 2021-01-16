@@ -50,6 +50,7 @@ void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skin
 NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root);
 UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location);
 
-typedef void(*_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
+typedef void(*Actor_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
+typedef void(*Actor_GetLinearVelocity)(Actor *_this, NiPoint3 &velocity);
 
 typedef void(*_Update3DPosition)(TESObjectREFR *_this, bool warp);

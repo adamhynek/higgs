@@ -97,7 +97,7 @@ public:
 
 void HapticsManager::TriggerHapticPulse(float duration)
 {
-	if (g_openVR && *g_openVR) {
+	if (g_openVR && *g_openVR && duration > 0) {
 		BSOpenVR *openVR = *g_openVR;
 		openVR->TriggerHapticPulse(hand, duration);
 	}
@@ -1478,7 +1478,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
 						}
 
-						NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * *g_havokWorldScale;
+						NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
 
 						NiPoint3 totalVelocity = velocityPlayerComponent + velocityHandComponent; // add the player velocity
 
@@ -1580,12 +1580,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 												// For dropped weapons/shields, make the drop pos / rot equal to where it was before
 												NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
 												NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
-												((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
+												((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
 											}
 											else {
 												NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
 												NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
-												((_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
+												((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
 											}
 
 											NiPointer<TESObjectREFR> droppedObj;
@@ -2066,8 +2066,13 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 			}
 		}
 		else {
-			pControllerState->ulButtonPressed &= ~triggerMask;
-			pControllerState->ulButtonPressed &= ~gripMask;
+			if (Config::options.enableTrigger) {
+				pControllerState->ulButtonPressed &= ~triggerMask;
+			}
+
+			if (Config::options.enableGrip) {
+				pControllerState->ulButtonPressed &= ~gripMask;
+			}
 		}
 	}
 
