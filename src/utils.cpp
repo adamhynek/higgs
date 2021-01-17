@@ -10,6 +10,7 @@
 #include "skse64/GameRTTI.h"
 #include "skse64/NiExtraData.h"
 #include "skse64/NiGeometry.h"
+#include "skse64/HashUtil.h"
 
 #include "utils.h"
 #include "offsets.h"
@@ -586,4 +587,26 @@ UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const Ni
 	}
 
 	return 0;
+}
+
+// Taken from PapyrusActor.cpp
+SInt32 GetItemId(TESForm * form, BaseExtraList * extraList)
+{
+	if (!form || !extraList)
+		return 0;
+
+	const char * name = extraList->GetDisplayName(form);
+
+	// No name in extra data? Use base form name
+	if (!name)
+	{
+		TESFullName* pFullName = DYNAMIC_CAST(form, TESForm, TESFullName);
+		if (pFullName)
+			name = pFullName->name.data;
+	}
+
+	if (!name)
+		return 0;
+
+	return (SInt32)HashUtil::CRC32(name, form->formID & 0x00FFFFFF);
 }

@@ -103,6 +103,7 @@ void HapticsManager::TriggerHapticPulse(float duration)
 	}
 }
 
+
 void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, float duration)
 {
 	HapticsManager::HapticEvent hapticEvent;
@@ -1510,7 +1511,20 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							// Object deposited in the shoulder
 
 							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
-							TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
+
+							TESForm *baseForm = selectedObj->baseForm;
+							if (Config::options.skipActivateBooks && baseForm && (baseForm->formType == kFormType_Book || baseForm->formType == kFormType_Note)) {
+								// PickUpObject is vfunc 0xCE
+
+								// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.
+								// Some stuff like containers go into the inventory but then when dropped again they essentially are reset with new items
+								// We do want to directly pick up books though, since otherwise we get the book prompt
+								UInt64 *vtbl = *((UInt64 **)player);
+								((Actor_PickUpObject)(vtbl[0xCE]))(player, selectedObj, count, false, true);
+							}
+							else {
+								TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
+							}
 
 							haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
 						}
@@ -1567,6 +1581,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 										TESBoundObject *item = DYNAMIC_CAST(itemForm, TESForm, TESBoundObject);
 										if (item) {
 											// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
+											// DropObject is vfunc 0xCD
 											// Actor::RemoveItem is at 0x607F60
 
 											UInt64 *vtbl = *((UInt64 **)actor);
@@ -1575,12 +1590,14 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 												// For dropped weapons/shields, make the drop pos / rot equal to where it was before
 												NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
 												NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
-												((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
+												//((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
+												((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, armorExtraData, 1, &dropLoc, &dropRot);
 											}
 											else {
 												NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
 												NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
-												((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
+												//((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
+												((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, armorExtraData, 1, &dropLoc, nullptr);
 											}
 
 											NiPointer<TESObjectREFR> droppedObj;

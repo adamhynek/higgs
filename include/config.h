@@ -57,10 +57,9 @@ namespace Config {
 		double shoulderDropHapticFadeTime = 0.2f;
 
 		bool disableHeadBobbingWhileGrabbed = true;
-
 		bool disableShaders = false;
-
 		bool disableLooting = false;
+		bool skipActivateBooks = true;
 
 		bool disableFarCastWhileAimingAtNPCRight = true;
 		bool disableFarCastWhileAimingAtNPCLeft = false;
