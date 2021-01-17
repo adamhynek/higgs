@@ -1209,13 +1209,15 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									}
 								}
 							}
+
 							if (hitForm && (!Config::options.disableLooting || isDisconnected)) {
 								// Make sure the armor we hit is actually equipped. When nothing is equipped, there can still be 'naked' armor in the biped data that's not really equipped armor.
 								ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
-								ExtraContainerChanges::Data* containerData = containerChanges ? containerChanges->data : nullptr;
-								if (containerData) {
-									InventoryEntryData* entryData = containerData->CreateEquipEntryData(hitForm);
-									if (entryData && entryData->countDelta > 0) {
+								if (containerChanges) {
+									MatchByForm matcher(hitForm);
+									EquipData equipData;
+									equipData = containerChanges->FindEquipped(matcher, true, true);
+									if (equipData.pForm) {
 										Biped::Data *hitBipedData = &bipedData->unk10[hitIndex];
 										auto hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
 										// If it's armor, make sure it has a name. If it doesn't, it could be FEC, or who knows...
@@ -1229,10 +1231,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									else {
 										// The form we hit is not equipped - do the same as if no form was selected
 										breakStickiness = true;
-									}
-
-									if (entryData) {
-										entryData->Delete();
 									}
 								}
 							}
@@ -1556,18 +1554,15 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
-							// drop the armor
+							// Drop the armor
 							ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
-							ExtraContainerChanges::Data* containerData = containerChanges ? containerChanges->data : nullptr;
-							if (containerData) {
-								InventoryEntryData* entryData = containerData->CreateEquipEntryData(selectedObject.hitForm);
-								if (entryData && entryData->countDelta > 0) {
-									BaseExtraList *armorExtraData = nullptr;
-									if (entryData->extendDataList) {
-										armorExtraData = entryData->extendDataList->GetNthItem(0);
-									}
-
-									TESForm *itemForm = entryData->type;
+							if (containerChanges) {
+								MatchByForm matcher(selectedObject.hitForm);
+								EquipData equipData;
+								equipData = containerChanges->FindEquipped(matcher, true, true);
+								if (equipData.pForm) {
+									BaseExtraList *armorExtraData = equipData.pExtraData;
+									TESForm *itemForm = equipData.pForm;
 									if (itemForm) {
 										TESBoundObject *item = DYNAMIC_CAST(itemForm, TESForm, TESBoundObject);
 										if (item) {
@@ -1600,10 +1595,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 											}
 										}
 									}
-								}
-
-								if (entryData) {
-									entryData->Delete();
 								}
 							}
 						}
