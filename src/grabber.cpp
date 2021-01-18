@@ -474,7 +474,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			}
 		}
 
-		if (Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0 && g_vrikInterface) {
+		if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
 			savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
 			g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
 		}
@@ -1426,7 +1426,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		}
 	}
 
-	if (state == State::SelectionLocked || state == State::PrepullItem || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 
 		grabRequested = false; // Consume grab event here as we cannot grab from any of these states and don't want to grab immediately upon exiting them
 
@@ -1436,6 +1436,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			wasObjectGrabbed = false;
 			idleDesired = true;
 		}
+
 		if (idleDesired || !allowGrab) {
 			idleDesired = false;
 
@@ -1500,7 +1501,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
 						}
 
-						if (--isHeadBobbingSavedCount == 0 && g_vrikInterface) {
+						if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 							g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 						}
 
@@ -1923,7 +1924,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				g_vrikInterface->restoreFingers(isLeft);
 			}
 
-			if (--isHeadBobbingSavedCount == 0 && g_vrikInterface) {
+			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 			}
 
@@ -1953,7 +1954,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			}
 		}
 		else {
-			if (--isHeadBobbingSavedCount == 0 && g_vrikInterface) {
+			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 			}
 
@@ -1991,6 +1992,8 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 
 	if (MenuChecker::isGameStopped()) return;
 
+	PlayerCharacter *pc = *g_thePlayer;
+
 	// Only advance states if no menus are open
 	if (inputState == InputState::Idle) {
 		if ((triggerRisingEdge || gripRisingEdge) && allowGrab) {
@@ -2001,7 +2004,6 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 			inputGrip = false;
 
 			if (triggerRisingEdge) {
-				PlayerCharacter *pc = *g_thePlayer;
 				if (pc && !pc->actorState.IsWeaponDrawn()) {
 					inputTrigger = true;
 				}
@@ -2034,7 +2036,6 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 				double currentTime = g_currentFrameTime;
 				if (currentTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 					if (triggerRisingEdge) {
-						PlayerCharacter *pc = *g_thePlayer;
 						if (pc && !pc->actorState.IsWeaponDrawn()) {
 							inputTrigger = true;
 						}
@@ -2096,6 +2097,10 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 		else {
 			inputState = InputState::Idle;
 		}
+	}
+
+	if (Config::options.disableTriggerWhenWeaponsSheathed && pc && !pc->actorState.IsWeaponDrawn()) {
+		pControllerState->ulButtonPressed &= ~triggerMask;
 	}
 }
 
