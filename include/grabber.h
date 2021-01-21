@@ -75,9 +75,6 @@ struct Grabber
 		HeldInit, // held object is moving towards hand
 		Held, // player is holding the object in their hand
 		HeldBody, // player is holding a body / other constrained object
-		HeldWeapon,
-		DropWeapon,
-		PostDropWeapon,
 		GrabFromOtherHand, // wait after requesting the other hand to drop the object so that we can grab it
 		GrabExternal // want to grab an object that we didn't have selected already
 	};
