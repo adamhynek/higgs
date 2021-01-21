@@ -135,6 +135,7 @@ struct Grabber
 	bool CanGrabObject() const;
 	bool HasHeldObject() const;
 	bool CanOtherGrab() const;
+	bool GetActivateText(std::string &str);
 	void SetupRollover(NiAVObject *rolloverNode, NiNode *playerWorldNode, bool isLeftHanded);
 	void SetSelectedHandles(bool isLeftHanded);
 	void Select(TESObjectREFR *obj);

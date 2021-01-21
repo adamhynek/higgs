@@ -312,6 +312,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					g_leftGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+
+					g_overrideActivateText = g_leftGrabber->GetActivateText(g_overrideActivateTextStr);
 				}
 			}
 			else {
@@ -319,6 +321,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 					g_rightGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+
+					g_overrideActivateText = g_rightGrabber->GetActivateText(g_overrideActivateTextStr);
 				}
 			}
 		}
@@ -327,6 +331,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				g_rightGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
 				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+
+				g_overrideActivateText = g_rightGrabber->GetActivateText(g_overrideActivateTextStr);
 			}
 		}
 		else if (displayLeft) {
@@ -334,11 +340,15 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				g_leftGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
 				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+
+				g_overrideActivateText = g_leftGrabber->GetActivateText(g_overrideActivateTextStr);
 			}
 		}
 	}
 	else if (wasRolloverSet) {
 		// Nothing is grabbed
+
+		g_overrideActivateText = false;
 
 		if (rolloverNode && g_hasSavedRollover) {
 			rolloverNode->m_localTransform = g_normalRolloverTransform;

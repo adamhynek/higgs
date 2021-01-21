@@ -1,4 +1,6 @@
 #include <numeric>
+#include <regex>
+#include <sstream>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -2177,6 +2179,89 @@ bool Grabber::IsSafeToClearSavedCollision() const
 		(state == State::Idle || state == State::SelectedFar || state == State::SelectedClose)
 		&& pulledObject.handle == *g_invalidRefHandle
 		);
+}
+
+bool Grabber::GetActivateText(std::string &strOut)
+{
+	if (state == State::Held || state == State::HeldInit || state == State::HeldBody) {
+		return false;
+	}
+
+	NiPointer<TESObjectREFR> selectedObj;
+	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+		TESForm *baseForm = selectedObj->baseForm;
+		if (baseForm) {
+			TESBoundObject *boundObject = DYNAMIC_CAST(baseForm, TESForm, TESBoundObject);
+			if (boundObject) {
+				PlayerCharacter *player = *g_thePlayer;
+
+				UInt64 *vtbl = *((UInt64 **)boundObject);
+				BSString textStr;
+				bool showActivate = ((TESBoundObject_GetActivateText)(vtbl[0x4C]))(boundObject, selectedObj, textStr);
+				char *text = textStr.m_data;
+				if (showActivate && text && *text) {
+					char *color;
+					if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
+						color = "#ff0000";
+					}
+					else {
+						color = "#ffffff";
+					}
+
+					const char * itemNameReplaced = nullptr;
+
+					char *verb = "";
+					if (state == State::SelectedClose) {
+						verb = "Grab";
+					}
+					else if (state == State::SelectionLocked) {
+						verb = "Pull";
+
+						// TODO: Cache this result when selecting the item, instead of researching the inventory every frame
+						if (selectedObject.isActor) {
+							verb = "Loot";
+							if (selectedObject.hitForm) {
+								Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
+								if (actor) {
+									// Drop the armor
+									ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
+									if (containerChanges) {
+										MatchByForm matcher(selectedObject.hitForm);
+										EquipData equipData;
+										equipData = containerChanges->FindEquipped(matcher, true, true);
+										if (equipData.pForm) {
+											BaseExtraList *armorExtraData = equipData.pExtraData;
+											TESForm *itemForm = equipData.pForm;
+											if (itemForm) {
+												itemNameReplaced = GetItemName(itemForm, armorExtraData);
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+
+					std::stringstream ss;
+					ss << "<font color='" << color << "'>" << verb << "</font>\n";
+
+					if (itemNameReplaced) {
+						ss << itemNameReplaced;
+						strOut = ss.str();
+						return true;
+					}
+
+					std::string currentStr(text);
+					std::regex e(".*\\n");
+					strOut = std::regex_replace(currentStr, e, ss.str());
+					return true;
+				}
+			}
+		}
+	}
+
+	strOut = "";
+	return true;
 }
 
 void Grabber::SetupRollover(NiAVObject *rolloverNode, NiNode *playerWorldNode, bool isLeftHanded)

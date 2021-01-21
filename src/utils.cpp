@@ -589,8 +589,7 @@ UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const Ni
 	return 0;
 }
 
-// Taken from PapyrusActor.cpp
-SInt32 GetItemId(TESForm * form, BaseExtraList * extraList)
+const char * GetItemName(TESForm *form, BaseExtraList *extraList)
 {
 	if (!form || !extraList)
 		return 0;
@@ -605,8 +604,16 @@ SInt32 GetItemId(TESForm * form, BaseExtraList * extraList)
 			name = pFullName->name.data;
 	}
 
-	if (!name)
+	return name;
+}
+
+// Taken from PapyrusActor.cpp
+SInt32 GetItemId(TESForm * form, BaseExtraList * extraList)
+{
+	const char *name = GetItemName(form, extraList);
+	if (!name) {
 		return 0;
+	}
 
 	return (SInt32)HashUtil::CRC32(name, form->formID & 0x00FFFFFF);
 }

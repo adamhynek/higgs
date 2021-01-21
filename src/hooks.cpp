@@ -112,17 +112,19 @@ void ReplaceBSString(BSString &replacee, std::string &replacer)
 }
 
 BSString *g_activateText = nullptr;
+bool g_overrideActivateText = false;
+std::string g_overrideActivateTextStr;
 void GetActivateTextHook()
 {
+	if (!g_overrideActivateText) {
+		return;
+	}
+
 	BSString *str = g_activateText;
 	if (str) {
 		char *text = str->m_data;
 		if (text && *text) {
-			std::string currentStr(text);
-			std::regex e(".*\\n");
-			std::string replaced = std::regex_replace(currentStr, e, "<font color='#426bff'>Pull</font>\n");
-
-			ReplaceBSString(*str, replaced);
+			ReplaceBSString(*str, g_overrideActivateTextStr);
 		}
 	}
 }
