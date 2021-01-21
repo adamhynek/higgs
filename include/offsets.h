@@ -64,6 +64,9 @@ struct ShadowSceneNode : NiNode { /* TODO */ };
 extern RelocPtr<ShadowSceneNode *> g_shadowSceneNode;
 
 
+typedef void(*_CreateDetectionEvent)(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 *position, int soundLevel, TESObjectREFR *source);
+extern RelocAddr<_CreateDetectionEvent> CreateDetectionEvent;
+
 typedef void(*_ShadowSceneNode_UpdateNodeList)(ShadowSceneNode *sceneNode, NiAVObject *node, bool useOtherList);
 extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList;
 
@@ -75,6 +78,9 @@ extern RelocAddr<_ObjectReference_Activate> ObjectReference_Activate;
 
 typedef bool(*_TESObjectREFR_Activate)(TESObjectREFR* activatee, TESObjectREFR* activator, UInt32 unk01, UInt32 unk02, UInt32 count, bool defaultProcessingOnly); // unks are 0, 0
 extern RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate;
+
+typedef bool(*_TESObjectREFR_SetScale)(TESObjectREFR* refr, float scale);
+extern RelocAddr<_TESObjectREFR_SetScale> TESObjectREFR_SetScale;
 
 typedef void(*_EffectShader_Play)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target, float duration);
 extern RelocAddr<_EffectShader_Play> EffectShader_Play;

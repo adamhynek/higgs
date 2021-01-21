@@ -21,6 +21,8 @@ RelocPtr<BSAudioManager *> g_audioManager(0x30C1D30);
 RelocPtr<ShadowSceneNode *> g_shadowSceneNode(0x3423080);
 
 
+RelocAddr<_CreateDetectionEvent> CreateDetectionEvent(0x656140);
+
 RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList(0x12F89E0);
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
@@ -28,6 +30,8 @@ RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
 RelocAddr<_ObjectReference_Activate> ObjectReference_Activate(0x009CD750);
 
 RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate(0x2A8300);
+
+RelocAddr<_TESObjectREFR_SetScale> TESObjectREFR_SetScale(0x29E3E0);
 
 RelocAddr<_EffectShader_Play> EffectShader_Play(0x9BCAF0);
 

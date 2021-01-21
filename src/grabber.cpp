@@ -440,10 +440,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		NiPoint3 palmPos = hkPalmNodePos / havokWorldScale;
 
-		if (playSound) {
-			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
-		}
-
 		float mass = NiAVObject_GetMass(collidableNode, 0);
 		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
 		haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
@@ -472,6 +468,32 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 				// Projectiles have 'Fixed' motion type by default, making them unmovable
 				bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 			}
+		}
+
+		TESForm *baseForm = selectedObj->baseForm;
+		if (baseForm && baseForm->IsWeapon()) {
+			PlayerCharacter *player = *g_thePlayer;
+
+			UInt32 itemId = GetItemId(baseForm, &selectedObj->extraData);
+
+			UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
+			TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
+
+			bool left = *g_leftHandedMode ? !isLeft : isLeft;
+			UInt32 slot = left ? 2 : 1;
+			papyrusActor::EquipItemById(player, baseForm, itemId, slot, false, false);
+			//papyrusActor::EquipItemEx(player, baseForm, slot, false, false);
+
+			if (!player->actorState.IsWeaponDrawn()) {
+				player->DrawSheatheWeapon(true);
+			}
+
+			state = State::HeldWeapon;
+			return false;
+		}
+
+		if (playSound) {
+			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
 		}
 
 		if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
@@ -1426,7 +1448,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		}
 	}
 
-	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::HeldWeapon) {
 
 		grabRequested = false; // Consume grab event here as we cannot grab from any of these states and don't want to grab immediately upon exiting them
 
@@ -1437,115 +1459,171 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			idleDesired = true;
 		}
 
-		if (idleDesired || !allowGrab) {
+		if (!allowGrab && state != State::HeldWeapon) {
+			idleDesired = true;
+		}
+
+		if (idleDesired) {
 			idleDesired = false;
 
-			NiPointer<TESObjectREFR> selectedObj;
-			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-				if (objRoot) {
-					if (state == State::SelectionLocked) {
-						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
-					}
-					if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
-
-						float largestSpeed = -1;
-						int largestIndex = -1;
-						for (int i = 0; i < controllerVelocities.size(); i++) {
-							NiPoint3 velocity = controllerVelocities[i];
-							float speed = VectorLength(velocity);
-							if (speed > largestSpeed) {
-								largestSpeed = speed;
-								largestIndex = i;
-							}
+			if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+				NiPointer<TESObjectREFR> selectedObj;
+				if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+					NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
+					if (objRoot) {
+						if (state == State::SelectionLocked) {
+							StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 						}
 
-						NiPoint3 velocityHandComponent;
-						if (largestIndex == 0) {
-							// Max is the first value
-							velocityHandComponent = controllerVelocities[0];
-						}
-						else if (largestIndex == controllerVelocities.size() - 1) {
-							// Max is the last value
-							velocityHandComponent = controllerVelocities[largestIndex];
-						}
-						else {
-							// Regular case - avg 3 values centered at the peak
-							velocityHandComponent = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
-						}
+						if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 
-						if (VectorLength(velocityHandComponent) > Config::options.throwVelocityThreshold) {
-							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
-						}
-
-						NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
-
-						NiPoint3 totalVelocity = velocityPlayerComponent + velocityHandComponent; // add the player velocity
-
-						bool velocityAboveThreshold = VectorLength(totalVelocity) > Config::options.throwVelocityThreshold;
-						bool collideWithHandWhenLettingGo = !velocityAboveThreshold;
-
-						if (state == State::HeldBody) {
-							if (!selectedObject.isActor) {
-								ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
-							}
-						}
-						if (state == State::Held || state == State::HeldInit) {
-							if (g_vrikInterface) {
-								g_vrikInterface->restoreFingers(isLeft);
+							float largestSpeed = -1;
+							int largestIndex = -1;
+							for (int i = 0; i < controllerVelocities.size(); i++) {
+								NiPoint3 velocity = controllerVelocities[i];
+								float speed = VectorLength(velocity);
+								if (speed > largestSpeed) {
+									largestSpeed = speed;
+									largestIndex = i;
+								}
 							}
 
-							ResetNearbyDamping();
-
-							ResetCollisionInfoDownstream(objRoot, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
-							ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
-						}
-
-						if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-							g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
-						}
-
-						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
-
-						if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos) && !isExternallyGrabbedFrom) {
-							// Object deposited in the shoulder
-
-							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
-
-							TESForm *baseForm = selectedObj->baseForm;
-							if (Config::options.skipActivateBooks && baseForm && (baseForm->formType == kFormType_Book || baseForm->formType == kFormType_Note)) {
-								// PickUpObject is vfunc 0xCE
-
-								// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.
-								// Some stuff like containers go into the inventory but then when dropped again they essentially are reset with new items
-								// We do want to directly pick up books though, since otherwise we get the book prompt
-								UInt64 *vtbl = *((UInt64 **)player);
-								((Actor_PickUpObject)(vtbl[0xCE]))(player, selectedObj, count, false, true);
+							NiPoint3 velocityHandComponent;
+							if (largestIndex == 0) {
+								// Max is the first value
+								velocityHandComponent = controllerVelocities[0];
+							}
+							else if (largestIndex == controllerVelocities.size() - 1) {
+								// Max is the last value
+								velocityHandComponent = controllerVelocities[largestIndex];
 							}
 							else {
-								TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
+								// Regular case - avg 3 values centered at the peak
+								velocityHandComponent = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
 							}
 
-							haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
+							if (VectorLength(velocityHandComponent) > Config::options.throwVelocityThreshold) {
+								velocityHandComponent *= Config::options.throwVelocityBoostFactor;
+							}
+
+							NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
+
+							NiPoint3 totalVelocity = velocityPlayerComponent + velocityHandComponent; // add the player velocity
+
+							bool velocityAboveThreshold = VectorLength(totalVelocity) > Config::options.throwVelocityThreshold;
+							bool collideWithHandWhenLettingGo = !velocityAboveThreshold;
+
+							if (state == State::HeldBody) {
+								if (!selectedObject.isActor) {
+									ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
+								}
+							}
+							if (state == State::Held || state == State::HeldInit) {
+								if (g_vrikInterface) {
+									g_vrikInterface->restoreFingers(isLeft);
+								}
+
+								ResetNearbyDamping();
+
+								ResetCollisionInfoDownstream(objRoot, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
+								ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
+							}
+
+							if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
+								g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+							}
+
+							bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+							selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
+
+							if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos) && !isExternallyGrabbedFrom) {
+								// Object deposited in the shoulder
+
+								UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
+
+								TESForm *baseForm = selectedObj->baseForm;
+								if (Config::options.skipActivateBooks && baseForm && (baseForm->formType == kFormType_Book || baseForm->formType == kFormType_Note)) {
+									// PickUpObject is vfunc 0xCE
+
+									// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.
+									// Some stuff like containers go into the inventory but then when dropped again they essentially are reset with new items
+									// We do want to directly pick up books though, since otherwise we get the book prompt
+									UInt64 *vtbl = *((UInt64 **)player);
+									((Actor_PickUpObject)(vtbl[0xCE]))(player, selectedObj, count, false, true);
+								}
+								else {
+									TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
+								}
+
+								haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
+							}
+							else {
+								float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
+								float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+								haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+
+								if (!isExternallyGrabbedFrom) {
+									PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
+
+									// Trigger the papyrus 'drop' event
+									PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+								}
+							}
 						}
-						else {
-							float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
-							float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
-							haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+					}
+				}
 
-							if (!isExternallyGrabbedFrom) {
-								PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
+				Deselect();
+			}
 
-								// Trigger the papyrus 'drop' event
-								PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+			if (state == State::HeldWeapon) {
+				bool left = *g_leftHandedMode ? !isLeft : isLeft;
+				UInt32 slot = left ? 2 : 1;
+				TESForm *weap = player->GetEquippedObject(left);
+				if (weap) {
+					ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(player->extraData.GetByType(kExtraData_ContainerChanges));
+					if (containerChanges) {
+						MatchByForm matcher(weap);
+						EquipData equipData;
+						equipData = containerChanges->FindEquipped(matcher, !left, left);
+						TESForm *itemForm = equipData.pForm;
+						if (itemForm) {
+							TESBoundObject *item = DYNAMIC_CAST(itemForm, TESForm, TESBoundObject);
+							if (item) {
+								papyrusActor::UnequipItemEx(player, itemForm, left ? 2 : 1, false);
+
+								NiNode *fpNode = player->GetNiRootNode(1);
+								NiNode *tpNode = player->GetNiRootNode(0);
+
+								BSFixedString weaponNodeName = left ? "SHIELD" : "WEAPON";
+								NiAVObject *weaponNode = tpNode->GetObjectByName(&weaponNodeName.data);
+								if (weaponNode) {
+									NiPoint3 dropLoc = weaponNode->m_worldTransform.pos;
+									NiPoint3 dropRot = MatrixToEuler(weaponNode->m_worldTransform.rot);
+
+									UInt32 droppedObjHandle;
+									UInt64 *vtbl = *((UInt64 **)player);
+									((Actor_DropObject)(vtbl[0xCD]))(player, &droppedObjHandle, item, equipData.pExtraData, 1, &dropLoc, &dropRot);
+
+									NiPointer<TESObjectREFR> droppedObj;
+									if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+										std::scoped_lock lock(deselectLock);
+
+										selectedObject.handle = droppedObjHandle;
+										selectedObject.collidable = nullptr;
+										selectedObject.rigidBody = nullptr;
+
+										state = State::DropWeapon;
+									}
+									else {
+										Deselect();
+									}
+								}
 							}
 						}
 					}
 				}
 			}
-
-			Deselect();
 		}
 	}
 
@@ -1565,7 +1643,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					if (selectedObject.hitForm) {
 						// Trying to pull armor off a body
 
-						state = State::Idle; // If things don't go right, fallback to idle
+						State newState = State::Idle; // If things don't go right, fallback to idle
 
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
@@ -1609,13 +1687,15 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 												selectedObject.collidable = nullptr;
 												selectedObject.rigidBody = nullptr;
 
-												state = State::PrepullItem;
+												newState = State::PrepullItem;
 											}
 										}
 									}
 								}
 							}
 						}
+
+						state = newState;
 					}
 					else {
 						// Not trying to pull armor off a body
@@ -1959,6 +2039,63 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			}
 
 			state = State::Idle;
+		}
+	}
+
+	if (state == State::DropWeapon) {
+		// TODO: Timeout of some sort for the thing to spawn in
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
+			if (objRoot) {
+				if (g_vrikInterface) {
+					double handSize = g_vrikInterface->getSettingDouble("handSize");
+					TESObjectREFR_SetScale(selectedObj, handSize);
+				}
+
+				CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, collisionMapState);
+
+				state = State::PostDropWeapon;
+			}
+		}
+	}
+
+	if (state == State::PostDropWeapon) {
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
+			if (objRoot) {
+				NiNode *fpNode = player->GetNiRootNode(1);
+				NiNode *tpNode = player->GetNiRootNode(0);
+
+				bool left = *g_leftHandedMode ? !isLeft : isLeft;
+				BSFixedString weaponNodeName = left ? "SHIELD" : "WEAPON";
+				NiAVObject *weaponNode = fpNode->GetObjectByName(&weaponNodeName.data);
+				if (weaponNode) {
+
+					hkQuaternion hkQuat;
+					hkRotation hkRot;
+
+					NiMatrixToHkMatrix(objRoot->m_worldTransform.rot, hkRot);
+					hkQuat.setFromRotationSimd(hkRot);
+
+					float deltaPos = VectorLength(objRoot->m_worldTransform.pos - weaponNode->m_worldTransform.pos);
+
+					if (deltaPos > 2) {
+						NiPoint3 desiredPos = weaponNode->m_worldTransform.pos * havokWorldScale;
+
+						ApplyHardKeyframeDownstream(objRoot, NiPointToHkVector(desiredPos), hkQuat, 1.0f / *g_deltaTime);
+					}
+					else {
+						SetVelocityDownstream(objRoot, NiPointToHkVector({ 0, 0, 0 }));
+						SetAngularVelocityDownstream(objRoot, NiPointToHkVector({ 0, 0, 0 }));
+
+						CollisionInfo::ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, false);
+
+						Deselect();
+					}
+				}
+			}
 		}
 	}
 

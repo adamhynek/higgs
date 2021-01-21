@@ -1,4 +1,5 @@
 #include <mutex>
+#include <regex>
 
 #include "xbyak/xbyak.h"
 #include "skse64_common/Relocation.h"
@@ -30,6 +31,8 @@ auto pickLinearCastHookLoc = RelocAddr<uintptr_t>(0x3BA3D7);
 auto pickLinearCastHookedFunc = RelocAddr<uintptr_t>(0xAB5EC0); // ahkpWorld::LinearCast
 
 uintptr_t pickLinearCastHookedFuncAddr = 0;
+
+auto getActivateTextHookLoc = RelocAddr<uintptr_t>(0x6D3337);
 
 auto pickRayCastHookLoc = RelocAddr<uintptr_t>(0x3BA787);
 
@@ -87,11 +90,39 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 
 	((_hkpWorld_LinearCast)pickLinearCastHookedFuncAddr)(world, collA, input, castCollector, startCollector);
 
-	if (g_pickValue == 2) {
+	if (g_pickValue == 2) { // The pick linear cast gets called multiple times. The selected handles are only set when this value is 2 /shrug
 		CrosshairPickData *pickData = *g_pickData;
 		if (pickData) {
 			bool isLeftHanded = *g_leftHandedMode;
 			g_pickedHandle = isLeftHanded ? pickData->leftHandle1 : pickData->rightHandle1;
+		}
+	}
+}
+
+
+void ReplaceBSString(BSString &replacee, std::string &replacer)
+{
+	Heap_Free(replacee.m_data);
+
+	size_t len = replacer.length() + 1;
+	replacee.m_data = (char*)Heap_Allocate(len);
+	strcpy_s(replacee.m_data, len, replacer.c_str());
+	replacee.m_dataLen = len;
+	replacee.m_bufLen = len;
+}
+
+BSString *g_activateText = nullptr;
+void GetActivateTextHook()
+{
+	BSString *str = g_activateText;
+	if (str) {
+		char *text = str->m_data;
+		if (text && *text) {
+			std::string currentStr(text);
+			std::regex e(".*\\n");
+			std::string replaced = std::regex_replace(currentStr, e, "<font color='#426bff'>Pull</font>\n");
+
+			ReplaceBSString(*str, replaced);
 		}
 	}
 }
@@ -327,5 +358,76 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(shaderSetEffectDataInitHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Shader SetEffectShaderDataInit hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// Original code
+				call(ptr[rax + 0x260]);
+
+				push(rax);
+				push(rbx);
+				mov(rbx, rbp);
+				sub(rbx, 0x28);
+				mov(rax, (uintptr_t)&g_activateText);
+				mov(ptr[rax], rbx);
+				pop(rbx);
+				pop(rax);
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)GetActivateTextHook);
+				call(rax);
+
+				// TODO: GetActivateText returns a bool, if that bool is false the rollover menu is not set
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(getActivateTextHookLoc.GetUIntPtr() + 6);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(getActivateTextHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("GetActivateText hook complete");
 	}
 }

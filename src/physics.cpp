@@ -418,3 +418,51 @@ void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
 		}
 	}
 }
+
+void SetAngularVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
+{
+	auto bRigidBody = GetRigidBody(obj);
+	if (bRigidBody) {
+		hkpRigidBody *rigidBody = bRigidBody->hkBody;
+		if (rigidBody->m_world) {
+			hkpMotion *motion = &rigidBody->m_motion;
+
+			bhkRigidBody_setActivated(bRigidBody, true);
+			motion->m_angularVelocity = velocity;
+		}
+	}
+
+	NiNode *node = obj->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				SetAngularVelocityDownstream(child, velocity);
+			}
+		}
+	}
+}
+
+void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion rot, hkReal invDeltaTime)
+{
+	auto bRigidBody = GetRigidBody(obj);
+	if (bRigidBody) {
+		hkpRigidBody *rigidBody = bRigidBody->hkBody;
+		if (rigidBody->m_world) {
+			hkpMotion *motion = &rigidBody->m_motion;
+
+			bhkRigidBody_setActivated(bRigidBody, true);
+			hkpKeyFrameUtility_applyHardKeyFrame(pos, rot, invDeltaTime, rigidBody);
+		}
+	}
+
+	NiNode *node = obj->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				ApplyHardKeyframeDownstream(child, pos, rot, invDeltaTime);
+			}
+		}
+	}
+}
