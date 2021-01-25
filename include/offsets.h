@@ -7,13 +7,13 @@
 #include "skse64/PapyrusVM.h"
 #include "skse64/GameReferences.h"
 #include "skse64/NiNodes.h"
+#include "skse64/GameVR.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 #include <Physics/Utilities/Collide/TriggerVolume/hkpTriggerVolume.h>
 
 
-// 0x1F8319C: selected handle as well?
 // 0x2FEAC78: TESObjectREFR * to selected object?
 struct CrosshairPickData
 {
@@ -63,6 +63,9 @@ extern RelocPtr<BSAudioManager *> g_audioManager;
 struct ShadowSceneNode : NiNode { /* TODO */ };
 extern RelocPtr<ShadowSceneNode *> g_shadowSceneNode;
 
+
+typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);
+extern RelocAddr<_BSVRInterface_GetHandTransform> BSOpenVR_GetHandTransform;
 
 typedef void(*_CreateDetectionEvent)(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 *position, int soundLevel, TESObjectREFR *source);
 extern RelocAddr<_CreateDetectionEvent> CreateDetectionEvent;

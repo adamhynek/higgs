@@ -16,6 +16,7 @@
 #include "offsets.h"
 #include "config.h"
 #include "math_utils.h"
+#include "grabber.h"
 
 
 ITimer g_timer;
@@ -616,4 +617,31 @@ SInt32 GetItemId(TESForm * form, BaseExtraList * extraList)
 	}
 
 	return (SInt32)HashUtil::CRC32(name, form->formID & 0x00FFFFFF);
+}
+
+Grabber * GetGrabberToShowRolloverFor()
+{
+	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
+	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
+
+	bool isRolloverSet = displayRight || displayLeft;
+	if (isRolloverSet) {
+		if (displayRight && displayLeft) {
+			// Pick whichever hand grabbed last
+			if (g_leftGrabber->rolloverDisplayTime > g_rightGrabber->rolloverDisplayTime) {
+				return g_leftGrabber;
+			}
+			else {
+				return g_rightGrabber;
+			}
+		}
+		else if (displayRight) {
+			return g_rightGrabber;
+		}
+		else if (displayLeft) {
+			return g_leftGrabber;
+		}
+	}
+	
+	return nullptr;
 }

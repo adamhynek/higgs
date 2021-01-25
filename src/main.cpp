@@ -49,17 +49,10 @@ vrikPluginApi::IVrikInterface001 * g_vrikInterface;
 
 NiMatrix33 g_rolloverRotation; // Set on plugin load
 
-BSFixedString rolloverNodeStr("WSActivateRollover");
-
 bool g_isLoaded = false;
 
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
-
-bool g_hasSavedRumbleIntensity = false;
-float g_normalRumbleIntensity;
-bool g_hasSavedRollover = false;
-NiTransform g_normalRolloverTransform;
 
 bool initComplete = false; // Whether grabbers have been initialized
 
@@ -111,7 +104,6 @@ bool TryHook()
 }
 
 
-bool wasRolloverSet = false;
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
 	if (!initComplete) return true;
@@ -281,86 +273,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
 		CollisionInfo::ClearCollisionMap();
 	}
-
-	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
-	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
-
-	NiPointer<NiAVObject> rolloverNode = playerWorldObj->GetObjectByName(&rolloverNodeStr.data);
-
-	bool isRolloverSet = displayRight || displayLeft;
-	if (isRolloverSet) {
-		// Something is grabbed
-
-		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-		if (!g_hasSavedRumbleIntensity) {
-			g_hasSavedRumbleIntensity = true;
-			g_normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
-		}
-		activateRumbleIntensitySetting->SetDouble(0);
-
-		if (!g_hasSavedRollover) {
-			if (rolloverNode) {
-				g_normalRolloverTransform = rolloverNode->m_localTransform;
-				g_hasSavedRollover = true;
-			}
-		}
-
-		if (displayRight && displayLeft) {
-			// Pick whichever hand grabbed last
-			if (g_leftGrabber->rolloverDisplayTime > g_rightGrabber->rolloverDisplayTime) {
-				if (rolloverNode) {
-					g_leftGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
-					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
-
-					g_overrideActivateText = g_leftGrabber->GetActivateText(g_overrideActivateTextStr);
-				}
-			}
-			else {
-				if (rolloverNode) {
-					g_rightGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
-					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
-
-					g_overrideActivateText = g_rightGrabber->GetActivateText(g_overrideActivateTextStr);
-				}
-			}
-		}
-		else if (displayRight) {
-			if (rolloverNode) {
-				g_rightGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
-				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
-
-				g_overrideActivateText = g_rightGrabber->GetActivateText(g_overrideActivateTextStr);
-			}
-		}
-		else if (displayLeft) {
-			if (rolloverNode) {
-				g_leftGrabber->SetupRollover(rolloverNode, playerWorldNode, isLeftHanded);
-				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
-
-				g_overrideActivateText = g_leftGrabber->GetActivateText(g_overrideActivateTextStr);
-			}
-		}
-	}
-	else if (wasRolloverSet) {
-		// Nothing is grabbed
-
-		g_overrideActivateText = false;
-
-		if (rolloverNode && g_hasSavedRollover) {
-			rolloverNode->m_localTransform = g_normalRolloverTransform;
-		}
-
-		if (g_hasSavedRumbleIntensity) {
-			Setting * activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-			activateRumbleIntensitySetting->data.f32 = g_normalRumbleIntensity;
-		}
-	}
-
-	wasRolloverSet = isRolloverSet;
 
 	return true;
 }

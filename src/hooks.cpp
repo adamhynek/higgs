@@ -15,22 +15,23 @@
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
 
+uintptr_t shaderHookedFuncAddr = 0;
 auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
 auto shaderHookedFunc = RelocAddr<uintptr_t>(0x564DD0);
 
-uintptr_t shaderHookedFuncAddr = 0;
-
 auto worldUpdateHookLoc = RelocAddr<uintptr_t>(0x271EF9);
 
+uintptr_t pickHookedFuncAddr = 0;
 auto pickHookLoc = RelocAddr<uintptr_t>(0x6D2E7F);
 auto pickHookedFunc = RelocAddr<uintptr_t>(0x3BA0C0); // CrosshairPickData::Pick
 
-uintptr_t pickHookedFuncAddr = 0;
-
+uintptr_t pickLinearCastHookedFuncAddr = 0;
 auto pickLinearCastHookLoc = RelocAddr<uintptr_t>(0x3BA3D7);
 auto pickLinearCastHookedFunc = RelocAddr<uintptr_t>(0xAB5EC0); // ahkpWorld::LinearCast
 
-uintptr_t pickLinearCastHookedFuncAddr = 0;
+uintptr_t postWandUpdateHookedFuncAddr = 0;
+auto postWandUpdateHookLoc = RelocAddr<uintptr_t>(0x13233AA); // A call shortly after the wand nodes are updated as part of Main::Draw()
+auto postWandUpdateHookedFunc = RelocAddr<uintptr_t>(0xDCF900);
 
 auto getActivateTextHookLoc = RelocAddr<uintptr_t>(0x6D3337);
 
@@ -81,10 +82,13 @@ UInt32 g_pickedHandle = 0;
 
 void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector)
 {
-	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
-	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
+	Grabber *rolloverGrabber = GetGrabberToShowRolloverFor();
 
-	if (displayRight || displayLeft) {
+	if (rolloverGrabber) {
+		bool isLeftHanded = *g_leftHandedMode;
+		rolloverGrabber->SetSelectedHandles(isLeftHanded);
+
+		g_pickedHandle = *g_invalidRefHandle;
 		return;
 	}
 
@@ -97,6 +101,63 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 			g_pickedHandle = isLeftHanded ? pickData->leftHandle1 : pickData->rightHandle1;
 		}
 	}
+}
+
+bool wasRolloverSet = false;
+bool hasSavedRollover = false;
+NiTransform normalRolloverTransform;
+bool hasSavedRumbleIntensity = false;
+float normalRumbleIntensity;
+void PostWandUpdateHook()
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player) return;
+
+	NiPointer<NiAVObject> playerWorldNode = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
+	static BSFixedString rolloverNodeStr("WSActivateRollover");
+	NiPointer<NiAVObject> rolloverNode = playerWorldNode ? playerWorldNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
+
+	// This hook is on the main thread, so we're kind of okay to do stuff with the Grabber as this won't interleave with its PoseUpdate
+
+	Grabber *rolloverGrabber = GetGrabberToShowRolloverFor();
+
+	if (rolloverGrabber) {
+		// Something is grabbed
+
+		if (!hasSavedRollover) {
+			if (rolloverNode) {
+				normalRolloverTransform = rolloverNode->m_localTransform;
+				hasSavedRollover = true;
+			}
+		}
+
+		rolloverGrabber->SetupRollover();
+
+		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+		if (!hasSavedRumbleIntensity) {
+			hasSavedRumbleIntensity = true;
+			normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
+		}
+		activateRumbleIntensitySetting->SetDouble(0);
+
+		g_overrideActivateText = rolloverGrabber->GetActivateText(g_overrideActivateTextStr);
+	}
+	else if (wasRolloverSet) {
+		// Nothing is grabbed, and something was last time
+
+		if (rolloverNode && hasSavedRollover) {
+			rolloverNode->m_localTransform = normalRolloverTransform;
+		}
+
+		if (hasSavedRumbleIntensity) {
+			Setting * activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+			activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
+		}
+
+		g_overrideActivateText = false;
+	}
+
+	wasRolloverSet = rolloverGrabber != nullptr;
 }
 
 
@@ -137,6 +198,7 @@ void PerformHooks(void)
 	pickHookedFuncAddr = pickHookedFunc.GetUIntPtr();
 	pickLinearCastHookedFuncAddr = pickLinearCastHookedFunc.GetUIntPtr();
 	shaderSetEffectDataInitHookedFuncAddr = shaderSetEffectDataInitHookedFunc.GetUIntPtr();
+	postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
 
 	{
 		struct Code : Xbyak::CodeGenerator {
@@ -431,5 +493,66 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(getActivateTextHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("GetActivateText hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// Original code
+				mov(rax, postWandUpdateHookedFuncAddr);
+				call(rax);
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)PostWandUpdateHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(postWandUpdateHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(postWandUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Post Wand Update hook complete");
 	}
 }

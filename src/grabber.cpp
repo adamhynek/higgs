@@ -31,8 +31,6 @@
 int isHeadBobbingSavedCount = 0;
 double savedHeadBobbingHeight = 0.0;
 
-BSFixedString hmdNodeStr("HmdNode");
-
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
 hkpLinearCastInput linearCastInput;
@@ -740,6 +738,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	if (isLeft) pointingVectorHandspace.x *= -1;
 	NiPoint3 pointingVector = VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);
 
+	BSFixedString hmdNodeStr("HmdNode");
 	NiPointer<NiAVObject> hmdNode = playerWorldNode->GetObjectByName(&hmdNodeStr.data);
 	if (!hmdNode)
 		return;
@@ -2199,7 +2198,7 @@ bool Grabber::GetActivateText(std::string &strOut)
 				BSString textStr;
 				bool showActivate = ((TESBoundObject_GetActivateText)(vtbl[0x4C]))(boundObject, selectedObj, textStr);
 				char *text = textStr.m_data;
-				if (showActivate && text && *text) {
+				if (showActivate && text) {
 					char *color;
 					if (CALL_MEMBER_FN(selectedObj, IsOffLimits)()) {
 						color = "#ff0000";
@@ -2223,7 +2222,6 @@ bool Grabber::GetActivateText(std::string &strOut)
 							if (selectedObject.hitForm) {
 								Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 								if (actor) {
-									// Drop the armor
 									ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
 									if (containerChanges) {
 										MatchByForm matcher(selectedObject.hitForm);
@@ -2251,9 +2249,16 @@ bool Grabber::GetActivateText(std::string &strOut)
 						return true;
 					}
 
-					std::string currentStr(text);
-					std::regex e(".*\\n");
-					strOut = std::regex_replace(currentStr, e, ss.str());
+					if (*text) {
+						std::string currentStr(text);
+						std::regex e(".*\\n");
+						strOut = std::regex_replace(currentStr, e, ss.str());
+					}
+					else {
+						// Item activate text is empty... just show the "grab", "pull", whatnot
+						strOut = ss.str();
+					}
+
 					return true;
 				}
 			}
@@ -2264,29 +2269,36 @@ bool Grabber::GetActivateText(std::string &strOut)
 	return true;
 }
 
-void Grabber::SetupRollover(NiAVObject *rolloverNode, NiNode *playerWorldNode, bool isLeftHanded)
+void Grabber::SetupRollover()
 {
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-		// Give the hud with info about the object you're floating
+		// Set rotation/position/scale of the hud prompt
 
-		// First, change rotation/position/scale of the hud prompt
+		PlayerCharacter *player = *g_thePlayer;
+		if (player) {
+			NiPointer<NiAVObject> wandNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
+			NiPointer<NiAVObject> playerWorldObj = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
+			NiNode *playerWorldNode = playerWorldObj ? playerWorldObj->GetAsNiNode() : nullptr;
+			if (wandNode && playerWorldNode) {
+				static BSFixedString rolloverNodeStr("WSActivateRollover");
+				NiPointer<NiAVObject> rolloverNode = playerWorldNode->GetObjectByName(&rolloverNodeStr.data);
+				if (rolloverNode) {
+					NiTransform desiredLocal;
+					desiredLocal.pos = rolloverOffset;
+					desiredLocal.rot = rolloverRotation;
+					desiredLocal.scale = rolloverScale;
 
-		NiAVObject *wandNode = playerWorldNode->GetObjectByName(&wandNodeName.data);
-		if (!wandNode)
-			return;
+					// World transform where we would like the rollover node to be
+					NiTransform desiredWorld = wandNode->m_worldTransform * desiredLocal;
 
-		NiTransform handLocal;
-		handLocal.pos = rolloverOffset;
-		handLocal.rot = rolloverRotation;
-		handLocal.scale = rolloverScale;
+					UpdateNodeTransformLocal(rolloverNode, desiredWorld);
 
-		// World transform where we would like the rollover node to be
-		NiTransform desiredWorld = wandNode->m_worldTransform * handLocal;
-
-		UpdateNodeTransformLocal(rolloverNode, desiredWorld);
-
-		SetSelectedHandles(isLeftHanded);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+				}
+			}
+		}
 	}
 }
 
@@ -2305,5 +2317,11 @@ void Grabber::SetSelectedHandles(bool isLeftHanded)
 			pickData->rightHandle2 = selectedObject.handle;
 			pickData->rightHandle3 = selectedObject.handle;
 		}
+
+		//PlayerCharacter *player = *g_thePlayer;
+		//if (player) {
+			// This flag is used to tell the game to refresh the rollover during the PlayerCharacter update
+		//	*((UInt8 *)player + 0x12D5) |= 0x20;
+		//}
 	}
 }
