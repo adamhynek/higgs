@@ -1214,11 +1214,19 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 							if (hitForm && (!Config::options.disableLooting || isDisconnected)) {
 								// Make sure the armor we hit is actually equipped. When nothing is equipped, there can still be 'naked' armor in the biped data that's not really equipped armor.
+
 								ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
 								if (containerChanges) {
 									MatchByForm matcher(hitForm);
 									EquipData equipData;
-									equipData = containerChanges->FindEquipped(matcher, true, true);
+
+									if (hitIndex == 9) {
+										equipData = containerChanges->FindEquipped(matcher, false, true);
+									}
+									else {
+										equipData = containerChanges->FindEquipped(matcher, true, true);
+									}
+
 									if (equipData.pForm) {
 										Biped::Data *hitBipedData = &bipedData->unk10[hitIndex];
 										auto hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
@@ -1226,6 +1234,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 										if (!hitArmor || *hitArmor->fullName.name.data) {
 											nodeOnWhichToPlayShader = hitBipedData->object;
 											selectedObject.hitForm = hitForm;
+											selectedObject.hitExtraList = equipData.pExtraData;
 											selectedObject.hitNode = hitNode;
 											selectedObject.isDisconnected = isDisconnected;
 										}
@@ -1576,48 +1585,40 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
 						if (actor) {
 							// Drop the armor
-							ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
-							if (containerChanges) {
-								MatchByForm matcher(selectedObject.hitForm);
-								EquipData equipData;
-								equipData = containerChanges->FindEquipped(matcher, true, true);
-								if (equipData.pForm) {
-									BaseExtraList *armorExtraData = equipData.pExtraData;
-									TESForm *itemForm = equipData.pForm;
-									if (itemForm) {
-										TESBoundObject *item = DYNAMIC_CAST(itemForm, TESForm, TESBoundObject);
-										if (item) {
-											// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
-											// DropObject is vfunc 0xCD
-											// Actor::RemoveItem is at 0x607F60
+							TESForm *wornForm = selectedObject.hitForm;
+							BaseExtraList *wornExtraData = selectedObject.hitExtraList;
+							if (wornForm) {
+								TESBoundObject *item = DYNAMIC_CAST(wornForm, TESForm, TESBoundObject);
+								if (item) {
+									// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
+									// DropObject is vfunc 0xCD
+									// Actor::RemoveItem is at 0x607F60
 
-											UInt64 *vtbl = *((UInt64 **)actor);
-											UInt32 droppedObjHandle = *g_invalidRefHandle;
-											if (selectedObject.isDisconnected) {
-												// For dropped weapons/shields, make the drop pos / rot equal to where it was before
-												NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
-												NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
-												//((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, &dropRot);
-												((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, armorExtraData, 1, &dropLoc, &dropRot);
-											}
-											else {
-												NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
-												NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
-												//((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, armorExtraData, nullptr, &dropLoc, nullptr);
-												((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, armorExtraData, 1, &dropLoc, nullptr);
-											}
+									UInt64 *vtbl = *((UInt64 **)actor);
+									UInt32 droppedObjHandle = *g_invalidRefHandle;
+									if (selectedObject.isDisconnected) {
+										// For dropped weapons/shields, make the drop pos / rot equal to where it was before
+										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
+										NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
+										((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, &dropRot);
+										//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, &dropRot);
+									}
+									else {
+										NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
+										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
+										((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, nullptr);
+										//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, nullptr);
+									}
 
-											NiPointer<TESObjectREFR> droppedObj;
-											if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-												std::scoped_lock lock(deselectLock);
+									NiPointer<TESObjectREFR> droppedObj;
+									if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+										std::scoped_lock lock(deselectLock);
 
-												selectedObject.handle = droppedObjHandle;
-												selectedObject.collidable = nullptr;
-												selectedObject.rigidBody = nullptr;
+										selectedObject.handle = droppedObjHandle;
+										selectedObject.collidable = nullptr;
+										selectedObject.rigidBody = nullptr;
 
-												newState = State::PrepullItem;
-											}
-										}
+										newState = State::PrepullItem;
 									}
 								}
 							}
@@ -2216,26 +2217,12 @@ bool Grabber::GetActivateText(std::string &strOut)
 					else if (state == State::SelectionLocked) {
 						verb = "Pull";
 
-						// TODO: Cache this result when selecting the item, instead of researching the inventory every frame
 						if (selectedObject.isActor) {
 							verb = "Loot";
-							if (selectedObject.hitForm) {
-								Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
-								if (actor) {
-									ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
-									if (containerChanges) {
-										MatchByForm matcher(selectedObject.hitForm);
-										EquipData equipData;
-										equipData = containerChanges->FindEquipped(matcher, true, true);
-										if (equipData.pForm) {
-											BaseExtraList *armorExtraData = equipData.pExtraData;
-											TESForm *itemForm = equipData.pForm;
-											if (itemForm) {
-												itemNameReplaced = GetItemName(itemForm, armorExtraData);
-											}
-										}
-									}
-								}
+							TESForm *wornForm = selectedObject.hitForm;
+							if (wornForm) {
+								BaseExtraList *wornExtraData = selectedObject.hitExtraList;
+								itemNameReplaced = GetItemName(wornForm, wornExtraData);
 							}
 						}
 					}

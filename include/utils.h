@@ -6,6 +6,7 @@
 
 #include "skse64/NiNodes.h"
 #include "skse64/GameData.h"
+#include "skse64/GameExtraData.h"
 #include "common/ITimer.h"
 
 
@@ -51,6 +52,7 @@ NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root);
 UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location);
 const char * GetItemName(TESForm *form, BaseExtraList *extraList);
 SInt32 GetItemId(TESForm * form, BaseExtraList * extraList);
+EquipData GetWornItem(Actor* thisActor, UInt32 mask);
 struct Grabber * GetGrabberToShowRolloverFor();
 
 typedef void(*Actor_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);

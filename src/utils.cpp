@@ -619,6 +619,38 @@ SInt32 GetItemId(TESForm * form, BaseExtraList * extraList)
 	return (SInt32)HashUtil::CRC32(name, form->formID & 0x00FFFFFF);
 }
 
+// Ripped from PapyrusActor.cpp
+class MatchBySlot : public FormMatcher
+{
+	UInt32 m_mask;
+public:
+	MatchBySlot(UInt32 slot) :
+		m_mask(slot)
+	{
+
+	}
+
+	bool Matches(TESForm* pForm) const {
+		if (pForm) {
+			BGSBipedObjectForm* pBip = DYNAMIC_CAST(pForm, TESForm, BGSBipedObjectForm);
+			if (pBip) {
+				return (pBip->data.parts & m_mask) != 0;
+			}
+		}
+		return false;
+	}
+};
+
+EquipData GetWornItem(Actor* thisActor, UInt32 mask)
+{
+	ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(thisActor->extraData.GetByType(kExtraData_ContainerChanges));
+	if (!containerChanges)
+		return { nullptr, nullptr };
+
+	MatchBySlot matcher(mask);
+	return containerChanges->FindEquipped(matcher);
+}
+
 Grabber * GetGrabberToShowRolloverFor()
 {
 	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();

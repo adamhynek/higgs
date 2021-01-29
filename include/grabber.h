@@ -6,6 +6,7 @@
 
 #include "skse64/InternalVR.h"
 #include "skse64/GameVR.h"
+#include "skse64/GameBSExtraData.h"
 
 #include "RE/havok.h"
 #include "physics.h"
@@ -46,6 +47,7 @@ struct Grabber
 		NiPointer<bhkRigidBody> rigidBody;
 		hkpCollidable *collidable = nullptr; // ptr to collidable owned by rigidBody
 		TESForm *hitForm;
+		BaseExtraList *hitExtraList;
 		NiPointer<NiAVObject> shaderNode;
 		NiPointer<NiAVObject> hitNode;
 		NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
