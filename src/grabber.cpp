@@ -1220,7 +1220,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 									MatchByForm matcher(hitForm);
 									EquipData equipData;
 
-									if (hitIndex == 9) {
+									if (hitIndex == 9) { // 9 == shield / left-hand weapon
 										equipData = containerChanges->FindEquipped(matcher, false, true);
 									}
 									else {
@@ -2003,6 +2003,13 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 
 	PlayerCharacter *pc = *g_thePlayer;
 
+	bool isFallingEdge = (triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown;
+
+	if (isFallingEdge) {
+		// Set this even in idle, if something gets externally grabbed and we were holding the trigger or something
+		releaseRequested = true;
+	}
+
 	// Only advance states if no menus are open
 	if (inputState == InputState::Idle) {
 		if ((triggerRisingEdge || gripRisingEdge) && allowGrab) {
@@ -2027,8 +2034,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	}
 
 	if (inputState == InputState::Leeway) {
-		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
-			releaseRequested = true;
+		if (isFallingEdge) {
 			if (wasObjectGrabbed) {
 				inputState = InputState::Idle;
 			}
@@ -2071,9 +2077,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	}
 
 	if (inputState == InputState::Block) {
-		if ((triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown) {
-			releaseRequested = true;
-
+		if (isFallingEdge) {
 			double currentTime = g_currentFrameTime;
 			if (state == State::SelectionLocked && currentTime - grabRequestedTime <= Config::options.inputLeewayTime) {
 				forceInputTime = g_currentFrameTime;
