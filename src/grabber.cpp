@@ -2242,8 +2242,8 @@ bool Grabber::GetActivateText(std::string &strOut)
 
 					if (*text) {
 						std::string currentStr(text);
-						std::regex e(".*\\n");
-						strOut = std::regex_replace(currentStr, e, ss.str());
+						std::regex e("^.*\\n");
+						strOut = std::regex_replace(currentStr, e, ss.str(), std::regex_constants::format_first_only);
 					}
 					else {
 						// Item activate text is empty... just show the "grab", "pull", whatnot
