@@ -72,7 +72,8 @@ struct Grabber
 		SelectedFar, // pointing at something meaningful that isn't close
 		SelectedClose, // pointing at something that's next to the hand
 		SelectionLocked, // player has locked in their selection, i.e. is holding the button
-		PrepullItem , // player wants to pull a piece of armor off, wait for it to spawn
+		PreGrabItem, // player wants to grab an object that isn't loaded yet
+		PrePullItem, // player wants to pull a piece of armor off, wait for it to spawn
 		Pulled, // first few frames when a player is pulling the object towards them
 		HeldInit, // held object is moving towards hand
 		Held, // player is holding the object in their hand
@@ -130,6 +131,7 @@ struct Grabber
 	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	bool GrabExternalObject(TESObjectREFR *refr);
 	bool IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const;
+	UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
 	bool ShouldDisplayRollover();
 	bool IsSafeToClearSavedCollision() const;
 	bool IsObjectPullable();

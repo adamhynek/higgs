@@ -673,6 +673,43 @@ bool Grabber::IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const
 }
 
 
+UInt32 Grabber::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected)
+{
+	UInt32 droppedObjHandle = *g_invalidRefHandle;
+
+	Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
+	if (actor) {
+		// Drop the armor
+		TESForm *wornForm = selectedObject.hitForm;
+		BaseExtraList *wornExtraData = selectedObject.hitExtraList;
+		if (wornForm) {
+			TESBoundObject *item = DYNAMIC_CAST(wornForm, TESForm, TESBoundObject);
+			if (item) {
+				// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
+				// DropObject is vfunc 0xCD
+				// Actor::RemoveItem is at 0x607F60
+
+				UInt64 *vtbl = *((UInt64 **)actor);
+				if (selectedObject.isDisconnected) {
+					// For dropped weapons/shields, make the drop pos / rot equal to where it was before
+					NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
+					NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
+					((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, &dropRot);
+					//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, &dropRot);
+				}
+				else {
+					NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, zOffsetWhenNotDisconnected); // move it up a bit to not collide with the ragdoll too much
+					((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, nullptr);
+					//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, nullptr);
+				}
+			}
+		}
+	}
+
+	return droppedObjHandle;
+}
+
+
 bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 {
 	if (CanGrabObject()) {
@@ -1222,6 +1259,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 									if (hitIndex == 9) { // 9 == shield / left-hand weapon
 										equipData = containerChanges->FindEquipped(matcher, false, true);
+										if (!equipData.pForm) {
+											// Sometimes it's not actually WornLeft...
+											equipData = containerChanges->FindEquipped(matcher, true, true);
+										}
 									}
 									else {
 										equipData = containerChanges->FindEquipped(matcher, true, true);
@@ -1407,14 +1448,40 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								state = State::GrabFromOtherHand;
 							}
 							else {
-								bool wereFingersSet = TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
-								if (!wereFingersSet && g_vrikInterface) {
-									g_vrikInterface->restoreFingers(isLeft);
+								if (selectedObject.hitForm && selectedObject.isDisconnected) {
+									// Grabbing a weapon or something that's party of a body
+									StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+									if (g_vrikInterface) {
+										g_vrikInterface->restoreFingers(isLeft);
+									}
+
+									UInt32 droppedObjHandle = SpawnEquippedSelectedObject(selectedObj, 0);
+
+									NiPointer<TESObjectREFR> droppedObj;
+									if (droppedObjHandle != *g_invalidRefHandle && LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+										grabbedTime = g_currentFrameTime;
+
+										Deselect();
+										Select(droppedObj);
+
+										state = State::PreGrabItem;
+									}
+									else {
+										state = State::Idle;
+									}
+								}
+								else {
+									// Grabbing a regular object, not from the other hand or off of a body
+									bool wereFingersSet = TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+									if (!wereFingersSet && g_vrikInterface) {
+										g_vrikInterface->restoreFingers(isLeft);
+									}
 								}
 							}
 						}
-						// Set to false only here, so that you can hold the trigger until the cast hits something valid
-						grabRequested = false;
+
+						grabRequested = false; // Set to false only here, so that you can hold the trigger until the cast hits something valid
 						wasObjectGrabbed = true; // This variable is not set to false when we push/pull the object
 					}
 				}
@@ -1533,8 +1600,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 								// PickUpObject is vfunc 0xCE
 
 								// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.
-								// Some stuff like containers go into the inventory but then when dropped again they essentially are reset with new items
-								// We do want to directly pick up books though, since otherwise we get the book prompt
+								// Some stuff like containers go into the inventory but then when dropped again they essentially are reset with new items.
+								// We do want to directly pick up books though, since otherwise we get the book prompt.
 								UInt64 *vtbl = *((UInt64 **)player);
 								((Actor_PickUpObject)(vtbl[0xCE]))(player, selectedObj, count, false, true);
 							}
@@ -1580,51 +1647,18 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					if (selectedObject.hitForm) {
 						// Trying to pull armor off a body
 
-						State newState = State::Idle; // If things don't go right, fallback to idle
+						UInt32 droppedObjHandle = SpawnEquippedSelectedObject(selectedObj, 20);
 
-						Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
-						if (actor) {
-							// Drop the armor
-							TESForm *wornForm = selectedObject.hitForm;
-							BaseExtraList *wornExtraData = selectedObject.hitExtraList;
-							if (wornForm) {
-								TESBoundObject *item = DYNAMIC_CAST(wornForm, TESForm, TESBoundObject);
-								if (item) {
-									// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
-									// DropObject is vfunc 0xCD
-									// Actor::RemoveItem is at 0x607F60
+						NiPointer<TESObjectREFR> droppedObj;
+						if (droppedObjHandle != *g_invalidRefHandle && LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+							Deselect();
+							Select(droppedObj);
 
-									UInt64 *vtbl = *((UInt64 **)actor);
-									UInt32 droppedObjHandle = *g_invalidRefHandle;
-									if (selectedObject.isDisconnected) {
-										// For dropped weapons/shields, make the drop pos / rot equal to where it was before
-										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
-										NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
-										((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, &dropRot);
-										//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, &dropRot);
-									}
-									else {
-										NiPoint3 dirObjToHand = VectorNormalized(handNode->m_worldTransform.pos - selectedObject.hitNode->m_worldTransform.pos);
-										NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, 20); // move it up a bit to not collide with the ragdoll too much
-										((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, nullptr);
-										//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, nullptr);
-									}
-
-									NiPointer<TESObjectREFR> droppedObj;
-									if (LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-										std::scoped_lock lock(deselectLock);
-
-										selectedObject.handle = droppedObjHandle;
-										selectedObject.collidable = nullptr;
-										selectedObject.rigidBody = nullptr;
-
-										newState = State::PrepullItem;
-									}
-								}
-							}
+							state = State::PrePullItem;
 						}
-
-						state = newState;
+						else {
+							state = State::Idle;
+						}
 					}
 					else {
 						// Not trying to pull armor off a body
@@ -1703,6 +1737,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					}
 					else {
 						// Hold object selected while hand doesn't point too far away from original location. If far enough, deselect.
+
+						// TODO: There is a discontinuity here when we point straight down and the cross product with the world up direction flips
 						NiPoint3 forward = pointingVector;
 						NiPoint3 worldUp = { 0, 0, 1 };
 						NiPoint3 right = CrossProduct(forward, worldUp);
@@ -1750,7 +1786,33 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		}
 	}
 
-	if (state == State::PrepullItem) {
+	if (state == State::PreGrabItem) {
+		if (g_currentFrameTime - grabbedTime > Config::options.pulledLootSpawnInTime) { // wait for the item to spawn in
+			state = State::Idle;
+		}
+		else {
+			NiPointer<TESObjectREFR> selectedObj;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
+				if (objRoot) {
+					// Transition to grabbed with the newly spawned item
+
+					auto rigidBody = GetFirstRigidBody(objRoot);
+					if (rigidBody) {
+						selectedObject.rigidBody = rigidBody;
+						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
+
+						// Set owner to the player so it doesn't count as stealing
+						TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
+
+						TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+					}
+				}
+			}
+		}
+	}
+
+	if (state == State::PrePullItem) {
 		if (g_currentFrameTime - pulledTime > Config::options.pulledLootSpawnInTime) { // wait for the item to spawn in
 			state = State::Idle;
 		}
@@ -1759,7 +1821,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 				if (objRoot) {
-
 					// Transition to pulled with the newly spawned item
 
 					auto rigidBody = GetFirstRigidBody(objRoot);
@@ -2187,7 +2248,7 @@ bool Grabber::IsSafeToClearSavedCollision() const
 
 bool Grabber::GetActivateText(std::string &strOut)
 {
-	if (state == State::Held || state == State::HeldInit || state == State::HeldBody) {
+	if (state != State::SelectedClose && state != State::SelectionLocked) {
 		return false;
 	}
 
@@ -2214,6 +2275,7 @@ bool Grabber::GetActivateText(std::string &strOut)
 
 					const char * itemNameReplaced = nullptr;
 
+					// TODO: Config these verb strings so users can localize
 					char *verb = "";
 					if (state == State::SelectedClose) {
 						verb = "Grab";

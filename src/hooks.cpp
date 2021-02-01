@@ -108,6 +108,7 @@ bool hasSavedRollover = false;
 NiTransform normalRolloverTransform;
 bool hasSavedRumbleIntensity = false;
 float normalRumbleIntensity;
+
 void PostWandUpdateHook()
 {
 	PlayerCharacter *player = *g_thePlayer;
@@ -175,6 +176,7 @@ void ReplaceBSString(BSString &replacee, std::string &replacer)
 BSString *g_activateText = nullptr;
 bool g_overrideActivateText = false;
 std::string g_overrideActivateTextStr;
+
 void GetActivateTextHook()
 {
 	if (!g_overrideActivateText) {
