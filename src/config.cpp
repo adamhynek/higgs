@@ -104,7 +104,7 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "InputLeewayTime", &options.inputLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "ForceInputTime", &options.forceInputTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PulledInitTime", &options.pulledInitTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "PulledLootSpawnInTime", &options.pulledLootSpawnInTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "LootSpawnInTime", &options.lootSpawnInTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PullHapticFadeTime", &options.pullHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;

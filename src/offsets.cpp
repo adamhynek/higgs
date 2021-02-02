@@ -163,7 +163,7 @@ RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount(0x123D90);
 struct BGSImpactManager
 {
 	void *vtbl; // 00
-	BSTEventSink<void> compatImpactEventSink; // 08 - BSTEventSink<BGSCombatImpactEvent>
+	BSTEventSink<void> combatImpactEventSink; // 08 - BSTEventSink<BGSCombatImpactEvent>
 	BSTEventSink<void> collisionSoundEventSink; // 10 - BSTEventSink<BGSCollisionSoundEvent>
 	// sound event passes in ptr to skyrimhavokmaterial id in rdx (actually it's the 2 material ids, then at 0x14 (I think?) is the magnitude of the impact or something - it's used to determine which sound to play, high or low)
 };

@@ -187,6 +187,7 @@ void Grabber::Deselect()
 	selectedObject.shaderNode = nullptr;
 	selectedObject.hitNode = nullptr;
 	selectedObject.hitForm = nullptr;
+	selectedObject.hitExtraList = nullptr;
 	selectedObject.isDisconnected = false;
 
 	isExternallyGrabbedFrom = false;
@@ -290,6 +291,79 @@ void Grabber::FindBodiesToFreeze(bhkWorld &world)
 	}
 
 	world.worldLock.UnlockRead();
+}
+
+
+NiPoint3 GetClosestPointToRigidbody(bhkWorld *world, bhkRigidBody *rigidBody, bhkSimpleShapePhantom *sphere, const NiPoint3 &initialTranslation, const NiPoint3 &start)
+{
+	hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
+
+	NiPoint3 centerOfMass = HkVectorToNiPoint(rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
+	NiPoint3 foundPoint = centerOfMass; // Fallback to the center of the object
+
+	hkpCollisionDispatcher *dispatcher = world->world->m_collisionDispatcher;
+	if (dispatcher) {
+		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+
+		hkpShapeType shapeType = collidable->m_shape->m_type;
+		hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
+		if (closestPointsFunc) {
+			// Position the object in the direction of the palm for better grab results
+			rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(initialTranslation);
+
+			const int maxIterations = 5;
+			int numIterations = 0;
+
+			// Save sphere properties so we can change them and restore them later
+			UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
+			float radiusBefore = sphereShape->getRadius();
+			hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
+
+			sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(start);
+			sphereShape->m_radius = VectorLength(initialTranslation - start) + 0.02f; // Add some fudge
+			sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
+
+			float closestDistance;
+			// Do a series of closest points queries, starting with the object just within a sphere, and progressively shrink the radius to being just outside the object
+			do {
+				numIterations++;
+
+				cdPointCollector.reset();
+				closestPointsFunc(*collidable, sphere->phantom->m_collidable, *world->world->m_collisionInput, cdPointCollector);
+
+				NiPoint3 closestPoint;
+				closestDistance = (std::numeric_limits<float>::max)();
+				if (cdPointCollector.m_hits.size() > 0) {
+					for (auto pair : cdPointCollector.m_hits) {
+						hkContactPoint &contactPoint = pair.second;
+						float dist = contactPoint.getDistance();
+						if (dist < closestDistance) {
+							closestPoint = HkVectorToNiPoint(pair.second.getPosition());
+							closestDistance = dist;
+						}
+					}
+
+					// We want the point we output to be relative to where it actually is, rather than where we move it when computing closest points
+					foundPoint = closestPoint + (centerOfMass - initialTranslation);
+				}
+
+				if (closestDistance < 0) {
+					sphereShape->m_radius += closestDistance - 0.02f;
+					sphereShape->m_radius = max(0.01f, sphereShape->m_radius);
+				}
+			} while (closestDistance < 0 && numIterations < maxIterations);
+
+			_MESSAGE("%d external grab closest point iterations", numIterations);
+
+			sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
+			sphereShape->m_radius = radiusBefore;
+			sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
+
+			rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(centerOfMass); // Restore the object's position
+		}
+	}
+
+	return foundPoint;
 }
 
 
@@ -712,34 +786,25 @@ UInt32 Grabber::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zO
 
 bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 {
-	if (CanGrabObject()) {
-		if (refr) {
-			NiPointer<NiNode> rootNode = refr->GetNiNode();
-			if (rootNode) {
-				auto rigidBody = GetFirstRigidBody(rootNode);
-				if (rigidBody) {
-					if (state == State::SelectedClose) {
-						if (g_vrikInterface) {
-							g_vrikInterface->restoreFingers(isLeft);
-						}
-					}
-
-					if (state == State::SelectedClose || state == State::SelectedFar) {
-						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
-					}
-
-					Deselect();
-					Select(refr);
-
-					selectedObject.rigidBody = rigidBody;
-					selectedObject.collidable = &rigidBody->hkBody->m_collidable;
-
-					state = State::GrabExternal;
-
-					return true;
-				}
+	if (CanGrabObject() && refr) {
+		if (state == State::SelectedClose) {
+			if (g_vrikInterface) {
+				g_vrikInterface->restoreFingers(isLeft);
 			}
 		}
+
+		if (state == State::SelectedClose || state == State::SelectedFar) {
+			StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+		}
+
+		Deselect();
+		Select(refr);
+
+		grabbedTime = g_currentFrameTime;
+
+		state = State::GrabExternal;
+
+		return true;
 	}
 
 	return false;
@@ -933,92 +998,55 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 	if (state == State::GrabExternal) {
 		_MESSAGE("External grab");
-		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-			NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
-			if (collidableNode && objRoot) {
-				if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
-					// We need to find a point on the collision geometry to have the hand grab
 
-					NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
-					selectedObject.point = centerOfMass; // Fallback to the center of the object
+		// TODO: INV extradata / BSInvMarker is a thing... gives rotation in inventory. Use that to fit into the hand better?
 
-					hkpCollisionDispatcher *dispatcher = world->world->m_collisionDispatcher;
-					if (dispatcher) {
-						hkpShapeType shapeType = selectedObject.collidable->m_shape->m_type;
-						hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
-						if (closestPointsFunc) {
-							// Position the object in the direction of the palm for better grab results
-							selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos + palmVector * 1.0f);
+		if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
+			state = State::Idle;
+		}
+		else {
+			NiPointer<TESObjectREFR> selectedObj;
+			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
+				if (objRoot && objRoot->m_parent) {
+					auto rigidBody = GetFirstRigidBody(objRoot);
+					if (rigidBody) {
+						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
+						NiPointer<NiAVObject> collidableNode = FindCollidableNode(collidable);
+						if (collidableNode) {
+							selectedObject.rigidBody = rigidBody;
+							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
-							const int maxIterations = 5;
-							int numIterations = 0;
+							if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
+								// We need to find a point on the collision geometry to have the hand grab
 
-							sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
-							sphereShape->m_radius = VectorLength(centerOfMass - hkHandPos) + 0.02f; // Add some fudge
+								selectedObject.point = GetClosestPointToRigidbody(world, selectedObject.rigidBody, sphere, hkPalmNodePos + palmVector * 1.0f, hkPalmNodePos);
 
-							float closestDistance;
-							// Do a series of closest points queries, starting with the object just within a sphere, and progressively shrink the radius to being just outside the object
-							do {
-								numIterations++;
+								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+							}
+							else {
+								selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
 
-								cdPointCollector.reset();
-								closestPointsFunc(*selectedObject.collidable, sphere->phantom->m_collidable, *world->world->m_collisionInput, cdPointCollector);
+								// Position the object in the direction of the palm for better grab results
+								NiTransform initialTransform = collidableNode->m_worldTransform;
+								initialTransform.pos = (hkPalmNodePos + palmVector * 1.0f) / havokWorldScale;
 
-								NiPoint3 closestPoint;
-								closestDistance = (std::numeric_limits<float>::max)();
-								if (cdPointCollector.m_hits.size() > 0) {
-									for (auto pair : cdPointCollector.m_hits) {
-										hkContactPoint &contactPoint = pair.second;
-										float dist = contactPoint.getDistance();
-										if (dist < closestDistance) {
-											closestPoint = HkVectorToNiPoint(pair.second.getPosition());
-											closestDistance = dist;
-										}
-									}
+								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
 
-									selectedObject.point = closestPoint;
-								}
+								// Set the transform here to kind of skip the HeldInit state
+								NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+								UpdateKeyframedNode(collidableNode, newTransform);
+							}
 
-								if (closestDistance < 0) {
-									sphereShape->m_radius += closestDistance - 0.02f;
-									sphereShape->m_radius = max(0.01f, sphereShape->m_radius);
-								}
-							} while (closestDistance < 0 && numIterations < maxIterations);
-
-							_MESSAGE("%d external grab closest point iterations", numIterations);
-
-							sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
-							sphereShape->m_radius = radiusBefore;
+							grabRequested = false;
+							wasObjectGrabbed = true;
 						}
 					}
-
-					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 				}
-				else {
-					selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
-
-					// Position the object in the direction of the palm for better grab results
-					NiTransform initialTransform = collidableNode->m_worldTransform;
-					initialTransform.pos = (hkPalmNodePos + palmVector * 1.0f) / havokWorldScale;
-
-					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
-
-					// Set the transform here to kind of skip the HeldInit state
-					NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
-					UpdateKeyframedNode(collidableNode, newTransform);
-				}
-
-				grabRequested = false;
-				wasObjectGrabbed = true;
 			}
 			else {
 				state = State::Idle;
 			}
-		}
-		else {
-			state = State::Idle;
 		}
 	}
 
@@ -1449,7 +1477,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							}
 							else {
 								if (selectedObject.hitForm && selectedObject.isDisconnected) {
-									// Grabbing a weapon or something that's party of a body
+									// Grabbing a weapon or something that's part of a body
 									StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
 									if (g_vrikInterface) {
@@ -1612,6 +1640,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
 						}
 						else {
+							// TODO: TESObjectREFR vfunc 4E (I think) is SetActorCause, 4F GetActorCause. Would that make it so if you throw stuff at someone it counts as you?
+
 							float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
 							float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
 							haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
@@ -1651,6 +1681,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 						NiPointer<TESObjectREFR> droppedObj;
 						if (droppedObjHandle != *g_invalidRefHandle && LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+							if (!selectedObject.isDisconnected) {
+								pulledPointOffset = { 0, 0, 0 }; // point offset doesn't make sense when we are pulling something other than what we had selected
+							}
+
 							Deselect();
 							Select(droppedObj);
 
@@ -1787,20 +1821,20 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::PreGrabItem) {
-		if (g_currentFrameTime - grabbedTime > Config::options.pulledLootSpawnInTime) { // wait for the item to spawn in
+		if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
 			state = State::Idle;
 		}
 		else {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-				if (objRoot) {
+				if (objRoot && objRoot->m_parent) {
 					// Transition to grabbed with the newly spawned item
 
 					auto rigidBody = GetFirstRigidBody(objRoot);
 					if (rigidBody) {
 						selectedObject.rigidBody = rigidBody;
-						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
+						selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
 						// Set owner to the player so it doesn't count as stealing
 						TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
@@ -1813,20 +1847,20 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::PrePullItem) {
-		if (g_currentFrameTime - pulledTime > Config::options.pulledLootSpawnInTime) { // wait for the item to spawn in
+		if (g_currentFrameTime - pulledTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
 			state = State::Idle;
 		}
 		else {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-				if (objRoot) {
+				if (objRoot && objRoot->m_parent) {
 					// Transition to pulled with the newly spawned item
 
 					auto rigidBody = GetFirstRigidBody(objRoot);
 					if (rigidBody) {
 						selectedObject.rigidBody = rigidBody;
-						selectedObject.collidable = &selectedObject.rigidBody->hkBody->m_collidable;
+						selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
 						// Set owner to the player so it doesn't count as stealing
 						TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
@@ -1850,8 +1884,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 						NiPoint3 objPoint = (hkObjPos + pulledPointOffset) * *g_inverseHavokWorldScale;
 						PlayPhysicsSound(objPoint, Config::options.useLoudSoundPull);
-
-						pulledPointOffset = { 0, 0, 0 }; // point offset doesn't make sense when we are pulling something other than what we had selected
 
 						state = State::Pulled;
 					}
@@ -2279,6 +2311,14 @@ bool Grabber::GetActivateText(std::string &strOut)
 					char *verb = "";
 					if (state == State::SelectedClose) {
 						verb = "Grab";
+
+						if (selectedObject.isActor && selectedObject.isDisconnected) {
+							TESForm *wornForm = selectedObject.hitForm;
+							if (wornForm) {
+								BaseExtraList *wornExtraData = selectedObject.hitExtraList;
+								itemNameReplaced = GetItemName(wornForm, wornExtraData);
+							}
+						}
 					}
 					else if (state == State::SelectionLocked) {
 						verb = "Pull";

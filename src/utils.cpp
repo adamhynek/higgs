@@ -153,10 +153,17 @@ void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext 
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
 {
 	// Given world transform, set the necessary local transform
-	NiTransform inverseParent;
-	node->m_parent->m_worldTransform.Invert(inverseParent);
 
-	node->m_localTransform = inverseParent * worldTransform;
+	NiPointer<NiNode> parent = node->m_parent;
+	if (parent) {
+		NiTransform inverseParent;
+		node->m_parent->m_worldTransform.Invert(inverseParent);
+
+		node->m_localTransform = inverseParent * worldTransform;
+	}
+	else {
+		node->m_localTransform = worldTransform;
+	}
 }
 
 void UpdateKeyframedNode(NiAVObject *node, const NiTransform &transform)
