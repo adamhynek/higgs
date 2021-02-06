@@ -720,6 +720,27 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 }
 
 
+void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj)
+{
+	StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+	UInt32 droppedObjHandle = SpawnEquippedSelectedObject(selectedObj, 0);
+
+	NiPointer<TESObjectREFR> droppedObj;
+	if (droppedObjHandle != *g_invalidRefHandle && LookupREFRByHandle(droppedObjHandle, droppedObj)) {
+		grabbedTime = g_currentFrameTime;
+
+		Deselect();
+		Select(droppedObj);
+
+		state = State::PreGrabItem;
+	}
+	else {
+		state = State::Idle;
+	}
+}
+
+
 bool Grabber::IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const
 {
 	float speed = 0;
@@ -1478,26 +1499,11 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							else {
 								if (selectedObject.hitForm && selectedObject.isDisconnected) {
 									// Grabbing a weapon or something that's part of a body
-									StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
-
 									if (g_vrikInterface) {
 										g_vrikInterface->restoreFingers(isLeft);
 									}
 
-									UInt32 droppedObjHandle = SpawnEquippedSelectedObject(selectedObj, 0);
-
-									NiPointer<TESObjectREFR> droppedObj;
-									if (droppedObjHandle != *g_invalidRefHandle && LookupREFRByHandle(droppedObjHandle, droppedObj)) {
-										grabbedTime = g_currentFrameTime;
-
-										Deselect();
-										Select(droppedObj);
-
-										state = State::PreGrabItem;
-									}
-									else {
-										state = State::Idle;
-									}
+									TransitionPreGrab(selectedObj);
 								}
 								else {
 									// Grabbing a regular object, not from the other hand or off of a body
@@ -1601,18 +1607,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							}
 						}
 						if (state == State::Held || state == State::HeldInit) {
-							if (g_vrikInterface) {
-								g_vrikInterface->restoreFingers(isLeft);
-							}
-
-							ResetNearbyDamping();
-
 							ResetCollisionInfoDownstream(objRoot, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
 							ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
-						}
-
-						if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-							g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 						}
 
 						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
@@ -1654,6 +1650,21 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							}
 						}
 					}
+				}
+			}
+
+			if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+				// Do all this stuff even if the refr has been deleted / 3d unloaded
+				if (state == State::Held || state == State::HeldInit) {
+					if (g_vrikInterface) {
+						g_vrikInterface->restoreFingers(isLeft);
+					}
+
+					ResetNearbyDamping();
+				}
+
+				if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
+					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 				}
 			}
 
@@ -1743,7 +1754,14 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
 				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
-					TransitionHeld(other, *world, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
+					if (selectedObject.hitForm && selectedObject.isDisconnected) {
+						// Grabbing a weapon or something that's part of a body
+						TransitionPreGrab(selectedObj);
+					}
+					else {
+						// Grabbing a regular object, not from the other hand or off of a body
+						TransitionHeld(other, *world, hkPalmNodePos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
+					}
 				}
 
 				if (!isSelectedNear) {
