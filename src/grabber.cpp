@@ -1406,7 +1406,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					else if (selectedObject.shaderNode) {
 						if (selectedObject.isActor) {
 							// Node was selected before (selectedObject.shaderNode), but not now (nodeOnWhichToPlayShader). Stop the shader on that node.
-							if (breakStickiness) {
+							if (Config::options.disableLooting || breakStickiness) {
 								StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
 								//PlayShader(selectedObject.handle, nullptr, shader);
