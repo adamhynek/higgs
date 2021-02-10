@@ -110,6 +110,7 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabStartMaxTime", &options.grabStartMaxTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "ShoulderDropHapticFadeTime", &options.shoulderDropHapticFadeTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "RolloverHideTime", &options.rolloverHideTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabStartAngularSpeed", &options.grabStartAngularSpeed)) return false;

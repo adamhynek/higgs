@@ -294,14 +294,14 @@ void Grabber::FindBodiesToFreeze(bhkWorld &world)
 }
 
 
-NiPoint3 GetClosestPointToRigidbody(bhkWorld *world, bhkRigidBody *rigidBody, bhkSimpleShapePhantom *sphere, const NiPoint3 &initialTranslation, const NiPoint3 &start)
+NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bhkSimpleShapePhantom *sphere, const NiPoint3 &initialTranslation, const NiPoint3 &start)
 {
 	hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
 
 	NiPoint3 centerOfMass = HkVectorToNiPoint(rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
 	NiPoint3 foundPoint = centerOfMass; // Fallback to the center of the object
 
-	hkpCollisionDispatcher *dispatcher = world->world->m_collisionDispatcher;
+	hkpCollisionDispatcher *dispatcher = world.world->m_collisionDispatcher;
 	if (dispatcher) {
 		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 
@@ -329,7 +329,7 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld *world, bhkRigidBody *rigidBody, bh
 				numIterations++;
 
 				cdPointCollector.reset();
-				closestPointsFunc(*collidable, sphere->phantom->m_collidable, *world->world->m_collisionInput, cdPointCollector);
+				closestPointsFunc(*collidable, sphere->phantom->m_collidable, *world.world->m_collisionInput, cdPointCollector);
 
 				NiPoint3 closestPoint;
 				closestDistance = (std::numeric_limits<float>::max)();
@@ -720,7 +720,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 }
 
 
-void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj)
+void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
 {
 	StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
@@ -733,6 +733,7 @@ void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj)
 		Deselect();
 		Select(droppedObj);
 
+		isExternalGrab = isExternal;
 		state = State::PreGrabItem;
 	}
 	else {
@@ -805,9 +806,11 @@ UInt32 Grabber::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zO
 }
 
 
-bool Grabber::GrabExternalObject(TESObjectREFR *refr)
+bool Grabber::TransitionGrabExternal(TESObjectREFR *refr)
 {
 	if (CanGrabObject() && refr) {
+		_MESSAGE("External grab");
+
 		if (state == State::SelectedClose) {
 			if (g_vrikInterface) {
 				g_vrikInterface->restoreFingers(isLeft);
@@ -829,6 +832,40 @@ bool Grabber::GrabExternalObject(TESObjectREFR *refr)
 	}
 
 	return false;
+}
+
+
+void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale)
+{
+	if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
+		// We need to find a point on the collision geometry to have the hand grab
+
+		selectedObject.point = GetClosestPointToRigidbody(world, selectedObject.rigidBody, sphere, hkPalmNodePos + palmVector * 1.0f, hkPalmNodePos);
+
+		TransitionHeld(other, world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+	}
+	else {
+		selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
+
+		// Position the object in the direction of the palm for better grab results
+		NiTransform initialTransform = collidableNode->m_worldTransform;
+		initialTransform.pos = (hkPalmNodePos + palmVector * 1.0f) / havokWorldScale;
+
+		TransitionHeld(other, world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
+
+		// Set the transform here to kind of skip the HeldInit state
+		NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+		UpdateKeyframedNode(collidableNode, newTransform);
+	}
+}
+
+
+void Grabber::SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint)
+{
+	float distanceFactor = VectorLength(hkPalmNodePos - objPoint) / Config::options.pullDurationExtensionDistance;
+	pullDuration = Config::options.minPullDuration + Config::options.pullDurationExtensionDuration * distanceFactor;
+
+	pulledExpireTime = pullDuration + 1.0f;
 }
 
 
@@ -995,7 +1032,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
 	if (externalGrabRequested) {
-		GrabExternalObject(externalGrabRequestedObject);
+		TransitionGrabExternal(externalGrabRequestedObject);
 		externalGrabRequested = false;
 		externalGrabRequestedObject = nullptr;
 	}
@@ -1018,8 +1055,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::GrabExternal) {
-		_MESSAGE("External grab");
-
 		// TODO: INV extradata / BSInvMarker is a thing... gives rotation in inventory. Use that to fit into the hand better?
 
 		if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
@@ -1038,26 +1073,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							selectedObject.rigidBody = rigidBody;
 							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
-							if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
-								// We need to find a point on the collision geometry to have the hand grab
-
-								selectedObject.point = GetClosestPointToRigidbody(world, selectedObject.rigidBody, sphere, hkPalmNodePos + palmVector * 1.0f, hkPalmNodePos);
-
-								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
-							}
-							else {
-								selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
-
-								// Position the object in the direction of the palm for better grab results
-								NiTransform initialTransform = collidableNode->m_worldTransform;
-								initialTransform.pos = (hkPalmNodePos + palmVector * 1.0f) / havokWorldScale;
-
-								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
-
-								// Set the transform here to kind of skip the HeldInit state
-								NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
-								UpdateKeyframedNode(collidableNode, newTransform);
-							}
+							GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, sphere, hkPalmNodePos, palmVector, havokWorldScale);
 
 							grabRequested = false;
 							wasObjectGrabbed = true;
@@ -1356,7 +1372,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							}
 						}
 
-						// Playing the shader is fine if the other hand holds it if it's an actor's armor that's getting selected I guess
+						// Playing the shader is fine if the other hand holds it if it's an actor's armor that's getting selected
 						PlaySelectionEffect(selectedObject.handle, nodeOnWhichToPlayShader);
 						selectedObject.shaderNode = nodeOnWhichToPlayShader;
 					}
@@ -1491,10 +1507,21 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						}
 						else if (state == State::SelectedClose) {
 							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
-								// Grabbing the object from the other hand - make the other hand drop it and wait
-								other.isExternallyGrabbedFrom = true;
-								other.idleDesired = true;
-								state = State::GrabFromOtherHand;
+								if (selectedObject.isActor && selectedObject.hitForm) {
+									if (g_vrikInterface) {
+										g_vrikInterface->restoreFingers(isLeft);
+									}
+
+									rolloverDisplayTime = g_currentFrameTime;
+
+									state = State::LootOtherHand;
+								}
+								else {
+									// Grabbing the object from the other hand - make the other hand drop it and wait
+									other.isExternallyGrabbedFrom = true;
+									other.idleDesired = true;
+									state = State::GrabFromOtherHand;
+								}
 							}
 							else {
 								if (selectedObject.hitForm && selectedObject.isDisconnected) {
@@ -1537,7 +1564,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		}
 	}
 
-	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::LootOtherHand) {
 
 		grabRequested = false; // Consume grab event here as we cannot grab from any of these states and don't want to grab immediately upon exiting them
 
@@ -1559,7 +1586,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 				if (objRoot) {
-					if (state == State::SelectionLocked) {
+					if (state == State::SelectionLocked || state == State::LootOtherHand) {
 						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					}
 
@@ -1679,7 +1706,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			if (objRoot) {
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
-				auto TransitionPulled = [this, &other, &objRoot, motion, selectedObj, handNode]()
+				auto TransitionPulled = [this, &other, &objRoot, &hkPalmNodePos, motion, selectedObj, handNode, havokWorldScale]()
 				{
 					StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
@@ -1741,6 +1768,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 						NiPoint3 objPoint = (hkObjPos + pulledPointOffset) * *g_inverseHavokWorldScale;
 						PlayPhysicsSound(objPoint, Config::options.useLoudSoundPull);
+
+						SetPulledDuration(hkPalmNodePos, objPoint * havokWorldScale);
 
 						state = State::Pulled;
 					}
@@ -1838,6 +1867,44 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		}
 	}
 
+	if (state == State::LootOtherHand) {
+		NiPointer<TESObjectREFR> selectedObj;
+		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
+			if (objRoot) {
+				if (other.HasHeldObject() && other.selectedObject.rigidBody == selectedObject.rigidBody) {
+					// Other hand is still holding this object
+
+					hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
+
+					NiPoint3 controllerVelocity = controllerVelocities[0];
+					float controllerSpeed = VectorLength(controllerVelocity);
+
+					if (controllerSpeed > Config::options.pullSpeedThreshold) {
+						float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength);
+						haptics.QueueHapticEvent(hapticStrength, 0, Config::options.pullHapticFadeTime);
+
+						TransitionPreGrab(selectedObj, true);
+					}
+					else {
+						float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeed / Config::options.pullSpeedThreshold)));
+						haptics.QueueHapticPulse(hapticStrength);
+					}
+				}
+				else {
+					// Other hand let go - we grab it then
+					TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+				}
+			}
+			else {
+				state = State::Idle;
+			}
+		}
+		else {
+			state = State::Idle;
+		}
+	}
+
 	if (state == State::PreGrabItem) {
 		if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
 			state = State::Idle;
@@ -1851,13 +1918,22 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 					auto rigidBody = GetFirstRigidBody(objRoot);
 					if (rigidBody) {
-						selectedObject.rigidBody = rigidBody;
-						selectedObject.collidable = &rigidBody->hkBody->m_collidable;
+						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
+						NiPointer<NiAVObject> collidableNode = FindCollidableNode(collidable);
+						if (collidableNode) {
+							selectedObject.rigidBody = rigidBody;
+							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
-						// Set owner to the player so it doesn't count as stealing
-						TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
+							// Set owner to the player so it doesn't count as stealing
+							TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
 
-						TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+							if (isExternalGrab) {
+								GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, sphere, hkPalmNodePos, palmVector, havokWorldScale);
+							}
+							else {
+								TransitionHeld(other, *world, hkPalmNodePos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+							}
+						}
 					}
 				}
 			}
@@ -1903,6 +1979,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						NiPoint3 objPoint = (hkObjPos + pulledPointOffset) * *g_inverseHavokWorldScale;
 						PlayPhysicsSound(objPoint, Config::options.useLoudSoundPull);
 
+						SetPulledDuration(hkPalmNodePos, objPoint * havokWorldScale);
+
 						state = State::Pulled;
 					}
 				}
@@ -1920,15 +1998,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				NiPoint3 objPoint = hkObjPos + pulledPointOffset;
 
-				float distanceFactor = VectorLength(hkPalmNodePos - objPoint) / Config::options.pullDurationExtensionDistance;
-				float duration = Config::options.minPullDuration + Config::options.pullDurationExtensionDuration * distanceFactor;
-
-				pulledExpireTime = duration + 1.0f;
-
 				// Apply a predicted velocity to reach the destination, for a few frames after pulling starts.
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
-				if (g_currentFrameTime - pulledTime <= Config::options.pulledInitTime) {
+				double elapsedPullTime = g_currentFrameTime - pulledTime;
+				if (elapsedPullTime <= Config::options.pulledInitTime) {
+					float duration = pullDuration - elapsedPullTime;
+
 					NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
 					horizontalDelta.z = 0;
 					NiPoint3 velocity = horizontalDelta / duration;
@@ -1937,6 +2013,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 					NiPointer<NiAVObject> n = FindCollidableNode(selectedObject.collidable);
 					if (n && DoesNodeHaveConstraint(objRoot, n)) {
+						// TODO: Set velocity for only the connected component of constrained objects containing this one, not all in the refr
 						SetVelocityDownstream(objRoot, NiPointToHkVector(velocity));
 					}
 					else {
@@ -2277,7 +2354,7 @@ bool Grabber::CanOtherGrab() const
 
 bool Grabber::ShouldDisplayRollover()
 {
-	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody)
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody && state != State::LootOtherHand)
 		return false;
 
 	NiPointer<TESObjectREFR> selectedObj;
@@ -2298,7 +2375,7 @@ bool Grabber::IsSafeToClearSavedCollision() const
 
 bool Grabber::GetActivateText(std::string &strOut)
 {
-	if (state != State::SelectedClose && state != State::SelectionLocked) {
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand) {
 		return false;
 	}
 
@@ -2330,7 +2407,9 @@ bool Grabber::GetActivateText(std::string &strOut)
 					if (state == State::SelectedClose) {
 						verb = "Grab";
 
-						if (selectedObject.isActor && selectedObject.isDisconnected) {
+						Grabber *other = isLeft ? g_rightGrabber : g_leftGrabber;
+
+						if (selectedObject.isActor && (selectedObject.isDisconnected || (selectedObject.hitForm && selectedObject.rigidBody == other->selectedObject.rigidBody && other->CanOtherGrab()))) {
 							TESForm *wornForm = selectedObject.hitForm;
 							if (wornForm) {
 								BaseExtraList *wornExtraData = selectedObject.hitExtraList;
@@ -2348,6 +2427,14 @@ bool Grabber::GetActivateText(std::string &strOut)
 								BaseExtraList *wornExtraData = selectedObject.hitExtraList;
 								itemNameReplaced = GetItemName(wornForm, wornExtraData);
 							}
+						}
+					}
+					else if (state == State::LootOtherHand) {
+						verb = "Loot";
+						TESForm *wornForm = selectedObject.hitForm;
+						if (wornForm) {
+							BaseExtraList *wornExtraData = selectedObject.hitExtraList;
+							itemNameReplaced = GetItemName(wornForm, wornExtraData);
 						}
 					}
 
@@ -2410,29 +2497,5 @@ void Grabber::SetupRollover()
 				}
 			}
 		}
-	}
-}
-
-void Grabber::SetSelectedHandles(bool isLeftHanded)
-{
-	// Now set all the places I could find that get set to the handle of the pointed at object usually
-	CrosshairPickData *pickData = *g_pickData;
-	if (pickData) {
-		if (isLeftHanded) {
-			pickData->leftHandle1 = selectedObject.handle;
-			pickData->leftHandle2 = selectedObject.handle;
-			pickData->leftHandle3 = selectedObject.handle;
-		}
-		else {
-			pickData->rightHandle1 = selectedObject.handle;
-			pickData->rightHandle2 = selectedObject.handle;
-			pickData->rightHandle3 = selectedObject.handle;
-		}
-
-		//PlayerCharacter *player = *g_thePlayer;
-		//if (player) {
-			// This flag is used to tell the game to refresh the rollover during the PlayerCharacter update
-		//	*((UInt8 *)player + 0x12D5) |= 0x20;
-		//}
 	}
 }

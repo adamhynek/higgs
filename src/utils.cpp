@@ -684,3 +684,38 @@ Grabber * GetGrabberToShowRolloverFor()
 	
 	return nullptr;
 }
+
+void SetSelectedHandles(bool isLeftHanded, UInt32 handle)
+{
+	// Now set all the places I could find that get set to the handle of the pointed at object usually
+	CrosshairPickData *pickData = *g_pickData;
+	if (pickData) {
+		if (isLeftHanded) {
+			pickData->leftHandle1 = handle;
+			pickData->leftHandle2 = handle;
+			pickData->leftHandle3 = handle;
+		}
+		else {
+			pickData->rightHandle1 = handle;
+			pickData->rightHandle2 = handle;
+			pickData->rightHandle3 = handle;
+		}
+
+		//PlayerCharacter *player = *g_thePlayer;
+		//if (player) {
+			// This flag is used to tell the game to refresh the rollover during the PlayerCharacter update
+		//	*((UInt8 *)player + 0x12D5) |= 0x20;
+		//}
+	}
+}
+
+void ReplaceBSString(BSString &replacee, std::string &replacer)
+{
+	Heap_Free(replacee.m_data);
+
+	size_t len = replacer.length() + 1;
+	replacee.m_data = (char*)Heap_Allocate(len);
+	strcpy_s(replacee.m_data, len, replacer.c_str());
+	replacee.m_dataLen = len;
+	replacee.m_bufLen = len;
+}

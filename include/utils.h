@@ -54,6 +54,8 @@ const char * GetItemName(TESForm *form, BaseExtraList *extraList);
 SInt32 GetItemId(TESForm * form, BaseExtraList * extraList);
 EquipData GetWornItem(Actor* thisActor, UInt32 mask);
 struct Grabber * GetGrabberToShowRolloverFor();
+void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
+void ReplaceBSString(BSString &replacee, std::string &replacer);
 
 typedef void(*Actor_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 typedef void(*Actor_PickUpObject)(Actor *_this, TESObjectREFR* a_object, std::int32_t a_count, bool a_arg3, bool a_playSound); // arg3 == false

@@ -79,7 +79,8 @@ struct Grabber
 		Held, // player is holding the object in their hand
 		HeldBody, // player is holding a body / other constrained object
 		GrabFromOtherHand, // wait after requesting the other hand to drop the object so that we can grab it
-		GrabExternal // want to grab an object that we didn't have selected already
+		GrabExternal, // want to grab an object that we didn't have selected already
+		LootOtherHand // want to loot from what the other hand is holding
 	};
 
 	enum class InputState : UInt8
@@ -129,8 +130,10 @@ struct Grabber
 		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
 	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
-	void TransitionPreGrab(TESObjectREFR *selectedObj);
-	bool GrabExternalObject(TESObjectREFR *refr);
+	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
+	bool TransitionGrabExternal(TESObjectREFR *refr);
+	void GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
+	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
 	bool IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const;
 	UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
 	bool ShouldDisplayRollover();
@@ -142,7 +145,6 @@ struct Grabber
 	bool CanOtherGrab() const;
 	bool GetActivateText(std::string &str);
 	void SetupRollover();
-	void SetSelectedHandles(bool isLeftHanded);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void EndPull();
@@ -196,6 +198,7 @@ struct Grabber
 
 	bool idleDesired = false;
 
+	bool isExternalGrab = false;
 	bool isExternallyGrabbedFrom = false;
 
 	bool externalGrabRequested = false;
@@ -205,6 +208,7 @@ struct Grabber
 	double grabRequestedTime = 0; // Timestamp when the trigger was pressed
 	double rolloverDisplayTime = 0; // Timestamp when we performed the last action that warrants showing the rollover text
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
+	double pullDuration = 0;
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 	double heldTime = 0;

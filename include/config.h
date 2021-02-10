@@ -22,16 +22,16 @@ namespace Config {
 		float throwVelocityThreshold = 1.0f; // m/s
 		float throwVelocityBoostFactor = 1.0f;
 		float shoulderVelocityThreshold = 0.7f; // m/s
-		float pullDestinationZOffset = 0.05f; // in meters, z offset above the palm at which to target the pulled object
-		float pulledAngularDamping = 3.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
+		float pullDestinationZOffset = 0.01f; // in meters, z offset above the palm at which to target the pulled object
+		float pulledAngularDamping = 8.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
 
 		float nearbyGrabMaxLinearVelocity = 0.2f;
 		float nearbyGrabMaxAngularVelocity = 1.0f;
 		float nearbyGrabLinearDamping = 500.0f;
 		float nearbyGrabAngularDamping = 50.0f;
 
-		float minPullDuration = 0.375f; // in s, duration of a pull for an object right next to the player
-		float pullDurationExtensionDuration = 0.375f; // in s, duration to extend the pull over the below distance
+		float minPullDuration = 0.5f; // in s, duration of a pull for an object right next to the player
+		float pullDurationExtensionDuration = 0.25f; // in s, duration to extend the pull over the below distance
 		float pullDurationExtensionDistance = 5.0f; // in meters, distance over which to extend the pull by the above value
 
 		float selectionLockedBaseHapticStrength = 0.05f;
@@ -48,13 +48,14 @@ namespace Config {
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double inputLeewayTime = 0.3; // in s, time after pressing the trigger on a selected object, within which if you let go, input is retriggered
 		double forceInputTime = 0.03; // in s, amount of time to force input
-		double pulledInitTime = 0.1; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
+		double pulledInitTime = 0.25; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
 		double lootSpawnInTime = 0.5f; // in s, amount of time to wait for a pulled looted item to spawn in before giving up
 		double grabFreezeNearbyVelocityTime = 0.1f; // in s, amount of time during which to zero-out velocity of objects near the grabbed object when grabbing
 		double pullHapticFadeTime = 0.15f; // in s, amount of time over which to fade down the haptic strength after a pull
 		double grabHapticFadeTime = 0.1f;
 		double grabStartMaxTime = 0.5f;
 		double shoulderDropHapticFadeTime = 0.2f;
+		double rolloverHideTime = 0.25f;
 
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;

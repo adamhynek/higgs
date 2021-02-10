@@ -11,6 +11,7 @@
 #include "RE/havok.h"
 #include "grabber.h"
 #include "vrikinterface001.h"
+#include "config.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -79,15 +80,21 @@ void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *eff
 
 UInt64 g_pickValue = 0; // This gets set shortly before the below hook gets called
 UInt32 g_pickedHandle = 0;
+bool g_disableRollover = false;
 
 void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector)
 {
 	Grabber *rolloverGrabber = GetGrabberToShowRolloverFor();
 
-	if (rolloverGrabber) {
-		bool isLeftHanded = *g_leftHandedMode;
-		rolloverGrabber->SetSelectedHandles(isLeftHanded);
+	bool isLeftHanded = *g_leftHandedMode;
 
+	if (g_disableRollover) {
+		SetSelectedHandles(isLeftHanded, *g_invalidRefHandle);
+		g_pickedHandle = *g_invalidRefHandle;
+		return;
+	}
+	else if (rolloverGrabber) {
+		SetSelectedHandles(isLeftHanded, rolloverGrabber->selectedObject.handle);
 		g_pickedHandle = *g_invalidRefHandle;
 		return;
 	}
@@ -104,10 +111,12 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 }
 
 bool wasRolloverSet = false;
+bool postWasRolloverSet = false;
 bool hasSavedRollover = false;
 NiTransform normalRolloverTransform;
 bool hasSavedRumbleIntensity = false;
 float normalRumbleIntensity;
+double lastRolloverSetTime = 0;
 
 void PostWandUpdateHook()
 {
@@ -141,37 +150,40 @@ void PostWandUpdateHook()
 		}
 		activateRumbleIntensitySetting->SetDouble(0);
 
+		g_disableRollover = false;
+
 		g_overrideActivateText = rolloverGrabber->GetActivateText(g_overrideActivateTextStr);
 	}
-	else if (wasRolloverSet) {
-		// Nothing is grabbed, and something was last time
+	else {
+		if (wasRolloverSet) {
+			// Nothing is grabbed, and something was last time
 
-		if (rolloverNode && hasSavedRollover) {
-			rolloverNode->m_localTransform = normalRolloverTransform;
+			if (hasSavedRumbleIntensity) {
+				Setting * activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+				activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
+			}
+
+			lastRolloverSetTime = g_currentFrameTime;
+			g_disableRollover = true;
+
+			g_overrideActivateText = false;
+		}
+		else if (postWasRolloverSet) {
+			// Give 1 frame leeway before resetting the rollover transform
+			if (rolloverNode && hasSavedRollover) {
+				rolloverNode->m_localTransform = normalRolloverTransform;
+			}
 		}
 
-		if (hasSavedRumbleIntensity) {
-			Setting * activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-			activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
+		if (g_currentFrameTime - lastRolloverSetTime > Config::options.rolloverHideTime) {
+			g_disableRollover = false;
 		}
-
-		g_overrideActivateText = false;
 	}
 
+	postWasRolloverSet = wasRolloverSet;
 	wasRolloverSet = rolloverGrabber != nullptr;
 }
 
-
-void ReplaceBSString(BSString &replacee, std::string &replacer)
-{
-	Heap_Free(replacee.m_data);
-
-	size_t len = replacer.length() + 1;
-	replacee.m_data = (char*)Heap_Allocate(len);
-	strcpy_s(replacee.m_data, len, replacer.c_str());
-	replacee.m_dataLen = len;
-	replacee.m_bufLen = len;
-}
 
 BSString *g_activateText = nullptr;
 bool g_overrideActivateText = false;
