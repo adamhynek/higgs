@@ -30,9 +30,9 @@ namespace Config {
 		float nearbyGrabLinearDamping = 500.0f;
 		float nearbyGrabAngularDamping = 50.0f;
 
-		float minPullDuration = 0.5f; // in s, duration of a pull for an object right next to the player
-		float pullDurationExtensionDuration = 0.25f; // in s, duration to extend the pull over the below distance
-		float pullDurationExtensionDistance = 5.0f; // in meters, distance over which to extend the pull by the above value
+		float pullDurationA = 0.715619f;
+		float pullDurationB = -0.415619f;
+		float pullDurationC = 0.656256f;
 
 		float selectionLockedBaseHapticStrength = 0.05f;
 		float selectionLockedProportionalHapticStrength = 0.3f;
@@ -48,7 +48,8 @@ namespace Config {
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double inputLeewayTime = 0.3; // in s, time after pressing the trigger on a selected object, within which if you let go, input is retriggered
 		double forceInputTime = 0.03; // in s, amount of time to force input
-		double pulledInitTime = 0.25; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
+		double pullApplyVelocityTime = 0.2; // in s, time within which to constantly apply velocity to a pulled object when it's initially pulled
+		double pullTrackHandTime = 0.1; // in s, time within which to constantly adjust the target of the pull when it's initially pulled
 		double lootSpawnInTime = 0.5f; // in s, amount of time to wait for a pulled looted item to spawn in before giving up
 		double grabFreezeNearbyVelocityTime = 0.1f; // in s, amount of time during which to zero-out velocity of objects near the grabbed object when grabbing
 		double pullHapticFadeTime = 0.15f; // in s, amount of time over which to fade down the haptic strength after a pull

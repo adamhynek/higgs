@@ -862,8 +862,9 @@ void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR 
 
 void Grabber::SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint)
 {
-	float distanceFactor = VectorLength(hkPalmNodePos - objPoint) / Config::options.pullDurationExtensionDistance;
-	pullDuration = Config::options.minPullDuration + Config::options.pullDurationExtensionDuration * distanceFactor;
+	float distance = VectorLength(hkPalmNodePos - objPoint);
+
+	pullDuration = Config::options.pullDurationA + Config::options.pullDurationB * expf(-Config::options.pullDurationC * distance);
 
 	pulledExpireTime = pullDuration + 1.0f;
 }
@@ -2002,13 +2003,17 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				// Why for a few frames? Because then if it's next to something, it has a few frames to push it out of the way instead of just flopping right away
 
 				double elapsedPullTime = g_currentFrameTime - pulledTime;
-				if (elapsedPullTime <= Config::options.pulledInitTime) {
+				if (elapsedPullTime <= Config::options.pullApplyVelocityTime) {
+					if (elapsedPullTime <= Config::options.pullTrackHandTime) {
+						pullTarget = hkPalmNodePos + NiPoint3(0, 0, Config::options.pullDestinationZOffset); // Add an extra few cm up so that the object doesn't undershoot
+					}
+
 					float duration = pullDuration - elapsedPullTime;
 
-					NiPoint3 horizontalDelta = hkPalmNodePos - objPoint;
+					NiPoint3 horizontalDelta = pullTarget - objPoint;
 					horizontalDelta.z = 0;
 					NiPoint3 velocity = horizontalDelta / duration;
-					float verticalDelta = hkPalmNodePos.z - objPoint.z + Config::options.pullDestinationZOffset; // Add an extra few cm up so that the object doesn't undershoot
+					float verticalDelta = pullTarget.z - objPoint.z;
 					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
 					NiPointer<NiAVObject> n = FindCollidableNode(selectedObject.collidable);

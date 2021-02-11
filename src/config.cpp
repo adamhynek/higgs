@@ -103,7 +103,8 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "InputLeewayTime", &options.inputLeewayTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "ForceInputTime", &options.forceInputTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "PulledInitTime", &options.pulledInitTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "PullApplyVelocityTime", &options.pullApplyVelocityTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "PullTrackHandTime", &options.pullTrackHandTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "LootSpawnInTime", &options.lootSpawnInTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "PullHapticFadeTime", &options.pullHapticFadeTime)) return false;
@@ -143,9 +144,9 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabMaxLinearVelocity", &options.nearbyGrabMaxLinearVelocity)) return false;
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabMaxAngularVelocity", &options.nearbyGrabMaxAngularVelocity)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "MinPullDuration", &options.minPullDuration)) return false;
-		if (!GetConfigOptionFloat("Settings", "PullDurationExtensionDuration", &options.pullDurationExtensionDuration)) return false;
-		if (!GetConfigOptionFloat("Settings", "PullDurationExtensionDistance", &options.pullDurationExtensionDistance)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullDurationA", &options.pullDurationA)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullDurationB", &options.pullDurationB)) return false;
+		if (!GetConfigOptionFloat("Settings", "PullDurationC", &options.pullDurationC)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabLateralWeight", &options.grabLateralWeight)) return false;
 		if (!GetConfigOptionFloat("Settings", "GrabDirectionalWeight", &options.grabDirectionalWeight)) return false;
