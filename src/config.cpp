@@ -94,6 +94,24 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "MouthRadius", &options.mouthRadius)) return false;
 
+		float rolloverOffsetRightX, rolloverOffsetRightY, rolloverOffsetRightZ;
+		if (!GetConfigOptionFloat("Settings", "RolloverOffsetRightX", &rolloverOffsetRightX)) return false;
+		if (!GetConfigOptionFloat("Settings", "RolloverOffsetRightY", &rolloverOffsetRightY)) return false;
+		if (!GetConfigOptionFloat("Settings", "RolloverOffsetRightZ", &rolloverOffsetRightZ)) return false;
+		options.rolloverOffsetRight = { rolloverOffsetRightX, rolloverOffsetRightY, rolloverOffsetRightZ };
+
+		float rolloverOffsetLeftX, rolloverOffsetLeftY, rolloverOffsetLeftZ;
+		if (!GetConfigOptionFloat("Settings", "RolloverOffsetLeftX", &rolloverOffsetLeftX)) return false;
+		if (!GetConfigOptionFloat("Settings", "RolloverOffsetLeftY", &rolloverOffsetLeftY)) return false;
+		if (!GetConfigOptionFloat("Settings", "RolloverOffsetLeftZ", &rolloverOffsetLeftZ)) return false;
+		options.rolloverOffsetLeft = { rolloverOffsetLeftX, rolloverOffsetLeftY, rolloverOffsetLeftZ };
+
+		float rolloverRotationX, rolloverRotationY, rolloverRotationZ;
+		if (!GetConfigOptionFloat("Settings", "RolloverRotationX", &rolloverRotationX)) return false;
+		if (!GetConfigOptionFloat("Settings", "RolloverRotationY", &rolloverRotationY)) return false;
+		if (!GetConfigOptionFloat("Settings", "RolloverRotationZ", &rolloverRotationZ)) return false;
+		options.rolloverRotation = { rolloverRotationX, rolloverRotationY, rolloverRotationZ };
+
 		if (!GetConfigOptionFloat("Settings", "FarCastRadius", &options.farCastRadius)) return false;
 		if (!GetConfigOptionFloat("Settings", "FarCastDistance", &options.farCastDistance)) return false;
 

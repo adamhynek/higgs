@@ -35,6 +35,7 @@
 #include "hooks.h"
 #include "vrikinterface001.h"
 #include "papyrusapi.h"
+#include "math_utils.h"
 
 
 // SKSE globals
@@ -421,8 +422,8 @@ extern "C" {
 		NiPoint3 leftPalm = rightPalm;
 		leftPalm.x *= -1;
 
-		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, { 7, -5, -2 }, Config::options.delayRightGripInput);
-		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, { -7, -7, -3 }, Config::options.delayLeftGripInput);
+		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
+		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
 		if (!g_rightGrabber || !g_leftGrabber || !g_shaderNodes) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
@@ -434,18 +435,7 @@ extern "C" {
 		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
-		// Right vector points to the right of the text
-		g_rolloverRotation.data[0][0] = 0;
-		g_rolloverRotation.data[1][0] = -cosf(30 * 0.0174533);
-		g_rolloverRotation.data[2][0] = -sinf(30 * 0.0174533);
-		// Forward vector points into the text
-		g_rolloverRotation.data[0][1] = -1;
-		g_rolloverRotation.data[1][1] = 0;
-		g_rolloverRotation.data[2][1] = 0;
-		// Up vector points up from the text
-		g_rolloverRotation.data[0][2] = 0;
-		g_rolloverRotation.data[1][2] = sinf(30 * 0.0174533);
-		g_rolloverRotation.data[2][2] = -cosf(30 * 0.0174533);
+		g_rolloverRotation = EulerToMatrix(Config::options.rolloverRotation);
 
 		g_rightGrabber->rolloverRotation = g_rolloverRotation;
 		g_rightGrabber->rolloverScale = Config::options.rolloverScale;

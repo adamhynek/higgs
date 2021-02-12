@@ -97,6 +97,10 @@ namespace Config {
 		float rightShoulderRadius = 10.0f;
 		float leftShoulderRadius = 10.0f;
 		float mouthRadius = 10.0f;
+
+		NiPoint3 rolloverOffsetRight = { 7, -5, -2 };
+		NiPoint3 rolloverOffsetLeft = { -7, -7, -3 };
+		NiPoint3 rolloverRotation = { 2.62, 0, -1.57 };
 	};
 	extern Options options; // global object containing options
 
