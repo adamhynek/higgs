@@ -21,7 +21,8 @@ namespace Config {
 		float grabDirectionalWeight = 0.4f;
 		float throwVelocityThreshold = 1.0f; // m/s
 		float throwVelocityBoostFactor = 1.0f;
-		float shoulderVelocityThreshold = 0.7f; // m/s
+		float shoulderVelocityThreshold = 2.0f; // m/s
+		float mouthVelocityThreshold = 2.0f; // m/s
 		float pullDestinationZOffset = 0.01f; // in meters, z offset above the palm at which to target the pulled object
 		float pulledAngularDamping = 8.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
 
@@ -44,6 +45,9 @@ namespace Config {
 		float shoulderConstantHapticStrength = 0.2f;
 		float shoulderDropHapticStrength = 0.5f;
 
+		float mouthConstantHapticStrength = 0.3f;
+		float mouthDropHapticStrength = 0.5f;
+
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double inputLeewayTime = 0.3; // in s, time after pressing the trigger on a selected object, within which if you let go, input is retriggered
@@ -56,6 +60,7 @@ namespace Config {
 		double grabHapticFadeTime = 0.1f;
 		double grabStartMaxTime = 0.5f;
 		double shoulderDropHapticFadeTime = 0.2f;
+		double mouthDropHapticFadeTime = 0.2f;
 		double rolloverHideTime = 0.25f;
 
 		bool disableHeadBobbingWhileGrabbed = true;
@@ -87,9 +92,11 @@ namespace Config {
 
 		NiPoint3 rightShoulderHmdOffset = { 17.5, -5.0, -6.85 };
 		NiPoint3 leftShoulderHmdOffset = { -17.5, -5.0, -6.85 };
+		NiPoint3 mouthHmdOffset = { 0.5, 7.0, -12.5 };
 
 		float rightShoulderRadius = 10.0f;
 		float leftShoulderRadius = 10.0f;
+		float mouthRadius = 10.0f;
 	};
 	extern Options options; // global object containing options
 

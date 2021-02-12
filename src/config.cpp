@@ -86,6 +86,14 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "LeftShoulderRadius", &options.leftShoulderRadius)) return false;
 
+		float mouthHmdOffsetX, mouthHmdOffsetY, mouthHmdOffsetZ;
+		if (!GetConfigOptionFloat("Settings", "MouthHmdOffsetX", &mouthHmdOffsetX)) return false;
+		if (!GetConfigOptionFloat("Settings", "MouthHmdOffsetY", &mouthHmdOffsetY)) return false;
+		if (!GetConfigOptionFloat("Settings", "MouthHmdOffsetZ", &mouthHmdOffsetZ)) return false;
+		options.mouthHmdOffset = { mouthHmdOffsetX, mouthHmdOffsetY, mouthHmdOffsetZ };
+
+		if (!GetConfigOptionFloat("Settings", "MouthRadius", &options.mouthRadius)) return false;
+
 		if (!GetConfigOptionFloat("Settings", "FarCastRadius", &options.farCastRadius)) return false;
 		if (!GetConfigOptionFloat("Settings", "FarCastDistance", &options.farCastDistance)) return false;
 
@@ -111,6 +119,7 @@ namespace Config {
 		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "GrabStartMaxTime", &options.grabStartMaxTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "ShoulderDropHapticFadeTime", &options.shoulderDropHapticFadeTime)) return false;
+		if (!GetConfigOptionDouble("Settings", "MouthDropHapticFadeTime", &options.mouthDropHapticFadeTime)) return false;
 		if (!GetConfigOptionDouble("Settings", "RolloverHideTime", &options.rolloverHideTime)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
@@ -124,6 +133,7 @@ namespace Config {
 		if (!GetConfigOptionFloat("Settings", "ThrowVelocityBoostFactor", &options.throwVelocityBoostFactor)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "ShoulderVelocityThreshold", &options.shoulderVelocityThreshold)) return false;
+		if (!GetConfigOptionFloat("Settings", "MouthVelocityThreshold", &options.mouthVelocityThreshold)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "PullDestinationZOffset", &options.pullDestinationZOffset)) return false;
 
@@ -137,6 +147,9 @@ namespace Config {
 
 		if (!GetConfigOptionFloat("Settings", "ShoulderConstantHapticStrength", &options.shoulderConstantHapticStrength)) return false;
 		if (!GetConfigOptionFloat("Settings", "ShoulderDropHapticStrength", &options.shoulderDropHapticStrength)) return false;
+
+		if (!GetConfigOptionFloat("Settings", "MouthConstantHapticStrength", &options.mouthConstantHapticStrength)) return false;
+		if (!GetConfigOptionFloat("Settings", "MouthDropHapticStrength", &options.mouthDropHapticStrength)) return false;
 
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabLinearDamping", &options.nearbyGrabLinearDamping)) return false;
 		if (!GetConfigOptionFloat("Settings", "NearbyGrabAngularDamping", &options.nearbyGrabAngularDamping)) return false;

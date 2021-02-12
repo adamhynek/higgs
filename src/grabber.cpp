@@ -742,8 +742,10 @@ void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
 }
 
 
-bool Grabber::IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const
+bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
 {
+	if (selectedObject.isActor) return false;
+
 	float speed = 0;
 	for (auto velocity : controllerVelocities) {
 		speed += VectorLength(velocity);
@@ -765,6 +767,31 @@ bool Grabber::IsHandNearShoulder(NiAVObject *hmdNode, NiPoint3 handPos) const
 		}
 	}
 	
+	return false;
+}
+
+
+bool Grabber::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
+{
+	TESForm *baseForm = refr->baseForm;
+	if (!baseForm || baseForm->formType != kFormType_Potion) {
+		return false;
+	}
+
+	float speed = 0;
+	for (auto velocity : controllerVelocities) {
+		speed += VectorLength(velocity);
+	}
+	speed /= std::size(controllerVelocities);
+
+	if (speed < Config::options.mouthVelocityThreshold) {
+		NiPoint3 mouthPos = hmdNode->m_worldTransform * Config::options.mouthHmdOffset;
+		float mouthDistance = VectorLength(handPos - mouthPos);
+		if (mouthDistance < Config::options.mouthRadius) {
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -1642,7 +1669,17 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
 
-						if ((state == State::Held || state == State::HeldBody) && !selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos) && !isExternallyGrabbedFrom) {
+						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, handPos) && !isExternallyGrabbedFrom) {
+							// Object dropped at the mouth
+
+							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
+							TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
+
+							papyrusActor::EquipItemEx(player, selectedObj->baseForm, 0, false, true);
+
+							haptics.QueueHapticEvent(Config::options.mouthDropHapticStrength, 0, Config::options.mouthDropHapticFadeTime);
+						}
+						else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && !isExternallyGrabbedFrom) {
 							// Object deposited in the shoulder
 
 							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
@@ -2115,7 +2152,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						ResetNearbyDamping();
 					}
 
-					if (IsHandNearShoulder(hmdNode, handPos)) {
+					if (IsObjectConsumable(selectedObj, hmdNode, handPos)) {
+						haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
+					}
+					else if (IsObjectDepositable(selectedObj, hmdNode, handPos)) {
 						haptics.QueueHapticPulse(Config::options.shoulderConstantHapticStrength);
 					}
 				}
@@ -2150,7 +2190,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				desiredQuat.setFromRotationSimd(desiredRot);
 				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
 
-				if (!selectedObject.isActor && IsHandNearShoulder(hmdNode, handPos)) { // Don't do shoulder deposit for actual bodies
+				if (IsObjectConsumable(selectedObj, hmdNode, handPos)) {
+					haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
+				}
+				else if (IsObjectDepositable(selectedObj, hmdNode, handPos)) {
 					haptics.QueueHapticPulse(Config::options.shoulderConstantHapticStrength);
 				}
 			}
