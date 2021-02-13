@@ -525,10 +525,13 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		//NiPoint3 normal = HkVectorToNiPoint(closestPoint.m_separatingNormal); // vec from sphere center to point
 
 		// Cancel a collision reset from pulling if we're grabbing the object
+		bool shouldMoveHandBack = false;
 		if (pulledObject.handle == selectedObject.handle) {
+			shouldMoveHandBack = true;
 			EndPull();
 		}
 		else if (other.pulledObject.handle == selectedObject.handle) {
+			shouldMoveHandBack = true;
 			other.EndPull();
 		}
 
@@ -590,6 +593,12 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 			if (initialTransform) {
 				UpdateKeyframedNode(collidableNode, *initialTransform);
+			}
+			else if (shouldMoveHandBack) {
+				NiTransform newTransform;
+				newTransform = collidableNode->m_worldTransform;
+				newTransform.pos += (castDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
+				UpdateKeyframedNode(collidableNode, newTransform);
 			}
 
 			NiPoint3 triPos, triNormal;

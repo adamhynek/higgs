@@ -25,6 +25,7 @@ namespace Config {
 		float mouthVelocityThreshold = 2.0f; // m/s
 		float pullDestinationZOffset = 0.01f; // in meters, z offset above the palm at which to target the pulled object
 		float pulledAngularDamping = 8.0f; // angular damping to overwrite for pulled objects. This is pretty high, in order to prevent the object from spinning out of control.
+		float pulledGrabHandAdjustDistance = 0.15f; // in meters, amount to move the hand back when grabbing a pulled object
 
 		float nearbyGrabMaxLinearVelocity = 0.2f;
 		float nearbyGrabMaxAngularVelocity = 1.0f;
