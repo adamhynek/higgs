@@ -595,8 +595,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 				UpdateKeyframedNode(collidableNode, *initialTransform);
 			}
 			else if (shouldMoveHandBack) {
-				NiTransform newTransform;
-				newTransform = collidableNode->m_worldTransform;
+				NiTransform newTransform = collidableNode->m_worldTransform;
 				newTransform.pos += (castDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
 				UpdateKeyframedNode(collidableNode, newTransform);
 			}

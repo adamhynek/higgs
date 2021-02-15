@@ -20,188 +20,180 @@ namespace Config {
 	// Define extern options
 	Options options;
 
+	bool ReadFloat(const std::string &name, float &val)
+	{
+		if (!GetConfigOptionFloat("Settings", name.c_str(), &val)) {
+			_WARNING("Failed to read float config option: %s", name.c_str());
+			return false;
+		}
+
+		return true;
+	}
+
+	bool ReadDouble(const std::string &name, double &val)
+	{
+		if (!GetConfigOptionDouble("Settings", name.c_str(), &val)) {
+			_WARNING("Failed to read double config option: %s", name.c_str());
+			return false;
+		}
+
+		return true;
+	}
+
+	bool ReadBool(const std::string &name, bool &val)
+	{
+		if (!GetConfigOptionBool("Settings", name.c_str(), &val)) {
+			_WARNING("Failed to read bool config option: %s", name.c_str());
+			return false;
+		}
+
+		return true;
+	}
+
+	bool ReadInt(const std::string &name, int &val)
+	{
+		if (!GetConfigOptionInt("Settings", name.c_str(), &val)) {
+			_WARNING("Failed to read int config option: %s", name.c_str());
+			return false;
+		}
+
+		return true;
+	}
+
+	bool ReadString(const std::string &name, std::string &val)
+	{
+		std::string	data = GetConfigOption("Settings", name.c_str());
+		if (data.empty()) {
+			_WARNING("Failed to read str config option: %s", name.c_str());
+			return false;
+		}
+
+		val = data;
+		return true;
+	}
+
+	bool ReadVector(const std::string &name, NiPoint3 &vec)
+	{
+		if (!ReadFloat(name + "X", vec.x)) return false;
+		if (!ReadFloat(name + "Y", vec.y)) return false;
+		if (!ReadFloat(name + "Z", vec.z)) return false;
+
+		return true;
+	}
+
 	bool ReadConfigOptions()
 	{
-		float palmVectorX, palmVectorY, palmVectorZ;
-		if (!GetConfigOptionFloat("Settings", "PalmVectorX", &palmVectorX)) return false;
-		if (!GetConfigOptionFloat("Settings", "PalmVectorY", &palmVectorY)) return false;
-		if (!GetConfigOptionFloat("Settings", "PalmVectorZ", &palmVectorZ)) return false;
+		if (!ReadVector("PalmVector", options.palmVector)) return false;
+		if (!ReadVector("PointingVector", options.pointingVector)) return false;
+		if (!ReadVector("PalmPosition", options.palmPosition)) return false;
 
-		NiPoint3 palmVector = { palmVectorX, palmVectorY, palmVectorZ };
-		if (VectorLength(palmVector) > 0.0001f) {
-			options.palmVector = VectorNormalized(palmVector);
-		}
-		else {
-			_WARNING("Supplied palm vector is too small");
-			return false;
-		}
+		if (!ReadVector("HandCollisionBoxHalfExtents", options.handCollisionBoxHalfExtents)) return false;
+		if (!ReadVector("HandCollisionBoxOffset", options.handCollisionBoxOffset)) return false;
+		if (!ReadFloat("HandCollisionBoxRadius", options.handCollisionBoxRadius)) return false;
 
-		float pointingVectorX, pointingVectorY, pointingVectorZ;
-		if (!GetConfigOptionFloat("Settings", "PointingVectorX", &pointingVectorX)) return false;
-		if (!GetConfigOptionFloat("Settings", "PointingVectorY", &pointingVectorY)) return false;
-		if (!GetConfigOptionFloat("Settings", "PointingVectorZ", &pointingVectorZ)) return false;
+		if (!ReadVector("RightShoulderHmdOffset", options.rightShoulderHmdOffset)) return false;
+		if (!ReadFloat("RightShoulderRadius", options.rightShoulderRadius)) return false;
 
-		NiPoint3 pointingVector = { pointingVectorX, pointingVectorY, pointingVectorZ };
-		if (VectorLength(pointingVector) > 0.0001f) {
-			options.pointingVector = VectorNormalized(pointingVector);
-		}
-		else {
-			_WARNING("Supplied pointing vector is too small");
-			return false;
-		}
+		if (!ReadVector("LeftShoulderHmdOffset", options.leftShoulderHmdOffset)) return false;
+		if (!ReadFloat("LeftShoulderRadius", options.leftShoulderRadius)) return false;
 
-		float palmPositionX, palmPositionY, palmPositionZ;
-		if (!GetConfigOptionFloat("Settings", "PalmPositionX", &palmPositionX)) return false;
-		if (!GetConfigOptionFloat("Settings", "PalmPositionY", &palmPositionY)) return false;
-		if (!GetConfigOptionFloat("Settings", "PalmPositionZ", &palmPositionZ)) return false;
-		options.palmPosition = { palmPositionX, palmPositionY, palmPositionZ };
+		if (!ReadVector("MouthHmdOffset", options.mouthHmdOffset)) return false;
+		if (!ReadFloat("MouthRadius", options.mouthRadius)) return false;
 
-		float handCollisionBoxHalfExtentsX, handCollisionBoxHalfExtentsY, handCollisionBoxHalfExtentsZ;
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsX", &handCollisionBoxHalfExtentsX)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsY", &handCollisionBoxHalfExtentsY)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxHalfExtentsZ", &handCollisionBoxHalfExtentsZ)) return false;
-		options.handCollisionBoxHalfExtents = { handCollisionBoxHalfExtentsX, handCollisionBoxHalfExtentsY, handCollisionBoxHalfExtentsZ };
+		if (!ReadVector("RolloverOffsetRight", options.rolloverOffsetRight)) return false;
+		if (!ReadVector("RolloverOffsetLeft", options.rolloverOffsetLeft)) return false;
+		if (!ReadVector("RolloverRotation", options.rolloverRotation)) return false;
 
-		float handCollisionBoxOffsetX, handCollisionBoxOffsetY, handCollisionBoxOffsetZ;
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxOffsetX", &handCollisionBoxOffsetX)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxOffsetY", &handCollisionBoxOffsetY)) return false;
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxOffsetZ", &handCollisionBoxOffsetZ)) return false;
-		options.handCollisionBoxOffset = { handCollisionBoxOffsetX, handCollisionBoxOffsetY, handCollisionBoxOffsetZ };
+		if (!ReadFloat("FarCastRadius", options.farCastRadius)) return false;
+		if (!ReadFloat("FarCastDistance", options.farCastDistance)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "HandCollisionBoxRadius", &options.handCollisionBoxRadius)) return false;
-
-		float rightShoulderHmdOffsetX, rightShoulderHmdOffsetY, rightShoulderHmdOffsetZ;
-		if (!GetConfigOptionFloat("Settings", "RightShoulderHmdOffsetX", &rightShoulderHmdOffsetX)) return false;
-		if (!GetConfigOptionFloat("Settings", "RightShoulderHmdOffsetY", &rightShoulderHmdOffsetY)) return false;
-		if (!GetConfigOptionFloat("Settings", "RightShoulderHmdOffsetZ", &rightShoulderHmdOffsetZ)) return false;
-		options.rightShoulderHmdOffset = { rightShoulderHmdOffsetX, rightShoulderHmdOffsetY, rightShoulderHmdOffsetZ };
-
-		if (!GetConfigOptionFloat("Settings", "RightShoulderRadius", &options.rightShoulderRadius)) return false;
-
-		float leftShoulderHmdOffsetX, leftShoulderHmdOffsetY, leftShoulderHmdOffsetZ;
-		if (!GetConfigOptionFloat("Settings", "LeftShoulderHmdOffsetX", &leftShoulderHmdOffsetX)) return false;
-		if (!GetConfigOptionFloat("Settings", "LeftShoulderHmdOffsetY", &leftShoulderHmdOffsetY)) return false;
-		if (!GetConfigOptionFloat("Settings", "LeftShoulderHmdOffsetZ", &leftShoulderHmdOffsetZ)) return false;
-		options.leftShoulderHmdOffset = { leftShoulderHmdOffsetX, leftShoulderHmdOffsetY, leftShoulderHmdOffsetZ };
-
-		if (!GetConfigOptionFloat("Settings", "LeftShoulderRadius", &options.leftShoulderRadius)) return false;
-
-		float mouthHmdOffsetX, mouthHmdOffsetY, mouthHmdOffsetZ;
-		if (!GetConfigOptionFloat("Settings", "MouthHmdOffsetX", &mouthHmdOffsetX)) return false;
-		if (!GetConfigOptionFloat("Settings", "MouthHmdOffsetY", &mouthHmdOffsetY)) return false;
-		if (!GetConfigOptionFloat("Settings", "MouthHmdOffsetZ", &mouthHmdOffsetZ)) return false;
-		options.mouthHmdOffset = { mouthHmdOffsetX, mouthHmdOffsetY, mouthHmdOffsetZ };
-
-		if (!GetConfigOptionFloat("Settings", "MouthRadius", &options.mouthRadius)) return false;
-
-		float rolloverOffsetRightX, rolloverOffsetRightY, rolloverOffsetRightZ;
-		if (!GetConfigOptionFloat("Settings", "RolloverOffsetRightX", &rolloverOffsetRightX)) return false;
-		if (!GetConfigOptionFloat("Settings", "RolloverOffsetRightY", &rolloverOffsetRightY)) return false;
-		if (!GetConfigOptionFloat("Settings", "RolloverOffsetRightZ", &rolloverOffsetRightZ)) return false;
-		options.rolloverOffsetRight = { rolloverOffsetRightX, rolloverOffsetRightY, rolloverOffsetRightZ };
-
-		float rolloverOffsetLeftX, rolloverOffsetLeftY, rolloverOffsetLeftZ;
-		if (!GetConfigOptionFloat("Settings", "RolloverOffsetLeftX", &rolloverOffsetLeftX)) return false;
-		if (!GetConfigOptionFloat("Settings", "RolloverOffsetLeftY", &rolloverOffsetLeftY)) return false;
-		if (!GetConfigOptionFloat("Settings", "RolloverOffsetLeftZ", &rolloverOffsetLeftZ)) return false;
-		options.rolloverOffsetLeft = { rolloverOffsetLeftX, rolloverOffsetLeftY, rolloverOffsetLeftZ };
-
-		float rolloverRotationX, rolloverRotationY, rolloverRotationZ;
-		if (!GetConfigOptionFloat("Settings", "RolloverRotationX", &rolloverRotationX)) return false;
-		if (!GetConfigOptionFloat("Settings", "RolloverRotationY", &rolloverRotationY)) return false;
-		if (!GetConfigOptionFloat("Settings", "RolloverRotationZ", &rolloverRotationZ)) return false;
-		options.rolloverRotation = { rolloverRotationX, rolloverRotationY, rolloverRotationZ };
-
-		if (!GetConfigOptionFloat("Settings", "FarCastRadius", &options.farCastRadius)) return false;
-		if (!GetConfigOptionFloat("Settings", "FarCastDistance", &options.farCastDistance)) return false;
-
-		if (!GetConfigOptionFloat("Settings", "NearbyGrabBodyRadius", &options.nearbyGrabBodyRadius)) return false;
+		if (!ReadFloat("NearbyGrabBodyRadius", options.nearbyGrabBodyRadius)) return false;
 
 		float castDirectionRequiredHalfAngle;
-		if (!GetConfigOptionFloat("Settings", "CastDirectionRequiredHalfAngle", &castDirectionRequiredHalfAngle)) return false;
+		if (!ReadFloat("CastDirectionRequiredHalfAngle", castDirectionRequiredHalfAngle)) return false;
 		options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
 
 		float grabbedAngleThreshold;
-		if (!GetConfigOptionFloat("Settings", "GrabAngleThreshold", &grabbedAngleThreshold)) return false;
+		if (!ReadFloat("GrabAngleThreshold", grabbedAngleThreshold)) return false;
 		options.grabbedDotProductThreshold = cosf(grabbedAngleThreshold * 0.0174533); // degrees to radians
 
-		if (!GetConfigOptionDouble("Settings", "SelectedFadeTime", &options.selectedLeewayTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "TriggerPreemptTime", &options.triggerPressedLeewayTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "InputLeewayTime", &options.inputLeewayTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "ForceInputTime", &options.forceInputTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "PullApplyVelocityTime", &options.pullApplyVelocityTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "PullTrackHandTime", &options.pullTrackHandTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "LootSpawnInTime", &options.lootSpawnInTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "GrabFreezeNearbyVelocityTime", &options.grabFreezeNearbyVelocityTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "PullHapticFadeTime", &options.pullHapticFadeTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "GrabHapticFadeTime", &options.grabHapticFadeTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "GrabStartMaxTime", &options.grabStartMaxTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "ShoulderDropHapticFadeTime", &options.shoulderDropHapticFadeTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "MouthDropHapticFadeTime", &options.mouthDropHapticFadeTime)) return false;
-		if (!GetConfigOptionDouble("Settings", "RolloverHideTime", &options.rolloverHideTime)) return false;
+		if (!ReadDouble("SelectedFadeTime", options.selectedLeewayTime)) return false;
+		if (!ReadDouble("TriggerPreemptTime", options.triggerPressedLeewayTime)) return false;
+		if (!ReadDouble("InputLeewayTime", options.inputLeewayTime)) return false;
+		if (!ReadDouble("ForceInputTime", options.forceInputTime)) return false;
+		if (!ReadDouble("PullApplyVelocityTime", options.pullApplyVelocityTime)) return false;
+		if (!ReadDouble("PullTrackHandTime", options.pullTrackHandTime)) return false;
+		if (!ReadDouble("LootSpawnInTime", options.lootSpawnInTime)) return false;
+		if (!ReadDouble("GrabFreezeNearbyVelocityTime", options.grabFreezeNearbyVelocityTime)) return false;
+		if (!ReadDouble("PullHapticFadeTime", options.pullHapticFadeTime)) return false;
+		if (!ReadDouble("GrabHapticFadeTime", options.grabHapticFadeTime)) return false;
+		if (!ReadDouble("GrabStartMaxTime", options.grabStartMaxTime)) return false;
+		if (!ReadDouble("ShoulderDropHapticFadeTime", options.shoulderDropHapticFadeTime)) return false;
+		if (!ReadDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) return false;
+		if (!ReadDouble("RolloverHideTime", options.rolloverHideTime)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "GrabStartSpeed", &options.grabStartSpeed)) return false;
-		if (!GetConfigOptionFloat("Settings", "GrabStartAngularSpeed", &options.grabStartAngularSpeed)) return false;
+		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
+		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "PullSpeedThreshold", &options.pullSpeedThreshold)) return false;
+		if (!ReadFloat("PullSpeedThreshold", options.pullSpeedThreshold)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "RolloverScale", &options.rolloverScale)) return false;
+		if (!ReadFloat("RolloverScale", options.rolloverScale)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "ThrowVelocityThreshold", &options.throwVelocityThreshold)) return false;
-		if (!GetConfigOptionFloat("Settings", "ThrowVelocityBoostFactor", &options.throwVelocityBoostFactor)) return false;
+		if (!ReadFloat("ThrowVelocityThreshold", options.throwVelocityThreshold)) return false;
+		if (!ReadFloat("ThrowVelocityBoostFactor", options.throwVelocityBoostFactor)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "ShoulderVelocityThreshold", &options.shoulderVelocityThreshold)) return false;
-		if (!GetConfigOptionFloat("Settings", "MouthVelocityThreshold", &options.mouthVelocityThreshold)) return false;
+		if (!ReadFloat("ShoulderVelocityThreshold", options.shoulderVelocityThreshold)) return false;
+		if (!ReadFloat("MouthVelocityThreshold", options.mouthVelocityThreshold)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "PullDestinationZOffset", &options.pullDestinationZOffset)) return false;
+		if (!ReadFloat("PullDestinationZOffset", options.pullDestinationZOffset)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "PulledAngularDamping", &options.pulledAngularDamping)) return false;
+		if (!ReadFloat("PulledAngularDamping", options.pulledAngularDamping)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "PulledGrabHandAdjustDistance", &options.pulledGrabHandAdjustDistance)) return false;
+		if (!ReadFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "SelectionLockedBaseHapticStrength", &options.selectionLockedBaseHapticStrength)) return false;
-		if (!GetConfigOptionFloat("Settings", "SelectionLockedProportionalHapticStrength", &options.selectionLockedProportionalHapticStrength)) return false;
-		if (!GetConfigOptionFloat("Settings", "GrabBaseHapticStrength", &options.grabBaseHapticStrength)) return false;
-		if (!GetConfigOptionFloat("Settings", "GrabProportionalHapticStrength", &options.grabProportionalHapticStrength)) return false;
-		if (!GetConfigOptionFloat("Settings", "GrabHapticMassExponent", &options.grabHapticMassExponent)) return false;
+		if (!ReadFloat("SelectionLockedBaseHapticStrength", options.selectionLockedBaseHapticStrength)) return false;
+		if (!ReadFloat("SelectionLockedProportionalHapticStrength", options.selectionLockedProportionalHapticStrength)) return false;
+		if (!ReadFloat("GrabBaseHapticStrength", options.grabBaseHapticStrength)) return false;
+		if (!ReadFloat("GrabProportionalHapticStrength", options.grabProportionalHapticStrength)) return false;
+		if (!ReadFloat("GrabHapticMassExponent", options.grabHapticMassExponent)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "ShoulderConstantHapticStrength", &options.shoulderConstantHapticStrength)) return false;
-		if (!GetConfigOptionFloat("Settings", "ShoulderDropHapticStrength", &options.shoulderDropHapticStrength)) return false;
+		if (!ReadFloat("ShoulderConstantHapticStrength", options.shoulderConstantHapticStrength)) return false;
+		if (!ReadFloat("ShoulderDropHapticStrength", options.shoulderDropHapticStrength)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "MouthConstantHapticStrength", &options.mouthConstantHapticStrength)) return false;
-		if (!GetConfigOptionFloat("Settings", "MouthDropHapticStrength", &options.mouthDropHapticStrength)) return false;
+		if (!ReadFloat("MouthConstantHapticStrength", options.mouthConstantHapticStrength)) return false;
+		if (!ReadFloat("MouthDropHapticStrength", options.mouthDropHapticStrength)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "NearbyGrabLinearDamping", &options.nearbyGrabLinearDamping)) return false;
-		if (!GetConfigOptionFloat("Settings", "NearbyGrabAngularDamping", &options.nearbyGrabAngularDamping)) return false;
+		if (!ReadFloat("NearbyGrabLinearDamping", options.nearbyGrabLinearDamping)) return false;
+		if (!ReadFloat("NearbyGrabAngularDamping", options.nearbyGrabAngularDamping)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "NearbyGrabMaxLinearVelocity", &options.nearbyGrabMaxLinearVelocity)) return false;
-		if (!GetConfigOptionFloat("Settings", "NearbyGrabMaxAngularVelocity", &options.nearbyGrabMaxAngularVelocity)) return false;
+		if (!ReadFloat("NearbyGrabMaxLinearVelocity", options.nearbyGrabMaxLinearVelocity)) return false;
+		if (!ReadFloat("NearbyGrabMaxAngularVelocity", options.nearbyGrabMaxAngularVelocity)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "PullDurationA", &options.pullDurationA)) return false;
-		if (!GetConfigOptionFloat("Settings", "PullDurationB", &options.pullDurationB)) return false;
-		if (!GetConfigOptionFloat("Settings", "PullDurationC", &options.pullDurationC)) return false;
+		if (!ReadFloat("PullDurationA", options.pullDurationA)) return false;
+		if (!ReadFloat("PullDurationB", options.pullDurationB)) return false;
+		if (!ReadFloat("PullDurationC", options.pullDurationC)) return false;
 
-		if (!GetConfigOptionFloat("Settings", "GrabLateralWeight", &options.grabLateralWeight)) return false;
-		if (!GetConfigOptionFloat("Settings", "GrabDirectionalWeight", &options.grabDirectionalWeight)) return false;
+		if (!ReadFloat("GrabLateralWeight", options.grabLateralWeight)) return false;
+		if (!ReadFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) return false;
 
-		if (!GetConfigOptionBool("Settings", "UseLoudSoundGrab", &options.useLoudSoundGrab)) return false;
-		if (!GetConfigOptionBool("Settings", "UseLoudSoundDrop", &options.useLoudSoundDrop)) return false;
-		if (!GetConfigOptionBool("Settings", "UseLoudSoundPull", &options.useLoudSoundPull)) return false;
+		if (!ReadBool("UseLoudSoundGrab", options.useLoudSoundGrab)) return false;
+		if (!ReadBool("UseLoudSoundDrop", options.useLoudSoundDrop)) return false;
+		if (!ReadBool("UseLoudSoundPull", options.useLoudSoundPull)) return false;
 
-		if (!GetConfigOptionBool("Settings", "DisableShaders", &options.disableShaders)) return false;
-		if (!GetConfigOptionBool("Settings", "DisableLooting", &options.disableLooting)) return false;
-		if (!GetConfigOptionBool("Settings", "SkipActivateBooks", &options.skipActivateBooks)) return false;
-		if (!GetConfigOptionBool("Settings", "DisableHeadBobbingWhileGrabbed", &options.disableHeadBobbingWhileGrabbed)) return false;
-		if (!GetConfigOptionBool("Settings", "DisableFarCastWhileAimingAtNPCRight", &options.disableFarCastWhileAimingAtNPCRight)) return false;
-		if (!GetConfigOptionBool("Settings", "DisableFarCastWhileAimingAtNPCLeft", &options.disableFarCastWhileAimingAtNPCLeft)) return false;
+		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
+		if (!ReadBool("DisableLooting", options.disableLooting)) return false;
+		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
+		if (!ReadBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) return false;
+		if (!ReadBool("DisableFarCastWhileAimingAtNPCRight", options.disableFarCastWhileAimingAtNPCRight)) return false;
+		if (!ReadBool("DisableFarCastWhileAimingAtNPCLeft", options.disableFarCastWhileAimingAtNPCLeft)) return false;
 
-		if (!GetConfigOptionBool("Settings", "EnableTrigger", &options.enableTrigger)) return false;
-		if (!GetConfigOptionBool("Settings", "EnableGrip", &options.enableGrip)) return false;
+		if (!ReadBool("EnableTrigger", options.enableTrigger)) return false;
+		if (!ReadBool("EnableGrip", options.enableGrip)) return false;
 
-		if (!GetConfigOptionBool("Settings", "DisableTriggerWhenWeaponsSheathed", &options.disableTriggerWhenWeaponsSheathed)) return false;
+		if (!ReadBool("DisableTriggerWhenWeaponsSheathed", options.disableTriggerWhenWeaponsSheathed)) return false;
 
-		if (!GetConfigOptionBool("Settings", "DelayRightGripInput", &options.delayRightGripInput)) return false;
-		if (!GetConfigOptionBool("Settings", "DelayLeftGripInput", &options.delayLeftGripInput)) return false;
+		if (!ReadBool("DelayRightGripInput", options.delayRightGripInput)) return false;
+		if (!ReadBool("DelayLeftGripInput", options.delayLeftGripInput)) return false;
 
 		return true;
 	}
@@ -248,7 +240,7 @@ namespace Config {
 		return s_configPath;
 	}
 
-	std::string GetConfigOption(const char * section, const char * key)
+	std::string GetConfigOption(const char *section, const char *key)
 	{
 		std::string	result;
 
