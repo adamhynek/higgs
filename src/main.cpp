@@ -105,14 +105,8 @@ bool TryHook()
 }
 
 
-void FillControllerVelocities(NiNode *playerWorldNode, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
+void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
-	static BSFixedString hmdStr("HmdNode");
-	NiPointer<NiAVObject> hmdObj = playerWorldNode->GetObjectByName(&hmdStr.data);
-	if (!hmdObj)
-		return;
-	NiNode *hmdNode = hmdObj->GetAsNiNode();
-
 	if (g_openVR && *g_openVR) {
 		BSOpenVR *openVR = *g_openVR;
 		vr_src::IVRSystem *vrSystem = openVR->vrSystem;
@@ -194,41 +188,31 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!player || !player->GetNiNode())
 		return true;
 
-	NiPointer<NiAVObject> rootObj = GetHighestParent(player->GetNiNode());
-	if (!rootObj)
-		return true;
-
-	Config::ReloadIfModified(); // TODO: Remove
+	//Config::ReloadIfModified(); // TODO: Remove
 
 	g_currentFrameTime = GetTime();
 
-	NiNode *rootNode = rootObj->GetAsNiNode();
-	if (!rootNode)
-		return true;
-
-	static BSFixedString playerWorldNodeName("PlayerWorldNode");
-	NiPointer<NiAVObject> playerWorldObj = rootNode->GetObjectByName(&playerWorldNodeName.data);
-	if (!playerWorldObj)
-		return true;
-
-	NiNode *playerWorldNode = playerWorldObj->GetAsNiNode();
+	NiPointer<NiAVObject> playerWorldObj = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
+	NiNode *playerWorldNode = playerWorldObj ? playerWorldObj->GetAsNiNode() : nullptr;
 	if (!playerWorldNode)
 		return true;
 
-	static BSFixedString rightWandStr("RightWandNode");
-	NiPointer<NiAVObject> rightWandObj = playerWorldObj->GetObjectByName(&rightWandStr.data);
-	if (!rightWandObj) {
+	NiPointer<NiAVObject> rightWandObj = player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
+	NiNode *rightWandNode = rightWandObj ? rightWandObj->GetAsNiNode() : nullptr;
+	if (!rightWandNode) {
 		return true;
 	}
-	NiNode *rightWandNode = rightWandObj->GetAsNiNode();
 
-	static BSFixedString leftWandStr("LeftWandNode");
-	NiPointer<NiAVObject> leftWandObj = playerWorldObj->GetObjectByName(&leftWandStr.data);
-	if (!leftWandObj)
+	NiPointer<NiAVObject> leftWandObj = player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode];
+	NiNode *leftWandNode = leftWandObj ? leftWandObj->GetAsNiNode() : nullptr;
+	if (!leftWandNode)
 		return true;
-	NiNode *leftWandNode = leftWandObj->GetAsNiNode();
 
-	FillControllerVelocities(playerWorldNode, pGamePoseArray, unGamePoseArrayCount);
+	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
+	if (!hmdNode)
+		return true;
+
+	FillControllerVelocities(hmdNode, pGamePoseArray, unGamePoseArrayCount);
 
 	bool isLeftHanded = *g_leftHandedMode;
 

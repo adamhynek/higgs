@@ -81,6 +81,7 @@ struct bhkRigidBody : bhkEntity
 	bhkConstraint **constraints; // 28 - ptr to array of constraint ptrs. Size is at 0x38
 	UInt64 unk30;
 	UInt32 numConstraints; // 38
+	// pretty sure size is 40
 };
 static_assert(offsetof(bhkRigidBody, numConstraints) == 0x38);
 

@@ -934,8 +934,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	if (isLeft) pointingVectorHandspace.x *= -1;
 	NiPoint3 pointingVector = VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);
 
-	BSFixedString hmdNodeStr("HmdNode");
-	NiPointer<NiAVObject> hmdNode = playerWorldNode->GetObjectByName(&hmdNodeStr.data);
+	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
 	if (!hmdNode)
 		return;
 
@@ -1091,8 +1090,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	if (state == State::GrabExternal) {
-		// TODO: INV extradata / BSInvMarker is a thing... gives rotation in inventory. Use that to fit into the hand better?
-
 		if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
 			state = State::Idle;
 		}
@@ -2532,11 +2529,11 @@ void Grabber::SetupRollover()
 		PlayerCharacter *player = *g_thePlayer;
 		if (player) {
 			NiPointer<NiAVObject> wandNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
-			NiPointer<NiAVObject> playerWorldObj = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
-			NiNode *playerWorldNode = playerWorldObj ? playerWorldObj->GetAsNiNode() : nullptr;
-			if (wandNode && playerWorldNode) {
+			NiPointer<NiAVObject> roomObj = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+			NiNode *roomNode = roomObj ? roomObj->GetAsNiNode() : nullptr;
+			if (wandNode && roomNode) {
 				static BSFixedString rolloverNodeStr("WSActivateRollover");
-				NiPointer<NiAVObject> rolloverNode = playerWorldNode->GetObjectByName(&rolloverNodeStr.data);
+				NiPointer<NiAVObject> rolloverNode = roomNode->GetObjectByName(&rolloverNodeStr.data);
 				if (rolloverNode) {
 					NiTransform desiredLocal;
 					desiredLocal.pos = rolloverOffset;
