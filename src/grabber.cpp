@@ -2223,6 +2223,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab)
 {
+	bool wasTriggerDisabledLastFrame = isTriggerDisabled;
+	isTriggerDisabled = false;
+
 	// Check inputs and calculate rising/falling edge even if a menu is open
 	bool triggerDownBefore = triggerDown;
 	bool gripDownBefore = gripDown;
@@ -2353,8 +2356,9 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 		}
 	}
 
-	if (Config::options.disableTriggerWhenWeaponsSheathed && pc && !pc->actorState.IsWeaponDrawn()) {
+	if (Config::options.disableTriggerWhenWeaponsSheathed && pc && !pc->actorState.IsWeaponDrawn() && (wasTriggerDisabledLastFrame || triggerRisingEdge)) {
 		pControllerState->ulButtonPressed &= ~triggerMask;
+		isTriggerDisabled = true;
 	}
 }
 
