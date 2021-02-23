@@ -1,6 +1,7 @@
 #include <numeric>
 #include <regex>
 #include <sstream>
+#include <chrono>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -106,49 +107,54 @@ void HapticsManager::TriggerHapticPulse(float duration)
 
 void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, float duration)
 {
-	HapticsManager::HapticEvent hapticEvent;
+	HapticEvent hapticEvent;
 	hapticEvent.startStrength = startStrength;
 	hapticEvent.endStrength = endStrength;
 	hapticEvent.duration = duration;
 	hapticEvent.startTime = g_currentFrameTime;
 
-	events.push_back(hapticEvent);
+	{
+		std::scoped_lock lock(eventsLock);
+		events.push_back(hapticEvent);
+	}
 }
 
 void HapticsManager::QueueHapticPulse(float strength)
 {
-	HapticEvent evnt;
-	evnt.startStrength = strength;
-	evnt.endStrength = strength;
-	evnt.duration = 0;
-	evnt.startTime = g_currentFrameTime;
-
-	events.push_back(evnt);
+	QueueHapticEvent(strength, strength, *g_deltaTime * 2.0f);
 }
 
-void HapticsManager::Update()
+void HapticsManager::Loop()
 {
-	size_t numEvents = events.size();
-	if (numEvents > 0) {
-		// Just play the last event that was added
-		HapticEvent &lastEvent = events[numEvents - 1];
+	while (true) {
+		{
+			std::scoped_lock lock(eventsLock);
 
-		float strength;
-		if (lastEvent.duration == 0) {
-			strength = lastEvent.startStrength;
-		}
-		else {
-			// Simple lerp from start to end strength over duration
-			double elapsedTime = g_currentFrameTime - lastEvent.startTime;
-			strength = lerp(lastEvent.startStrength, lastEvent.endStrength, min(1.0f, elapsedTime / lastEvent.duration));
-		}
-		TriggerHapticPulse(strength);
+			size_t numEvents = events.size();
+			if (numEvents > 0) {
+				// Just play the last event that was added
+				HapticEvent &lastEvent = events[numEvents - 1];
 
-		// Cleanup events that are past their duration
-		auto end = std::remove_if(events.begin(), events.end(),
-			[](HapticEvent &evnt) { return g_currentFrameTime - evnt.startTime > evnt.duration; }
-		);
-		events.erase(end, events.end());
+				float strength;
+				if (lastEvent.duration == 0) {
+					strength = lastEvent.startStrength;
+				}
+				else {
+					// Simple lerp from start to end strength over duration
+					double elapsedTime = g_currentFrameTime - lastEvent.startTime;
+					strength = lerp(lastEvent.startStrength, lastEvent.endStrength, min(1.0f, elapsedTime / lastEvent.duration));
+				}
+				TriggerHapticPulse(strength);
+
+				// Cleanup events that are past their duration
+				auto end = std::remove_if(events.begin(), events.end(),
+					[](HapticEvent &evnt) { return g_currentFrameTime - evnt.startTime > evnt.duration; }
+				);
+				events.erase(end, events.end());
+			}
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(5));
 	}
 }
 
@@ -754,6 +760,9 @@ bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, cons
 {
 	if (selectedObject.isActor) return false;
 
+	TESForm *baseForm = refr->baseForm;
+	if (!baseForm || !baseForm->IsPlayable()) return false;
+
 	float speed = 0;
 	for (auto velocity : controllerVelocities) {
 		speed += VectorLength(velocity);
@@ -782,7 +791,12 @@ bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, cons
 bool Grabber::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
 {
 	TESForm *baseForm = refr->baseForm;
-	if (!baseForm || baseForm->formType != kFormType_Potion) {
+	if (!baseForm || !baseForm->IsPlayable() || (baseForm->formType != kFormType_Potion && baseForm->formType != kFormType_Ingredient)) {
+		return false;
+	}
+
+	auto potion = DYNAMIC_CAST(baseForm, TESForm, AlchemyItem);
+	if (potion && (potion->IsPoison() && !Config::options.enableDrinkPoison)) {
 		return false;
 	}
 
@@ -960,8 +974,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			playerCollisionGroup = comRigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
 		}
 	}
-
-	haptics.Update();
 
 	bhkWorld *world = GetWorld(cell);
 	if (!world) {

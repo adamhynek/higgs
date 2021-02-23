@@ -191,6 +191,7 @@ namespace Config {
 		if (!ReadBool("EnableGrip", options.enableGrip)) return false;
 
 		if (!ReadBool("DisableTriggerWhenWeaponsSheathed", options.disableTriggerWhenWeaponsSheathed)) return false;
+		if (!ReadBool("EnableDrinkPoison", options.enableDrinkPoison)) return false;
 
 		if (!ReadBool("DelayRightGripInput", options.delayRightGripInput)) return false;
 		if (!ReadBool("DelayLeftGripInput", options.delayLeftGripInput)) return false;

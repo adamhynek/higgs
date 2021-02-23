@@ -27,16 +27,19 @@ struct HapticsManager
 	};
 
 	HapticsManager(BSVRInterface::BSControllerHand hand) :
-		hand(hand)
+		hand(hand),
+		thread(&HapticsManager::Loop, this)
 	{}
 
 	BSVRInterface::BSControllerHand hand;
 	std::vector<HapticEvent> events;
+	std::mutex eventsLock;
+	std::thread thread;
 
 	void TriggerHapticPulse(float duration);
 	void QueueHapticEvent(float startStrength, float endStrength, float duration);
 	void QueueHapticPulse(float duration);
-	void Update();
+	void Loop();
 };
 
 
