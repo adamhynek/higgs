@@ -373,14 +373,12 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 }
 
 
-bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
-	NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint)
+bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
+	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint)
 {
 	if (!allowGrab) {
 		return false;
 	}
-
-	bool isSomethingSelected = false;
 
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
@@ -425,11 +423,10 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 				NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
 				float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
 				if (dist < closestDistance) {
-					*closestObj = ref;
-					*closestRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-					*closestPoint = pair.second;
+					closestObj = ref;
+					closestRigidBody = (bhkRigidBody *)rigidBody->m_userData;
+					closestPoint = pair.second;
 					closestDistance = dist;
-					isSomethingSelected = true;
 				}
 			}
 		}
@@ -441,7 +438,94 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	sphereShape->m_radius = radiusBefore;
 	sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
 
-	return isSomethingSelected;
+	return closestDistance != (std::numeric_limits<float>::max)();
+}
+
+
+bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
+	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint)
+{
+	NiPoint3 hkTargetPos = hkPalmNodePos + castDirection * Config::options.farCastDistance;
+
+	NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
+
+	// First, raycast in the pointing direction
+	rayHitCollector.reset();
+	rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
+	rayCastInput.m_from = NiPointToHkVector(hkPalmNodePos);
+	rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
+	world->worldLock.LockForRead();
+	hkpWorld_CastRay(world->world, &rayCastInput, &rayHitCollector);
+	world->worldLock.UnlockRead();
+	if (rayHitCollector.m_doesHitExist) {
+		// If raycast hit, we want to linearcast only up to the ray hit location
+		NiPoint3 handToTarget = hkTargetPos - hkPalmNodePos;
+		hitPosition = hkPalmNodePos + (handToTarget * rayHitCollector.m_closestHitInfo.m_hitFraction);// -(VectorNormalized(handToTarget) * Config::options.castRadius);
+	}
+
+	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+
+	// Save sphere properties so we can change them and restore them later
+	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
+	float radiusBefore = sphereShape->getRadius();
+	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
+
+	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
+	sphereShape->m_radius = Config::options.farCastRadius;
+	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
+
+	// Now, linearcast up to the point the raycast hit, or up to the limit if it's empty space
+	// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
+	linearCastInput.m_to = NiPointToHkVector(hitPosition);
+	cdPointCollector.reset();
+
+	world->worldLock.LockForRead();
+	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
+
+	// Process result of cast
+	float closestDistance = (std::numeric_limits<float>::max)();
+	for (auto pair : cdPointCollector.m_hits) {
+		auto collidable = static_cast<hkpCollidable *>(pair.first);
+		if (other.HasExclusiveObject() && collidable == other.selectedObject.collidable) {
+			continue;
+		}
+		hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+		if (!rigidBody || !rigidBody->m_userData) {
+			continue; // No rigidbody -> no movement :/
+		}
+		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
+		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
+		if (ref && ref != *g_thePlayer) {
+			if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
+				if (ref->baseForm->formType == kFormType_Projectile) {
+					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
+					if (!impactData) {
+						// Only grab projectiles that are not mid flight
+						continue;
+					}
+				}
+				// Get distance from the hit on the collidable to the ray
+				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
+				NiPoint3 handToHit = hit - hkPalmNodePos;
+				NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
+				float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+				if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
+					closestObj = ref;
+					closestRigidBody = bRigidBody;
+					closestPoint = pair.second;
+					closestDistance = dist;
+				}
+			}
+		}
+	}
+
+	world->worldLock.UnlockRead();
+
+	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
+	sphereShape->m_radius = radiusBefore;
+	sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
+
+	return closestDistance != (std::numeric_limits<float>::max)();
 }
 
 
@@ -1140,10 +1224,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		hkContactPoint closestPoint;
 
 		bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, palmVector, sphere,
-			&closestObj, &closestRigidBody, &closestPoint);
+			closestObj, closestRigidBody, closestPoint);
 
 		if (!isSelectedNear) {
-			// Nothing close by the hand. Check for stuff pointing from from the palm
+			// Nothing close by the hand. Check for stuff pointing from the palm
 
 			bool doFarCast = allowGrab;
 
@@ -1161,85 +1245,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			}
 
 			if (doFarCast) {
-				// Convert hand position from skyrim coords to havok coords
-				NiPoint3 hkHmdPos = hmdPos * havokWorldScale;
-
-				NiPoint3 hkTargetPos = hkPalmNodePos + pointingVector * Config::options.farCastDistance;
-
-				NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
-
-				// First, raycast in the pointing direction
-				rayHitCollector.reset();
-				rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
-				rayCastInput.m_from = NiPointToHkVector(hkPalmNodePos);
-				rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
-				world->worldLock.LockForRead();
-				hkpWorld_CastRay(world->world, &rayCastInput, &rayHitCollector);
-				world->worldLock.UnlockRead();
-				if (rayHitCollector.m_doesHitExist) {
-					// If raycast hit, we want to linearcast only up to the ray hit location
-					NiPoint3 handToTarget = hkTargetPos - hkPalmNodePos;
-					hitPosition = hkPalmNodePos + (handToTarget * rayHitCollector.m_closestHitInfo.m_hitFraction);// -(VectorNormalized(handToTarget) * Config::options.castRadius);
-				}
-
-				// Now, linearcast up to the point the raycast hit, or up to the limit if it's empty space
-				// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
-				sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
-				sphereShape->m_radius = Config::options.farCastRadius;
-				sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmNodePos);
-
-				linearCastInput.m_to = NiPointToHkVector(hitPosition);
-				cdPointCollector.reset();
-
-				world->worldLock.LockForRead();
-				hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
-
-				// Process result of cast
-				float closestDistance = (std::numeric_limits<float>::max)();
-				for (auto pair : cdPointCollector.m_hits) {
-					auto collidable = static_cast<hkpCollidable *>(pair.first);
-					if (other.HasExclusiveObject() && collidable == other.selectedObject.collidable) {
-						continue;
-					}
-					hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
-					if (!rigidBody || !rigidBody->m_userData) {
-						continue; // No rigidbody -> no movement :/
-					}
-					bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-					NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
-					if (ref && ref != player) {
-						if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
-							if (ref->baseForm->formType == kFormType_Projectile) {
-								auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
-								if (!impactData) {
-									// Only grab projectiles that are not mid flight
-									continue;
-								}
-							}
-							// Get distance from the hit on the collidable to the ray
-							NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
-							NiPoint3 handToHit = hit - hkPalmNodePos;
-							NiPoint3 handToHitAlongRay = pointingVector * DotProduct(handToHit, pointingVector); // project above vector onto ray
-							float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
-							if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
-								closestObj = ref;
-								closestRigidBody = bRigidBody;
-								closestPoint = pair.second;
-								closestDistance = dist;
-							}
-						}
-					}
-				}
-
-				world->worldLock.UnlockRead();
-
-				sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
-				sphereShape->m_radius = radiusBefore;
-				sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
+				FindFarObject(world, other, hkPalmNodePos, pointingVector, hmdPos * havokWorldScale, hmdForward, sphere,
+					closestObj, closestRigidBody, closestPoint);
 			}
 		}
 
-		// Check if we should select something new. If yes, stay in SELECTED but select the new object
+		// Check if we should select something new. If yes, stay in a selected state but select the new object
 		bool isSelectedThisFrame = false;
 		UInt32 prevSelectedHandle = selectedObject.handle;
 		if (closestObj) {
@@ -1834,7 +1845,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				NiPointer<bhkRigidBody> closestRigidBody;
 				hkContactPoint closestPoint;
 				bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmNodePos, palmVector, sphere,
-					&closestObj, &closestRigidBody, &closestPoint);
+					closestObj, closestRigidBody, closestPoint);
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
 				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {

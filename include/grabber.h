@@ -129,8 +129,10 @@ struct Grabber
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void ResetNearbyDamping();
 	void FindBodiesToFreeze(bhkWorld &world);
-	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, NiPoint3 &hkPalmNodePos, NiPoint3 &castDirection, bhkSimpleShapePhantom *sphere,
-		NiPointer<TESObjectREFR> *closestObj, NiPointer<bhkRigidBody> *closestRigidBody, hkContactPoint *closestPoint);
+	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
+		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
+	bool FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
+		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
 	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
