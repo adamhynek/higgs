@@ -18,14 +18,14 @@ namespace HiggsPluginAPI {
 	struct HiggsInterface001 : IHiggsInterface001
 	{
 		// Gets the HIGGS build number
-		virtual unsigned int getBuildNumber();
+		virtual unsigned int GetBuildNumber();
 
-		virtual void addPulledCallback(PulledCallback Callback);
-		virtual void addGrabbedCallback(GrabbedCallback callback);
-		virtual void addDroppedCallback(DroppedCallback callback);
-		virtual void addStashedCallback(StashedCallback callback);
-		virtual void addConsumedCallback(ConsumedCallback callback);
-		virtual void addCollisionCallback(CollisionCallback callback);
+		virtual void AddPulledCallback(PulledCallback Callback);
+		virtual void AddGrabbedCallback(GrabbedCallback callback);
+		virtual void AddDroppedCallback(DroppedCallback callback);
+		virtual void AddStashedCallback(StashedCallback callback);
+		virtual void AddConsumedCallback(ConsumedCallback callback);
+		virtual void AddCollisionCallback(CollisionCallback callback);
 
 		virtual void GrabObject(TESObjectREFR *object, bool isLeft);
 		virtual TESObjectREFR * GetGrabbedObject(bool isLeft);

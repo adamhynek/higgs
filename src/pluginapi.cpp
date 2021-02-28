@@ -17,7 +17,7 @@ struct HiggsMessage {
 HiggsInterface001 g_interface001;
 
 // Constructs and returns an API of the revision number requested
-void * getApi(unsigned int revisionNumber) {
+void * GetApi(unsigned int revisionNumber) {
 	switch (revisionNumber) {
 	case 1:	_MESSAGE("Interface revision 1 requested"); return &g_interface001;
 	}
@@ -28,7 +28,7 @@ void * getApi(unsigned int revisionNumber) {
 void HiggsPluginAPI::ModMessageHandler(SKSEMessagingInterface::Message * message) {
 	if (message->type == HiggsMessage::kMessage_GetInterface) {
 		HiggsMessage * higgsMessage = (HiggsMessage*)message->data;
-		higgsMessage->getApiFunction = getApi;
+		higgsMessage->getApiFunction = GetApi;
 		_MESSAGE("Provided HIGGS plugin interface to \"%s\"", message->sender);
 	}
 }
@@ -37,41 +37,41 @@ void HiggsPluginAPI::ModMessageHandler(SKSEMessagingInterface::Message * message
 constexpr int higgsBuildNumber = FPVR_VERSION_MAJOR * 1000000 + FPVR_VERSION_MINOR * 10000 + FPVR_VERSION_PATCH * 100 + FPVR_VERSION_BETA;
 
 // Fetches the HIGGS version number
-unsigned int HiggsInterface001::getBuildNumber() {
+unsigned int HiggsInterface001::GetBuildNumber() {
 	return higgsBuildNumber;
 }
 
-void HiggsInterface001::addPulledCallback(PulledCallback callback) {
+void HiggsInterface001::AddPulledCallback(PulledCallback callback) {
 	if (!callback) return;
 	std::scoped_lock lock(addCallbackLock);
 	pulledCallbacks.push_back(callback);
 }
 
-void HiggsInterface001::addGrabbedCallback(GrabbedCallback callback) {
+void HiggsInterface001::AddGrabbedCallback(GrabbedCallback callback) {
 	if (!callback) return;
 	std::scoped_lock lock(addCallbackLock);
 	grabbedCallbacks.push_back(callback);
 }
 
-void HiggsInterface001::addDroppedCallback(DroppedCallback callback) {
+void HiggsInterface001::AddDroppedCallback(DroppedCallback callback) {
 	if (!callback) return;
 	std::scoped_lock lock(addCallbackLock);
 	droppedCallbacks.push_back(callback);
 }
 
-void HiggsInterface001::addStashedCallback(StashedCallback callback) {
+void HiggsInterface001::AddStashedCallback(StashedCallback callback) {
 	if (!callback) return;
 	std::scoped_lock lock(addCallbackLock);
 	stashedCallbacks.push_back(callback);
 }
 
-void HiggsInterface001::addConsumedCallback(ConsumedCallback callback) {
+void HiggsInterface001::AddConsumedCallback(ConsumedCallback callback) {
 	if (!callback) return;
 	std::scoped_lock lock(addCallbackLock);
 	consumedCallbacks.push_back(callback);
 }
 
-void HiggsInterface001::addCollisionCallback(CollisionCallback callback) {
+void HiggsInterface001::AddCollisionCallback(CollisionCallback callback) {
 	if (!callback) return;
 	std::scoped_lock lock(addCallbackLock);
 	collisionCallbacks.push_back(callback);
