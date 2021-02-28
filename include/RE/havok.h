@@ -54,6 +54,10 @@ struct bhkWorld : NiRefObject
 	ahkpWorld * world; // 10
 	UInt8 unk18[0xC598 - 0x18];
 	BSReadWriteLock worldLock; // C598
+	// C570 is bhkConstraintProjector
+	// C5C0 is TESTrapListener
+	// C5C8 is BGSAcousticSpaceListener
+	// C5D0 is hkpSuspendInactiveAgentsUtil
 };
 static_assert(offsetof(bhkWorld, world) == 0x10);
 static_assert(offsetof(bhkWorld, worldLock) == 0xC598);

@@ -536,61 +536,38 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 }
 
 
-void Grabber::UpdateHandCollision(bhkWorld *world, NiAVObject *handNode)
+void Grabber::CreateHandCollision(bhkWorld *world)
 {
-	if (world->world != handCollBody->m_world) {
-		if (handCollBody->m_world) {
-			// If exists, remove the hand entity from the previous world
-			_MESSAGE("%s: Removing collision for hand", name);
+	UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
 
-			bhkWorld *oldWorld = (bhkWorld *)static_cast<ahkpWorld *>(handCollBody->m_world)->m_userData;
-			oldWorld->worldLock.LockForWrite();
-			hkBool ret;
-			hkpWorld_RemoveEntity(handCollBody->m_world, &ret, handCollBody);
-			oldWorld->worldLock.UnlockWrite();
-		}
+	UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+	filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+	filterInfo |= (ragdollBits << 8);
 
-		_MESSAGE("%s: Adding collision for hand", name);
+	// Add collision object for the hand
+	hkpBoxShape_ctor(handCollShape, NiPointToHkVector(Config::options.handCollisionBoxHalfExtents), Config::options.handCollisionBoxRadius);
+	hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
+	handCollCInfo->m_shape = handCollShape;
+	handCollCInfo->m_collisionFilterInfo = filterInfo;
+	handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+	handCollCInfo->m_enableDeactivation = false;
+	handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 
-		world->worldLock.LockForWrite();
+	hkpRigidBody_ctor(handCollBody, handCollCInfo);
 
-		// Create our own layer in the first ununsed vanilla layer (56)
-		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-		UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
+	hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+}
 
-		bitfield |= ((UInt64)1 << 56); // collide with ourselves
-		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
-		worldFilter->layerBitfields[56] = bitfield;
-		worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
-		// Set whether other layers should collide with our new layer
-		for (int i = 0; i < 56; i++) {
-			if ((bitfield >> i) & 1) {
-				worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
-			}
-		}
 
-		UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
+void Grabber::RemoveHandCollision(bhkWorld *world)
+{
+	hkBool ret;
+	hkpWorld_RemoveEntity(world->world, &ret, handCollBody);
+}
 
-		UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
-		filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
-		filterInfo |= (ragdollBits << 8);
 
-		// Add collision object for the hand
-		hkpBoxShape_ctor(handCollShape, NiPointToHkVector(Config::options.handCollisionBoxHalfExtents), Config::options.handCollisionBoxRadius);
-		hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
-		handCollCInfo->m_shape = handCollShape;
-		handCollCInfo->m_collisionFilterInfo = filterInfo;
-		handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
-		handCollCInfo->m_enableDeactivation = false;
-		handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
-
-		hkpRigidBody_ctor(handCollBody, handCollCInfo);
-
-		hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
-
-		world->worldLock.UnlockWrite();
-	}
-
+void Grabber::UpdateHandCollision(NiAVObject *handNode)
+{
 	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
@@ -1144,7 +1121,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	//}
 
 
-	UpdateHandCollision(world, handNode);
+	UpdateHandCollision(handNode);
 
 	// Update velocities to this frame
 	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;

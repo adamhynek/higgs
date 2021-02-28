@@ -118,7 +118,6 @@ struct Grabber
 		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
 		handCollCInfo = (hkpRigidBodyCinfo *)malloc(sizeof(hkpRigidBodyCinfo));
 		handCollBody = (hkpRigidBody *)malloc(sizeof(hkpRigidBody));
-		handCollBody->m_world = nullptr; // a bit weird, but we want to make sure it's 0 for when we check it
 	};
 
 	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
@@ -134,7 +133,9 @@ struct Grabber
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
 	bool FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
-	void UpdateHandCollision(bhkWorld *world, NiAVObject *handNode);
+	void CreateHandCollision(bhkWorld *world);
+	void RemoveHandCollision(bhkWorld *world);
+	void UpdateHandCollision(NiAVObject *handNode);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
 	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);

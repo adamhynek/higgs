@@ -66,6 +66,63 @@ std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g
 PlayingShader *g_playingShaders; // size == 2
 std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
 
+struct ContactListener : hkpContactListener
+{
+	virtual void contactPointCallback(const hkpContactPointEvent& evnt)
+	{
+		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
+		hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
+
+		bool isARight = rigidBodyA == g_rightGrabber->handCollBody;
+		bool isBRight = rigidBodyB == g_rightGrabber->handCollBody;
+		bool isALeft = rigidBodyA == g_leftGrabber->handCollBody;
+		bool isBLeft = rigidBodyB == g_leftGrabber->handCollBody;
+
+		bool rightHasHeld = g_rightGrabber->HasHeldObject();
+		bool leftHasHeld = g_leftGrabber->HasHeldObject();
+
+		bool isAHeldRight = &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
+		bool isBHeldRight = &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
+		bool isAHeldLeft = &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
+		bool isBHeldLeft = &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
+
+		bool isHand = isARight || isBRight || isALeft || isBLeft;
+		bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
+		if (!isHand && !isHeld) return;
+
+		ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
+
+		if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
+			return;
+		}
+
+		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldLeft || isAHeldRight) ? rigidBodyB : rigidBodyA;
+		float inverseMass = otherBody->getMassInv();
+		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
+
+		bool isLeft = isALeft || isBLeft || isAHeldLeft || isBHeldLeft;
+
+		float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
+
+		if (separatingVelocity >= Config::options.collisionMinHapticSpeed) {
+			float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
+			float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
+			float hapticStrength = min(1.0f, Config::options.collisionBaseHapticStrength + speedComponent + massComponent);
+			if (isLeft) {
+				g_leftGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+			}
+			else {
+				g_rightGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+			}
+
+			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+		}
+	}
+
+	NiPointer<bhkWorld> world = nullptr;
+};
+ContactListener *contactListener = nullptr;
+
 
 bool TryHook()
 {
@@ -179,62 +236,23 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 }
 
 
-struct ContactListener : hkpContactListener
+void CreateCustomCollisionLayer(bhkWorld *world)
 {
-	virtual void contactPointCallback(const hkpContactPointEvent& evnt)
-	{
-		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
-		hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
+	// Create our own layer in the first ununsed vanilla layer (56)
+	bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
+	UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
 
-		bool isARight = rigidBodyA == g_rightGrabber->handCollBody;
-		bool isBRight = rigidBodyB == g_rightGrabber->handCollBody;
-		bool isALeft = rigidBodyA == g_leftGrabber->handCollBody;
-		bool isBLeft = rigidBodyB == g_leftGrabber->handCollBody;
-
-		bool rightHasHeld = g_rightGrabber->HasHeldObject();
-		bool leftHasHeld = g_leftGrabber->HasHeldObject();
-
-		bool isAHeldRight = &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
-		bool isBHeldRight = &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
-		bool isAHeldLeft = &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
-		bool isBHeldLeft = &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
-
-		bool isHand = isARight || isBRight || isALeft || isBLeft;
-		bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
-		if (!isHand && !isHeld) return;
-
-		ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
-
-		if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
-			return;
-		}
-
-		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldLeft || isAHeldRight) ? rigidBodyB : rigidBodyA;
-		float inverseMass = otherBody->getMassInv();
-		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
-
-		bool isLeft = isALeft || isBLeft || isAHeldLeft || isBHeldLeft;
-
-		float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
-
-		if (separatingVelocity >= Config::options.collisionMinHapticSpeed) {
-			float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
-			float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
-			float hapticStrength = min(1.0f, Config::options.collisionBaseHapticStrength + speedComponent + massComponent);
-			if (isLeft) {
-				g_leftGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
-			}
-			else {
-				g_rightGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
-			}
-
-			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+	bitfield |= ((UInt64)1 << 56); // collide with ourselves
+	bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
+	worldFilter->layerBitfields[56] = bitfield;
+	worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
+	// Set whether other layers should collide with our new layer
+	for (int i = 0; i < 56; i++) {
+		if ((bitfield >> i) & 1) {
+			worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
 		}
 	}
-
-	bhkWorld *world = nullptr;
-};
-ContactListener contactListener;
+}
 
 
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
@@ -281,26 +299,35 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		return true;
 	}
 
-	if (world != contactListener.world) {
-		bhkWorld *oldWorld = contactListener.world;
+	if (world != contactListener->world) {
+		bhkWorld *oldWorld = contactListener->world;
 		if (oldWorld) {
 			// If exists, remove the listener from the previous world
-			_MESSAGE("Removing collision listener");
+			_MESSAGE("Removing collision listener and hand collision");
 
 			{
 				BSWriteLocker lock(&oldWorld->worldLock);
-				hkpWorld_removeContactListener(oldWorld->world, &contactListener);
+
+				hkpWorld_removeContactListener(oldWorld->world, contactListener);
+				g_rightGrabber->RemoveHandCollision(oldWorld);
+				g_leftGrabber->RemoveHandCollision(oldWorld);
 			}
 		}
 
-		_MESSAGE("Adding collision listener");
+		_MESSAGE("Adding collision listener and hand collision");
 
 		{
 			BSWriteLocker lock(&world->worldLock);
-			hkpWorld_addContactListener(world->world, &contactListener);
+
+			CreateCustomCollisionLayer(world);
+
+			hkpWorld_addContactListener(world->world, contactListener);
+
+			g_rightGrabber->CreateHandCollision(world);
+			g_leftGrabber->CreateHandCollision(world);
 		}
 
-		contactListener.world = world;
+		contactListener->world = world;
 	}
 
 	FillControllerVelocities(hmdNode, pGamePoseArray, unGamePoseArrayCount);
@@ -492,6 +519,8 @@ extern "C" {
 
 		g_playingShaders = new PlayingShader[2];
 		g_effectDataMap = new std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>>;
+
+		contactListener = new ContactListener;
 
 		NiPoint3 rightPalm = Config::options.palmPosition;
 		NiPoint3 leftPalm = rightPalm;
