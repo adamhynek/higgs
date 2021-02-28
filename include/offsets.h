@@ -63,6 +63,8 @@ extern RelocPtr<BSAudioManager *> g_audioManager;
 struct ShadowSceneNode : NiNode { /* TODO */ };
 extern RelocPtr<ShadowSceneNode *> g_shadowSceneNode;
 
+extern RelocPtr<float> g_minSoundVel;
+
 
 typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);
 extern RelocAddr<_BSVRInterface_GetHandTransform> BSOpenVR_GetHandTransform;
@@ -75,6 +77,9 @@ extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList
 
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
 extern RelocAddr<_IsInMenuMode> IsInMenuMode;
+
+typedef bool(*_ObjectReference_SetActorCause)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, Actor *actor);
+extern RelocAddr<_ObjectReference_SetActorCause> ObjectReference_SetActorCause;
 
 typedef bool(*_ObjectReference_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
 extern RelocAddr<_ObjectReference_Activate> ObjectReference_Activate;
@@ -141,6 +146,12 @@ extern RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisi
 
 typedef void(*_bhkWorld_UpdateCollisionFilterOnEntity)(bhkWorld *world, hkpEntity* entity);
 extern RelocAddr<_bhkWorld_UpdateCollisionFilterOnEntity> bhkWorld_UpdateCollisionFilterOnEntity;
+
+typedef void(*_ContactListener_PreprocessContactPointEvent)(hkpContactListener *listener, const hkpContactPointEvent &evnt);
+extern RelocAddr<_ContactListener_PreprocessContactPointEvent> ContactListener_PreprocessContactPointEvent;
+
+typedef float(*_hkpSimpleContactConstraintUtil_calculateSeparatingVelocity)(const hkpRigidBody* bodyA, const hkpRigidBody* bodyB, const hkVector4& centerOfMassInWorldA, const hkVector4& centerOfMassInWorldB, const hkContactPoint* cp);
+extern RelocAddr<_hkpSimpleContactConstraintUtil_calculateSeparatingVelocity> hkpSimpleContactConstraintUtil_calculateSeparatingVelocity;
 
 typedef void(*_hkpEntity_activate)(hkpEntity *entity);
 extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;

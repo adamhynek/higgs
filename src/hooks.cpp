@@ -111,7 +111,6 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 }
 
 bool wasRolloverSet = false;
-bool postWasRolloverSet = false;
 bool hasSavedRollover = false;
 NiTransform normalRolloverTransform;
 bool hasSavedRumbleIntensity = false;
@@ -150,8 +149,6 @@ void PostWandUpdateHook()
 		}
 		activateRumbleIntensitySetting->SetDouble(0);
 
-		g_disableRollover = false;
-
 		g_overrideActivateText = rolloverGrabber->GetActivateText(g_overrideActivateTextStr);
 	}
 	else {
@@ -164,23 +161,20 @@ void PostWandUpdateHook()
 			}
 
 			lastRolloverSetTime = g_currentFrameTime;
-			g_disableRollover = true;
+			rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
 
 			g_overrideActivateText = false;
 		}
-		else if (postWasRolloverSet) {
-			// Give 1 frame leeway before resetting the rollover transform
+
+		if (g_currentFrameTime - lastRolloverSetTime > Config::options.rolloverHideTime) {
 			if (rolloverNode && hasSavedRollover) {
 				rolloverNode->m_localTransform = normalRolloverTransform;
 			}
-		}
 
-		if (g_currentFrameTime - lastRolloverSetTime > Config::options.rolloverHideTime) {
 			g_disableRollover = false;
 		}
 	}
 
-	postWasRolloverSet = wasRolloverSet;
 	wasRolloverSet = rolloverGrabber != nullptr;
 }
 

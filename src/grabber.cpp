@@ -20,8 +20,8 @@
 #include "math_utils.h"
 #include "vrikinterface001.h"
 #include "finger_curves.h"
-#include "papyrusapi.h"
 #include "hooks.h"
+#include "pluginapi.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
@@ -111,7 +111,7 @@ void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, fl
 	hapticEvent.startStrength = startStrength;
 	hapticEvent.endStrength = endStrength;
 	hapticEvent.duration = duration;
-	hapticEvent.startTime = g_currentFrameTime;
+	hapticEvent.isNew = true;
 
 	{
 		std::scoped_lock lock(eventsLock);
@@ -132,8 +132,15 @@ void HapticsManager::Loop()
 
 			size_t numEvents = events.size();
 			if (numEvents > 0) {
+				double currentTime = GetTime();
+
 				// Just play the last event that was added
 				HapticEvent &lastEvent = events[numEvents - 1];
+
+				if (lastEvent.isNew) {
+					lastEvent.isNew = false;
+					lastEvent.startTime = currentTime;
+				}
 
 				float strength;
 				if (lastEvent.duration == 0) {
@@ -141,20 +148,20 @@ void HapticsManager::Loop()
 				}
 				else {
 					// Simple lerp from start to end strength over duration
-					double elapsedTime = g_currentFrameTime - lastEvent.startTime;
+					double elapsedTime = currentTime - lastEvent.startTime;
 					strength = lerp(lastEvent.startStrength, lastEvent.endStrength, min(1.0f, elapsedTime / lastEvent.duration));
 				}
 				TriggerHapticPulse(strength);
 
 				// Cleanup events that are past their duration
 				auto end = std::remove_if(events.begin(), events.end(),
-					[](HapticEvent &evnt) { return g_currentFrameTime - evnt.startTime > evnt.duration; }
+					[currentTime](HapticEvent &evnt) { return currentTime - evnt.startTime >= evnt.duration; }
 				);
 				events.erase(end, events.end());
 			}
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		std::this_thread::sleep_for(std::chrono::milliseconds(5)); // TriggerHapticPulse can only be called once every 5ms
 	}
 }
 
@@ -529,6 +536,78 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 }
 
 
+void Grabber::UpdateHandCollision(bhkWorld *world, NiAVObject *handNode)
+{
+	if (world->world != handCollBody->m_world) {
+		if (handCollBody->m_world) {
+			// If exists, remove the hand entity from the previous world
+			_MESSAGE("%s: Removing collision for hand", name);
+
+			bhkWorld *oldWorld = (bhkWorld *)static_cast<ahkpWorld *>(handCollBody->m_world)->m_userData;
+			oldWorld->worldLock.LockForWrite();
+			hkBool ret;
+			hkpWorld_RemoveEntity(handCollBody->m_world, &ret, handCollBody);
+			oldWorld->worldLock.UnlockWrite();
+		}
+
+		_MESSAGE("%s: Adding collision for hand", name);
+
+		world->worldLock.LockForWrite();
+
+		// Create our own layer in the first ununsed vanilla layer (56)
+		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
+		UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
+
+		bitfield |= ((UInt64)1 << 56); // collide with ourselves
+		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
+		worldFilter->layerBitfields[56] = bitfield;
+		worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
+		// Set whether other layers should collide with our new layer
+		for (int i = 0; i < 56; i++) {
+			if ((bitfield >> i) & 1) {
+				worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
+			}
+		}
+
+		UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
+
+		UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+		filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+		filterInfo |= (ragdollBits << 8);
+
+		// Add collision object for the hand
+		hkpBoxShape_ctor(handCollShape, NiPointToHkVector(Config::options.handCollisionBoxHalfExtents), Config::options.handCollisionBoxRadius);
+		hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
+		handCollCInfo->m_shape = handCollShape;
+		handCollCInfo->m_collisionFilterInfo = filterInfo;
+		handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+		handCollCInfo->m_enableDeactivation = false;
+		handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
+
+		hkpRigidBody_ctor(handCollBody, handCollCInfo);
+
+		hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+
+		world->worldLock.UnlockWrite();
+	}
+
+	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
+	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
+	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
+
+	// Put our hand collision where we want it
+	NiPoint3 handCollisionBoxOffset = Config::options.handCollisionBoxOffset;
+	if (isLeft) handCollisionBoxOffset.x *= -1;
+	float havokWorldScale = *g_havokWorldScale;
+	NiPoint3 desiredPos = (handNode->m_worldTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale;
+	hkRotation desiredRot;
+	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
+	hkQuaternion desiredQuat;
+	desiredQuat.setFromRotationSimd(desiredRot);
+	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+}
+
+
 void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 {
 	static UInt32 stoneMaterialId = 0xdf02f237;
@@ -663,6 +742,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			NiTransform inverseHand;
 			handNode->m_worldTransform.Invert(inverseHand);
 			desiredObjTransformHandSpace = inverseHand * desiredTransform;
+
+			HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
 			state = State::HeldBody;
 		}
@@ -806,6 +887,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			NiTransform inverseHand;
 			handNode->m_worldTransform.Invert(inverseHand);
 			desiredObjTransformHandSpace = inverseHand * desiredTransform;
+
+			HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
 			state = State::HeldInit;
 		}
@@ -1003,16 +1086,12 @@ void Grabber::SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &o
 }
 
 
-void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode)
+void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
 
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode())
-		return;
-
-	TESObjectCELL* cell = player->parentCell;
-	if (!cell)
 		return;
 
 	NiPointer<NiAVObject> handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
@@ -1059,84 +1138,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		}
 	}
 
-	bhkWorld *world = GetWorld(cell);
-	if (!world) {
-		_MESSAGE("Could not get havok world from player cell");
-		return;
-	}
-
 
 	//if (!isLeft) {
 	//	UpdateGenerateFingerCurve(handNodeName, fingerNodeNames);
 	//}
 
 
-	if (world->world != handCollBody->m_world) {
-		if (handCollBody->m_world) {
-			// If exists, remove the hand entity from the previous world
-			_MESSAGE("%s: Removing collision for hand", name);
-
-			bhkWorld *oldWorld = (bhkWorld *)static_cast<ahkpWorld *>(handCollBody->m_world)->m_userData;
-			oldWorld->worldLock.LockForWrite();
-			hkBool ret;
-			hkpWorld_RemoveEntity(handCollBody->m_world, &ret, handCollBody);
-			oldWorld->worldLock.UnlockWrite();
-		}
-
-		_MESSAGE("%s: Adding collision for hand", name);
-
-		world->worldLock.LockForWrite();
-
-		// Create our own layer in the first ununsed vanilla layer (56)
-		bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-		UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
-
-		bitfield |= ((UInt64)1 << 56); // collide with ourselves
-		bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
-		worldFilter->layerBitfields[56] = bitfield;
-		worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
-		// Set whether other layers should collide with our new layer
-		for (int i = 0; i < 56; i++) {
-			if ((bitfield >> i) & 1) {
-				worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
-			}
-		}
-
-		UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
-
-		UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
-		filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
-		filterInfo |= (ragdollBits << 8);
-
-		// Add collision object for the hand
-		hkpBoxShape_ctor(handCollShape, NiPointToHkVector(Config::options.handCollisionBoxHalfExtents), Config::options.handCollisionBoxRadius);
-		hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
-		handCollCInfo->m_shape = handCollShape;
-		handCollCInfo->m_collisionFilterInfo = filterInfo;
-		handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
-		handCollCInfo->m_enableDeactivation = false;
-		handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
-
-		hkpRigidBody_ctor(handCollBody, handCollCInfo);
-
-		hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
-
-		world->worldLock.UnlockWrite();
-	}
-
-	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
-	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
-	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
-
-	// Put our hand collision where we want it
-	NiPoint3 handCollisionBoxOffset = Config::options.handCollisionBoxOffset;
-	if (isLeft) handCollisionBoxOffset.x *= -1;
-	NiPoint3 desiredPos = (handNode->m_worldTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale;
-	hkRotation desiredRot;
-	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
-	hkQuaternion desiredQuat;
-	desiredQuat.setFromRotationSimd(desiredRot);
-	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+	UpdateHandCollision(world, handNode);
 
 	// Update velocities to this frame
 	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;
@@ -1700,10 +1708,14 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, handPos) && !isExternallyGrabbedFrom) {
 							// Object dropped at the mouth
 
+							TESForm *baseForm = selectedObj->baseForm;
+
+							HiggsPluginAPI::TriggerConsumedCallbacks(isLeft, baseForm); // Do this before activating it so that a callback could still get the held object
+
 							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
 							TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
 
-							papyrusActor::EquipItemEx(player, selectedObj->baseForm, 0, false, true);
+							papyrusActor::EquipItemEx(player, baseForm, 0, false, true);
 
 							haptics.QueueHapticEvent(Config::options.mouthDropHapticStrength, 0, Config::options.mouthDropHapticFadeTime);
 						}
@@ -1713,6 +1725,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
 
 							TESForm *baseForm = selectedObj->baseForm;
+
+							HiggsPluginAPI::TriggerStashedCallbacks(isLeft, baseForm); // Do this before activating it so that a callback could still get the held object
+
 							if (Config::options.skipActivateBooks && baseForm && (baseForm->formType == kFormType_Book || baseForm->formType == kFormType_Note)) {
 								// PickUpObject is vfunc 0xCE
 
@@ -1729,17 +1744,16 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
 						}
 						else {
-							// TODO: TESObjectREFR vfunc 4E (I think) is SetActorCause, 4F GetActorCause. Would that make it so if you throw stuff at someone it counts as you?
-
 							float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
 							float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
 							haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
 
 							if (!isExternallyGrabbedFrom) {
+								//ObjectReference_SetActorCause(VM_REGISTRY, 0, selectedObj, player); // doesn't make people that your object hit get mad at you unfortunately
+
 								PlayPhysicsSound(hkPalmNodePos / havokWorldScale, Config::options.useLoudSoundDrop);
 
-								// Trigger the papyrus 'drop' event
-								PapyrusAPI::OnDropEvent(selectedObj, isLeft);
+								HiggsPluginAPI::TriggerDroppedCallbacks(isLeft, selectedObj);
 							}
 						}
 					}
@@ -1836,6 +1850,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						PlayPhysicsSound(objPoint, Config::options.useLoudSoundPull);
 
 						SetPulledDuration(hkPalmNodePos, objPoint * havokWorldScale);
+
+						HiggsPluginAPI::TriggerPulledCallbacks(isLeft, selectedObj);
 
 						state = State::Pulled;
 					}
@@ -2046,6 +2062,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						PlayPhysicsSound(objPoint, Config::options.useLoudSoundPull);
 
 						SetPulledDuration(hkPalmNodePos, objPoint * havokWorldScale);
+
+						HiggsPluginAPI::TriggerPulledCallbacks(isLeft, selectedObj);
 
 						state = State::Pulled;
 					}

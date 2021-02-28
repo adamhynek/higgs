@@ -466,3 +466,15 @@ void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion ro
 		}
 	}
 }
+
+float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_this)
+{
+	if (_this.m_separatingVelocity)
+	{
+		return *_this.m_separatingVelocity;
+	}
+	else
+	{
+		return hkpSimpleContactConstraintUtil_calculateSeparatingVelocity(_this.m_bodies[0], _this.m_bodies[1], _this.m_bodies[0]->getCenterOfMassInWorld(), _this.m_bodies[1]->getCenterOfMassInWorld(), _this.m_contactPoint);
+	}
+}

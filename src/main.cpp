@@ -35,6 +35,7 @@
 #include "hooks.h"
 #include "vrikinterface001.h"
 #include "papyrusapi.h"
+#include "pluginapi.h"
 #include "math_utils.h"
 
 
@@ -178,6 +179,64 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 }
 
 
+struct ContactListener : hkpContactListener
+{
+	virtual void contactPointCallback(const hkpContactPointEvent& evnt)
+	{
+		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
+		hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
+
+		bool isARight = rigidBodyA == g_rightGrabber->handCollBody;
+		bool isBRight = rigidBodyB == g_rightGrabber->handCollBody;
+		bool isALeft = rigidBodyA == g_leftGrabber->handCollBody;
+		bool isBLeft = rigidBodyB == g_leftGrabber->handCollBody;
+
+		bool rightHasHeld = g_rightGrabber->HasHeldObject();
+		bool leftHasHeld = g_leftGrabber->HasHeldObject();
+
+		bool isAHeldRight = &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
+		bool isBHeldRight = &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
+		bool isAHeldLeft = &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
+		bool isBHeldLeft = &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
+
+		bool isHand = isARight || isBRight || isALeft || isBLeft;
+		bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
+		if (!isHand && !isHeld) return;
+
+		ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
+
+		if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
+			return;
+		}
+
+		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldLeft || isAHeldRight) ? rigidBodyB : rigidBodyA;
+		float inverseMass = otherBody->getMassInv();
+		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
+
+		bool isLeft = isALeft || isBLeft || isAHeldLeft || isBHeldLeft;
+
+		float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
+
+		if (separatingVelocity >= Config::options.collisionMinHapticSpeed) {
+			float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
+			float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
+			float hapticStrength = min(1.0f, Config::options.collisionBaseHapticStrength + speedComponent + massComponent);
+			if (isLeft) {
+				g_leftGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+			}
+			else {
+				g_rightGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+			}
+
+			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+		}
+	}
+
+	bhkWorld *world = nullptr;
+};
+ContactListener contactListener;
+
+
 bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
 {
 	if (!initComplete) return true;
@@ -212,6 +271,38 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!hmdNode)
 		return true;
 
+	TESObjectCELL *cell = player->parentCell;
+	if (!cell)
+		return true;
+
+	NiPointer<bhkWorld> world = GetWorld(cell);
+	if (!world) {
+		_MESSAGE("Could not get havok world from player cell");
+		return true;
+	}
+
+	if (world != contactListener.world) {
+		bhkWorld *oldWorld = contactListener.world;
+		if (oldWorld) {
+			// If exists, remove the listener from the previous world
+			_MESSAGE("Removing collision listener");
+
+			{
+				BSWriteLocker lock(&oldWorld->worldLock);
+				hkpWorld_removeContactListener(oldWorld->world, &contactListener);
+			}
+		}
+
+		_MESSAGE("Adding collision listener");
+
+		{
+			BSWriteLocker lock(&world->worldLock);
+			hkpWorld_addContactListener(world->world, &contactListener);
+		}
+
+		contactListener.world = world;
+	}
+
 	FillControllerVelocities(hmdNode, pGamePoseArray, unGamePoseArrayCount);
 
 	bool isLeftHanded = *g_leftHandedMode;
@@ -220,8 +311,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	bool isRightValid = isLeftHanded ? validItems.second : validItems.first;
 	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
 
-	isRightValid &= !PapyrusAPI::IsDisabled(false);
-	isLeftValid &= !PapyrusAPI::IsDisabled(true);
+	isRightValid &= !g_interface001.IsDisabled(false);
+	isLeftValid &= !g_interface001.IsDisabled(true);
 
 	bool isRightHeld = g_rightGrabber->state == Grabber::State::HeldInit || g_rightGrabber->state == Grabber::State::Held;
 	bool isLeftHeld = g_leftGrabber->state == Grabber::State::HeldInit || g_leftGrabber->state == Grabber::State::Held;
@@ -257,8 +348,8 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		}
 	}
 
-	firstGrabberToUpdate->PoseUpdate(*lastGrabberToUpdate, isFirstValid, playerWorldNode);
-	lastGrabberToUpdate->PoseUpdate(*firstGrabberToUpdate, isLastValid, playerWorldNode);
+	firstGrabberToUpdate->PoseUpdate(*lastGrabberToUpdate, isFirstValid, playerWorldNode, world);
+	lastGrabberToUpdate->PoseUpdate(*firstGrabberToUpdate, isLastValid, playerWorldNode, world);
 
 	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
@@ -434,6 +525,11 @@ extern "C" {
 		g_leftGrabber->rolloverRotation.data[2][1] = -g_leftGrabber->rolloverRotation.data[2][1];
 		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
 
+		if (Config::options.disableRolloverRumble) {
+			Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+			activateRumbleIntensitySetting->SetDouble(0);
+		}
+
 		initComplete = true;
 		_MESSAGE("Successfully loaded all forms");
 	}
@@ -477,7 +573,7 @@ extern "C" {
 		_MESSAGE("HIGGS VR v%s", FPVR_VERSION_VERSTRING);
 
 		info->infoVersion = PluginInfo::kInfoVersion;
-		info->name = "Hand Interaction and Gravity Gloves for Skyrim VR";
+		info->name = "HIGGS";
 		info->version = FPVR_VERSION_MAJOR;
 
 		g_pluginHandle = skse->GetPluginHandle();
@@ -496,7 +592,7 @@ extern "C" {
 
 	bool SKSEPlugin_Load(const SKSEInterface * skse)
 	{	// Called by SKSE to load this plugin
-		_MESSAGE("Hand Interaction and Gravity Gloves for Skyrim VR loaded");
+		_MESSAGE("HIGGS loaded");
 
 		if (Config::ReadConfigOptions()) {
 			_MESSAGE("Successfully read config parameters");
@@ -508,6 +604,7 @@ extern "C" {
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);
+		g_messaging->RegisterListener(g_pluginHandle, nullptr, HiggsPluginAPI::ModMessageHandler);
 
 		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
 		if (!g_vrInterface) {

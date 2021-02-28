@@ -153,9 +153,17 @@ namespace Config {
 
 		if (!ReadFloat("SelectionLockedBaseHapticStrength", options.selectionLockedBaseHapticStrength)) return false;
 		if (!ReadFloat("SelectionLockedProportionalHapticStrength", options.selectionLockedProportionalHapticStrength)) return false;
+
 		if (!ReadFloat("GrabBaseHapticStrength", options.grabBaseHapticStrength)) return false;
 		if (!ReadFloat("GrabProportionalHapticStrength", options.grabProportionalHapticStrength)) return false;
 		if (!ReadFloat("GrabHapticMassExponent", options.grabHapticMassExponent)) return false;
+
+		if (!ReadFloat("CollisionMinHapticSpeed", options.collisionMinHapticSpeed)) return false;
+		if (!ReadFloat("CollisionBaseHapticStrength", options.collisionBaseHapticStrength)) return false;
+		if (!ReadFloat("CollisionMassProportionalHapticStrength", options.collisionMassProportionalHapticStrength)) return false;
+		if (!ReadFloat("CollisionSpeedProportionalHapticStrength", options.collisionSpeedProportionalHapticStrength)) return false;
+		if (!ReadFloat("CollisionHapticMassExponent", options.collisionHapticMassExponent)) return false;
+		if (!ReadFloat("CollisionHapticDuration", options.collisionHapticDuration)) return false;
 
 		if (!ReadFloat("ShoulderConstantHapticStrength", options.shoulderConstantHapticStrength)) return false;
 		if (!ReadFloat("ShoulderDropHapticStrength", options.shoulderDropHapticStrength)) return false;
@@ -183,6 +191,7 @@ namespace Config {
 		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
 		if (!ReadBool("DisableLooting", options.disableLooting)) return false;
 		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
+		if (!ReadBool("DisableRolloverRumble", options.disableRolloverRumble)) return false;
 		if (!ReadBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) return false;
 		if (!ReadBool("DisableFarCastWhileAimingAtNPCRight", options.disableFarCastWhileAimingAtNPCRight)) return false;
 		if (!ReadBool("DisableFarCastWhileAimingAtNPCLeft", options.disableFarCastWhileAimingAtNPCLeft)) return false;

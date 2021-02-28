@@ -57,6 +57,12 @@
     <ClCompile Include="src\papyrusapi.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\pluginapi.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\higgsinterface001.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\version.h">
@@ -111,6 +117,12 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\papyrusapi.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\pluginapi.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\higgsinterface001.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

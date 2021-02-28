@@ -20,12 +20,16 @@ RelocPtr<BSAudioManager *> g_audioManager(0x30C1D30);
 
 RelocPtr<ShadowSceneNode *> g_shadowSceneNode(0x3423080);
 
+RelocPtr<float> g_minSoundVel(0x1E94F78); // it's an ini setting
+
 
 RelocAddr<_CreateDetectionEvent> CreateDetectionEvent(0x656140);
 
 RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList(0x12F89E0);
 
 RelocAddr<_IsInMenuMode> IsInMenuMode(0x009F32A0);
+
+RelocAddr<_ObjectReference_SetActorCause> ObjectReference_SetActorCause(0x9D1830);
 
 RelocAddr<_ObjectReference_Activate> ObjectReference_Activate(0x009CD750);
 
@@ -70,6 +74,10 @@ RelocAddr<_bhkWorld_addContactListener> bhkWorld_addContactListener(0xDA5C50);
 RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity(0xAB3110);
 
 RelocAddr<_bhkWorld_UpdateCollisionFilterOnEntity> bhkWorld_UpdateCollisionFilterOnEntity(0xDFFE50);
+
+RelocAddr<_ContactListener_PreprocessContactPointEvent> ContactListener_PreprocessContactPointEvent(0xE41AB0); // Checks some shape key stuff and sets disabled on the contact point properties if it wants to
+
+RelocAddr<_hkpSimpleContactConstraintUtil_calculateSeparatingVelocity> hkpSimpleContactConstraintUtil_calculateSeparatingVelocity(0xAAF250);
 
 RelocAddr<_hkpEntity_activate> hkpEntity_activate(0xAA7130);
 

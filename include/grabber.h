@@ -24,6 +24,7 @@ struct HapticsManager
 		float endStrength;
 		double duration;
 		double startTime;
+		bool isNew;
 	};
 
 	HapticsManager(BSVRInterface::BSControllerHand hand) :
@@ -122,7 +123,7 @@ struct Grabber
 
 	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
-	void PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode);
+	void PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
@@ -133,6 +134,7 @@ struct Grabber
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
 	bool FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
+	void UpdateHandCollision(bhkWorld *world, NiAVObject *handNode);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
 	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);

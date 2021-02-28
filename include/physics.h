@@ -8,6 +8,7 @@
 #include <Physics/Collide/Agent/Query/hkpCdPointCollector.h>
 #include <Physics/Collide/Agent/Query/hkpCdBodyPairCollector.h>
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
+#include <Physics/Dynamics/Collide/ContactListener/hkpContactPointEvent.h>
 
 #include "skse64/GameReferences.h"
 
@@ -88,3 +89,5 @@ namespace CollisionInfo
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void SetAngularVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion rot, hkReal invDeltaTime);
+
+float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_this);

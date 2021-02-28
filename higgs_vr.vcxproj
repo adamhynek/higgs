@@ -194,6 +194,7 @@
     <ClCompile Include="src\config.cpp" />
     <ClCompile Include="src\finger_curves.cpp" />
     <ClCompile Include="src\grabber.cpp" />
+    <ClCompile Include="src\higgsinterface001.cpp" />
     <ClCompile Include="src\hooks.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\math_utils.cpp" />
@@ -202,12 +203,15 @@
     <ClCompile Include="src\papyrusapi.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\effects.cpp" />
+    <ClCompile Include="src\pluginapi.cpp" />
     <ClCompile Include="src\utils.cpp" />
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\finger_curves.h" />
+    <ClInclude Include="include\higgsinterface001.h" />
     <ClInclude Include="include\papyrusapi.h" />
+    <ClInclude Include="include\pluginapi.h" />
     <ClInclude Include="include\PQP\MatVec.h" />
     <ClInclude Include="include\PQP\TriDist.h" />
     <ClInclude Include="include\triangle_triangle_intersection.h" />
