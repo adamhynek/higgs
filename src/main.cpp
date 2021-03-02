@@ -22,6 +22,7 @@
 #include "skse64/GameVR.h"
 #include "skse64_common/SafeWrite.h"
 #include "skse64_common/BranchTrampoline.h"
+#include "skse64/gamethreads.h"
 
 #include <ShlObj.h>  // CSIDL_MYDOCUMENTS
 
@@ -46,6 +47,7 @@ static SKSEMessagingInterface *g_messaging = nullptr;
 SKSEVRInterface *g_vrInterface = nullptr;
 SKSETrampolineInterface *g_trampoline = nullptr;
 SKSEPapyrusInterface *g_papyrus = nullptr;
+SKSETaskInterface *g_taskInterface = nullptr;
 
 vrikPluginApi::IVrikInterface001 * g_vrikInterface;
 
@@ -66,8 +68,37 @@ std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g
 PlayingShader *g_playingShaders; // size == 2
 std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
 
+
 struct ContactListener : hkpContactListener
 {
+	struct CreateDetectionEventTask : TaskDelegate
+	{
+		static CreateDetectionEventTask * Create(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 position, int soundLevel, TESObjectREFR *source) {
+			CreateDetectionEventTask * cmd = new CreateDetectionEventTask;
+			if (cmd)
+			{
+				cmd->ownerProcess = ownerProcess;
+				cmd->owner = owner;
+				cmd->position = position;
+				cmd->soundLevel = soundLevel;
+				cmd->source = source;
+			}
+			return cmd;
+		}
+		virtual void Run() {
+			CreateDetectionEvent(ownerProcess, owner, &position, soundLevel, source);
+		}
+		virtual void Dispose() {
+			delete this;
+		}
+
+		ActorProcessManager *ownerProcess;
+		Actor* owner;
+		NiPoint3 position;
+		int soundLevel;
+		TESObjectREFR *source;
+	};
+
 	virtual void contactPointCallback(const hkpContactPointEvent& evnt)
 	{
 		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
@@ -116,6 +147,18 @@ struct ContactListener : hkpContactListener
 			}
 
 			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+
+			/*
+			TESObjectREFR *ref = FindCollidableRef(&otherBody->m_collidable);
+			hkContactPoint *contactPoint = evnt.m_contactPoint;
+			if (ref && contactPoint) {
+				PlayerCharacter *player = *g_thePlayer;
+				NiPoint3 position = HkVectorToNiPoint(contactPoint->getPosition()) * *g_inverseHavokWorldScale;
+				// Very Loud == 200, Silent == 0, Normal == 50, Loud == 100
+				int soundLevel = 50;
+				g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, ref));
+			}
+			*/
 		}
 	}
 
@@ -236,7 +279,7 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 }
 
 
-void CreateCustomCollisionLayer(bhkWorld *world)
+void AddCustomCollisionLayer(bhkWorld *world)
 {
 	// Create our own layer in the first ununsed vanilla layer (56)
 	bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
@@ -319,7 +362,7 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		{
 			BSWriteLocker lock(&world->worldLock);
 
-			CreateCustomCollisionLayer(world);
+			AddCustomCollisionLayer(world);
 
 			hkpWorld_addContactListener(world->world, contactListener);
 
@@ -650,6 +693,12 @@ extern "C" {
 		}
 		if (g_papyrus->Register(PapyrusAPI::RegisterPapyrusFuncs)) {
 			_MESSAGE("Successfully registered papyrus functions");
+		}
+
+		g_taskInterface = (SKSETaskInterface *)skse->QueryInterface(kInterface_Task);
+		if (!g_taskInterface) {
+			_ERROR("[CRITICAL] Could not get SKSE task interface");
+			return false;
 		}
 
 		g_trampoline = (SKSETrampolineInterface *)skse->QueryInterface(kInterface_Trampoline);
