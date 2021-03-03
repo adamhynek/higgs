@@ -111,6 +111,10 @@ namespace Config {
 		NiPoint3 rolloverOffsetRight = { 7, -5, -2 };
 		NiPoint3 rolloverOffsetLeft = { -7, -7, -3 };
 		NiPoint3 rolloverRotation = { 2.62, 0, -1.57 };
+
+		std::string grabString = "Grab";
+		std::string pullString = "Pull";
+		std::string lootString = "Loot";
 	};
 	extern Options options; // global object containing options
 

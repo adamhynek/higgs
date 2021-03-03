@@ -205,6 +205,10 @@ namespace Config {
 		if (!ReadBool("DelayRightGripInput", options.delayRightGripInput)) return false;
 		if (!ReadBool("DelayLeftGripInput", options.delayLeftGripInput)) return false;
 
+		if (!ReadString("GrabString", Config::options.grabString)) return false;
+		if (!ReadString("PullString", Config::options.pullString)) return false;
+		if (!ReadString("LootString", Config::options.lootString)) return false;
+
 		return true;
 	}
 

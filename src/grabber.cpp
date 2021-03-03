@@ -2477,10 +2477,9 @@ bool Grabber::GetActivateText(std::string &strOut)
 
 					const char * itemNameReplaced = nullptr;
 
-					// TODO: Config these verb strings so users can localize
-					char *verb = "";
+					std::string verb;
 					if (state == State::SelectedClose) {
-						verb = "Grab";
+						verb = Config::options.grabString;
 
 						Grabber *other = isLeft ? g_rightGrabber : g_leftGrabber;
 
@@ -2493,10 +2492,10 @@ bool Grabber::GetActivateText(std::string &strOut)
 						}
 					}
 					else if (state == State::SelectionLocked) {
-						verb = "Pull";
+						verb = Config::options.pullString;
 
 						if (selectedObject.isActor) {
-							verb = "Loot";
+							verb = Config::options.lootString;
 							TESForm *wornForm = selectedObject.hitForm;
 							if (wornForm) {
 								BaseExtraList *wornExtraData = selectedObject.hitExtraList;
@@ -2505,7 +2504,7 @@ bool Grabber::GetActivateText(std::string &strOut)
 						}
 					}
 					else if (state == State::LootOtherHand) {
-						verb = "Loot";
+						verb = Config::options.lootString;
 						TESForm *wornForm = selectedObject.hitForm;
 						if (wornForm) {
 							BaseExtraList *wornExtraData = selectedObject.hitExtraList;
