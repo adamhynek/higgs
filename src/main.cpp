@@ -630,6 +630,9 @@ extern "C" {
 				g_isLoaded = true;
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
+				// Register our own mod api listener
+				g_messaging->RegisterListener(g_pluginHandle, nullptr, HiggsPluginAPI::ModMessageHandler);
+
 				// Get the VRIK plugin API
 				g_vrikInterface = vrikPluginApi::getVrikInterface001(g_pluginHandle, g_messaging);
 			}
@@ -676,7 +679,6 @@ extern "C" {
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);
-		g_messaging->RegisterListener(g_pluginHandle, nullptr, HiggsPluginAPI::ModMessageHandler);
 
 		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
 		if (!g_vrInterface) {
