@@ -632,9 +632,16 @@ extern "C" {
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
 				// Register our own mod api listener
 				g_messaging->RegisterListener(g_pluginHandle, nullptr, HiggsPluginAPI::ModMessageHandler);
-
+			}
+			else if (msg->type == SKSEMessagingInterface::kMessage_PostPostLoad) {
 				// Get the VRIK plugin API
 				g_vrikInterface = vrikPluginApi::getVrikInterface001(g_pluginHandle, g_messaging);
+				if (g_vrikInterface) {
+					_MESSAGE("Successfully got VRIK api");
+				}
+				else {
+					_MESSAGE("Did not get VRIK api");
+				}
 			}
 		}
 	}
