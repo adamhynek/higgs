@@ -149,7 +149,9 @@ void PostWandUpdateHook()
 		}
 		activateRumbleIntensitySetting->SetDouble(0);
 
-		g_overrideActivateText = rolloverGrabber->GetActivateText(g_overrideActivateTextStr);
+		if (Config::options.overrideActivateText) {
+			g_overrideActivateText = rolloverGrabber->GetActivateText(g_overrideActivateTextStr);
+		}
 	}
 	else {
 		if (wasRolloverSet) {
