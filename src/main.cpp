@@ -598,6 +598,7 @@ extern "C" {
 		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
 
 		if (Config::options.disableRolloverRumble) {
+			_MESSAGE("Disabling rollover rumble");
 			Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
 			activateRumbleIntensitySetting->SetDouble(0);
 		}

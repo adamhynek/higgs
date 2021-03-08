@@ -160,6 +160,10 @@ RelocAddr<_SoundData_Play> SoundData_Play(0xC283E0);
 
 RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount(0x123D90);
 
+RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData(0x641720);
+
+RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell(0x23B240);
+
 //bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);

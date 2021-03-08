@@ -275,3 +275,9 @@ extern RelocAddr<_SoundData_Play> SoundData_Play;
 
 typedef UInt32(*_BSExtraList_GetCount)(BaseExtraList *extraList);
 extern RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount;
+
+typedef void(*_EquipManager_EquipEntryData)(EquipManager *equipManager, Actor *actor, InventoryEntryData *entry, BGSEquipSlot *equipSlot); // equipSlot is null for books
+extern RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData;
+
+typedef bool(*_TESObjectBOOK_LearnSpell)(TESObjectBOOK *book, Actor *reader);
+extern RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell;

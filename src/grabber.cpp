@@ -907,6 +907,11 @@ bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, cons
 	TESForm *baseForm = refr->baseForm;
 	if (!baseForm || !baseForm->IsPlayable()) return false;
 
+	auto book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
+	if (book && (book->data.flags & TESObjectBOOK::Data::kType_CantBeTaken)) {
+		return false;
+	}
+
 	float speed = 0;
 	for (auto velocity : controllerVelocities) {
 		speed += VectorLength(velocity);
@@ -935,12 +940,17 @@ bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, cons
 bool Grabber::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
 {
 	TESForm *baseForm = refr->baseForm;
-	if (!baseForm || !baseForm->IsPlayable() || (baseForm->formType != kFormType_Potion && baseForm->formType != kFormType_Ingredient)) {
+	if (!baseForm || !baseForm->IsPlayable() || (baseForm->formType != kFormType_Potion && baseForm->formType != kFormType_Ingredient && baseForm->formType != kFormType_Book)) {
 		return false;
 	}
 
 	auto potion = DYNAMIC_CAST(baseForm, TESForm, AlchemyItem);
 	if (potion && (potion->IsPoison() && !Config::options.enableDrinkPoison)) {
+		return false;
+	}
+
+	auto book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
+	if (book && (book->data.flags & TESObjectBOOK::Data::kType_CantBeTaken)) {
 		return false;
 	}
 
@@ -1692,7 +1702,33 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
 							TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
 
-							papyrusActor::EquipItemEx(player, baseForm, 0, false, true);
+							if (baseForm) {
+								if (baseForm->formType != kFormType_Book) {
+									papyrusActor::EquipItemEx(player, baseForm, 0, false, true);
+								}
+								else {
+									auto book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
+									if (book && book->data.flags & TESObjectBOOK::Data::kType_Spell) {
+										EquipManager *equipManager = EquipManager::GetSingleton();
+										if (equipManager) {
+											ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(player->extraData.GetByType(kExtraData_ContainerChanges));
+											ExtraContainerChanges::Data* containerData = containerChanges ? containerChanges->data : nullptr;
+											if (containerData) {
+												InventoryEntryData *entryData = containerData->FindItemEntry(book);
+												if (entryData) {
+													EquipManager_EquipEntryData(equipManager, player, entryData, nullptr);
+													if (TESObjectBOOK_LearnSpell(book, player)) {
+														UInt64 *vtbl = *((UInt64 **)player);
+														UInt32 droppedObjHandle = *g_invalidRefHandle;
+														BaseExtraList *extraList = entryData->extendDataList ? entryData->extendDataList->GetNthItem(0) : nullptr;
+														((Actor_RemoveItem)(vtbl[0x56]))(player, &droppedObjHandle, book, 1, 0, extraList, nullptr, nullptr, nullptr);
+													}
+												}
+											}
+										}
+									}
+								}
+							}
 
 							haptics.QueueHapticEvent(Config::options.mouthDropHapticStrength, 0, Config::options.mouthDropHapticFadeTime);
 						}
@@ -1705,7 +1741,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 							HiggsPluginAPI::TriggerStashedCallbacks(isLeft, baseForm); // Do this before activating it so that a callback could still get the held object
 
-							if (Config::options.skipActivateBooks && baseForm && (baseForm->formType == kFormType_Book || baseForm->formType == kFormType_Note)) {
+							if (Config::options.skipActivateBooks && baseForm && baseForm->formType == kFormType_Book) {
 								// PickUpObject is vfunc 0xCE
 
 								// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.
