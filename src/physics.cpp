@@ -192,11 +192,6 @@ namespace CollisionInfo
 
 						world->worldLock.UnlockWrite();
 					}
-					else {
-						//std::stringstream ss;
-						//ss << "Invalid collision state transition: " << (UInt8)savedState << " -> " << (UInt8)reason;
-						//ASSERT_STR(false, ss.str().c_str());
-					}
 				}
 				else {
 					// Not in the map yet - init to the necessary state
@@ -228,11 +223,6 @@ namespace CollisionInfo
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 						collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 					}
-					else {
-						std::stringstream ss;
-						ss << "Invalid initial collision state: " << (UInt8)reason;
-						ASSERT_STR(false, ss.str().c_str());
-					}
 
 					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
 
@@ -247,6 +237,60 @@ namespace CollisionInfo
 				auto child = node->m_children.m_data[i];
 				if (child) {
 					SetCollisionInfoDownstream(child, collisionGroup, reason);
+				}
+			}
+		}
+	}
+
+	void SetCollisionGroupDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason)
+	{
+		auto rigidBody = GetRigidBody(obj);
+		if (rigidBody) {
+			hkpRigidBody *entity = rigidBody->hkBody;
+			if (entity->m_world) {
+				hkpCollidable *collidable = &entity->m_collidable;
+
+				// Save collisionfilterinfo by entity id
+				UInt32 entityId = entity->m_uid;
+				if (collisionInfoIdMap.count(entityId) != 0) {
+					// Already in the map - state transition
+
+					auto[savedInfo, savedState] = collisionInfoIdMap[entityId];
+
+					if ((savedState == State::HeldLeft && reason == State::HeldRight) ||
+						(savedState == State::HeldRight && reason == State::HeldLeft)) {
+						// One hand holds the object -> 2 hands hold it
+						collisionInfoIdMap[entityId] = { savedInfo, State::HeldBoth };
+					}
+					else if (savedState == State::Unheld && (reason == State::HeldLeft || reason == State::HeldRight)) {
+						// No hand holds it -> one hand holds it
+						collisionInfoIdMap[entityId] = { savedInfo, reason };
+					}
+				}
+				else {
+					// Not in the map yet - init to the necessary state
+
+					collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, reason };
+
+					bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+					world->worldLock.LockForWrite();
+
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
+					collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
+
+					hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+					world->worldLock.UnlockWrite();
+				}
+			}
+		}
+
+		NiNode *node = obj->GetAsNiNode();
+		if (node) {
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					SetCollisionGroupDownstream(child, collisionGroup, reason);
 				}
 			}
 		}
@@ -300,14 +344,6 @@ namespace CollisionInfo
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = quality;
 				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 			}
-			else {
-				//std::stringstream ss;
-				//ss << "Invalid collision reset state transition: " << (int)savedState << " -> " << (int)reason;
-				//ASSERT_STR(false, ss.str().c_str());
-			}
-		}
-		else {
-			//ASSERT_STR(false, "Collision keyframed reset attempted on item that isn't in the collision map");
 		}
 	}
 
@@ -369,14 +405,6 @@ namespace CollisionInfo
 
 							world->worldLock.UnlockWrite();
 						}
-						else {
-							//std::stringstream ss;
-							//ss << "Invalid collision reset state transition: " << (int)savedState << " -> " << (int)reason;
-							//ASSERT_STR(false, ss.str().c_str());
-						}
-					}
-					else {
-						//ASSERT_STR(false, "Collision reset attempted on item that isn't in the collision map");
 					}
 				}
 			}
@@ -388,6 +416,57 @@ namespace CollisionInfo
 				auto child = node->m_children.m_data[i];
 				if (child) {
 					ResetCollisionInfoDownstream(child, reason, skipNode, collideAll);
+				}
+			}
+		}
+	}
+
+	void ResetCollisionGroupDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode)
+	{
+		auto rigidBody = GetRigidBody(obj);
+		if (rigidBody) {
+			hkpRigidBody *entity = rigidBody->hkBody;
+			if (entity->m_world) {
+				hkpCollidable *collidable = &entity->m_collidable;
+				if (collidable != skipNode) {
+					UInt32 entityId = entity->m_uid;
+
+					if (collisionInfoIdMap.count(entityId) != 0) {
+						auto[savedInfo, savedState] = collisionInfoIdMap[entityId];
+
+						if (savedState == State::HeldBoth && (reason == State::HeldRight || reason == State::HeldLeft)) {
+							// Two hands hold the object -> one hand lets go, so the other hand holds it
+							State otherHand = reason == State::HeldRight ? State::HeldLeft : State::HeldRight;
+							collisionInfoIdMap[entityId] = { savedInfo, otherHand };
+						}
+						else if ((savedState == State::HeldLeft && reason == State::HeldLeft) ||
+							(savedState == State::HeldRight && reason == State::HeldRight) ||
+							(savedState == State::Unheld && reason == State::Unheld)) {
+							// One hand holds the object -> one hand lets go of the object, so none hold it
+							// Or, no hand was holding, and none is holding now
+
+							collisionInfoIdMap.erase(entityId);
+
+							bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
+							world->worldLock.LockForWrite();
+
+							// Do not do a full check. What that means is it won't colide with the player until they stop colliding.
+							collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
+							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+							world->worldLock.UnlockWrite();
+						}
+					}
+				}
+			}
+		}
+
+		NiNode *node = obj->GetAsNiNode();
+		if (node) {
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					ResetCollisionGroupDownstream(child, reason, skipNode);
 				}
 			}
 		}

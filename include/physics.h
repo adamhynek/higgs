@@ -82,7 +82,9 @@ namespace CollisionInfo
 
 	void ClearCollisionMap();
 	void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason);
+	void SetCollisionGroupDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason);
 	void ResetCollisionInfoDownstream(NiAVObject *obj, State reaon, hkpCollidable *skipNode = nullptr, bool collideAll = true);
+	void ResetCollisionGroupDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode);
 	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll = true);
 }
 
