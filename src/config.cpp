@@ -202,6 +202,7 @@ namespace Config {
 		if (!ReadBool("DisableTriggerWhenWeaponsSheathed", options.disableTriggerWhenWeaponsSheathed)) return false;
 		if (!ReadBool("EnableDrinkPoison", options.enableDrinkPoison)) return false;
 		if (!ReadBool("OverrideActivateText", options.overrideActivateText)) return false;
+		if (!ReadBool("OverrideBodyCollision", options.overrideBodyCollision)) return false;
 
 		if (!ReadBool("DelayRightGripInput", options.delayRightGripInput)) return false;
 		if (!ReadBool("DelayLeftGripInput", options.delayLeftGripInput)) return false;

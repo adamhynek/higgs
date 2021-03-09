@@ -703,7 +703,12 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
-			if (!selectedObject.isActor) {
+			if (selectedObject.isActor) {
+				if (Config::options.overrideBodyCollision) {
+					CollisionInfo::SetCollisionGroupDownstream(objRoot, playerCollisionGroup, collisionMapState);
+				}
+			}
+			else {
 				CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, collisionMapState);
 			}
 
@@ -1680,7 +1685,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 						bool collideWithHandWhenLettingGo = !velocityAboveThreshold;
 
 						if (state == State::HeldBody) {
-							if (!selectedObject.isActor) {
+							if (selectedObject.isActor) {
+								if (Config::options.overrideBodyCollision) {
+									ResetCollisionGroupDownstream(objRoot, collisionMapState, nullptr);
+								}
+							}
+							else {
 								ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
 							}
 						}

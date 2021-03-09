@@ -92,6 +92,7 @@ namespace Config {
 		bool disableTriggerWhenWeaponsSheathed = false;
 		bool enableDrinkPoison = false;
 		bool overrideActivateText = true;
+		bool overrideBodyCollision = false;
 
 		NiPoint3 palmVector = { -0.018, -0.965, 0.261 };
 		NiPoint3 pointingVector = { 0, 0, 1 };
