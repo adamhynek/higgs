@@ -104,11 +104,11 @@ namespace Config {
 
 		NiPoint3 rightShoulderHmdOffset = { 17.5, -5.0, -6.85 };
 		NiPoint3 leftShoulderHmdOffset = { -17.5, -5.0, -6.85 };
-		NiPoint3 mouthHmdOffset = { 0.5, 7.0, -12.5 };
+		NiPoint3 mouthHmdOffset = { 0.0, 10.0, -9.0 };
 
-		float rightShoulderRadius = 10.0f;
-		float leftShoulderRadius = 10.0f;
-		float mouthRadius = 10.0f;
+		float rightShoulderRadius = 11.0f;
+		float leftShoulderRadius = 11.0f;
+		float mouthRadius = 11.0f;
 
 		NiPoint3 rolloverOffsetRight = { 7, -5, -2 };
 		NiPoint3 rolloverOffsetLeft = { -7, -7, -3 };
