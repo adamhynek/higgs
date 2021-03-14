@@ -101,6 +101,11 @@ struct ContactListener : hkpContactListener
 
 	virtual void contactPointCallback(const hkpContactPointEvent& evnt)
 	{
+		if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
+			// Early out
+			return;
+		}
+
 		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
 		hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
 
@@ -123,7 +128,7 @@ struct ContactListener : hkpContactListener
 
 		ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
 
-		if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
+		if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
 			return;
 		}
 
