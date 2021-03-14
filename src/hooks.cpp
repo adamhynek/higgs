@@ -12,6 +12,7 @@
 #include "grabber.h"
 #include "vrikinterface001.h"
 #include "config.h"
+#include "offsets.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -33,6 +34,10 @@ auto pickLinearCastHookedFunc = RelocAddr<uintptr_t>(0xAB5EC0); // ahkpWorld::Li
 uintptr_t postWandUpdateHookedFuncAddr = 0;
 auto postWandUpdateHookLoc = RelocAddr<uintptr_t>(0x13233AA); // A call shortly after the wand nodes are updated as part of Main::Draw()
 auto postWandUpdateHookedFunc = RelocAddr<uintptr_t>(0xDCF900);
+
+uintptr_t updatePhysicsTimesHookedFuncAddr = 0;
+auto updatePhysicsTimesHookLoc = RelocAddr<uintptr_t>(0x5BBAEF);
+auto updatePhysicsTimesHookedFunc = RelocAddr<uintptr_t>(0xDFB3C0);
 
 auto getActivateTextHookLoc = RelocAddr<uintptr_t>(0x6D3337);
 
@@ -201,6 +206,14 @@ void GetActivateTextHook()
 }
 
 
+void UpdatePhysicsTimesHook()
+{
+	float deltaTime = *g_secondsSinceLastFrame_Unmultiplied;
+	*fMaxTime = deltaTime;
+	*fMaxTimeComplex = deltaTime * 2.0f;
+}
+
+
 void PerformHooks(void)
 {
 	// First, set our addresses
@@ -209,6 +222,7 @@ void PerformHooks(void)
 	pickLinearCastHookedFuncAddr = pickLinearCastHookedFunc.GetUIntPtr();
 	shaderSetEffectDataInitHookedFuncAddr = shaderSetEffectDataInitHookedFunc.GetUIntPtr();
 	postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
+	updatePhysicsTimesHookedFuncAddr = updatePhysicsTimesHookedFunc.GetUIntPtr();
 
 	{
 		struct Code : Xbyak::CodeGenerator {
@@ -564,5 +578,44 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(postWandUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Post Wand Update hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				push(rdx);
+				sub(rsp, 0x8); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+
+				// Call our hook
+				mov(rax, (uintptr_t)UpdatePhysicsTimesHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				add(rsp, 0x8);
+				pop(rdx);
+
+				// Original code
+				mov(rax, updatePhysicsTimesHookedFuncAddr);
+				call(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(updatePhysicsTimesHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(updatePhysicsTimesHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Update Physics Times hook complete");
 	}
 }

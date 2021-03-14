@@ -55,6 +55,15 @@ extern RelocPtr<CrosshairPickData *> g_pickData;
 
 extern RelocPtr<float> g_deltaTime;
 
+extern RelocPtr<float> g_globalTimeMultiplier;
+
+extern RelocPtr<float> fMaxTime;
+extern RelocPtr<float> fMaxTimeComplex;
+
+extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused;
+extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime;
+extern RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied;
+
 extern RelocPtr<ProcessLists *> g_processLists;
 
 struct BSAudioManager { /* TODO */ };

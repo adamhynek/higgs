@@ -14,6 +14,15 @@ RelocPtr<CrosshairPickData *> g_pickData(0x2FC60C0);
 
 RelocPtr<float> g_deltaTime(0x1EC8278);
 
+RelocPtr<float> g_globalTimeMultiplier(0xC42710);
+
+RelocPtr<float> fMaxTime(0x1EC82B0);
+RelocPtr<float> fMaxTimeComplex(0x1EC8448);
+
+RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused(0x2FEB794); // like the one below, but is 0 if in menu mode (paused)
+RelocPtr<float> g_secondsSinceLastFrame_WorldTime(0x30C3A08); // is multiplied by timeMultiplier
+RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied(0x30C3A0C); // is not multiplied by timeMultiplier
+
 RelocPtr<ProcessLists *> g_processLists(0x1F831B0);
 
 RelocPtr<BSAudioManager *> g_audioManager(0x30C1D30);
