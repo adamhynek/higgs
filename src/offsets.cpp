@@ -22,6 +22,7 @@ RelocPtr<float> fMaxTimeComplex(0x1EC8448);
 RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused(0x2FEB794); // like the one below, but is 0 if in menu mode (paused)
 RelocPtr<float> g_secondsSinceLastFrame_WorldTime(0x30C3A08); // is multiplied by timeMultiplier
 RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied(0x30C3A0C); // is not multiplied by timeMultiplier
+RelocPtr<int> g_sceneComplexCounter(0x2FEB76C);
 
 RelocPtr<ProcessLists *> g_processLists(0x1F831B0);
 

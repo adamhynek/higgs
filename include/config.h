@@ -71,6 +71,9 @@ namespace Config {
 		double mouthDropHapticFadeTime = 0.2f;
 		double rolloverHideTime = 0.25f;
 
+		bool enableHavokFix = true;
+		float havokMaxTimeComplexMultiplier = 1.0f;
+
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
 		bool disableLooting = false;

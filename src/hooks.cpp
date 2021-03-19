@@ -210,7 +210,7 @@ void UpdatePhysicsTimesHook()
 {
 	float deltaTime = *g_secondsSinceLastFrame_Unmultiplied;
 	*fMaxTime = deltaTime;
-	*fMaxTimeComplex = deltaTime * 2.0f;
+	*fMaxTimeComplex = deltaTime * Config::options.havokMaxTimeComplexMultiplier;
 }
 
 
@@ -580,7 +580,7 @@ void PerformHooks(void)
 		_MESSAGE("Post Wand Update hook complete");
 	}
 
-	{
+	if (Config::options.enableHavokFix) {
 		struct Code : Xbyak::CodeGenerator {
 			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
 			{

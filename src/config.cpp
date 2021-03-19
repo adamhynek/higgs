@@ -188,6 +188,9 @@ namespace Config {
 		if (!ReadBool("UseLoudSoundDrop", options.useLoudSoundDrop)) return false;
 		if (!ReadBool("UseLoudSoundPull", options.useLoudSoundPull)) return false;
 
+		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
+		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
+
 		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
 		if (!ReadBool("DisableLooting", options.disableLooting)) return false;
 		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
