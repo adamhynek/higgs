@@ -376,16 +376,13 @@ Point2& Point2::operator/= (float scalar)
 
 namespace MathUtils
 {
-	Result GetClosestPointOnTriangle(const NiPoint3 &point, const Triangle &triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+	Result GetClosestPointOnTriangle(const NiPoint3 &point, const TriangleData &triangle)
 	{
 		// Taken from https://www.geometrictools.com/GTE//Mathematics/DistPointTriangleExact.h and adapted
 
-		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
-		NiPoint3 pos0 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
-		NiPoint3 pos1 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
-		NiPoint3 pos2 = *(NiPoint3 *)(vert + vertexPosOffset);
+		NiPoint3 pos0 = triangle.v0;
+		NiPoint3 pos1 = triangle.v1;
+		NiPoint3 pos2 = triangle.v2;
 
 		NiPoint3 diff = point - pos0;
 		NiPoint3 edge0 = pos1 - pos0;
@@ -630,20 +627,16 @@ namespace MathUtils
 
 	bool GetClosestPointOnTriangleToLine(const NiPoint3 &rayOrigin,
 		const NiPoint3 &rayVector,
-		const Triangle &triangle,
+		const TriangleData &triangle,
 		NiPoint3 &outIntersectionPoint,
 		float &outSqrDistance,
-		bool &outIntersects,
-		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+		bool &outIntersects)
 	{
 		const float EPSILON = 0.0000001;
 
-		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
-		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
-		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
-		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+		NiPoint3 vertex0 = triangle.v0;
+		NiPoint3 vertex1 = triangle.v1;
+		NiPoint3 vertex2 = triangle.v2;
 
 		bool intersects = true;
 		NiPoint3 edge1, edge2, h, s, q;
@@ -668,8 +661,9 @@ namespace MathUtils
 		float t = f * DotProduct(edge2, q);
 		//if (t > EPSILON) // ray intersection
 		//{
+
 		NiPoint3 intersectPoint = rayOrigin + rayVector * t;
-		Result result = GetClosestPointOnTriangle(intersectPoint, triangle, vertices, vertexStride, vertexPosOffset);
+		Result result = GetClosestPointOnTriangle(intersectPoint, triangle);
 		outIntersectionPoint = result.closest;
 		outSqrDistance = result.sqrDistance;
 		outIntersects = intersects;
@@ -799,17 +793,13 @@ namespace MathUtils
 	int CircleIntersectsTriangle(const NiPoint3 &circleCenter,
 		const NiPoint3 &circleNormal,
 		float circleRadius,
-		const Triangle &triangle,
+		const TriangleData &triangle,
 		NiPoint3 &outIntersectionPoint1,
-		NiPoint3 &outIntersectionPoint2,
-		uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset)
+		NiPoint3 &outIntersectionPoint2)
 	{
-		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
-		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
-		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
-		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+		NiPoint3 vertex0 = triangle.v0;
+		NiPoint3 vertex1 = triangle.v1;
+		NiPoint3 vertex2 = triangle.v2;
 
 		// Check each triangle edge for intersection. Either none intersect, or 2 of them do.
 		NiPoint3 edge1Intersection, edge2Intersection, edge3Intersection;
@@ -993,20 +983,14 @@ namespace MathUtils
 		const NiPoint3 &zeroAngleVector,
 		float handScale,
 		float nodeScale,
-		const Triangle &triangle,
-		uintptr_t vertices,
-		UInt8 vertexStride,
-		UInt32 vertexPosOffset,
+		const TriangleData &triangle,
 		float &outTipAngle,
 		float &outOuterAngle,
 		float &outInnerAngle)
 	{
-		uintptr_t vert = (vertices + triangle.vertexIndices[0] * vertexStride);
-		NiPoint3 vertex0 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[1] * vertexStride);
-		NiPoint3 vertex1 = *(NiPoint3 *)(vert + vertexPosOffset);
-		vert = (vertices + triangle.vertexIndices[2] * vertexStride);
-		NiPoint3 vertex2 = *(NiPoint3 *)(vert + vertexPosOffset);
+		NiPoint3 vertex0 = triangle.v0;
+		NiPoint3 vertex1 = triangle.v1;
+		NiPoint3 vertex2 = triangle.v2;
 
 		// Check each triangle edge for intersection. Either none intersect, or 2 of them do.
 		NiPoint3 edge1Intersection, edge2Intersection, edge3Intersection;
@@ -1075,7 +1059,7 @@ namespace MathUtils
 			auto CircleIntersection = [&]() -> bool
 			{
 				NiPoint3 circleIntersection1, circleIntersection2;
-				int numCircleIntersections = CircleIntersectsTriangle(fingerCenter, fingerNormal, fingerVals[0].fingerLength * scale, triangle, circleIntersection1, circleIntersection2, vertices, vertexStride, vertexPosOffset);
+				int numCircleIntersections = CircleIntersectsTriangle(fingerCenter, fingerNormal, fingerVals[0].fingerLength * scale, triangle, circleIntersection1, circleIntersection2);
 				if (numCircleIntersections > 0) {
 					NiPoint3 triNormal = VectorNormalized(CrossProduct(vertex1 - vertex0, vertex2 - vertex1));
 					if (numCircleIntersections > 1) {
@@ -1246,8 +1230,221 @@ namespace MathUtils
 	}
 }
 
+// Add a list of triangles to the given list for each skinned partition in geom
+void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleData>> &triangles)
+{
+	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
+	if (!skinInstance) return;
 
-void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
+	NiAVObject *skeletonRoot = skinInstance->m_pkRootParent;
+	if (!skeletonRoot) return;
+
+	NiSkinDataPtr skinData = skinInstance->m_spSkinData;
+	if (!skinData) return;
+
+	NiTransform inverseRoot;
+	skeletonRoot->m_worldTransform.Invert(inverseRoot);
+
+	NiSkinPartitionPtr skinPartition = skinInstance->m_spSkinPartition;
+	if (!skinPartition) {
+		skinPartition = skinData->m_spSkinPartition;
+	}
+
+	bool hasPartitions = skinPartition && skinPartition->m_pkPartitions && skinPartition->m_uiPartitions > 0;
+
+	NiAVObject **bones = skinInstance->m_ppkBones;
+	NiSkinData::BoneData *boneData = skinData->m_pkBoneData;
+
+	if (hasPartitions) {
+		UInt32 numTotalVerts = skinPartition->vertexCount;
+
+		for (int i = 0; i < skinPartition->m_uiPartitions; i++) {
+			NiSkinPartition::Partition &partition = skinPartition->m_pkPartitions[i];
+			UInt16 *partBones = partition.m_pusBones;
+
+			// Build up bone transforms
+			UInt16 numPartBones = partition.m_usBones;
+			std::vector<NiTransform> boneTrans(numPartBones);
+			for (int t = 0; t < numPartBones; t++) {
+				UInt16 boneIndex = partBones[t];
+				// bonePalette == Bone Indices. Store bone incides per vertex
+				// bones == Bones. Map from partition bones to skinInstance bones.
+
+				NiAVObject *bone = bones[boneIndex]; // TODO: Check if bone exists as child of root? Nifskope does
+				if (bone) {
+					NiSkinData::BoneData &data = boneData[boneIndex];
+					NiTransform boneLocal = inverseRoot * bone->m_worldTransform;
+					//boneTrans[t] = boneTrans[t] * bone->localTrans(skeletonRoot) * weights.value(part.boneMap[t]).trans; // weights.value(part.boneMap[t]).trans is the 'Skin Transform' of the bone
+					//boneTrans[t] = boneLocal * data.m_kSkinToBone;
+					boneTrans[t] = bone->m_worldTransform * data.m_kSkinToBone;
+				}
+
+				//if ( bone ) boneTrans[ t ] = bone->viewTrans() * weights.value( part.boneMap[t] ).trans;
+			}
+
+			// Compute vertex positions using bone transforms
+
+			UInt16 numPartVerts = partition.m_usVertices;
+			UInt16 numTris = partition.m_usTriangles;
+			NiSkinPartition::TriShape *shapeData = partition.shapeData;
+			if (!shapeData) continue;
+
+			uintptr_t verts = (uintptr_t)shapeData->m_RawVertexData;
+			auto tris = (Triangle *)shapeData->m_RawIndexData;
+
+			UInt64 vertexDesc = shapeData->m_VertexDesc;
+			VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+			UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+
+			if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numPartVerts > 0 && tris && numTris > 0) {
+				UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+				UInt16 numWeightsPerVertex = partition.m_usBonesPerVertex;
+
+				std::vector<NiPoint3> transVerts(numTotalVerts); // Allocate space for _all vertices for all partitions_ but only fill in the ones mapped to by the individual partition
+
+				for (int v = 0; v < numPartVerts; v++) {
+					// partition.m_pusVertexMap: maps from partition vertex -> partition.shapeData->m_RawVertexData vertex
+					UInt16 vindex = partition.m_pusVertexMap[v];
+					if (vindex >= numTotalVerts) break;
+
+					uintptr_t vert = (verts + v * vertexSize);
+					NiPoint3 vertPos = *(NiPoint3 *)(vert + posOffset);
+
+					for (int w = 0; w < numWeightsPerVertex; w++) {
+						int offset = v * numWeightsPerVertex + w;
+						float weight = partition.m_pfWeights[offset];
+
+						if (weight != 0.0f) {
+							UInt16 boneIndex = partition.m_pucBonePalette[offset];
+							NiTransform boneTransform = boneTrans[boneIndex];
+
+							transVerts[vindex] += boneTransform * vertPos * weight;
+						}
+					}
+				}
+
+				std::vector<TriangleData> partTris;
+				partTris.reserve(numTris);
+				for (int t = 0; t < numTris; t++) {
+					Triangle tri = tris[t];
+					TriangleData triData(tri, transVerts);
+					partTris.push_back(triData);
+				}
+
+				_MESSAGE("%d skinned tris", numTris);
+				triangles.push_back(partTris);
+			}
+		}
+	}
+	/*else {
+		UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
+		for (int i = 0; i < numBones; i++) {
+			NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
+			if (bone) {
+			}
+		}
+
+		int x = 0;
+		for (const BoneWeights& bw : weights) {
+			Transform trans = viewTrans() * skeletonTrans;
+			Node * bone = root ? root->findChild(bw.bone) : 0;
+
+			if (bone)
+				trans = trans * bone->localTrans(skeletonRoot) * bw.trans;
+
+			if (bone)
+				weights[x++].tcenter = bone->viewTrans() * bw.center;
+			else
+				x++;
+
+			for (const VertexWeight& vw : bw.weights) {
+				int vindex = vw.vertex;
+				if (vindex < 0 || vindex >= vcnt)
+					break;
+
+				if (vcnt > vindex)
+					transVerts[vindex] += trans * verts[vindex] * vw.weight;
+				if (ncnt > vindex)
+					transNorms[vindex] += trans.rotation * norms[vindex] * vw.weight;
+				if (tcnt > vindex)
+					transTangents[vindex] += trans.rotation * tangents[vindex] * vw.weight;
+				if (bcnt > vindex)
+					transBitangents[vindex] += trans.rotation * bitangents[vindex] * vw.weight;
+			}
+		}
+	}*/
+}
+
+
+void GetSkinnedTrianglesHelper(NiAVObject *root, std::vector<std::vector<TriangleData>> &triangles)
+{
+	BSTriShape *geom = root->GetAsBSTriShape();
+	if (geom) {
+		UpdateSkinnedTriangles(geom, triangles);
+		return;
+	}
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		if (node->GetAsNiSwitchNode()) {
+			// NiSwitchNode: Return the first valid child
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					GetSkinnedTrianglesHelper(child, triangles);
+					return;
+				}
+			}
+			return;
+		}
+		else {
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					GetSkinnedTrianglesHelper(child, triangles);
+				}
+			}
+			return;
+		}
+	}
+	return;
+}
+
+
+// Get a list of triangle lists for all geometry rooted at root
+std::vector<std::vector<TriangleData>> GetSkinnedTriangles(NiAVObject *root)
+{
+	std::vector<std::vector<TriangleData>> triangles;
+	GetSkinnedTrianglesHelper(root, triangles);
+	return triangles;
+}
+
+
+void GetFingerIntersectionOnGraphicsGeometrySkinned(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
+	const std::vector<TriangleData> &tris,
+	int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
+{
+	for (TriangleData triangle : tris) {
+
+		// get closest point on triangle to given point
+		float tipAngle, outerAngle, innerAngle;
+		auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, center, normal, zeroAngleVector, handScale, 1.0f, triangle,
+			tipAngle, outerAngle, innerAngle);
+
+		if (tipIntersects) {
+			tipIntersections.push_back({ tipAngle });
+		}
+		if (outerIntersects) {
+			outerIntersections.push_back({ outerAngle });
+		}
+		if (innerIntersects) {
+			innerIntersections.push_back({ innerAngle });
+		}
+	}
+}
+
+void GetFingerIntersectionOnGraphicsGeometryUnskinned(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
 	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
@@ -1285,24 +1482,23 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 
 			for (int i = 0; i < numTris; i++) {
 				Triangle tri = tris[i];
+				TriangleData triData(tri, verts, posOffset, vertexSize);
+
 				// get closest point on triangle to given point
 				float tipAngle, outerAngle, innerAngle;
-				auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, handScale, nodeTransform.scale, tri, verts, vertexSize, posOffset,
+				auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, handScale, nodeTransform.scale, triData,
 					tipAngle, outerAngle, innerAngle);
 				//int numIntersections = MathUtils::DiskIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
 				//int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
-				if (!tipIntersects && !outerIntersects && !innerIntersects) {
-					continue;
-				}
 
 				if (tipIntersects) {
-					tipIntersections.push_back({ geom, tri, tipAngle });
+					tipIntersections.push_back({ tipAngle });
 				}
 				if (outerIntersects) {
-					outerIntersections.push_back({ geom, tri, outerAngle });
+					outerIntersections.push_back({ outerAngle });
 				}
 				if (innerIntersects) {
-					innerIntersections.push_back({ geom, tri, innerAngle });
+					innerIntersections.push_back({ innerAngle });
 				}
 			}
 		}
@@ -1316,7 +1512,7 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
+					GetFingerIntersectionOnGraphicsGeometryUnskinned(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
 					return;
 				}
 			}
@@ -1326,7 +1522,7 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
+					GetFingerIntersectionOnGraphicsGeometryUnskinned(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
 				}
 			}
 			return;
@@ -1336,7 +1532,19 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 }
 
 
-NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const Intersection &intersection)
+void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
+	const std::vector<std::vector<TriangleData>> &skinnedTriangleLists,
+	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
+{
+	for (auto &triangleList : skinnedTriangleLists) {
+		GetFingerIntersectionOnGraphicsGeometrySkinned(tipIntersections, outerIntersections, innerIntersections, triangleList, fingerIndex, handScale, center, normal, zeroAngleVector);
+	}
+
+	GetFingerIntersectionOnGraphicsGeometryUnskinned(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, root, center, normal, zeroAngleVector);
+}
+
+
+NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const _OldIntersection &intersection)
 {
 	BSTriShape *geom = intersection.node;
 	Triangle tri = intersection.tri;
@@ -1352,12 +1560,13 @@ NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const Intersection
 
 	NiTransform nodeTransform = geom->m_worldTransform;
 
-	MathUtils::Result result = MathUtils::GetClosestPointOnTriangle(point, tri, verts, vertexSize, posOffset);
+	TriangleData triData(tri, verts, posOffset, vertexSize);
+	MathUtils::Result result = MathUtils::GetClosestPointOnTriangle(point, triData);
 
 	return nodeTransform * result.closest;
 }
 
-std::array<NiPoint3, 3> GetVertices(const Intersection &intersection)
+std::array<NiPoint3, 3> GetVertices(const _OldIntersection &intersection)
 {
 	BSTriShape *geom = intersection.node;
 	Triangle tri = intersection.tri;
@@ -1418,13 +1627,13 @@ float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std:
 }
 
 
-bool GetIntersections(NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
+bool GetIntersections(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle)
 {
 	std::vector<Intersection> tipIntersections, outerIntersections, innerIntersections;
 
 	// Populate intersections
-	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, root, center, normal, zeroAngleVector);
+	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, skinnedTriangleLists, fingerIndex, handScale, root, center, normal, zeroAngleVector);
 
 	/*
 	if (innerIntersections.size() == 0 && anyUnderInner) {
@@ -1556,8 +1765,10 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 
 			for (int i = 0; i < numTris; i++) {
 				Triangle tri = tris[i];
+				TriangleData triData(tri, verts, posOffset, vertexSize);
+
 				// get closest point on triangle to given point
-				MathUtils::Result result = MathUtils::GetClosestPointOnTriangle(pointInNodeSpace, tri, verts, vertexSize, posOffset);
+				MathUtils::Result result = MathUtils::GetClosestPointOnTriangle(pointInNodeSpace, triData);
 				float distance = result.sqrDistance;
 				if (distance < closestDistance) {
 					closestDistance = distance;
@@ -1571,14 +1782,13 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 				*closestPos = geom->m_worldTransform * closestTriPos;
 
 				Triangle closestTriangle = tris[closestTri];
-				uintptr_t vert = (verts + closestTriangle.vertexIndices[0] * vertexSize);
-				NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
-				vert = (verts + closestTriangle.vertexIndices[1] * vertexSize);
-				NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
-				vert = (verts + closestTriangle.vertexIndices[2] * vertexSize);
-				NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
 
-				*closestNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+				TriangleData triData(closestTriangle, verts, posOffset, vertexSize);
+				triData.v0 = geom->m_worldTransform * triData.v0;
+				triData.v1 = geom->m_worldTransform * triData.v1;
+				triData.v2 = geom->m_worldTransform * triData.v2;
+
+				*closestNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
 
 				return true;
 			}
@@ -1612,7 +1822,56 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 	return false;
 }
 
-bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+bool GetClosestPointOnGraphicsGeometryToLineSkinned(const std::vector<TriangleData> &tris, const NiPoint3 &point, const NiPoint3 &direction,
+	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+{
+	TriangleData *closestTri = nullptr;
+	NiPoint3 closestTriPos;
+	float closestDistance = *closestDistanceSoFar;
+
+	float lateralWeight = Config::options.grabLateralWeight;
+	float directionalWeight = Config::options.grabDirectionalWeight;
+
+	for (TriangleData triangle : tris) {
+		// get closest point on the triangle to given ray starting at point in direction
+		NiPoint3 closestPoint;
+		float closestDistSquared;
+		bool intersects;
+		MathUtils::GetClosestPointOnTriangleToLine(point, direction, triangle, closestPoint, closestDistSquared, intersects);
+
+		NiPoint3 pointToClosest = closestPoint - point;
+		NiPoint3 pointToClosestAlongDirection = direction * DotProduct(pointToClosest, direction);
+
+		float directionalDistance = VectorLength(pointToClosestAlongDirection);
+		float lateralDistance = VectorLength(pointToClosest - pointToClosestAlongDirection);
+		float distance = directionalWeight * directionalDistance*directionalDistance + lateralWeight * lateralDistance*lateralDistance;
+		if (distance < closestDistance) {
+			NiPoint3 triNormal = VectorNormalized(CrossProduct(triangle.v1 - triangle.v0, triangle.v2 - triangle.v1));
+
+			if (DotProduct(triNormal, direction) <= 0) {
+				// Front face of the triangle faces the line
+				closestDistance = distance;
+				closestTriPos = closestPoint;
+				closestTri = &triangle;
+			}
+		}
+	}
+
+	if (closestTri) {
+		*closestDistanceSoFar = closestDistance;
+		*closestPos = closestTriPos;
+
+		TriangleData triData = *closestTri;
+
+		*closestNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
+
+		return true;
+	}
+
+	return false;
+}
+
+bool GetClosestPointOnGraphicsGeometryToLineUnskinned(NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1650,25 +1909,22 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &p
 
 			for (int i = 0; i < numTris; i++) {
 				Triangle tri = tris[i];
+				TriangleData triData(tri, verts, posOffset, vertexSize);
+
 				// get closest point on the triangle to given ray starting at point in direction
 				NiPoint3 closestPoint;
 				float closestDistSquared;
 				bool intersects;
-				MathUtils::GetClosestPointOnTriangleToLine(pointInNodeSpace, directionInNodeSpace, tri, closestPoint, closestDistSquared, intersects, verts, vertexSize, posOffset);
+				MathUtils::GetClosestPointOnTriangleToLine(pointInNodeSpace, directionInNodeSpace, triData, closestPoint, closestDistSquared, intersects);
+
 				NiPoint3 pointToClosest = closestPoint - pointInNodeSpace;
 				NiPoint3 pointToClosestAlongDirection = directionInNodeSpace * DotProduct(pointToClosest, directionInNodeSpace);
+
 				float directionalDistance = VectorLength(pointToClosestAlongDirection);
 				float lateralDistance = VectorLength(pointToClosest - pointToClosestAlongDirection);
 				float distance = directionalWeight * directionalDistance*directionalDistance + lateralWeight * lateralDistance*lateralDistance;
 				if (distance < closestDistance) {
-					uintptr_t vert = (verts + tri.vertexIndices[0] * vertexSize);
-					NiPoint3 pos0 = *(NiPoint3 *)(vert + posOffset);
-					vert = (verts + tri.vertexIndices[1] * vertexSize);
-					NiPoint3 pos1 = *(NiPoint3 *)(vert + posOffset);
-					vert = (verts + tri.vertexIndices[2] * vertexSize);
-					NiPoint3 pos2 = *(NiPoint3 *)(vert + posOffset);
-
-					NiPoint3 triNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+					NiPoint3 triNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
 
 					if (DotProduct(triNormal, directionInNodeSpace) <= 0) {
 						// Front face of the triangle faces the line
@@ -1684,14 +1940,13 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &p
 				*closestPos = geom->m_worldTransform * closestTriPos;
 
 				Triangle closestTriangle = tris[closestTri];
-				uintptr_t vert = (verts + closestTriangle.vertexIndices[0] * vertexSize);
-				NiPoint3 pos0 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
-				vert = (verts + closestTriangle.vertexIndices[1] * vertexSize);
-				NiPoint3 pos1 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
-				vert = (verts + closestTriangle.vertexIndices[2] * vertexSize);
-				NiPoint3 pos2 = geom->m_worldTransform * *(NiPoint3 *)(vert + posOffset);
 
-				*closestNormal = VectorNormalized(CrossProduct(pos1 - pos0, pos2 - pos1));
+				TriangleData triData(closestTriangle, verts, posOffset, vertexSize);
+				triData.v0 = geom->m_worldTransform * triData.v0;
+				triData.v1 = geom->m_worldTransform * triData.v1;
+				triData.v2 = geom->m_worldTransform * triData.v2;
+
+				*closestNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
 
 				return true;
 			}
@@ -1705,7 +1960,7 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &p
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					return GetClosestPointOnGraphicsGeometryToLine(child, point, direction, closestPos, closestNormal, closestDistanceSoFar);
+					return GetClosestPointOnGraphicsGeometryToLineUnskinned(child, point, direction, closestPos, closestNormal, closestDistanceSoFar);
 				}
 			}
 		}
@@ -1714,13 +1969,25 @@ bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &p
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					if (GetClosestPointOnGraphicsGeometryToLine(child, point, direction, closestPos, closestNormal, closestDistanceSoFar)) {
-						success = true;
-					}
+					success |= GetClosestPointOnGraphicsGeometryToLineUnskinned(child, point, direction, closestPos, closestNormal, closestDistanceSoFar);
 				}
 			}
 			return success;
 		}
 	}
 	return false;
+}
+
+
+bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+{
+	bool success = false;
+
+	for (auto &triangleList : skinnedTriangleLists) {
+		success |= GetClosestPointOnGraphicsGeometryToLineSkinned(triangleList, point, direction, closestPos, closestNormal, closestDistanceSoFar);
+	}
+
+	success |= GetClosestPointOnGraphicsGeometryToLineUnskinned(root, point, direction, closestPos, closestNormal, closestDistanceSoFar);
+
+	return success;
 }

@@ -644,7 +644,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 bool Grabber::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm)
 {
 	// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
-	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(root, node) || IsSkinnedToNode(root, node);
+	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(root, node);// || IsSkinnedToNode(root, node);
 	return selectedObject.isActor || usePhysicsBasedGrab || (baseForm && baseForm->formType == kFormType_Ammo);
 }
 
@@ -704,6 +704,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
 			if (selectedObject.isActor) {
+				auto triangleLists = GetSkinnedTriangles(objRoot);
+
 				if (Config::options.overrideBodyCollision) {
 					CollisionInfo::SetCollisionGroupDownstream(objRoot, playerCollisionGroup, collisionMapState);
 				}
@@ -753,10 +755,14 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 				UpdateKeyframedNode(collidableNode, newTransform);
 			}
 
+			double t = GetTime();
+			auto skinnedTriangleLists = GetSkinnedTriangles(objRoot); // tris are in worldspace
+			_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
+
 			NiPoint3 triPos, triNormal;
 			float closestDist = (std::numeric_limits<float>::max)();
-			double t = GetTime();
-			bool success = GetClosestPointOnGraphicsGeometryToLine(objRoot, palmPos, castDirection, &triPos, &triNormal, &closestDist);
+			t = GetTime();
+			bool success = GetClosestPointOnGraphicsGeometryToLine(skinnedTriangleLists, objRoot, palmPos, castDirection, &triPos, &triNormal, &closestDist);
 
 			NiTransform desiredTransform = collidableNode->m_worldTransform;
 
@@ -788,24 +794,20 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 						fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 					}
 
-					auto FingerCheck = [this, player, handNode, palmPos, fingerNormalsWorldspace, fingerZeroAngleVecsWorldspace, handScale]
+					auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &skinnedTriangleLists]
 					(NiNode *root, int fingerIndex) -> float
 					{
 						NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
-						NiPointer<NiAVObject> midFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][1].data);
-						NiPointer<NiAVObject> endFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][2].data);
-
-						if (startFinger && midFinger && endFinger) {
+						if (startFinger) {
 							NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
 							NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
 
-							NiPoint3 handPos = handNode->m_worldTransform.pos;
 							NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
 
 							_MESSAGE("finger %d", fingerIndex);
 
 							float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
-							bool intersects = GetIntersections(root, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+							bool intersects = GetIntersections(skinnedTriangleLists, root, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
 								&curveValOrAngle);
 							if (intersects) {
 								return curveValOrAngle;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "RE/havok.h"
 
 #include "skse64/NiObjects.h"
@@ -13,7 +15,36 @@ struct Triangle
 };
 static_assert(sizeof(Triangle) == 0x06);
 
+struct TriangleData
+{
+	inline TriangleData(Triangle tri, uintptr_t vertices, UInt32 posOffset, UInt8 vertexSize) {
+		uintptr_t vert = (vertices + tri.vertexIndices[0] * vertexSize);
+		v0 = *(NiPoint3 *)(vert + posOffset);
+		vert = (vertices + tri.vertexIndices[1] * vertexSize);
+		v1 = *(NiPoint3 *)(vert + posOffset);
+		vert = (vertices + tri.vertexIndices[2] * vertexSize);
+		v2 = *(NiPoint3 *)(vert + posOffset);
+	}
+
+	inline TriangleData(Triangle tri, const std::vector<NiPoint3> &vertices) {
+		v0 = vertices[tri.vertexIndices[0]];
+		v1 = vertices[tri.vertexIndices[1]];
+		v2 = vertices[tri.vertexIndices[2]];
+	}
+
+	TriangleData() : v0(), v1(), v2() {}
+
+	NiPoint3 v0;
+	NiPoint3 v1;
+	NiPoint3 v2;
+};
+
 struct Intersection
+{
+	float angle; // angle of the fingertip at intersection pt
+};
+
+struct _OldIntersection
 {
 	BSTriShape *node; // the trishape where the intersected triangle resides
 	Triangle tri; // triangle that was intersected
@@ -54,7 +85,7 @@ namespace MathUtils
 		NiPoint3 closest;
 	};
 
-	Result GetClosestPointOnTriangle(const NiPoint3 &point, const Triangle &triangle, uintptr_t vertices, UInt8 vertexStride, UInt32 vertexPosOffset);
+	Result GetClosestPointOnTriangle(const NiPoint3 &point, const TriangleData &triangle);
 }
 
 inline float VectorLengthSquared(const NiPoint3 &vec) { return vec.x*vec.x + vec.y*vec.y + vec.z*vec.z; }
@@ -90,9 +121,12 @@ inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
 
-bool GetIntersections(NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
+std::vector<std::vector<TriangleData>> GetSkinnedTriangles(NiAVObject *root);
+
+bool GetIntersections(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle);
 void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
+	const std::vector<std::vector<TriangleData>> &skinnedTriangleLists,
 	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
-bool GetClosestPointOnGraphicsGeometryToLine(NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
+bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
