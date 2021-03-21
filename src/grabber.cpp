@@ -794,7 +794,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 						fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 					}
 
-					auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &skinnedTriangleLists]
+					auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &skinnedTriangleLists, &desiredTransform, &collidableNode]
 					(NiNode *root, int fingerIndex) -> float
 					{
 						NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
@@ -803,6 +803,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 							NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
 
 							NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
+							startFingerPos += collidableNode->m_worldTransform.pos - desiredTransform.pos; // Move the finger up to where the hand would be if it was already holding the object
 
 							_MESSAGE("finger %d", fingerIndex);
 
@@ -823,7 +824,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					};
 
 					// Update transform to snap to the hand
-					UpdateKeyframedNode(collidableNode, desiredTransform);
+					// Not needed since now we update the finger position manually, and doing it this way breaks skinning since we already skinned the object
+					//UpdateKeyframedNode(collidableNode, desiredTransform);
 
 					std::array<float, 5> fingerData;
 					for (int i = 0; i < fingerData.size(); i++) {
