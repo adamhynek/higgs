@@ -200,7 +200,6 @@ struct Grabber
 	NiPoint3 pullTarget;
 	NiPoint3 initialObjPosRaySpace;
 	NiPoint3 initialGrabbedObjRelativePosition;
-	NiPoint3 initialGrabbedObjWorldPosition;
 
 	NiTransform desiredObjTransformHandSpace;
 

@@ -1273,13 +1273,8 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 				NiAVObject *bone = bones[boneIndex]; // TODO: Check if bone exists as child of root? Nifskope does
 				if (bone) {
 					NiSkinData::BoneData &data = boneData[boneIndex];
-					NiTransform boneLocal = inverseRoot * bone->m_worldTransform;
-					//boneTrans[t] = boneTrans[t] * bone->localTrans(skeletonRoot) * weights.value(part.boneMap[t]).trans; // weights.value(part.boneMap[t]).trans is the 'Skin Transform' of the bone
-					//boneTrans[t] = boneLocal * data.m_kSkinToBone;
 					boneTrans[t] = bone->m_worldTransform * data.m_kSkinToBone;
 				}
-
-				//if ( bone ) boneTrans[ t ] = bone->viewTrans() * weights.value( part.boneMap[t] ).trans;
 			}
 
 			// Compute vertex positions using bone transforms
@@ -1338,25 +1333,29 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 		}
 	}
 	/*else {
-		UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
-		for (int i = 0; i < numBones; i++) {
-			NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
+		for (int i = 0; i < skinData->m_uiBones; i++) {
+			NiSkinData::BoneData &boneData = skinData->m_pkBoneData[i];
+
+			NiTransform trans = NiTransform();
+
+			NiAVObject *bone = bones[i]; // TODO: Check if bone exists as child of root? Nifskope does
 			if (bone) {
+				trans = bone->m_worldTransform * boneData.m_kSkinToBone;
+			}
+
+			for (int v = 0; v < boneData.m_usVerts; v++) {
+				NiSkinData::BoneVertData &boneVertData = boneData.m_pkBoneVertData[v];
+				UInt16 vindex = boneVertData.m_usVert;
+				float weight = boneVertData.m_fWeight;
 			}
 		}
 
-		int x = 0;
 		for (const BoneWeights& bw : weights) {
 			Transform trans = viewTrans() * skeletonTrans;
 			Node * bone = root ? root->findChild(bw.bone) : 0;
 
 			if (bone)
 				trans = trans * bone->localTrans(skeletonRoot) * bw.trans;
-
-			if (bone)
-				weights[x++].tcenter = bone->viewTrans() * bw.center;
-			else
-				x++;
 
 			for (const VertexWeight& vw : bw.weights) {
 				int vindex = vw.vertex;
@@ -1365,12 +1364,6 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 
 				if (vcnt > vindex)
 					transVerts[vindex] += trans * verts[vindex] * vw.weight;
-				if (ncnt > vindex)
-					transNorms[vindex] += trans.rotation * norms[vindex] * vw.weight;
-				if (tcnt > vindex)
-					transTangents[vindex] += trans.rotation * tangents[vindex] * vw.weight;
-				if (bcnt > vindex)
-					transBitangents[vindex] += trans.rotation * bitangents[vindex] * vw.weight;
 			}
 		}
 	}*/

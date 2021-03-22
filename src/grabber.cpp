@@ -716,7 +716,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
 			NiPoint3 centerOfMass = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
-			initialGrabbedObjWorldPosition = centerOfMass;
 
 			NiPoint3 ptToCenter = centerOfMass - ptPos; // in hk coords
 			NiPoint3 desiredPos = (hkPalmPos + ptToCenter) / havokWorldScale; // in skyrim coords
@@ -744,7 +743,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 
 			NiTransform originalTransform = collidableNode->m_worldTransform;
-			initialGrabbedObjWorldPosition = collidableNode->m_worldTransform.pos;
 
 			if (initialTransform) {
 				UpdateKeyframedNode(collidableNode, *initialTransform);
@@ -1561,7 +1559,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialObjPosRaySpace = { DotProduct(relObjPos, forward), DotProduct(relObjPos, right) , DotProduct(relObjPos, up) };
 							rolloverDisplayTime = g_currentFrameTime;
 							initialGrabbedObjRelativePosition = relObjPos;
-							initialGrabbedObjWorldPosition = hkObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
 							state = State::SelectionLocked;
