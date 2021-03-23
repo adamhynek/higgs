@@ -6,6 +6,7 @@
 #include "finger_curves.h"
 
 #include "skse64/NiGeometry.h"
+#include "skse64/GameRTTI.h"
 
 #include <array>
 #include <unordered_set>
@@ -1242,6 +1243,8 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 	NiSkinDataPtr skinData = skinInstance->m_spSkinData;
 	if (!skinData) return;
 
+	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSGeometry, BSDynamicTriShape);
+
 	NiTransform inverseRoot;
 	skeletonRoot->m_worldTransform.Invert(inverseRoot);
 
@@ -1290,10 +1293,15 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 			UInt64 vertexDesc = shapeData->m_VertexDesc;
 			VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
 			UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
 
-			if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numPartVerts > 0 && tris && numTris > 0) {
-				UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+			if (dynamicShape) {
+				verts = (uintptr_t)dynamicShape->pDynamicData;
+				vertexSize = 16;
+				posOffset = 0;
+			}
 
+			if ((vertexFlags & VertexFlags::VF_VERTEX || dynamicShape) && verts && numPartVerts > 0 && tris && numTris > 0) {
 				UInt16 numWeightsPerVertex = partition.m_usBonesPerVertex;
 
 				std::vector<NiPoint3> transVerts(numTotalVerts); // Allocate space for _all vertices for all partitions_ but only fill in the ones mapped to by the individual partition
@@ -1303,7 +1311,7 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 					UInt16 vindex = partition.m_pusVertexMap[v];
 					if (vindex >= numTotalVerts) break;
 
-					uintptr_t vert = (verts + v * vertexSize);
+					uintptr_t vert = (verts + vindex * vertexSize);
 					NiPoint3 vertPos = *(NiPoint3 *)(vert + posOffset);
 
 					for (int w = 0; w < numWeightsPerVertex; w++) {
@@ -1331,6 +1339,9 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 				triangles.push_back(partTris);
 			}
 		}
+	}
+	else {
+		_MESSAGE("Skindata with no partitions");
 	}
 	/*else {
 		for (int i = 0; i < skinData->m_uiBones; i++) {
