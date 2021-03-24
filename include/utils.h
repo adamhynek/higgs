@@ -8,6 +8,7 @@
 #include "skse64/GameData.h"
 #include "skse64/GameExtraData.h"
 #include "common/ITimer.h"
+#include "math_utils.h"
 
 
 #define VM_REGISTRY (*g_skyrimVM)->GetClassRegistry()
@@ -38,6 +39,7 @@ double GetTime();
 void PrintVector(const NiPoint3 &p);
 void PrintSceneGraph(NiAVObject *node);
 void PrintToFile(std::string entry, std::string filename);
+void DumpVertices(std::vector<std::vector<TriangleData>> &triangleLists);
 
 //float hkHalfToFloat(hkHalf half);
 //hkHalf floatToHkHalf(float half);

@@ -1255,7 +1255,10 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 
 	bool hasPartitions = skinPartition && skinPartition->m_pkPartitions && skinPartition->m_uiPartitions > 0;
 
-	NiAVObject **bones = skinInstance->m_ppkBones;
+	UInt32 numBones = skinInstance->m_uiBoneNodes;
+	NiTransform **boneTransforms = skinInstance->m_worldTransforms;
+	if (!boneTransforms || numBones <= 0) return;
+
 	NiSkinData::BoneData *boneData = skinData->m_pkBoneData;
 
 	if (hasPartitions) {
@@ -1270,13 +1273,14 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 			std::vector<NiTransform> boneTrans(numPartBones);
 			for (int t = 0; t < numPartBones; t++) {
 				UInt16 boneIndex = partBones[t];
+				if (boneIndex >= numBones) break;
 				// bonePalette == Bone Indices. Store bone incides per vertex
 				// bones == Bones. Map from partition bones to skinInstance bones.
 
-				NiAVObject *bone = bones[boneIndex]; // TODO: Check if bone exists as child of root? Nifskope does
-				if (bone) {
+				NiTransform *boneTransform = boneTransforms[boneIndex];
+				if (boneTransform) {
 					NiSkinData::BoneData &data = boneData[boneIndex];
-					boneTrans[t] = bone->m_worldTransform * data.m_kSkinToBone;
+					boneTrans[t] = *boneTransform * data.m_kSkinToBone;
 				}
 			}
 

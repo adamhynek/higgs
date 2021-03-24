@@ -734,6 +734,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		auto skinnedTriangleLists = GetSkinnedTriangles(objRoot); // tris are in worldspace
 		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
+		//DumpVertices(skinnedTriangleLists);
+
 		NiPoint3 triPos, triNormal;
 		float closestDist = (std::numeric_limits<float>::max)();
 		t = GetTime();

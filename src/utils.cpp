@@ -15,7 +15,6 @@
 #include "utils.h"
 #include "offsets.h"
 #include "config.h"
-#include "math_utils.h"
 #include "grabber.h"
 
 
@@ -407,6 +406,52 @@ void PrintToFile(std::string entry, std::string filename)
 	file.open(filename);
 	file << entry << std::endl;
 	file.close();
+}
+
+void DumpVertices(std::vector<std::vector<TriangleData>> &triangleLists)
+{
+	_file.open("vertices.log");
+
+	std::vector<NiPoint3> vertices;
+	for (auto &triangleList : triangleLists) {
+		for (TriangleData &triangle : triangleList) {
+			bool contains = false;
+			for (NiPoint3 vertex : vertices) {
+				if (vertex.x == triangle.v0.x && vertex.y == triangle.v0.y && vertex.z == triangle.v0.z) {
+					contains = true;
+				}
+			}
+			if (!contains) {
+				vertices.push_back(triangle.v0);
+			}
+
+			contains = false;
+			for (NiPoint3 vertex : vertices) {
+				if (vertex.x == triangle.v1.x && vertex.y == triangle.v1.y && vertex.z == triangle.v1.z) {
+					contains = true;
+				}
+			}
+			if (!contains) {
+				vertices.push_back(triangle.v1);
+			}
+
+			contains = false;
+			for (NiPoint3 vertex : vertices) {
+				if (vertex.x == triangle.v2.x && vertex.y == triangle.v2.y && vertex.z == triangle.v2.z) {
+					contains = true;
+				}
+			}
+			if (!contains) {
+				vertices.push_back(triangle.v2);
+			}
+		}
+	}
+
+	for (NiPoint3 vertex : vertices) {
+		_file << vertex.x << ',' << vertex.y << ',' << vertex.z << ';';
+	}
+
+	_file.close();
 }
 
 NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj)
