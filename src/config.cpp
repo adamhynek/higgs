@@ -190,6 +190,7 @@ namespace Config {
 
 		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
 		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
+		if (!ReadFloat("HavokMaxMaxTime", options.havokMaxMaxTime)) return false;
 
 		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
 		if (!ReadBool("DisableLooting", options.disableLooting)) return false;

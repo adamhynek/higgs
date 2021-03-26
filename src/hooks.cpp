@@ -208,7 +208,7 @@ void GetActivateTextHook()
 
 void UpdatePhysicsTimesHook()
 {
-	float deltaTime = *g_secondsSinceLastFrame_Unmultiplied;
+	float deltaTime = min(*g_secondsSinceLastFrame_Unmultiplied, Config::options.havokMaxMaxTime);
 	*fMaxTime = deltaTime;
 	*fMaxTimeComplex = deltaTime * Config::options.havokMaxTimeComplexMultiplier;
 }

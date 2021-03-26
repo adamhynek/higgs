@@ -581,7 +581,7 @@ void Grabber::UpdateHandCollision(NiAVObject *handNode)
 	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(desiredRot);
-	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+	hkpKeyFrameUtility_applyHardKeyFrameAsynchronously(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 }
 
 
@@ -2245,7 +2245,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				NiMatrixToHkMatrix(newTransform.rot, desiredRot);
 				hkQuaternion desiredQuat;
 				desiredQuat.setFromRotationSimd(desiredRot);
-				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+				hkpKeyFrameUtility_applyHardKeyFrameAsynchronously(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
 
 				if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 					haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);

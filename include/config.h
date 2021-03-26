@@ -73,6 +73,7 @@ namespace Config {
 
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;
+		float havokMaxMaxTime = 0.02778f; // 36 fps
 
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
