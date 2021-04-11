@@ -1023,7 +1023,7 @@ bool Grabber::TransitionGrabExternal(TESObjectREFR *refr)
 			}
 		}
 
-		if (state == State::SelectedClose || state == State::SelectedFar) {
+		if (state == State::SelectedClose || state == State::SelectedFar || state == State::SelectionLocked) {
 			StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 		}
 
@@ -1043,22 +1043,15 @@ bool Grabber::TransitionGrabExternal(TESObjectREFR *refr)
 
 void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmPos, const NiPoint3 &palmVector, float havokWorldScale)
 {
-	if (ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm)) {
-		// We need to find a point on the collision geometry to have the hand grab
+	selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
 
-		selectedObject.point = GetClosestPointToRigidbody(world, selectedObject.rigidBody, sphere, hkPalmPos + palmVector * 1.0f, hkPalmPos);
+	// Position the object in the direction of the palm for better grab results
+	NiTransform initialTransform = collidableNode->m_worldTransform;
+	initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
 
-		TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
-	}
-	else {
-		selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
+	TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
 
-		// Position the object in the direction of the palm for better grab results
-		NiTransform initialTransform = collidableNode->m_worldTransform;
-		initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
-
-		TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
-
+	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
 		NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
 		UpdateKeyframedNode(collidableNode, newTransform);
@@ -1889,7 +1882,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere,
 					closestObj, closestRigidBody, closestPoint);
 
-				// Allow us to go to held if we had the thing selected from a distance and it came closer within the leeway time
+				// Allow us to go to held if we had the thing selected from a distance and it came closer
 				if (isSelectedNear && closestRigidBody == selectedObject.rigidBody) {
 					if (selectedObject.hitForm && selectedObject.isDisconnected) {
 						// Grabbing a weapon or something that's part of a body
@@ -2459,7 +2452,7 @@ bool Grabber::HasExclusiveObject() const
 
 bool Grabber::CanGrabObject() const
 {
-	return state == State::Idle || state == State::SelectedClose || state == State::SelectedFar;
+	return state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectionLocked;
 }
 
 bool Grabber::HasHeldObject() const
