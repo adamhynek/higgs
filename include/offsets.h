@@ -124,6 +124,9 @@ extern RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm;
 typedef void(*_TESObjectREFR_SetActorOwner)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR *_this, TESForm *owner);
 extern RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner;
 
+typedef float(*_hkpWorld_getCurrentTime)(hkpWorld *world);
+extern RelocAddr<_hkpWorld_getCurrentTime> hkpWorld_getCurrentTime;
+
 typedef void(*_hkpWorld_CastRay)(hkpWorld *world, hkpWorldRayCastInput *input, hkpRayHitCollector *collector);
 extern RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay;
 
@@ -205,6 +208,9 @@ extern RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_apply
 
 typedef void(*_hkpConstraintInstance_setPriority)(hkpConstraintInstance *_this, hkpConstraintInstance::ConstraintPriority priority);
 extern RelocAddr<_hkpConstraintInstance_setPriority> hkpConstraintInstance_setPriority;
+
+typedef void(*_hkpMotion_approxTransformAt)(hkpMotion *motion, float time, hkTransform& transformOut);
+extern RelocAddr<_hkpMotion_approxTransformAt> hkpMotion_approxTransformAt;
 
 typedef bool(*_bhkCollisionFilter_CompareFilterInfos)(bhkCollisionFilter *filter, UInt32 filterInfoA, UInt32 filterInfoB);
 extern RelocAddr<_bhkCollisionFilter_CompareFilterInfos> bhkCollisionFilter_CompareFilterInfos;
@@ -291,3 +297,9 @@ extern RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData;
 
 typedef bool(*_TESObjectBOOK_LearnSpell)(TESObjectBOOK *book, Actor *reader);
 extern RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell;
+
+typedef bool(*_NiMatrixToNiQuaternion)(NiQuaternion &quatOut, NiMatrix33 &matIn);
+extern RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion;
+
+typedef NiMatrix33 * (*_MatrixFromForwardVector)(NiMatrix33 *matOut, NiPoint3 *forward, NiPoint3 *world);
+extern RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector;

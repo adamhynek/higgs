@@ -5,6 +5,7 @@
 #include "skse64_common/Relocation.h"
 #include "skse64_common/BranchTrampoline.h"
 #include "skse64/NiGeometry.h"
+#include "skse64_common/SafeWrite.h"
 
 #include "hooks.h"
 #include "effects.h"
@@ -21,8 +22,6 @@ uintptr_t shaderHookedFuncAddr = 0;
 auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
 auto shaderHookedFunc = RelocAddr<uintptr_t>(0x564DD0);
 
-auto worldUpdateHookLoc = RelocAddr<uintptr_t>(0x271EF9);
-
 uintptr_t pickHookedFuncAddr = 0;
 auto pickHookLoc = RelocAddr<uintptr_t>(0x6D2E7F);
 auto pickHookedFunc = RelocAddr<uintptr_t>(0x3BA0C0); // CrosshairPickData::Pick
@@ -35,6 +34,8 @@ uintptr_t postWandUpdateHookedFuncAddr = 0;
 auto postWandUpdateHookLoc = RelocAddr<uintptr_t>(0x13233AA); // A call shortly after the wand nodes are updated as part of Main::Draw()
 auto postWandUpdateHookedFunc = RelocAddr<uintptr_t>(0xDCF900);
 
+auto hideSpellOriginLoc = RelocAddr<uintptr_t>(0x6AC012); // write 7 bytes of nops here
+
 uintptr_t updatePhysicsTimesHookedFuncAddr = 0;
 auto updatePhysicsTimesHookLoc = RelocAddr<uintptr_t>(0x5BBAEF);
 auto updatePhysicsTimesHookedFunc = RelocAddr<uintptr_t>(0xDFB3C0);
@@ -42,6 +43,8 @@ auto updatePhysicsTimesHookedFunc = RelocAddr<uintptr_t>(0xDFB3C0);
 auto getActivateTextHookLoc = RelocAddr<uintptr_t>(0x6D3337);
 
 auto pickRayCastHookLoc = RelocAddr<uintptr_t>(0x3BA787);
+
+auto worldUpdateHookLoc = RelocAddr<uintptr_t>(0x271EF9);
 
 auto shaderSetEffectDataHookLoc = RelocAddr<uintptr_t>(0x2292AE);
 auto shaderSetEffectDataHookedFunc = RelocAddr<uintptr_t>(0x22A280); // BSLightingShaderProperty::SetEffectShaderData
@@ -85,7 +88,6 @@ void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *eff
 
 UInt64 g_pickValue = 0; // This gets set shortly before the below hook gets called
 UInt32 g_pickedHandle = 0;
-bool g_disableRollover = false;
 
 void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector)
 {
@@ -93,12 +95,7 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 
 	bool isLeftHanded = *g_leftHandedMode;
 
-	if (g_disableRollover) {
-		SetSelectedHandles(isLeftHanded, *g_invalidRefHandle);
-		g_pickedHandle = *g_invalidRefHandle;
-		return;
-	}
-	else if (rolloverGrabber) {
+	if (rolloverGrabber) {
 		SetSelectedHandles(isLeftHanded, rolloverGrabber->selectedObject.handle);
 		g_pickedHandle = *g_invalidRefHandle;
 		return;
@@ -177,12 +174,27 @@ void PostWandUpdateHook()
 			if (rolloverNode && hasSavedRollover) {
 				rolloverNode->m_localTransform = normalRolloverTransform;
 			}
-
-			g_disableRollover = false;
 		}
 	}
 
 	wasRolloverSet = rolloverGrabber != nullptr;
+
+
+	if (!Config::options.disableSelectionBeam) {
+		NiAVObject *spellOrigin = player->unk3F0[PlayerCharacter::Node::kNode_SpellOrigin];
+		NiNode *spellOriginNode = spellOrigin ? spellOrigin->GetAsNiNode() : nullptr;
+		if (spellOriginNode && spellOriginNode->m_children.m_emptyRunStart >= 2) {
+			if (g_rightGrabber && g_rightGrabber->state == Grabber::State::SelectionLocked) {
+				g_rightGrabber->SetupSelectionBeam(spellOriginNode);
+			}
+			else if (g_leftGrabber && g_leftGrabber->state == Grabber::State::SelectionLocked) {
+				g_leftGrabber->SetupSelectionBeam(spellOriginNode);
+			}
+			else {
+				spellOriginNode->m_flags |= 1; // hide spell origin
+			}
+		}
+	}
 }
 
 
@@ -617,5 +629,11 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(updatePhysicsTimesHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Update Physics Times hook complete");
+	}
+
+	if (!Config::options.disableSelectionBeam) {
+		UInt64 nops = 0x9090909090909090;
+		SafeWriteBuf(hideSpellOriginLoc.GetUIntPtr(), &nops, 7);
+		_MESSAGE("NOP'd out SpellOrigin hide");
 	}
 }

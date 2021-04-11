@@ -100,6 +100,8 @@ namespace Config {
 		if (!ReadVector("MouthHmdOffset", options.mouthHmdOffset)) return false;
 		if (!ReadFloat("MouthRadius", options.mouthRadius)) return false;
 
+		if (!ReadVector("SelectionBeamStretch", options.selectionBeamStretch)) return false;
+		
 		if (!ReadVector("RolloverOffsetRight", options.rolloverOffsetRight)) return false;
 		if (!ReadVector("RolloverOffsetLeft", options.rolloverOffsetLeft)) return false;
 		if (!ReadVector("RolloverRotation", options.rolloverRotation)) return false;
@@ -151,6 +153,10 @@ namespace Config {
 
 		if (!ReadFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) return false;
 
+		if (!ReadFloat("SelectionLockedStartHapticStrength", options.selectionLockedStartHapticStrength)) return false;
+		if (!ReadFloat("SelectionLockedStartHapticDuration", options.selectionLockedStartHapticDuration)) return false;
+		if (!ReadFloat("SelectionLockedEndHapticStrength", options.selectionLockedEndHapticStrength)) return false;
+		if (!ReadFloat("SelectionLockedEndHapticDuration", options.selectionLockedEndHapticDuration)) return false;
 		if (!ReadFloat("SelectionLockedBaseHapticStrength", options.selectionLockedBaseHapticStrength)) return false;
 		if (!ReadFloat("SelectionLockedProportionalHapticStrength", options.selectionLockedProportionalHapticStrength)) return false;
 
@@ -193,6 +199,7 @@ namespace Config {
 		if (!ReadFloat("HavokMaxMaxTime", options.havokMaxMaxTime)) return false;
 
 		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
+		if (!ReadBool("DisableSelectionBeam", options.disableSelectionBeam)) return false;
 		if (!ReadBool("DisableLooting", options.disableLooting)) return false;
 		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
 		if (!ReadBool("DisableRolloverRumble", options.disableRolloverRumble)) return false;

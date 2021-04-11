@@ -74,14 +74,10 @@ bool DoesEntityHaveConstraint(NiAVObject *root, bhkRigidBody *entity)
 {
 	auto rigidBody = GetRigidBody(root);
 	if (rigidBody) {
-		int numConstraints = rigidBody->numConstraints;
-		if (numConstraints > 0) {
-			bhkConstraint **constraints = rigidBody->constraints;
-			for (int i = 0; i < numConstraints; i++) {
-				bhkConstraint *constraint = constraints[i];
-				if (constraint->constraint->getEntityA() == entity->hkBody || constraint->constraint->getEntityB() == entity->hkBody) {
-					return true;
-				}
+		for (int i = 0; i < rigidBody->constraints.count; i++) {
+			bhkConstraint *constraint = rigidBody->constraints.entries[i];
+			if (constraint->constraint->getEntityA() == entity->hkBody || constraint->constraint->getEntityB() == entity->hkBody) {
+				return true;
 			}
 		}
 	}
@@ -108,7 +104,7 @@ bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node)
 		return false;
 	}
 
-	if (entity->numConstraints > 0) {
+	if (entity->constraints.count > 0) {
 		// Easy case: it's a master entity
 		return true;
 	}
@@ -454,12 +450,18 @@ void DumpVertices(std::vector<std::vector<TriangleData>> &triangleLists)
 	_file.close();
 }
 
-NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj)
+bhkCollisionObject * GetCollisionObject(NiAVObject *obj)
 {
 	if (!obj->unk040) return nullptr;
 
 	auto niCollObj = ((NiCollisionObject *)obj->unk040);
 	auto collObj = DYNAMIC_CAST(niCollObj, NiCollisionObject, bhkCollisionObject);
+	return collObj;
+}
+
+NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj)
+{
+	auto collObj = GetCollisionObject(obj);
 	if (collObj) {
 		NiPointer<bhkWorldObject> worldObj = collObj->body;
 		auto rigidBody = DYNAMIC_CAST(worldObj, bhkWorldObject, bhkRigidBody);
@@ -514,8 +516,7 @@ bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObje
 		if (skinInstance) {
 			NiSkinDataPtr skinData = skinInstance->m_spSkinData;
 			if (skinData) {
-				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
-				for (int i = 0; i < numBones; i++) {
+				for (int i = 0; i < skinData->m_uiBones; i++) {
 					NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
 					if (bone) {
 						if (targets.count(bone) != 0) {
@@ -542,7 +543,7 @@ bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObje
 	return false;
 }
 
-void PopulateTargets(NiAVObject *root, std::unordered_set<NiAVObject *> &targets)
+void GetDownstreamNodesNoCollision(NiAVObject *root, std::unordered_set<NiAVObject *> &targets)
 {
 	if (!root) return;
 
@@ -556,7 +557,7 @@ void PopulateTargets(NiAVObject *root, std::unordered_set<NiAVObject *> &targets
 			auto child = node->m_children.m_data[i];
 			if (child) {
 				if (!GetRigidBody(child)) {
-					PopulateTargets(child, targets);
+					GetDownstreamNodesNoCollision(child, targets);
 				}
 			}
 		}
@@ -566,41 +567,12 @@ void PopulateTargets(NiAVObject *root, std::unordered_set<NiAVObject *> &targets
 std::unordered_set<NiAVObject *> targetNodeSet;
 bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target)
 {
-	PopulateTargets(target, targetNodeSet);
+	GetDownstreamNodesNoCollision(target, targetNodeSet);
 
 	bool result = IsSkinnedToNodes(skinnedRoot, targetNodeSet);
 
 	targetNodeSet.clear();
 	return result;
-}
-
-void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes)
-{
-	BSGeometry *geom = root->GetAsBSGeometry();
-	if (geom) {
-		NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
-		if (skinInstance) {
-			NiSkinDataPtr skinData = skinInstance->m_spSkinData;
-			if (skinData) {
-				UInt32 numBones = *(UInt32*)((UInt64)skinData.m_pObject + 0x58);
-				for (int i = 0; i < numBones; i++) {
-					NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
-					if (bone) {
-						skinnedNodes.insert(bone);
-					}
-				}
-			}
-		}
-	}
-	NiNode *node = root->GetAsNiNode();
-	if (node) {
-		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				GetAllSkinnedNodes(child, skinnedNodes);
-			}
-		}
-	}
 }
 
 NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root)

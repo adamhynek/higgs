@@ -126,11 +126,11 @@ struct ContactListener : hkpContactListener
 		bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
 		if (!isHand && !isHeld) return;
 
-		ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
+		//ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
 
-		if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
-			return;
-		}
+		//if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
+		//	return;
+		//}
 
 		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldLeft || isAHeldRight) ? rigidBodyB : rigidBodyA;
 		float inverseMass = otherBody->getMassInv();

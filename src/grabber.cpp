@@ -731,7 +731,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		double t = GetTime();
-		auto skinnedTriangleLists = GetSkinnedTriangles(objRoot); // tris are in worldspace
+		std::vector<std::vector<TriangleData>> skinnedTriangleLists = GetSkinnedTriangles(objRoot); // tris are in worldspace
 		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
 		//DumpVertices(skinnedTriangleLists);
@@ -843,9 +843,19 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		if (usePhysicsGrab) {
+			// Sync up the collision's transform with the node's
+			bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
+			hkVector4 hkPos = NiPointToHkVector(collidableNode->m_worldTransform.pos * havokWorldScale);
+			NiQuaternion nodeRotation;
+			NiMatrixToNiQuaternion(nodeRotation, collidableNode->m_worldTransform.rot);
+			hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
+			hkQuat.normalize();
+			selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
+
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
-			desiredTransform.pos = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation) / havokWorldScale;
-			HkMatrixToNiMatrix(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_rotation, desiredTransform.rot);
+			hkTransform &transform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
+			desiredTransform.pos = HkVectorToNiPoint(transform.m_translation) / havokWorldScale;
+			HkMatrixToNiMatrix(transform.m_rotation, desiredTransform.rot);
 		}
 		else {
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -1106,16 +1116,13 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		_MESSAGE("No COM [COM ] node on player");
 		return;
 	}
-	if (!comNode->unk040) {
+	auto comRigidBody = GetRigidBody(comNode);
+	if (comRigidBody) {
+		playerCollisionGroup = comRigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
+	}
+	else {
 		_MESSAGE("COM node has no collision object");
 		return;
-	}
-
-	{
-		auto comRigidBody = GetRigidBody(comNode);
-		if (comRigidBody) {
-			playerCollisionGroup = comRigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
-		}
 	}
 
 
@@ -1547,6 +1554,9 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							initialGrabbedObjRelativePosition = relObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
+							float hapticStrength = Config::options.selectionLockedStartHapticStrength;
+							haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.selectionLockedStartHapticDuration);
+
 							state = State::SelectionLocked;
 						}
 						else if (state == State::SelectedClose) {
@@ -1631,6 +1641,11 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 				if (objRoot) {
 					if (state == State::SelectionLocked || state == State::LootOtherHand) {
+						if (state == State::SelectionLocked) {
+							float hapticStrength = Config::options.selectionLockedEndHapticStrength;
+							haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.selectionLockedEndHapticDuration);
+						}
+
 						StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 					}
 
@@ -1945,9 +1960,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							//grab = true;
 							idleDesired = true;
 						}
-
-						float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeedDirectionalized / Config::options.pullSpeedThreshold)));
-						haptics.QueueHapticPulse(hapticStrength);
 					}
 				}
 			}
@@ -2605,5 +2617,57 @@ void Grabber::SetupRollover()
 				}
 			}
 		}
+	}
+}
+
+void Grabber::SetupSelectionBeam(NiNode *spellOrigin)
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player) return;
+
+	NiPointer<NiAVObject> handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
+	if (!handNode) return;
+
+	NiPointer<TESObjectREFR> obj;
+	if (LookupREFRByHandle(selectedObject.handle, obj)) {
+		bool isOffLimits = CALL_MEMBER_FN(obj, IsOffLimits)();
+		NiAVObject *arcNodeShow = isOffLimits ? spellOrigin->m_children.m_data[1] : spellOrigin->m_children.m_data[0];
+		NiAVObject *arcNodeHide = isOffLimits ? spellOrigin->m_children.m_data[0] : spellOrigin->m_children.m_data[1];
+
+		NiPoint3 palmPos = handNode->m_worldTransform * palmPosHandspace;
+
+		float havokWorldScale = *g_havokWorldScale;
+
+		hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
+		NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
+
+		NiPoint3 origin = palmPos;
+		NiPoint3 dest = (hkObjPos + pulledPointOffset) / havokWorldScale;
+		NiPoint3 destToOrigin = origin - dest;
+		float distance = VectorLength(destToOrigin);
+		NiPoint3 destToOriginNormalized = destToOrigin / distance;
+
+		NiMatrix33 stretcher;
+		stretcher.Identity();
+		stretcher.data[0][0] = Config::options.selectionBeamStretch.x;
+		stretcher.data[1][1] = distance * Config::options.selectionBeamStretch.y; // stretches y (forward) vector
+		stretcher.data[2][2] = Config::options.selectionBeamStretch.z;
+
+		NiMatrix33 rot;
+		NiPoint3 worldUp = { 0, 0, 1 };
+		MatrixFromForwardVector(&rot, &destToOriginNormalized, &worldUp);
+
+		rot = rot * stretcher;
+
+		spellOrigin->m_localTransform.pos = dest;
+		spellOrigin->m_localTransform.rot = rot;
+
+		spellOrigin->m_flags &= 0xFFFFFFFE; // unhide spell origin
+
+		arcNodeShow->m_flags &= 0xFFFFFFFE; // unhide tempArc
+		arcNodeHide->m_flags |= 1; // hide noGoArc
+
+		NiAVObject::ControllerUpdateContext ctx{ 0.0f, 0 };
+		NiAVObject_UpdateObjectUpwards(spellOrigin, &ctx);
 	}
 }

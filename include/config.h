@@ -36,6 +36,10 @@ namespace Config {
 		float pullDurationB = -0.415619f;
 		float pullDurationC = 0.656256f;
 
+		float selectionLockedStartHapticStrength = 0.15f;
+		float selectionLockedStartHapticDuration = 0.05f;
+		float selectionLockedEndHapticStrength = 0.1f;
+		float selectionLockedEndHapticDuration = 0.02f;
 		float selectionLockedBaseHapticStrength = 0.05f;
 		float selectionLockedProportionalHapticStrength = 0.3f;
 
@@ -77,6 +81,7 @@ namespace Config {
 
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
+		bool disableSelectionBeam = false;
 		bool disableLooting = false;
 		bool skipActivateBooks = true;
 		bool disableRolloverRumble = true;
@@ -113,6 +118,8 @@ namespace Config {
 		float rightShoulderRadius = 11.0f;
 		float leftShoulderRadius = 11.0f;
 		float mouthRadius = 11.0f;
+
+		NiPoint3 selectionBeamStretch = { 0.25f, 0.022f, 0.25f };
 
 		NiPoint3 rolloverOffsetRight = { 7, -5, -2 };
 		NiPoint3 rolloverOffsetLeft = { -7, -7, -3 };

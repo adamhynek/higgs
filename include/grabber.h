@@ -154,6 +154,7 @@ struct Grabber
 	bool CanOtherGrab() const;
 	bool GetActivateText(std::string &str);
 	void SetupRollover();
+	void SetupSelectionBeam(NiNode *spellOrigin);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void EndPull();

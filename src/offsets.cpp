@@ -63,6 +63,8 @@ RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm(0x11E0C0);
 
 RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner(0x9D18C0);
 
+RelocAddr<_hkpWorld_getCurrentTime> hkpWorld_getCurrentTime(0xAB74F0);
+
 RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay(0x00AB5B20);
 
 RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast(0x00AB5EC0);
@@ -117,6 +119,8 @@ RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKey
 RelocAddr<_hkpKeyFrameUtility_applySoftKeyFrame> hkpKeyFrameUtility_applySoftKeyFrame(0xAF6AF0);
 
 RelocAddr<_hkpConstraintInstance_setPriority> hkpConstraintInstance_setPriority(0xAC05B0);
+
+RelocAddr<_hkpMotion_approxTransformAt> hkpMotion_approxTransformAt(0xAAB6E0);
 
 RelocAddr<_bhkCollisionFilter_CompareFilterInfos> bhkCollisionFilter_CompareFilterInfos(0xDD6A80);
 
@@ -173,6 +177,10 @@ RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount(0x123D90);
 RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData(0x641720);
 
 RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell(0x23B240);
+
+RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion(0xCB4460);
+
+RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector(0xC4C1E0);
 
 //bhkWorld_Update(0xDFB460);
 

@@ -44,12 +44,13 @@ void DumpVertices(std::vector<std::vector<TriangleData>> &triangleLists);
 //float hkHalfToFloat(hkHalf half);
 //hkHalf floatToHkHalf(float half);
 
+bhkCollisionObject * GetCollisionObject(NiAVObject *obj);
 NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj);
 bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node);
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
+void GetDownstreamNodesNoCollision(NiAVObject *root, std::unordered_set<NiAVObject *> &targets);
 bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target);
-void GetAllSkinnedNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &skinnedNodes);
 NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root);
 UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location);
 const char * GetItemName(TESForm *form, BaseExtraList *extraList);

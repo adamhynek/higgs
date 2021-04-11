@@ -1232,7 +1232,7 @@ namespace MathUtils
 }
 
 // Add a list of triangles to the given list for each skinned partition in geom
-void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleData>> &triangles)
+void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<std::vector<TriangleData>> &triangles)
 {
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 	if (!skinInstance) return;
@@ -1243,110 +1243,110 @@ void UpdateSkinnedTriangles(BSGeometry *geom, std::vector<std::vector<TriangleDa
 	NiSkinDataPtr skinData = skinInstance->m_spSkinData;
 	if (!skinData) return;
 
-	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSGeometry, BSDynamicTriShape);
-
-	NiTransform inverseRoot;
-	skeletonRoot->m_worldTransform.Invert(inverseRoot);
-
 	NiSkinPartitionPtr skinPartition = skinInstance->m_spSkinPartition;
 	if (!skinPartition) {
 		skinPartition = skinData->m_spSkinPartition;
 	}
 
 	bool hasPartitions = skinPartition && skinPartition->m_pkPartitions && skinPartition->m_uiPartitions > 0;
+	if (!hasPartitions) {
+		_MESSAGE("Skindata with no partitions");
+		return;
+	}
 
 	UInt32 numBones = skinInstance->m_uiBoneNodes;
 	NiTransform **boneTransforms = skinInstance->m_worldTransforms;
 	if (!boneTransforms || numBones <= 0) return;
 
+	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSGeometry, BSDynamicTriShape);
+
+	NiTransform inverseRoot;
+	skeletonRoot->m_worldTransform.Invert(inverseRoot);
+
 	NiSkinData::BoneData *boneData = skinData->m_pkBoneData;
 
-	if (hasPartitions) {
-		UInt32 numTotalVerts = skinPartition->vertexCount;
+	UInt32 numTotalVerts = skinPartition->vertexCount;
 
-		for (int i = 0; i < skinPartition->m_uiPartitions; i++) {
-			NiSkinPartition::Partition &partition = skinPartition->m_pkPartitions[i];
-			UInt16 *partBones = partition.m_pusBones;
+	for (int i = 0; i < skinPartition->m_uiPartitions; i++) {
+		NiSkinPartition::Partition &partition = skinPartition->m_pkPartitions[i];
+		UInt16 *partBones = partition.m_pusBones;
 
-			// Build up bone transforms
-			UInt16 numPartBones = partition.m_usBones;
-			std::vector<NiTransform> boneTrans(numPartBones);
-			for (int t = 0; t < numPartBones; t++) {
-				UInt16 boneIndex = partBones[t];
-				if (boneIndex >= numBones) break;
-				// bonePalette == Bone Indices. Store bone incides per vertex
-				// bones == Bones. Map from partition bones to skinInstance bones.
+		// Build up bone transforms
+		UInt16 numPartBones = partition.m_usBones;
+		std::vector<NiTransform> boneTrans(numPartBones);
+		for (int t = 0; t < numPartBones; t++) {
+			UInt16 boneIndex = partBones[t];
+			if (boneIndex >= numBones) break;
+			// bonePalette == Bone Indices. Store bone incides per vertex
+			// bones == Bones. Map from partition bones to skinInstance bones.
 
-				NiTransform *boneTransform = boneTransforms[boneIndex];
-				if (boneTransform) {
-					NiSkinData::BoneData &data = boneData[boneIndex];
-					boneTrans[t] = *boneTransform * data.m_kSkinToBone;
-				}
-			}
-
-			// Compute vertex positions using bone transforms
-
-			UInt16 numPartVerts = partition.m_usVertices;
-			UInt16 numTris = partition.m_usTriangles;
-			NiSkinPartition::TriShape *shapeData = partition.shapeData;
-			if (!shapeData) continue;
-
-			uintptr_t verts = (uintptr_t)shapeData->m_RawVertexData;
-			auto tris = (Triangle *)shapeData->m_RawIndexData;
-
-			UInt64 vertexDesc = shapeData->m_VertexDesc;
-			VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
-			UInt8 vertexSize = (vertexDesc & 0xF) * 4;
-			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
-
-			if (dynamicShape) {
-				verts = (uintptr_t)dynamicShape->pDynamicData;
-				vertexSize = 16;
-				posOffset = 0;
-			}
-
-			if ((vertexFlags & VertexFlags::VF_VERTEX || dynamicShape) && verts && numPartVerts > 0 && tris && numTris > 0) {
-				UInt16 numWeightsPerVertex = partition.m_usBonesPerVertex;
-
-				std::vector<NiPoint3> transVerts(numTotalVerts); // Allocate space for _all vertices for all partitions_ but only fill in the ones mapped to by the individual partition
-
-				for (int v = 0; v < numPartVerts; v++) {
-					// partition.m_pusVertexMap: maps from partition vertex -> partition.shapeData->m_RawVertexData vertex
-					UInt16 vindex = partition.m_pusVertexMap[v];
-					if (vindex >= numTotalVerts) break;
-
-					uintptr_t vert = (verts + vindex * vertexSize);
-					NiPoint3 vertPos = *(NiPoint3 *)(vert + posOffset);
-
-					for (int w = 0; w < numWeightsPerVertex; w++) {
-						int offset = v * numWeightsPerVertex + w;
-						float weight = partition.m_pfWeights[offset];
-
-						if (weight != 0.0f) {
-							UInt16 boneIndex = partition.m_pucBonePalette[offset];
-							NiTransform boneTransform = boneTrans[boneIndex];
-
-							transVerts[vindex] += boneTransform * vertPos * weight;
-						}
-					}
-				}
-
-				std::vector<TriangleData> partTris;
-				partTris.reserve(numTris);
-				for (int t = 0; t < numTris; t++) {
-					Triangle tri = tris[t];
-					TriangleData triData(tri, transVerts);
-					partTris.push_back(triData);
-				}
-
-				_MESSAGE("%d skinned tris", numTris);
-				triangles.push_back(partTris);
+			NiTransform *boneTransform = boneTransforms[boneIndex];
+			if (boneTransform) {
+				NiSkinData::BoneData &data = boneData[boneIndex];
+				boneTrans[t] = *boneTransform * data.m_kSkinToBone;
 			}
 		}
+
+		// Compute vertex positions using bone transforms
+
+		UInt16 numPartVerts = partition.m_usVertices;
+		UInt16 numTris = partition.m_usTriangles;
+		NiSkinPartition::TriShape *shapeData = partition.shapeData;
+		if (!shapeData) continue;
+
+		uintptr_t verts = (uintptr_t)shapeData->m_RawVertexData;
+		auto tris = (Triangle *)shapeData->m_RawIndexData;
+
+		UInt64 vertexDesc = shapeData->m_VertexDesc;
+		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+		UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+		if (dynamicShape) {
+			verts = (uintptr_t)dynamicShape->pDynamicData;
+			vertexSize = 16;
+			posOffset = 0;
+		}
+
+		if ((vertexFlags & VertexFlags::VF_VERTEX || dynamicShape) && verts && numPartVerts > 0 && tris && numTris > 0) {
+			UInt16 numWeightsPerVertex = partition.m_usBonesPerVertex;
+
+			std::vector<NiPoint3> transVerts(numTotalVerts); // Allocate space for _all vertices for all partitions_ but only fill in the ones mapped to by the individual partition
+
+			for (int v = 0; v < numPartVerts; v++) {
+				// partition.m_pusVertexMap: maps from partition vertex -> partition.shapeData->m_RawVertexData vertex
+				UInt16 vindex = partition.m_pusVertexMap[v];
+				if (vindex >= numTotalVerts) break;
+
+				uintptr_t vert = (verts + vindex * vertexSize);
+				NiPoint3 vertPos = *(NiPoint3 *)(vert + posOffset);
+
+				for (int w = 0; w < numWeightsPerVertex; w++) {
+					int offset = v * numWeightsPerVertex + w;
+					float weight = partition.m_pfWeights[offset];
+
+					if (weight != 0.0f) {
+						UInt16 boneIndex = partition.m_pucBonePalette[offset];
+						NiTransform boneTransform = boneTrans[boneIndex];
+
+						transVerts[vindex] += boneTransform * vertPos * weight;
+					}
+				}
+			}
+
+			std::vector<TriangleData> partTris;
+			partTris.reserve(numTris);
+			for (int t = 0; t < numTris; t++) {
+				Triangle tri = tris[t];
+				TriangleData triData(tri, transVerts);
+				partTris.push_back(triData);
+			}
+
+			_MESSAGE("%d skinned tris", numTris);
+			triangles.push_back(partTris);
+		}
 	}
-	else {
-		_MESSAGE("Skindata with no partitions");
-	}
+
 	/*else {
 		for (int i = 0; i < skinData->m_uiBones; i++) {
 			NiSkinData::BoneData &boneData = skinData->m_pkBoneData[i];
@@ -1461,7 +1461,7 @@ void GetFingerIntersectionOnGraphicsGeometryUnskinned(std::vector<Intersection> 
 		UInt16 numVerts = geom->numVertices;
 		BSGeometryData *geomData = geom->geometryData;
 		if (!geomData) {
-			// Probably skinned mesh. TODO: Deal with skinned mesh
+			// Probably skinned mesh
 			return;
 		}
 
@@ -1747,7 +1747,7 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 		UInt16 numVerts = geom->numVertices;
 		BSGeometryData *geomData = geom->geometryData;
 		if (!geomData) {
-			// Probably skinned mesh. TODO: Deal with skinned mesh
+			// Probably skinned mesh
 			return false;
 		}
 
@@ -1887,7 +1887,7 @@ bool GetClosestPointOnGraphicsGeometryToLineUnskinned(NiAVObject *root, const Ni
 		UInt16 numVerts = geom->numVertices;
 		BSGeometryData *geomData = geom->geometryData;
 		if (!geomData) {
-			// Probably skinned mesh. TODO: Deal with skinned mesh
+			// Probably skinned mesh
 			return false;
 		}
 
