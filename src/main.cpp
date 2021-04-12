@@ -698,8 +698,8 @@ extern "C" {
 			_ERROR("[CRITICAL] Couldn't get SKSE VR interface. You probably have an outdated SKSE version.");
 			return false;
 		}
-		g_vrInterface->RegisterForControllerState(g_pluginHandle, 0, ControllerStateCB);
-		g_vrInterface->RegisterForPoses(g_pluginHandle, 0, WaitPosesCB);
+		g_vrInterface->RegisterForControllerState(g_pluginHandle, 66, ControllerStateCB);
+		g_vrInterface->RegisterForPoses(g_pluginHandle, 66, WaitPosesCB);
 
 		g_papyrus = (SKSEPapyrusInterface *)skse->QueryInterface(kInterface_Papyrus);
 		if (!g_papyrus) {
