@@ -34,6 +34,12 @@ struct TriangleData
 
 	TriangleData() : v0(), v1(), v2() {}
 
+	inline void ApplyTransform(NiTransform &transform) {
+		v0 = transform * v0;
+		v1 = transform * v1;
+		v2 = transform * v2;
+	}
+
 	NiPoint3 v0;
 	NiPoint3 v1;
 	NiPoint3 v2;
@@ -121,12 +127,13 @@ inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
 
-std::vector<std::vector<TriangleData>> GetSkinnedTriangles(NiAVObject *root);
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
+void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
 
-bool GetIntersections(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
+bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle);
 void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
-	const std::vector<std::vector<TriangleData>> &skinnedTriangleLists,
-	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);
+	const std::vector<TriangleData> &triangles,
+	int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
-bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
+bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &triangles, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);

@@ -581,7 +581,7 @@ void Grabber::UpdateHandCollision(NiAVObject *handNode)
 	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(desiredRot);
-	hkpKeyFrameUtility_applyHardKeyFrameAsynchronously(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 }
 
 
@@ -730,9 +730,15 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			//UpdateKeyframedNode(collidableNode, newTransform);
 		}
 
+		std::vector<TriangleData> triangles; // tris are in worldspace
+
 		double t = GetTime();
-		std::vector<std::vector<TriangleData>> skinnedTriangleLists = GetSkinnedTriangles(objRoot); // tris are in worldspace
+		 GetSkinnedTriangles(objRoot, triangles);
 		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
+
+		t = GetTime();
+		GetTriangles(objRoot, triangles);
+		_MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
 
 		//DumpVertices(skinnedTriangleLists);
 
@@ -740,7 +746,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		float closestDist = (std::numeric_limits<float>::max)();
 		t = GetTime();
 		NiPoint3 startPt = palmPos + originalTransform.pos - newTransform.pos;
-		bool success = GetClosestPointOnGraphicsGeometryToLine(skinnedTriangleLists, objRoot, startPt, castDirection, &triPos, &triNormal, &closestDist);
+		bool success = GetClosestPointOnGraphicsGeometryToLine(triangles, startPt, castDirection, &triPos, &triNormal, &closestDist);
 
 		NiTransform desiredTransform = collidableNode->m_worldTransform;
 
@@ -775,8 +781,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &skinnedTriangleLists, &newTransform, &originalTransform]
-				(NiNode *root, int fingerIndex) -> float
+				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &newTransform, &originalTransform]
+				(int fingerIndex) -> float
 				{
 					NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					if (startFinger) {
@@ -789,7 +795,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 						_MESSAGE("finger %d", fingerIndex);
 
 						float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
-						bool intersects = GetIntersections(skinnedTriangleLists, root, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+						bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
 							&curveValOrAngle);
 						if (intersects) {
 							return curveValOrAngle;
@@ -810,7 +816,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 				std::array<float, 5> fingerData;
 				for (int i = 0; i < fingerData.size(); i++) {
-					fingerData[i] = FingerCheck(objRoot, i);
+					fingerData[i] = FingerCheck(i);
 				}
 
 				// Reset to original transform
@@ -2250,7 +2256,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				NiMatrixToHkMatrix(newTransform.rot, desiredRot);
 				hkQuaternion desiredQuat;
 				desiredQuat.setFromRotationSimd(desiredRot);
-				hkpKeyFrameUtility_applyHardKeyFrameAsynchronously(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
 
 				if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 					haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);

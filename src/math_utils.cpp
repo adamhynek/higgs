@@ -1232,7 +1232,7 @@ namespace MathUtils
 }
 
 // Add a list of triangles to the given list for each skinned partition in geom
-void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<std::vector<TriangleData>> &triangles)
+void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 {
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 	if (!skinInstance) return;
@@ -1258,7 +1258,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<std::vector<TriangleDa
 	NiTransform **boneTransforms = skinInstance->m_worldTransforms;
 	if (!boneTransforms || numBones <= 0) return;
 
-	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSGeometry, BSDynamicTriShape);
+	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSTriShape, BSDynamicTriShape);
 
 	NiTransform inverseRoot;
 	skeletonRoot->m_worldTransform.Invert(inverseRoot);
@@ -1334,16 +1334,13 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<std::vector<TriangleDa
 				}
 			}
 
-			std::vector<TriangleData> partTris;
-			partTris.reserve(numTris);
 			for (int t = 0; t < numTris; t++) {
 				Triangle tri = tris[t];
 				TriangleData triData(tri, transVerts);
-				partTris.push_back(triData);
+				triangles.push_back(triData);
 			}
 
 			_MESSAGE("%d skinned tris", numTris);
-			triangles.push_back(partTris);
 		}
 	}
 
@@ -1384,8 +1381,8 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<std::vector<TriangleDa
 	}*/
 }
 
-
-void GetSkinnedTrianglesHelper(NiAVObject *root, std::vector<std::vector<TriangleData>> &triangles)
+// Get a list of triangle lists for all geometry rooted at root
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
@@ -1400,36 +1397,93 @@ void GetSkinnedTrianglesHelper(NiAVObject *root, std::vector<std::vector<Triangl
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetSkinnedTrianglesHelper(child, triangles);
+					GetSkinnedTriangles(child, triangles);
 					return;
 				}
 			}
-			return;
 		}
 		else {
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetSkinnedTrianglesHelper(child, triangles);
+					GetSkinnedTriangles(child, triangles);
 				}
 			}
-			return;
 		}
 	}
-	return;
 }
 
-
-// Get a list of triangle lists for all geometry rooted at root
-std::vector<std::vector<TriangleData>> GetSkinnedTriangles(NiAVObject *root)
+void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 {
-	std::vector<std::vector<TriangleData>> triangles;
-	GetSkinnedTrianglesHelper(root, triangles);
-	return triangles;
+	UInt16 numTris = geom->unk198;
+	UInt16 numVerts = geom->numVertices;
+	BSGeometryData *geomData = geom->geometryData;
+	if (!geomData) {
+		// Probably skinned mesh
+		return;
+	}
+
+	_MESSAGE("%d tris", numTris);
+
+	auto tris = (Triangle *)geomData->triangles;
+	uintptr_t verts = (uintptr_t)(geomData->vertices);
+
+	UInt64 vertexDesc = geom->vertexDesc;
+	VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+	UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+	UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
+
+	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSTriShape, BSDynamicTriShape);
+	if (dynamicShape) {
+		verts = (uintptr_t)dynamicShape->pDynamicData;
+		vertexSize = 16;
+		posOffset = 0;
+	}
+
+	if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
+		NiTransform &nodeTransform = geom->m_worldTransform;
+
+		for (int i = 0; i < numTris; i++) {
+			Triangle tri = tris[i];
+			TriangleData triData(tri, verts, posOffset, vertexSize);
+			triData.ApplyTransform(nodeTransform);
+			triangles.push_back(triData);
+		}
+	}
 }
 
+void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
+{
+	BSTriShape *geom = root->GetAsBSTriShape();
+	if (geom) {
+		UpdateTriangles(geom, triangles);
+		return;
+	}
 
-void GetFingerIntersectionOnGraphicsGeometrySkinned(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		if (node->GetAsNiSwitchNode()) {
+			// NiSwitchNode: Return the first valid child
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					GetTriangles(child, triangles);
+					return;
+				}
+			}
+		}
+		else {
+			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+				auto child = node->m_children.m_data[i];
+				if (child) {
+					GetTriangles(child, triangles);
+				}
+			}
+		}
+	}
+}
+
+void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
 	const std::vector<TriangleData> &tris,
 	int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
 {
@@ -1451,106 +1505,6 @@ void GetFingerIntersectionOnGraphicsGeometrySkinned(std::vector<Intersection> &t
 		}
 	}
 }
-
-void GetFingerIntersectionOnGraphicsGeometryUnskinned(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
-	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
-{
-	BSTriShape *geom = root->GetAsBSTriShape();
-	if (geom) {
-		UInt16 numTris = geom->unk198;
-		UInt16 numVerts = geom->numVertices;
-		BSGeometryData *geomData = geom->geometryData;
-		if (!geomData) {
-			// Probably skinned mesh
-			return;
-		}
-
-		_MESSAGE("%d tris", numTris);
-
-		auto tris = (Triangle *)geomData->triangles;
-		uintptr_t verts = (uintptr_t)(geomData->vertices);
-
-		UInt64 vertexDesc = geom->vertexDesc;
-		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
-		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
-
-		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
-			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
-
-			NiTransform nodeTransform = geom->m_worldTransform;
-
-			// Input transformations
-			NiTransform inverseTransform;
-			nodeTransform.Invert(inverseTransform);
-			NiPoint3 centerInNodeSpace = inverseTransform * center;
-
-			NiMatrix33 inverseRot = nodeTransform.rot.Transpose();
-			NiPoint3 zeroAngleVectorNodespace = inverseRot * zeroAngleVector;
-			NiPoint3 normalNodespace = inverseRot * normal;
-
-			for (int i = 0; i < numTris; i++) {
-				Triangle tri = tris[i];
-				TriangleData triData(tri, verts, posOffset, vertexSize);
-
-				// get closest point on triangle to given point
-				float tipAngle, outerAngle, innerAngle;
-				auto[tipIntersects, outerIntersects, innerIntersects] = MathUtils::FingerIntersectsTriangle(fingerIndex, centerInNodeSpace, normalNodespace, zeroAngleVectorNodespace, handScale, nodeTransform.scale, triData,
-					tipAngle, outerAngle, innerAngle);
-				//int numIntersections = MathUtils::DiskIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
-				//int numIntersections = MathUtils::CircleIntersectsTriangle(centerInNodeSpace, normalNodespace, radius, tri, intersectionPoint1, intersectionPoint2, verts, vertexSize, posOffset);
-
-				if (tipIntersects) {
-					tipIntersections.push_back({ tipAngle });
-				}
-				if (outerIntersects) {
-					outerIntersections.push_back({ outerAngle });
-				}
-				if (innerIntersects) {
-					innerIntersections.push_back({ innerAngle });
-				}
-			}
-		}
-		return;
-	}
-
-	NiNode *node = root->GetAsNiNode();
-	if (node) {
-		if (node->GetAsNiSwitchNode()) {
-			// NiSwitchNode: Return the first valid child
-			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-				auto child = node->m_children.m_data[i];
-				if (child) {
-					GetFingerIntersectionOnGraphicsGeometryUnskinned(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
-					return;
-				}
-			}
-			return;
-		}
-		else {
-			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-				auto child = node->m_children.m_data[i];
-				if (child) {
-					GetFingerIntersectionOnGraphicsGeometryUnskinned(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, child, center, normal, zeroAngleVector);
-				}
-			}
-			return;
-		}
-	}
-	return;
-}
-
-
-void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
-	const std::vector<std::vector<TriangleData>> &skinnedTriangleLists,
-	int fingerIndex, float handScale, NiAVObject *root, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
-{
-	for (auto &triangleList : skinnedTriangleLists) {
-		GetFingerIntersectionOnGraphicsGeometrySkinned(tipIntersections, outerIntersections, innerIntersections, triangleList, fingerIndex, handScale, center, normal, zeroAngleVector);
-	}
-
-	GetFingerIntersectionOnGraphicsGeometryUnskinned(tipIntersections, outerIntersections, innerIntersections, fingerIndex, handScale, root, center, normal, zeroAngleVector);
-}
-
 
 NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const _OldIntersection &intersection)
 {
@@ -1635,13 +1589,13 @@ float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std:
 }
 
 
-bool GetIntersections(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
+bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	float *outAngle)
 {
 	std::vector<Intersection> tipIntersections, outerIntersections, innerIntersections;
 
 	// Populate intersections
-	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, skinnedTriangleLists, fingerIndex, handScale, root, center, normal, zeroAngleVector);
+	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, triangles, fingerIndex, handScale, center, normal, zeroAngleVector);
 
 	/*
 	if (innerIntersections.size() == 0 && anyUnderInner) {
@@ -1830,7 +1784,7 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 	return false;
 }
 
-bool GetClosestPointOnGraphicsGeometryToLineSkinned(const std::vector<TriangleData> &tris, const NiPoint3 &point, const NiPoint3 &direction,
+bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &tris, const NiPoint3 &point, const NiPoint3 &direction,
 	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
 {
 	TriangleData *closestTri = nullptr;
@@ -1877,125 +1831,4 @@ bool GetClosestPointOnGraphicsGeometryToLineSkinned(const std::vector<TriangleDa
 	}
 
 	return false;
-}
-
-bool GetClosestPointOnGraphicsGeometryToLineUnskinned(NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
-{
-	BSTriShape *geom = root->GetAsBSTriShape();
-	if (geom) {
-		UInt16 numTris = geom->unk198;
-		UInt16 numVerts = geom->numVertices;
-		BSGeometryData *geomData = geom->geometryData;
-		if (!geomData) {
-			// Probably skinned mesh
-			return false;
-		}
-
-		_MESSAGE("%d tris", numTris);
-
-		auto tris = (Triangle *)geomData->triangles;
-		uintptr_t verts = (uintptr_t)(geomData->vertices);
-
-		UInt64 vertexDesc = geom->vertexDesc;
-		VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
-		UInt8 vertexSize = (vertexDesc & 0xF) * 4;
-
-		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
-			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
-
-			NiTransform inverseTransform;
-			geom->m_worldTransform.Invert(inverseTransform);
-			NiPoint3 pointInNodeSpace = inverseTransform * point;
-			NiPoint3 directionInNodeSpace = geom->m_worldTransform.rot.Transpose() * direction;
-
-			int closestTri = -1;
-			NiPoint3 closestTriPos;
-			float closestDistance = *closestDistanceSoFar;
-
-			float lateralWeight = Config::options.grabLateralWeight;
-			float directionalWeight = Config::options.grabDirectionalWeight;
-
-			for (int i = 0; i < numTris; i++) {
-				Triangle tri = tris[i];
-				TriangleData triData(tri, verts, posOffset, vertexSize);
-
-				// get closest point on the triangle to given ray starting at point in direction
-				NiPoint3 closestPoint;
-				float closestDistSquared;
-				bool intersects;
-				MathUtils::GetClosestPointOnTriangleToLine(pointInNodeSpace, directionInNodeSpace, triData, closestPoint, closestDistSquared, intersects);
-
-				NiPoint3 pointToClosest = closestPoint - pointInNodeSpace;
-				NiPoint3 pointToClosestAlongDirection = directionInNodeSpace * DotProduct(pointToClosest, directionInNodeSpace);
-
-				float directionalDistance = VectorLength(pointToClosestAlongDirection);
-				float lateralDistance = VectorLength(pointToClosest - pointToClosestAlongDirection);
-				float distance = directionalWeight * directionalDistance*directionalDistance + lateralWeight * lateralDistance*lateralDistance;
-				if (distance < closestDistance) {
-					NiPoint3 triNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
-
-					if (DotProduct(triNormal, directionInNodeSpace) <= 0) {
-						// Front face of the triangle faces the line
-						closestDistance = distance;
-						closestTriPos = closestPoint;
-						closestTri = i;
-					}
-				}
-			}
-
-			if (closestTri >= 0) {
-				*closestDistanceSoFar = closestDistance;
-				*closestPos = geom->m_worldTransform * closestTriPos;
-
-				Triangle closestTriangle = tris[closestTri];
-
-				TriangleData triData(closestTriangle, verts, posOffset, vertexSize);
-				triData.v0 = geom->m_worldTransform * triData.v0;
-				triData.v1 = geom->m_worldTransform * triData.v1;
-				triData.v2 = geom->m_worldTransform * triData.v2;
-
-				*closestNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
-
-				return true;
-			}
-		}
-		return false;
-	}
-	NiNode *node = root->GetAsNiNode();
-	if (node) {
-		if (node->GetAsNiSwitchNode()) {
-			// NiSwitchNode: Return the first valid child
-			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-				auto child = node->m_children.m_data[i];
-				if (child) {
-					return GetClosestPointOnGraphicsGeometryToLineUnskinned(child, point, direction, closestPos, closestNormal, closestDistanceSoFar);
-				}
-			}
-		}
-		else {
-			bool success = false;
-			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-				auto child = node->m_children.m_data[i];
-				if (child) {
-					success |= GetClosestPointOnGraphicsGeometryToLineUnskinned(child, point, direction, closestPos, closestNormal, closestDistanceSoFar);
-				}
-			}
-			return success;
-		}
-	}
-	return false;
-}
-
-
-bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<std::vector<TriangleData>> &skinnedTriangleLists, NiAVObject *root, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
-{
-	bool success = false;
-
-	for (auto &triangleList : skinnedTriangleLists) {
-		success |= GetClosestPointOnGraphicsGeometryToLineSkinned(triangleList, point, direction, closestPos, closestNormal, closestDistanceSoFar);
-	}
-
-	success |= GetClosestPointOnGraphicsGeometryToLineUnskinned(root, point, direction, closestPos, closestNormal, closestDistanceSoFar);
-
-	return success;
 }
