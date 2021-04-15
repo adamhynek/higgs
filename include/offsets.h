@@ -327,3 +327,7 @@ extern RelocAddr<_bhkRigidBodyCinfo_ctor> bhkRigidBodyCinfo_ctor;
 
 typedef void(*_bhkRigidBody_ctor)(bhkRigidBody *_this, bhkRigidBodyCinfo *cInfo);
 extern RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor;
+
+typedef void(*_CleanupCloneList)(uintptr_t _this);
+extern RelocAddr<_CleanupCloneList> CleanupCloneList1;
+extern RelocAddr<_CleanupCloneList> CleanupCloneList2;

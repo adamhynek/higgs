@@ -198,6 +198,9 @@ RelocAddr<_bhkRigidBodyCinfo_ctor> bhkRigidBodyCinfo_ctor(0xE06110);
 
 RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor(0x2AEC80);
 
+RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);
+RelocAddr<_CleanupCloneList> CleanupCloneList2(0x1C8BE0);
+
 //bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);

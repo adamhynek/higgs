@@ -2,13 +2,14 @@
 
 #include <unordered_set>
 
-#include "RE/havok.h"
-
 #include "skse64/NiNodes.h"
 #include "skse64/GameData.h"
 #include "skse64/GameExtraData.h"
 #include "common/ITimer.h"
+
+#include "RE/havok.h"
 #include "math_utils.h"
+#include "offsets.h"
 
 
 #define VM_REGISTRY (*g_skyrimVM)->GetClassRegistry()
@@ -80,14 +81,19 @@ public:
 		unk48 = unk_141E703B8;
 	}
 
+	~NiCloningProcess() {
+		CleanupCloneList1((uintptr_t)&unk38);
+		CleanupCloneList2((uintptr_t)&unk08);
+	}
+
 	UInt64 unk00 = 0;
-	UInt64 unk08 = 0;
+	UInt64 unk08 = 0; // Start of clone list 1?
 	UInt64 unk10 = 0;
 	UInt64 * unk18; // initd to RelocAddr(0x1E703BC)
 	UInt64 unk20 = 0;
 	UInt64 unk28 = 0;
 	UInt64 unk30 = 0;
-	UInt64 unk38 = 0;
+	UInt64 unk38 = 0; // Start of clone list 2?
 	UInt64 unk40 = 0;
 	UInt64 * unk48; // initd to RelocAddr(0x1E703B8)
 	UInt64 unk50 = 0;

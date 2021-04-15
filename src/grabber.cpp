@@ -594,61 +594,57 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
 
 	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
-	if (collisionNode) {
-		NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
-		if (rigidBody) {
-			hkpRigidBody *hkBody = rigidBody->hkBody;
-			if (hkBody) {
-				const hkpShape *shape = hkBody->m_collidable.m_shape;
-				if (shape) {
-					bhkShape *bShape = (bhkShape *)shape->m_userData;
-					if (bShape) {
-						NiCloningProcess cloningProcess = NiCloningProcess();
-						cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
+	if (!collisionNode) return;
+
+	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
+	if (!rigidBody) return;
+
+	hkpRigidBody *hkBody = rigidBody->hkBody;
+	if (!hkBody) return;
+
+	const hkpShape *shape = hkBody->m_collidable.m_shape;
+	if (!shape) return;
+
+	bhkShape *bShape = (bhkShape *)shape->m_userData;
+	if (!bShape) return;
+
+	NiCloningProcess cloningProcess = NiCloningProcess();
+	cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
 						
-						/*if (g_vrikInterface) {
-							double handSize = g_vrikInterface->getSettingDouble("handSize"); // 0.85 is the vrik default hand size
-							cloningProcess.scale *= handSize;
-						}*/
+	/*if (g_vrikInterface) {
+		double handSize = g_vrikInterface->getSettingDouble("handSize"); // 0.85 is the vrik default hand size
+		cloningProcess.scale *= handSize;
+	}*/
 
-						NiObject *clonedObject = NiObject_Clone(bShape, &cloningProcess);
-						if (clonedObject) {
-							bhkShape *clonedShape = DYNAMIC_CAST(clonedObject, NiObject, bhkShape);
-							if (clonedShape) {
-								bhkRigidBodyCinfo cInfo;
-								bhkRigidBodyCinfo_ctor(&cInfo);
+	bhkShape *clonedShape = (bhkShape *)NiObject_Clone(bShape, &cloningProcess);
 
-								UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
-								filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+	bhkRigidBodyCinfo cInfo;
+	bhkRigidBodyCinfo_ctor(&cInfo);
 
-								UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
-								filterInfo |= (ragdollBits << 8);
+	UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+	filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
 
-								cInfo.collisionFilterInfo = filterInfo;
-								cInfo.hkCinfo.m_collisionFilterInfo = filterInfo;
-								cInfo.shape = clonedShape->shape;
-								cInfo.hkCinfo.m_shape = clonedShape->shape;
-								cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
-								cInfo.hkCinfo.m_mass = 0.0f;
-								cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
+	UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
+	filterInfo |= (ragdollBits << 8);
 
-								bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(0x40);
-								if (clonedBody) {
-									bhkRigidBody_ctor(clonedBody, &cInfo);
+	cInfo.collisionFilterInfo = filterInfo;
+	cInfo.hkCinfo.m_collisionFilterInfo = filterInfo;
+	cInfo.shape = clonedShape->shape;
+	cInfo.hkCinfo.m_shape = clonedShape->shape;
+	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+	cInfo.hkCinfo.m_mass = 0.0f;
+	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
 
-									bhkRigidBody_setActivated(clonedBody, true);
+	bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(0x40);
+	if (clonedBody) {
+		bhkRigidBody_ctor(clonedBody, &cInfo);
 
-									hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+		bhkRigidBody_setActivated(clonedBody, true);
 
-									clonedFromBody = rigidBody;
-									weaponBody = clonedBody;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+		hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+
+		clonedFromBody = rigidBody;
+		weaponBody = clonedBody;
 	}
 }
 
