@@ -18,6 +18,10 @@
 #include "grabber.h"
 
 
+RelocPtr<UInt64> unk_141E703BC(0x1E703BC);
+RelocPtr<UInt64> unk_141E703B8(0x1E703B8);
+
+
 ITimer g_timer;
 double g_currentFrameTime;
 double GetTime()
@@ -161,14 +165,64 @@ void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransfor
 	}
 }
 
-void UpdateKeyframedNode(NiAVObject *node, const NiTransform &transform)
+void UpdateBoneMatrices(NiAVObject *obj)
+{
+	BSGeometry *geom = obj->GetAsBSGeometry();
+	if (geom) {
+		NiSkinInstance *skinInstance = geom->m_spSkinInstance;
+		if (skinInstance) {
+			skinInstance->unk38 = -1; // This is the frameID. UpdateBoneMatrices only updates the bone matrices if the frameID is not equal to the current frame.
+			NiSkinInstance_UpdateBoneMatrices(skinInstance, obj->m_worldTransform);
+		}
+	}
+
+	NiNode *node = obj->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			NiAVObject *child = node->m_children.m_data[i];
+			if (child) {
+				UpdateBoneMatrices(child);
+			}
+		}
+	}
+}
+
+void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 {
 	UpdateNodeTransformLocal(node, transform);
-
+	
 	NiAVObject::ControllerUpdateContext ctx;
 	ctx.flags = 0x2000; // makes havok sim more stable
 	ctx.delta = 0;
 	NiAVObject_UpdateObjectUpwards(node, &ctx);
+	
+	UpdateBoneMatrices(node);
+
+	//UpdateNodeTransformLocal(node, transform);
+
+	//// UpdateWithContext
+	/*
+	// UpdateCollisionFromNodeTransform
+	NiAVObject_RecalculateWorldTransform(node);
+
+	NiQuaternion rot;
+	NiMatrixToNiQuaternion(rot, transform.rot);
+	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
+	if (rigidBody) {
+		bhkRigidBody_setActivated(rigidBody, 1);
+		bhkRigidBody_MoveToPositionAndRotation(rigidBody, transform.pos, rot);
+	}
+	//
+
+	NiAVObject_RecalculateWorldTransform(node);
+	////
+	*/
+	/*
+	bhkCollisionObject *collisionObject = GetCollisionObject(node);
+	if (collisionObject) {
+		bhkCollisionObject_SetNodeTransformsFromWorldTransform(collisionObject, transform);
+	}
+	*/
 
 	ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false);
 }
@@ -404,42 +458,40 @@ void PrintToFile(std::string entry, std::string filename)
 	file.close();
 }
 
-void DumpVertices(std::vector<std::vector<TriangleData>> &triangleLists)
+void DumpVertices(std::vector<TriangleData> &triangles)
 {
 	_file.open("vertices.log");
 
 	std::vector<NiPoint3> vertices;
-	for (auto &triangleList : triangleLists) {
-		for (TriangleData &triangle : triangleList) {
-			bool contains = false;
-			for (NiPoint3 vertex : vertices) {
-				if (vertex.x == triangle.v0.x && vertex.y == triangle.v0.y && vertex.z == triangle.v0.z) {
-					contains = true;
-				}
+	for (TriangleData &triangle : triangles) {
+		bool contains = false;
+		for (NiPoint3 vertex : vertices) {
+			if (vertex.x == triangle.v0.x && vertex.y == triangle.v0.y && vertex.z == triangle.v0.z) {
+				contains = true;
 			}
-			if (!contains) {
-				vertices.push_back(triangle.v0);
-			}
+		}
+		if (!contains) {
+			vertices.push_back(triangle.v0);
+		}
 
-			contains = false;
-			for (NiPoint3 vertex : vertices) {
-				if (vertex.x == triangle.v1.x && vertex.y == triangle.v1.y && vertex.z == triangle.v1.z) {
-					contains = true;
-				}
+		contains = false;
+		for (NiPoint3 vertex : vertices) {
+			if (vertex.x == triangle.v1.x && vertex.y == triangle.v1.y && vertex.z == triangle.v1.z) {
+				contains = true;
 			}
-			if (!contains) {
-				vertices.push_back(triangle.v1);
-			}
+		}
+		if (!contains) {
+			vertices.push_back(triangle.v1);
+		}
 
-			contains = false;
-			for (NiPoint3 vertex : vertices) {
-				if (vertex.x == triangle.v2.x && vertex.y == triangle.v2.y && vertex.z == triangle.v2.z) {
-					contains = true;
-				}
+		contains = false;
+		for (NiPoint3 vertex : vertices) {
+			if (vertex.x == triangle.v2.x && vertex.y == triangle.v2.y && vertex.z == triangle.v2.z) {
+				contains = true;
 			}
-			if (!contains) {
-				vertices.push_back(triangle.v2);
-			}
+		}
+		if (!contains) {
+			vertices.push_back(triangle.v2);
 		}
 	}
 

@@ -585,6 +585,140 @@ void Grabber::UpdateHandCollision(NiAVObject *handNode)
 }
 
 
+void Grabber::CreateWeaponCollision(bhkWorld *world)
+{
+	PlayerCharacter *player = *g_thePlayer;
+	
+	UInt64 dataOffset = 0x710;
+	if (isLeft) dataOffset += sizeof(VRMeleeData);
+	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
+
+	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
+	if (collisionNode) {
+		NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
+		if (rigidBody) {
+			hkpRigidBody *hkBody = rigidBody->hkBody;
+			if (hkBody) {
+				const hkpShape *shape = hkBody->m_collidable.m_shape;
+				if (shape) {
+					bhkShape *bShape = (bhkShape *)shape->m_userData;
+					if (bShape) {
+						NiCloningProcess cloningProcess = NiCloningProcess();
+						cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
+						
+						/*if (g_vrikInterface) {
+							double handSize = g_vrikInterface->getSettingDouble("handSize"); // 0.85 is the vrik default hand size
+							cloningProcess.scale *= handSize;
+						}*/
+
+						NiObject *clonedObject = NiObject_Clone(bShape, &cloningProcess);
+						if (clonedObject) {
+							bhkShape *clonedShape = DYNAMIC_CAST(clonedObject, NiObject, bhkShape);
+							if (clonedShape) {
+								bhkRigidBodyCinfo cInfo;
+								bhkRigidBodyCinfo_ctor(&cInfo);
+
+								UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+								filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+
+								UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
+								filterInfo |= (ragdollBits << 8);
+
+								cInfo.collisionFilterInfo = filterInfo;
+								cInfo.hkCinfo.m_collisionFilterInfo = filterInfo;
+								cInfo.shape = clonedShape->shape;
+								cInfo.hkCinfo.m_shape = clonedShape->shape;
+								cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+								cInfo.hkCinfo.m_mass = 0.0f;
+								cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
+
+								bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(0x40);
+								if (clonedBody) {
+									bhkRigidBody_ctor(clonedBody, &cInfo);
+
+									bhkRigidBody_setActivated(clonedBody, true);
+
+									hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+
+									clonedFromBody = rigidBody;
+									weaponBody = clonedBody;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+void Grabber::RemoveWeaponCollision(bhkWorld *world)
+{
+	if (!weaponBody) return;
+
+	hkBool ret;
+	hkpWorld_RemoveEntity(world->world, &ret, weaponBody->hkBody);
+	weaponBody = nullptr;
+	clonedFromBody = nullptr;
+}
+
+
+void Grabber::UpdateWeaponCollision()
+{
+	PlayerCharacter *player = *g_thePlayer;
+
+	UInt64 dataOffset = 0x710;
+	if (isLeft) dataOffset += sizeof(VRMeleeData);
+	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
+
+	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
+	if (collisionNode) {
+		NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
+		if (rigidBody) {
+			if (rigidBody != clonedFromBody) {
+				NiPointer<bhkWorld> world = meleeData->world;
+				if (world) {
+					BSWriteLocker(&world->worldLock);
+					RemoveWeaponCollision(world);
+					CreateWeaponCollision(world);
+				}
+			}
+
+			TESForm *equippedItem = *g_leftHandedMode ? player->GetEquippedObject(!isLeft) : player->GetEquippedObject(isLeft);
+			bool isUnarmed = equippedItem == nullptr;
+			if (equippedItem) {
+				TESObjectWEAP *equippedWeapon = DYNAMIC_CAST(equippedItem, TESForm, TESObjectWEAP);
+				if (equippedWeapon) {
+					UInt8 type = equippedWeapon->type();
+					if (type == TESObjectWEAP::GameData::kType_HandToHandMelee || type == TESObjectWEAP::GameData::kType_H2H) {
+						isUnarmed = true;
+					}
+				}
+			}
+
+			if (isUnarmed || !player->actorState.IsWeaponDrawn()) {
+				// Do not enable weapon collision when unarmed or no weapon drawn
+				weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+				return;
+			}
+
+			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+
+			// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
+			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
+			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
+
+			hkTransform transform = rigidBody->hkBody->getTransform();
+
+			hkQuaternion desiredQuat;
+			desiredQuat.setFromRotationSimd(transform.m_rotation);
+			hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
+		}
+	}
+}
+
+
 void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 {
 	static UInt32 stoneMaterialId = 0xdf02f237;
@@ -849,8 +983,10 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		if (usePhysicsGrab) {
+			//bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
+			//collisionObject->flags &= ~(1 << 7); // no kSyncOnUpdate
+
 			// Sync up the collision's transform with the node's
-			bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
 			hkVector4 hkPos = NiPointToHkVector(collidableNode->m_worldTransform.pos * havokWorldScale);
 			NiQuaternion nodeRotation;
 			NiMatrixToNiQuaternion(nodeRotation, collidableNode->m_worldTransform.rot);
@@ -1131,6 +1267,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 
 	UpdateHandCollision(handNode);
+
+	UpdateWeaponCollision();
 
 	// Update velocities to this frame
 	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;
@@ -2247,8 +2385,8 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	if (state == State::HeldBody) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> n = FindCollidableNode(selectedObject.collidable);
-			if (n) {
+			NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
+			if (collidableNode) {
 				bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
 				NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
@@ -2257,6 +2395,17 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				hkQuaternion desiredQuat;
 				desiredQuat.setFromRotationSimd(desiredRot);
 				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+
+				//bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
+				//bhkCollisionObject_SetNodeTransformsFromWorldTransform(collisionObject, newTransform);
+
+				//UpdateNodeTransformLocal(collidableNode, newTransform);
+
+				//collidableNode->m_worldTransform = newTransform;
+
+				//UpdateBoneMatrices(objRoot);
+
+				//ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, collidableNode, false);
 
 				if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 					haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);

@@ -15,15 +15,6 @@
 #include <Physics/Collide/Shape/Compound/Tree/Mopp/hkpMoppBvTreeShape.h>
 
 
-struct bhkShape : NiRefObject
-{
-	hkpShape *shape; // 10
-	UInt64 unk18; // == 0?
-	UInt32 materialId; // 20
-	UInt32 pad28;
-};
-static_assert(sizeof(bhkShape) == 0x28);
-
 struct bhkCollisionFilter : hkpCollisionFilter
 {
 	UInt32 unk48;
@@ -87,6 +78,15 @@ struct bhkSerializable : bhkRefObject
 	virtual void	  Unk_31(void); // 31
 };
 
+struct bhkShape : bhkSerializable
+{
+	hkpShape *shape; // 10
+	UInt64 unk18; // == 0?
+	UInt32 materialId; // 20
+	UInt32 pad28;
+};
+static_assert(sizeof(bhkShape) == 0x28);
+
 struct bhkConstraint : bhkSerializable
 {
 	hkpConstraintInstance *constraint; // 10
@@ -104,7 +104,7 @@ struct bhkEntity : bhkWorldObject
 
 struct bhkRigidBody : bhkEntity
 {
-	virtual void getPosition(void); // 33
+	virtual void getPosition(hkVector4 *position); // 33
 	virtual void getRotation(void); // 34
 	virtual void setPosition(void); // 35
 	virtual void setRotation(void); // 36
@@ -153,7 +153,8 @@ struct bhkNiCollisionObject : NiCollisionObject
 	virtual void IsFixedOrKeyframed(void); // 2F
 	virtual void Unk_30(void); // 30 - { return 1; }
 
-	UInt64 flags; // 18 - bit 3 is set => we should update rotation of NiNode? // kDebugDisplay = 1 << 4, TODO: TRY THIS???
+	UInt32 flags; // 18
+	UInt32 pad1C; // 1C
 	NiPointer<bhkWorldObject> body; // 20
 };
 static_assert(offsetof(bhkNiCollisionObject, body) == 0x20);
@@ -162,8 +163,19 @@ struct bhkCollisionObject : bhkNiCollisionObject
 {
 };
 
-
 struct bhkSimpleShapePhantom : NiRefObject
 {
 	hkpSimpleShapePhantom * phantom; // 10
 };
+
+struct bhkRigidBodyCinfo
+{
+	UInt32 collisionFilterInfo; // 00
+	UInt32 unk04;
+	hkpShape *shape; // 08
+	UInt8 unk10[0x30 - 0x10];
+	hkpRigidBodyCinfo hkCinfo; // 30 - size == 0xE0
+};
+static_assert(offsetof(bhkRigidBodyCinfo, shape) == 0x08);
+static_assert(offsetof(bhkRigidBodyCinfo, hkCinfo) == 0x30);
+static_assert(sizeof(bhkRigidBodyCinfo) == 0x110);

@@ -32,6 +32,8 @@ RelocPtr<ShadowSceneNode *> g_shadowSceneNode(0x3423080);
 
 RelocPtr<float> g_minSoundVel(0x1E94F78); // it's an ini setting
 
+RelocPtr<float> g_fMeleeWeaponHavokScale(0x1EAD900); // it's an ini setting
+
 
 RelocAddr<_CreateDetectionEvent> CreateDetectionEvent(0x656140);
 
@@ -132,6 +134,8 @@ RelocAddr<_bhkRigidBody_MoveToPositionAndRotation> bhkRigidBody_MoveToPositionAn
 
 RelocAddr<_bhkCollisionObject_SetNodeTransformsFromWorldTransform> bhkCollisionObject_SetNodeTransformsFromWorldTransform(0xE1ACB0);
 
+RelocAddr<_NiAVObject_RecalculateWorldTransform> NiAVObject_RecalculateWorldTransform(0xCA7110);
+
 RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation(0xE08350);
 
 RelocAddr<_FindCollidableRef> FindCollidableRef(0x003B4940);
@@ -185,6 +189,14 @@ RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell(0x23B240);
 RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion(0xCB4460);
 
 RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector(0xC4C1E0);
+
+RelocAddr<_NiSkinInstance_UpdateBoneMatrices> NiSkinInstance_UpdateBoneMatrices(0xDC7DC0);
+
+RelocAddr<_NiObject_Clone> NiObject_Clone(0xC978E0);
+
+RelocAddr<_bhkRigidBodyCinfo_ctor> bhkRigidBodyCinfo_ctor(0xE06110);
+
+RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor(0x2AEC80);
 
 //bhkWorld_Update(0xDFB460);
 

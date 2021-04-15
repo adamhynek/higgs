@@ -8,6 +8,7 @@
 #include "skse64/GameReferences.h"
 #include "skse64/NiNodes.h"
 #include "skse64/GameVR.h"
+#include "skse64/NiGeometry.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
@@ -74,6 +75,8 @@ struct ShadowSceneNode : NiNode { /* TODO */ };
 extern RelocPtr<ShadowSceneNode *> g_shadowSceneNode;
 
 extern RelocPtr<float> g_minSoundVel;
+
+extern RelocPtr<float> g_fMeleeWeaponHavokScale;
 
 
 typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);
@@ -228,6 +231,9 @@ extern RelocAddr<_bhkRigidBody_MoveToPositionAndRotation> bhkRigidBody_MoveToPos
 typedef void(*_bhkCollisionObject_SetNodeTransformsFromWorldTransform)(bhkCollisionObject *_this, NiTransform &worldTransform);
 extern RelocAddr<_bhkCollisionObject_SetNodeTransformsFromWorldTransform> bhkCollisionObject_SetNodeTransformsFromWorldTransform;
 
+typedef void(*_NiAVObject_RecalculateWorldTransform)(NiAVObject *_this);
+extern RelocAddr<_NiAVObject_RecalculateWorldTransform> NiAVObject_RecalculateWorldTransform;
+
 typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
 extern RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation;
 
@@ -309,3 +315,15 @@ extern RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion;
 
 typedef NiMatrix33 * (*_MatrixFromForwardVector)(NiMatrix33 *matOut, NiPoint3 *forward, NiPoint3 *world);
 extern RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector;
+
+typedef void (*_NiSkinInstance_UpdateBoneMatrices)(NiSkinInstance *_this, NiTransform &rootTransform);
+extern RelocAddr<_NiSkinInstance_UpdateBoneMatrices> NiSkinInstance_UpdateBoneMatrices;
+
+typedef NiObject * (*_NiObject_Clone)(NiObject *_this, NiCloningProcess *cloningProcess);
+extern RelocAddr<_NiObject_Clone> NiObject_Clone;
+
+typedef void(*_bhkRigidBodyCinfo_ctor)(bhkRigidBodyCinfo *_this);
+extern RelocAddr<_bhkRigidBodyCinfo_ctor> bhkRigidBodyCinfo_ctor;
+
+typedef void(*_bhkRigidBody_ctor)(bhkRigidBody *_this, bhkRigidBodyCinfo *cInfo);
+extern RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor;

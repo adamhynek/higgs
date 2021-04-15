@@ -21,7 +21,8 @@ extern double g_currentFrameTime;
 NiAVObject * GetHighestParent(NiAVObject *node);
 void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx);
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);
-void UpdateKeyframedNode(NiAVObject *node, const NiTransform &transform);
+void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform);
+void UpdateBoneMatrices(NiAVObject *obj);
 
 NiPointer<NiAVObject> GetTorsoNode(Actor *actor);
 
@@ -39,7 +40,7 @@ double GetTime();
 void PrintVector(const NiPoint3 &p);
 void PrintSceneGraph(NiAVObject *node);
 void PrintToFile(std::string entry, std::string filename);
-void DumpVertices(std::vector<std::vector<TriangleData>> &triangleLists);
+void DumpVertices(std::vector<TriangleData> &triangles);
 
 //float hkHalfToFloat(hkHalf half);
 //hkHalf floatToHkHalf(float half);
@@ -67,3 +68,65 @@ typedef void(*Actor_GetLinearVelocity)(Actor *_this, NiPoint3 &velocity);
 typedef bool(*TESBoundObject_GetActivateText)(TESBoundObject *_this, TESObjectREFR* activator, BSString& text);
 
 typedef void(*_Update3DPosition)(TESObjectREFR *_this, bool warp);
+
+extern RelocPtr<UInt64> unk_141E703BC;
+extern RelocPtr<UInt64> unk_141E703B8;
+
+class NiCloningProcess
+{
+public:
+	NiCloningProcess() {
+		unk18 = unk_141E703BC;
+		unk48 = unk_141E703B8;
+	}
+
+	UInt64 unk00 = 0;
+	UInt64 unk08 = 0;
+	UInt64 unk10 = 0;
+	UInt64 * unk18; // initd to RelocAddr(0x1E703BC)
+	UInt64 unk20 = 0;
+	UInt64 unk28 = 0;
+	UInt64 unk30 = 0;
+	UInt64 unk38 = 0;
+	UInt64 unk40 = 0;
+	UInt64 * unk48; // initd to RelocAddr(0x1E703B8)
+	UInt64 unk50 = 0;
+	UInt64 unk58 = 0;
+	UInt8 copyType = 1; // 60 - CopyType - default 1
+	UInt8 m_eAffectedNodeRelationBehavior = 0; // 61 - CloneRelationBehavior - default 0
+	UInt8 m_eDynamicEffectRelationBehavior = 0; // 62 - CloneRelationBehavior - default 0
+	char m_cAppendChar = '$'; // 64 - default '$'
+	NiPoint3 scale = { 1.0f, 1.0f, 1.0f }; // 0x68 - default {1, 1, 1}
+};
+
+struct VRMeleeData
+{
+	UInt64 unk00;
+	UInt64 unk08;
+	NiPointer<bhkWorld> world; // 10
+	NiPointer<NiNode> collisionNode; // 18
+	NiPointer<NiAVObject> offsetNode; // 20
+	UInt64 unk28; // default == 3?
+	NiPoint3 position; // 30
+	tArray<NiPoint3> unk40;
+	tArray<NiPoint3> unk58;
+	tArray<NiPoint3> unk70;
+	UInt64 unk88;
+	UInt64 unk80;
+	UInt64 unk98;
+	float unkA0; // linearVelocityThreshold when right, 0 when right?
+	float linearVelocityThreshold; // A4
+	float impactConfirmRumbleIntensity; // A8
+	float impactConfirmRumbleDuration; // AC
+	float impactRumbleIntensity; // B0
+	float impactRumbleDuration; // B4
+	float meleeForceMultLinear; // B8
+	float unkBC; // default byte 0?
+	float unkC0; // default 0
+	float cooldown; // C4 - gets set to the cooldown, then ticks down, can (and will) get negative - default 0
+	UInt32 unkC8; // default 0
+	UInt32 unkCC;
+};
+static_assert(offsetof(VRMeleeData, collisionNode) == 0x18);
+static_assert(offsetof(VRMeleeData, linearVelocityThreshold) == 0xA4);
+static_assert(sizeof(VRMeleeData) == 0xD0);

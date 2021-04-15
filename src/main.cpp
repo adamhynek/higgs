@@ -109,6 +109,10 @@ struct ContactListener : hkpContactListener
 		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
 		hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
 
+		UInt32 layerA = rigidBodyA->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
+		UInt32 layerB = rigidBodyB->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
+		if (layerA != 56 && layerB != 56) return; // Every collision we care about involves a body with our custom layer (hand, held object...)
+
 		bool isARight = rigidBodyA == g_rightGrabber->handCollBody;
 		bool isBRight = rigidBodyB == g_rightGrabber->handCollBody;
 		bool isALeft = rigidBodyA == g_leftGrabber->handCollBody;
@@ -117,26 +121,29 @@ struct ContactListener : hkpContactListener
 		bool rightHasHeld = g_rightGrabber->HasHeldObject();
 		bool leftHasHeld = g_leftGrabber->HasHeldObject();
 
-		bool isAHeldRight = &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
-		bool isBHeldRight = &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable && rightHasHeld;
-		bool isAHeldLeft = &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
-		bool isBHeldLeft = &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable && leftHasHeld;
+		bool isAHeldRight = rightHasHeld && &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable;
+		bool isBHeldRight = rightHasHeld && &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable;
+		bool isAHeldLeft = leftHasHeld && &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable;
+		bool isBHeldLeft = leftHasHeld && &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable;
+
+		bhkRigidBody *bhkRigidBodyA = (bhkRigidBody *)rigidBodyA->m_userData;
+		bhkRigidBody *bhkRigidBodyB = (bhkRigidBody *)rigidBodyB->m_userData;
+
+		bool isAWeapRight = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->weaponBody;
+		bool isBWeapRight = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->weaponBody;
+		bool isAWeapLeft = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->weaponBody;
+		bool isBWeapLeft = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->weaponBody;
 
 		bool isHand = isARight || isBRight || isALeft || isBLeft;
 		bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
-		if (!isHand && !isHeld) return;
+		bool isWeap = isAWeapRight || isBWeapRight || isAWeapLeft || isBWeapLeft;
+		if (!isHand && !isHeld && !isWeap) return;
 
-		//ContactListener_PreprocessContactPointEvent(this, evnt); // Disables contact under certain conditions
-
-		//if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
-		//	return;
-		//}
-
-		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldLeft || isAHeldRight) ? rigidBodyB : rigidBodyA;
+		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldRight || isAHeldLeft || isAWeapLeft || isAWeapRight) ? rigidBodyB : rigidBodyA;
 		float inverseMass = otherBody->getMassInv();
 		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
 
-		bool isLeft = isALeft || isBLeft || isAHeldLeft || isBHeldLeft;
+		bool isLeft = isALeft || isBLeft || isAHeldLeft || isBHeldLeft || isAWeapLeft || isBWeapLeft;
 
 		float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
 
@@ -359,6 +366,9 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 				hkpWorld_removeContactListener(oldWorld->world, contactListener);
 				g_rightGrabber->RemoveHandCollision(oldWorld);
 				g_leftGrabber->RemoveHandCollision(oldWorld);
+
+				g_rightGrabber->RemoveWeaponCollision(oldWorld);
+				g_leftGrabber->RemoveWeaponCollision(oldWorld);
 			}
 		}
 
@@ -373,6 +383,9 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 			g_rightGrabber->CreateHandCollision(world);
 			g_leftGrabber->CreateHandCollision(world);
+
+			g_rightGrabber->CreateWeaponCollision(world);
+			g_leftGrabber->CreateWeaponCollision(world);
 		}
 
 		contactListener->world = world;
