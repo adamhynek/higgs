@@ -695,11 +695,12 @@ void Grabber::UpdateWeaponCollision()
 
 			if (isUnarmed || !player->actorState.IsWeaponDrawn()) {
 				// Do not enable weapon collision when unarmed or no weapon drawn
+				// We DO still want to move it though, since once we enable it again we don't want a huge jump
 				weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
-				return;
 			}
-
-			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+			else {
+				weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+			}
 
 			// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
