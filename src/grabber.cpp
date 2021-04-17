@@ -553,6 +553,8 @@ void Grabber::CreateHandCollision(bhkWorld *world)
 	handCollCInfo->m_enableDeactivation = false;
 	handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 
+	handCollCInfo->m_position = NiPointToHkVector((*g_thePlayer)->loadedState->node->m_worldTransform.pos * *g_havokWorldScale); // Place it where the player is
+
 	hkpRigidBody_ctor(handCollBody, handCollCInfo);
 
 	hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
@@ -636,6 +638,8 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
 	cInfo.hkCinfo.m_mass = 0.0f;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
+
+	cInfo.hkCinfo.m_position = NiPointToHkVector(player->loadedState->node->m_worldTransform.pos * *g_havokWorldScale); // Place it where the player is
 
 	bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(0x40);
 	if (clonedBody) {
