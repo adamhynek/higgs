@@ -75,6 +75,8 @@ namespace Config {
 		double mouthDropHapticFadeTime = 0.2f;
 		double rolloverHideTime = 0.25f;
 
+		bool enableWeaponCollision = true;
+
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;
 		float havokMaxMaxTime = 0.02778f; // 36 fps

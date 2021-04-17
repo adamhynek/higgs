@@ -587,6 +587,8 @@ void Grabber::UpdateHandCollision(NiAVObject *handNode)
 
 void Grabber::CreateWeaponCollision(bhkWorld *world)
 {
+	if (!Config::options.enableWeaponCollision) return;
+
 	PlayerCharacter *player = *g_thePlayer;
 	
 	UInt64 dataOffset = 0x710;
@@ -610,11 +612,11 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 
 	NiCloningProcess cloningProcess = NiCloningProcess();
 	cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
-						
-	/*if (g_vrikInterface) {
-		double handSize = g_vrikInterface->getSettingDouble("handSize"); // 0.85 is the vrik default hand size
+
+	if (g_vrikInterface) {
+		double handSize = g_vrikInterface->getSettingDouble("handSize"); // 0.85 is the default
 		cloningProcess.scale *= handSize;
-	}*/
+	}
 
 	bhkShape *clonedShape = (bhkShape *)NiObject_Clone(bShape, &cloningProcess);
 
@@ -651,6 +653,8 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 
 void Grabber::RemoveWeaponCollision(bhkWorld *world)
 {
+	if (!Config::options.enableWeaponCollision) return;
+
 	if (!weaponBody) return;
 
 	hkBool ret;
@@ -662,6 +666,8 @@ void Grabber::RemoveWeaponCollision(bhkWorld *world)
 
 void Grabber::UpdateWeaponCollision()
 {
+	if (!Config::options.enableWeaponCollision) return;
+
 	PlayerCharacter *player = *g_thePlayer;
 
 	UInt64 dataOffset = 0x710;
@@ -707,6 +713,15 @@ void Grabber::UpdateWeaponCollision()
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
 			hkTransform transform = rigidBody->hkBody->getTransform();
+			if (g_vrikInterface) {
+				// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.// TODO: Left handed mode?
+				NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(0)->GetObjectByName(&weaponNodeName.data);
+				if (weaponNode) {
+					NiTransform &nodeTransform = weaponNode->m_oldWorldTransform;
+					transform.m_translation = NiPointToHkVector(nodeTransform.pos * *g_havokWorldScale);
+					NiMatrixToHkMatrix(nodeTransform.rot, transform.m_rotation);
+				}
+			}
 
 			hkQuaternion desiredQuat;
 			desiredQuat.setFromRotationSimd(transform.m_rotation);
