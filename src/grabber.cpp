@@ -570,6 +570,14 @@ void Grabber::RemoveHandCollision(bhkWorld *world)
 
 void Grabber::UpdateHandCollision(NiAVObject *handNode)
 {
+	if (state == State::HeldBody) {
+		// Don't have the hand collide while we're holding a body
+		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+	}
+	else {
+		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+	}
+
 	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
