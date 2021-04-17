@@ -570,7 +570,7 @@ void Grabber::RemoveHandCollision(bhkWorld *world)
 
 void Grabber::UpdateHandCollision(NiAVObject *handNode)
 {
-	if (state == State::HeldBody) {
+	if (state == State::HeldBody && selectedObject.isActor) {
 		// Don't have the hand collide while we're holding a body
 		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
 	}
