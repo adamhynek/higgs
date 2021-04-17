@@ -106,8 +106,7 @@ struct Grabber
 		delayGripInput(delayGripInput),
 		controllerVelocities(10, NiPoint3()),
 		playerVelocitiesWorldspace(5, NiPoint3()),
-		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right),
-		weaponNodeName(isLeft ? "SHIELD" : "WEAPON")
+		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right)
 	{
 		for (int i = 0; i < 5; i++) {
 			for (int j = 0; j < 3; j++) {
@@ -183,7 +182,6 @@ struct Grabber
 	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
 	BSFixedString wandNodeName;
-	BSFixedString weaponNodeName;
 
 	std::mutex deselectLock;
 

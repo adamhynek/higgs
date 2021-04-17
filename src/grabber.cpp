@@ -715,7 +715,12 @@ void Grabber::UpdateWeaponCollision()
 			hkTransform transform = rigidBody->hkBody->getTransform();
 			if (g_vrikInterface) {
 				// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.// TODO: Left handed mode?
-				NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(0)->GetObjectByName(&weaponNodeName.data);
+				static BSFixedString weaponNodeName("WEAPON");
+				static BSFixedString shieldNodeName("SHIELD");
+				bool useLeft = isLeft;
+				if (*g_leftHandedMode) useLeft = !useLeft;
+				BSFixedString &handWeaponNodeName = useLeft ? shieldNodeName : weaponNodeName;
+				NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(0)->GetObjectByName(&handWeaponNodeName.data);
 				if (weaponNode) {
 					NiTransform &nodeTransform = weaponNode->m_oldWorldTransform;
 					transform.m_translation = NiPointToHkVector(nodeTransform.pos * *g_havokWorldScale);
