@@ -78,6 +78,14 @@ extern RelocPtr<float> g_minSoundVel;
 
 extern RelocPtr<float> g_fMeleeWeaponHavokScale;
 
+extern RelocPtr<float> g_fMagicHandTranslateX;
+extern RelocPtr<float> g_fMagicHandTranslateY;
+extern RelocPtr<float> g_fMagicHandTranslateZ;
+extern RelocPtr<float> g_fMagicHandRotateX;
+extern RelocPtr<float> g_fMagicHandRotateY;
+extern RelocPtr<float> g_fMagicHandRotateZ;
+extern RelocPtr<float> g_fMagicHandScale;
+
 
 typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);
 extern RelocAddr<_BSVRInterface_GetHandTransform> BSOpenVR_GetHandTransform;
@@ -315,6 +323,12 @@ extern RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion;
 
 typedef NiMatrix33 * (*_MatrixFromForwardVector)(NiMatrix33 *matOut, NiPoint3 *forward, NiPoint3 *world);
 extern RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector;
+
+typedef NiMatrix33 * (*_EulerToNiMatrix)(NiMatrix33 *matOut, float x, float y, float z);
+extern RelocAddr<_EulerToNiMatrix> EulerToNiMatrix;
+
+typedef void (*_UpdateClavicleToTransformHand)(NiAVObject *clavicle, NiAVObject *hand, NiTransform *desiredHandWorldTransform, NiTransform *additionalLocalTransform);
+extern RelocAddr<_UpdateClavicleToTransformHand> UpdateClavicleToTransformHand;
 
 typedef void (*_NiSkinInstance_UpdateBoneMatrices)(NiSkinInstance *_this, NiTransform &rootTransform);
 extern RelocAddr<_NiSkinInstance_UpdateBoneMatrices> NiSkinInstance_UpdateBoneMatrices;

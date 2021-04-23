@@ -14,6 +14,7 @@
 #include "vrikinterface001.h"
 #include "config.h"
 #include "offsets.h"
+#include "main.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -33,6 +34,18 @@ auto pickLinearCastHookedFunc = RelocAddr<uintptr_t>(0xAB5EC0); // ahkpWorld::Li
 uintptr_t postWandUpdateHookedFuncAddr = 0;
 auto postWandUpdateHookLoc = RelocAddr<uintptr_t>(0x13233AA); // A call shortly after the wand nodes are updated as part of Main::Draw()
 auto postWandUpdateHookedFunc = RelocAddr<uintptr_t>(0xDCF900);
+
+uintptr_t preVRIKMainThreadHookedFuncAddr = 0;
+auto preVRIKMainThreadHookLoc = RelocAddr<uintptr_t>(0x5BABB5); // A call on the main thread right after the skse process events hook, and right before the vrik main thread hook
+auto preVRIKMainThreadHookedFunc = RelocAddr<uintptr_t>(0xDFE470); // Some bhkWorld func
+
+uintptr_t preVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
+auto preVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCCA); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
+auto preVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x6AE8C0);
+
+uintptr_t playerCharacterUpdateHookedFuncAddr = 0;
+auto playerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x649FD3); // In Job_Non_render_safe_AI(), calls PlayerCharacter::Update()
+auto playerCharacterHookedFunc = RelocAddr<uintptr_t>(0x6C6910); // PlayerCharacter::Update()
 
 auto hideSpellOriginLoc = RelocAddr<uintptr_t>(0x6AC012); // write 7 bytes of nops here
 
@@ -198,6 +211,178 @@ void PostWandUpdateHook()
 }
 
 
+void PlayerCharacterUpdateHook()
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player) return;
+
+	Update();
+
+	NiPointer<NiAVObject> rightHand = player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+	NiPointer<NiAVObject> leftHand = player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone];
+	if (rightHand && leftHand) {
+		/*
+		NiPoint3 magicHandEuler = NiPoint3(*g_fMagicHandRotateX, *g_fMagicHandRotateY, *g_fMagicHandRotateZ) * 0.017453292;
+		// y and z get flipped for the right hand...
+		magicHandEuler.y *= -1.0f;
+		magicHandEuler.z *= -1.0f;
+
+		NiTransform magicHandTransform;
+		EulerToNiMatrix(&magicHandTransform.rot, magicHandEuler.x, magicHandEuler.y, magicHandEuler.z);
+
+		magicHandTransform.pos = { *g_fMagicHandTranslateX, *g_fMagicHandTranslateY, *g_fMagicHandTranslateZ };
+		// x flipped for right hand...
+		magicHandTransform.pos.x *= -1.0f;
+
+		magicHandTransform.scale = *g_fMagicHandScale;
+
+		NiTransform movedUp = rightWand->m_worldTransform;
+		movedUp.pos += NiPoint3(0.0f, 0.0f, 10.0f);
+		UpdateClavicleToTransformHand(rightClavicle, rightHand, &movedUp, &magicHandTransform);
+		*/
+
+		{
+			Grabber *grabber = g_rightGrabber;
+
+			grabber->handTransform = rightHand->m_worldTransform;
+
+			if (grabber->state == Grabber::State::HeldBody) {
+				NiPointer<bhkRigidBody> heldRigidBody = grabber->selectedObject.rigidBody;
+				if (heldRigidBody) {
+					NiPointer<NiAVObject> collidableNode = FindCollidableNode(&heldRigidBody->hkBody->m_collidable);
+					if (collidableNode) {
+						NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
+
+						NiTransform newHandTransform;
+
+						if (!grabber->selectedObject.isActor) {
+							hkTransform &heldHkTransform = heldRigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
+							heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
+							HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
+						}
+
+						NiTransform inverseDesired;
+						grabber->desiredHavokTransformHandSpace.Invert(inverseDesired);
+
+						//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
+						newHandTransform = heldTransform * inverseDesired;
+
+						UpdateNodeTransformLocal(rightHand, newHandTransform);
+						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+						NiAVObject_UpdateObjectUpwards(rightHand, &ctx);
+					}
+				}
+			}
+		}
+
+		{
+			Grabber *grabber = g_leftGrabber;
+
+			grabber->handTransform = leftHand->m_worldTransform;
+
+			if (grabber->state == Grabber::State::HeldBody) {
+				NiPointer<bhkRigidBody> heldRigidBody = grabber->selectedObject.rigidBody;
+				if (heldRigidBody) {
+					NiPointer<NiAVObject> collidableNode = FindCollidableNode(&heldRigidBody->hkBody->m_collidable);
+					if (collidableNode) {
+						NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
+
+						NiTransform newHandTransform;
+
+						if (!grabber->selectedObject.isActor) {
+							hkTransform &heldHkTransform = heldRigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
+							heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
+							HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
+						}
+
+						NiTransform inverseDesired;
+						grabber->desiredHavokTransformHandSpace.Invert(inverseDesired);
+
+						//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
+						newHandTransform = heldTransform * inverseDesired;
+
+						UpdateNodeTransformLocal(leftHand, newHandTransform);
+						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+						NiAVObject_UpdateObjectUpwards(leftHand, &ctx);
+					}
+				}
+			}
+		}
+
+		_MESSAGE("PC Update");
+	}
+}
+
+
+void PCEndUpdateHook()
+{
+	PlayerCharacter *player = *g_thePlayer;
+
+	NiPointer<NiAVObject> rightHand = player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+	NiPointer<NiAVObject> leftHand = player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone];
+	if (rightHand && leftHand) {
+		{
+			Grabber *grabber = g_rightGrabber;
+
+			NiTransform newHandTransform = grabber->handTransform;
+			UpdateNodeTransformLocal(rightHand, newHandTransform);
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(rightHand, &ctx);
+		}
+
+		{
+			Grabber *grabber = g_leftGrabber;
+
+			NiTransform newHandTransform = grabber->handTransform;
+			UpdateNodeTransformLocal(leftHand, newHandTransform);
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(leftHand, &ctx);
+		}
+	}
+}
+
+
+void PreVRIKHook()
+{
+	return;
+
+	PlayerCharacter *player = *g_thePlayer;
+
+	NiPointer<NiAVObject> rightHand = player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+	NiPointer<NiAVObject> rightWand = player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
+	NiPointer<NiAVObject> rightClavicle = player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+	if (rightHand && rightWand && rightClavicle) {
+		/*
+		NiPoint3 magicHandEuler = NiPoint3(*g_fMagicHandRotateX, *g_fMagicHandRotateY, *g_fMagicHandRotateZ) * 0.017453292;
+		// y and z get flipped for the right hand...
+		magicHandEuler.y *= -1.0f;
+		magicHandEuler.z *= -1.0f;
+
+		NiTransform magicHandTransform;
+		EulerToNiMatrix(&magicHandTransform.rot, magicHandEuler.x, magicHandEuler.y, magicHandEuler.z);
+
+		magicHandTransform.pos = { *g_fMagicHandTranslateX, *g_fMagicHandTranslateY, *g_fMagicHandTranslateZ };
+		// x flipped for right hand...
+		magicHandTransform.pos.x *= -1.0f;
+
+		magicHandTransform.scale = *g_fMagicHandScale;
+
+		NiTransform movedUp = rightWand->m_worldTransform;
+		movedUp.pos += NiPoint3(0.0f, 0.0f, 10.0f);
+		*/
+		//UpdateClavicleToTransformHand(rightClavicle, rightHand, &movedUp, &magicHandTransform);
+
+		NiTransform movedUp = rightHand->m_worldTransform;
+		movedUp.pos.z += 10.0f;
+		UpdateNodeTransformLocal(rightHand, movedUp);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(rightHand, &ctx);
+
+		_MESSAGE("Pre VRIK hook");
+	}
+}
+
+
 BSString *g_activateText = nullptr;
 bool g_overrideActivateText = false;
 std::string g_overrideActivateTextStr;
@@ -234,6 +419,9 @@ void PerformHooks(void)
 	pickLinearCastHookedFuncAddr = pickLinearCastHookedFunc.GetUIntPtr();
 	shaderSetEffectDataInitHookedFuncAddr = shaderSetEffectDataInitHookedFunc.GetUIntPtr();
 	postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
+	preVRIKMainThreadHookedFuncAddr = preVRIKMainThreadHookedFunc.GetUIntPtr();
+	preVRIKPlayerCharacterUpdateHookedFuncAddr = preVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
+	playerCharacterUpdateHookedFuncAddr = playerCharacterHookedFunc.GetUIntPtr();
 	updatePhysicsTimesHookedFuncAddr = updatePhysicsTimesHookedFunc.GetUIntPtr();
 
 	{
@@ -590,6 +778,189 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(postWandUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Post Wand Update hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// Original code
+				mov(rax, preVRIKMainThreadHookedFuncAddr);
+				call(rax);
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)PreVRIKHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(preVRIKMainThreadHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(preVRIKMainThreadHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Pre-VRIK main thread hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// Original code
+				mov(rax, preVRIKPlayerCharacterUpdateHookedFuncAddr);
+				call(rax);
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)PlayerCharacterUpdateHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(preVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(preVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("PlayerCharacter::Update pre-vrik hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// Original code
+				mov(rax, playerCharacterUpdateHookedFuncAddr);
+				call(rax);
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)PCEndUpdateHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(playerCharacterUpdateHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(playerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("PlayerCharacter::Update pre-vrik hook complete");
 	}
 
 	if (Config::options.enableHavokFix) {

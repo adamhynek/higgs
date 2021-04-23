@@ -34,6 +34,14 @@ RelocPtr<float> g_minSoundVel(0x1E94F78); // it's an ini setting
 
 RelocPtr<float> g_fMeleeWeaponHavokScale(0x1EAD900); // it's an ini setting
 
+RelocPtr<float> g_fMagicHandTranslateX(0x1EAEA58);
+RelocPtr<float> g_fMagicHandTranslateY(0x1EAEA70);
+RelocPtr<float> g_fMagicHandTranslateZ(0x1EAEA88);
+RelocPtr<float> g_fMagicHandRotateX(0x1EAEAA0);
+RelocPtr<float> g_fMagicHandRotateY(0x1EAEAB8);
+RelocPtr<float> g_fMagicHandRotateZ(0x1EAEAD0);
+RelocPtr<float> g_fMagicHandScale(0x1EAEAE8);
+
 
 RelocAddr<_CreateDetectionEvent> CreateDetectionEvent(0x656140);
 
@@ -189,6 +197,10 @@ RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell(0x23B240);
 RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion(0xCB4460);
 
 RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector(0xC4C1E0);
+
+RelocAddr<_EulerToNiMatrix> EulerToNiMatrix(0xC995A0);
+
+RelocAddr<_UpdateClavicleToTransformHand> UpdateClavicleToTransformHand(0xC4C5A0);
 
 RelocAddr<_NiSkinInstance_UpdateBoneMatrices> NiSkinInstance_UpdateBoneMatrices(0xDC7DC0);
 

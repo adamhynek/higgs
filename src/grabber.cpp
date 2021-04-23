@@ -726,7 +726,7 @@ void Grabber::UpdateWeaponCollision()
 
 			hkTransform transform = rigidBody->hkBody->getTransform();
 			if (g_vrikInterface) {
-				// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.// TODO: Left handed mode?
+				// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
 				static BSFixedString weaponNodeName("WEAPON");
 				static BSFixedString shieldNodeName("SHIELD");
 				bool useLeft = isLeft;
@@ -739,6 +739,8 @@ void Grabber::UpdateWeaponCollision()
 					NiMatrixToHkMatrix(nodeTransform.rot, transform.m_rotation);
 				}
 			}
+
+			bhkRigidBody_setActivated(weaponBody, true);
 
 			hkQuaternion desiredQuat;
 			desiredQuat.setFromRotationSimd(transform.m_rotation);
@@ -866,6 +868,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm);
+		usePhysicsGrab = true;
 
 		if (!usePhysicsGrab) {
 			StartNearbyDamping(world);
@@ -1011,6 +1014,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
 		}
 
+		NiTransform inverseHand;
+		handNode->m_worldTransform.Invert(inverseHand);
+
 		if (usePhysicsGrab) {
 			//bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
 			//collisionObject->flags &= ~(1 << 7); // no kSyncOnUpdate
@@ -1027,6 +1033,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			hkTransform &transform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
 			desiredTransform.pos = HkVectorToNiPoint(transform.m_translation) / havokWorldScale;
 			HkMatrixToNiMatrix(transform.m_rotation, desiredTransform.rot);
+
+			desiredTransform.pos += palmPos - ptPos;
+			desiredHavokTransformHandSpace = inverseHand * desiredTransform;
 		}
 		else {
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -1035,10 +1044,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 		}
 
-		NiTransform inverseHand;
-		handNode->m_worldTransform.Invert(inverseHand);
+		desiredTransform = collidableNode->m_worldTransform;
 		desiredTransform.pos += palmPos - ptPos;
-		desiredObjTransformHandSpace = inverseHand * desiredTransform;
+		desiredNodeTransformHandSpace = inverseHand * desiredTransform;
 
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
@@ -1224,7 +1232,7 @@ void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR 
 
 	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
-		NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+		NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 		UpdateKeyframedNode(collidableNode, newTransform);
 	}
 }
@@ -1245,12 +1253,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	//_MESSAGE("%s:, pose update", name);
 
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player || !player->GetNiNode())
-		return;
+	if (!player || !player->GetNiNode()) return;
 
-	NiPointer<NiAVObject> handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
-	if (!handNode)
-		return;
+	NiPointer<NiAVObject> handNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone] : player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+	if (!handNode) return;
 
 	float havokWorldScale = *g_havokWorldScale;
 
@@ -1266,8 +1272,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	NiPoint3 pointingVector = VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);
 
 	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
-	if (!hmdNode)
-		return;
+	if (!hmdNode) return;
 
 	NiPoint3 hmdPos = hmdNode->m_worldTransform.pos;
 
@@ -1312,8 +1317,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	}
 
 	bhkSimpleShapePhantom *sphere = *g_pickSphere;
-	if (!sphere)
-		return;
+	if (!sphere) return;
 
 	NiPoint3 palmPos = handNode->m_worldTransform * palmPosHandspace;
 	NiPoint3 hkPalmPos = palmPos * havokWorldScale;
@@ -1711,11 +1715,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 							NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 							NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-							NiPoint3 forward = pointingVector;
-							NiPoint3 worldUp = { 0, 0, 1 };
-							NiPoint3 right = CrossProduct(forward, worldUp);
-							NiPoint3 up = CrossProduct(right, forward);
-							initialObjPosRaySpace = { DotProduct(relObjPos, forward), DotProduct(relObjPos, right) , DotProduct(relObjPos, up) };
 							rolloverDisplayTime = g_currentFrameTime;
 							initialGrabbedObjRelativePosition = relObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
@@ -2072,59 +2071,12 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 					NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 					NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-					//float handSpeedInObjDirection = DotProduct(localVelocityWorldspace, VectorNormalized(relObjPos));
 					NiPoint3 controllerVelocity = controllerVelocities[0];
 					float controllerSpeedDirectionalized = DotProduct(controllerVelocity, VectorNormalized(-relObjPos));
-					//if (std::string(handNodeName.data) == "NPC R Hand [RHnd]") {
-					//	PrintToFile(std::to_string(VectorLength(handDirectionVelocityRoomspace)), "hand_delta_dir_r.txt");
-					//	PrintToFile(std::to_string(handSpeedInObjDirection), "hand_speed_r.txt");
-					//}
 
-					bool pull = false;
 					if (controllerSpeedDirectionalized > Config::options.pullSpeedThreshold) {
 						if (IsObjectPullable()) {
-							pull = true;
-						}
-					}
-
-					if (pull) {
-						TransitionPulled();
-					}
-					else {
-						// Hold object selected while hand doesn't point too far away from original location. If far enough, deselect.
-
-						// TODO: There is a discontinuity here when we point straight down and the cross product with the world up direction flips
-						NiPoint3 forward = pointingVector;
-						NiPoint3 worldUp = { 0, 0, 1 };
-						NiPoint3 right = CrossProduct(forward, worldUp);
-						NiPoint3 up = CrossProduct(right, forward);
-						NiPoint3 initialObjPos = forward * initialObjPosRaySpace.x + right * initialObjPosRaySpace.y + up * initialObjPosRaySpace.z;
-
-						// Determine the position where we want the object to be
-						// Essentially it's a cylinder with a radius of the original distance when we grabbed it, and a height determined by some limit
-						float maxHeight = 4.0f;
-						NiPoint3 horiz;
-						float h;
-						if (pointingVector.z <= 0.9999f) {
-							float w = VectorLength(NiPoint3(initialGrabbedObjRelativePosition.x, initialGrabbedObjRelativePosition.y, 0)); // horizontal distance from hand to object
-							float theta = asinf(pointingVector.z); // vertical angle of hand relative to horizontal
-							float tanTheta = tanf(theta);
-							h = min(w * tanTheta, maxHeight); // desired height relative to horizontal from hand
-							horiz = VectorNormalized(NiPoint3(pointingVector.x, pointingVector.y, 0)) * (h / tanTheta); // desired horizontal position relative to hand
-						}
-						else {
-							// Degenerate case
-							h = maxHeight;
-							horiz = { 0, 0, 0 };
-						}
-
-						NiPoint3 desiredPos = NiPoint3(horiz.x, horiz.y, h);
-
-						NiPoint3 deltaPos = desiredPos - relObjPos;
-
-						if (DotProduct(VectorNormalized(initialObjPos), VectorNormalized(relObjPos)) < Config::options.grabbedDotProductThreshold || abs(DotProduct(deltaPos, pointingVector)) > 1.5f) {
-							//grab = true;
-							idleDesired = true;
+							TransitionPulled();
 						}
 					}
 				}
@@ -2318,7 +2270,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> n = FindCollidableNode(selectedObject.collidable);
 			if (n) {
-				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+				NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
 				if (state == State::HeldInit) {
 					if (g_currentFrameTime - grabbedTime > Config::options.grabStartMaxTime) {
@@ -2417,13 +2369,23 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 			NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
 			if (collidableNode) {
 				bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-				NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+				//NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+				NiTransform newTransform = handTransform * (selectedObject.isActor ? desiredNodeTransformHandSpace : desiredHavokTransformHandSpace);
 				NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+				desiredPos += (avgPlayerVelocityWorldspace * *g_deltaTime) * havokWorldScale;
 				hkRotation desiredRot;
 				NiMatrixToHkMatrix(newTransform.rot, desiredRot);
 				hkQuaternion desiredQuat;
 				desiredQuat.setFromRotationSimd(desiredRot);
 				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+
+				// TODO: Check if the object has moved according to what its previous velocity is. If it has not (i.e. it's blocked by something) then limit the velocity
+				// TODO: Some sort of check for how far the hand-on-object is from the actual hand. If it's too far, just resort to SetPositionAndRotation / SetTransform ?
+				//float maxVelocity = 2.0f;
+				//NiPoint3 newVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
+				//if (VectorLength(newVelocity - (avgPlayerVelocityWorldspace * havokWorldScale)) > maxVelocity) {
+				//	selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(VectorNormalized(newVelocity) * maxVelocity);
+				//}
 
 				//bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
 				//bhkCollisionObject_SetNodeTransformsFromWorldTransform(collisionObject, newTransform);

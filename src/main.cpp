@@ -310,15 +310,14 @@ void AddCustomCollisionLayer(bhkWorld *world)
 }
 
 
-bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
+void Update()
 {
-	if (!initComplete) return true;
+	if (!initComplete) return;
 
-	if (MenuChecker::isGameStopped()) return true;
+	if (MenuChecker::isGameStopped()) return;
 
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player || !player->GetNiNode())
-		return true;
+	if (!player || !player->GetNiNode()) return;
 
 	//Config::ReloadIfModified(); // TODO: Remove
 
@@ -326,32 +325,23 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 	NiPointer<NiAVObject> playerWorldObj = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
 	NiNode *playerWorldNode = playerWorldObj ? playerWorldObj->GetAsNiNode() : nullptr;
-	if (!playerWorldNode)
-		return true;
+	if (!playerWorldNode) return;
 
 	NiPointer<NiAVObject> rightWandObj = player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
 	NiNode *rightWandNode = rightWandObj ? rightWandObj->GetAsNiNode() : nullptr;
-	if (!rightWandNode) {
-		return true;
-	}
+	if (!rightWandNode) return;
 
 	NiPointer<NiAVObject> leftWandObj = player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode];
 	NiNode *leftWandNode = leftWandObj ? leftWandObj->GetAsNiNode() : nullptr;
-	if (!leftWandNode)
-		return true;
-
-	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
-	if (!hmdNode)
-		return true;
+	if (!leftWandNode) return;
 
 	TESObjectCELL *cell = player->parentCell;
-	if (!cell)
-		return true;
+	if (!cell) return;
 
 	NiPointer<bhkWorld> world = GetWorld(cell);
 	if (!world) {
 		_MESSAGE("Could not get havok world from player cell");
-		return true;
+		return;
 	}
 
 	if (world != contactListener->world) {
@@ -390,8 +380,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 
 		contactListener->world = world;
 	}
-
-	FillControllerVelocities(hmdNode, pGamePoseArray, unGamePoseArrayCount);
 
 	bool isLeftHanded = *g_leftHandedMode;
 
@@ -443,6 +431,20 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
 		CollisionInfo::ClearCollisionMap();
 	}
+}
+
+
+bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount, vr_src::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player || !player->GetNiNode()) return true;
+
+	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
+	if (!hmdNode) return true;
+
+	FillControllerVelocities(hmdNode, pGamePoseArray, unGamePoseArrayCount);
+
+	//Update();
 
 	return true;
 }

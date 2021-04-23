@@ -145,6 +145,7 @@ struct Grabber
 	bool TransitionGrabExternal(TESObjectREFR *refr);
 	void GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
 	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
+	NiPointer<NiAVObject> GetHandNode();
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
@@ -160,6 +161,7 @@ struct Grabber
 	void SetupSelectionBeam(NiNode *spellOrigin);
 	void Select(TESObjectREFR *obj);
 	void Deselect();
+	void RestoreHandTransform();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 
@@ -205,10 +207,12 @@ struct Grabber
 
 	NiPoint3 pulledPointOffset; // Offset from the center of mass of the point we're pulling on the pulled object
 	NiPoint3 pullTarget;
-	NiPoint3 initialObjPosRaySpace;
 	NiPoint3 initialGrabbedObjRelativePosition;
 
-	NiTransform desiredObjTransformHandSpace;
+	NiTransform desiredNodeTransformHandSpace;
+	NiTransform desiredHavokTransformHandSpace;
+
+	NiTransform handTransform;
 
 	NiPoint3 prevPlayerPosWorldspace;
 

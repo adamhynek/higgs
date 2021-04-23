@@ -125,5 +125,8 @@
     <ClInclude Include="include\higgsinterface001.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\main.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

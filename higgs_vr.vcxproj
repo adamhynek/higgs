@@ -210,6 +210,7 @@
   <ItemGroup>
     <ClInclude Include="include\finger_curves.h" />
     <ClInclude Include="include\higgsinterface001.h" />
+    <ClInclude Include="include\main.h" />
     <ClInclude Include="include\papyrusapi.h" />
     <ClInclude Include="include\pluginapi.h" />
     <ClInclude Include="include\PQP\MatVec.h" />
