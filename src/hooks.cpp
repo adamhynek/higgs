@@ -213,132 +213,34 @@ void PostWandUpdateHook()
 
 void PlayerCharacterUpdateHook()
 {
-	PlayerCharacter *player = *g_thePlayer;
-	if (!player) return;
-
 	Update();
 
-	NiPointer<NiAVObject> rightHand = player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
-	NiPointer<NiAVObject> leftHand = player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone];
-	if (rightHand && leftHand) {
-		/*
-		NiPoint3 magicHandEuler = NiPoint3(*g_fMagicHandRotateX, *g_fMagicHandRotateY, *g_fMagicHandRotateZ) * 0.017453292;
-		// y and z get flipped for the right hand...
-		magicHandEuler.y *= -1.0f;
-		magicHandEuler.z *= -1.0f;
+	/*
+	NiPoint3 magicHandEuler = NiPoint3(*g_fMagicHandRotateX, *g_fMagicHandRotateY, *g_fMagicHandRotateZ) * 0.017453292;
+	// y and z get flipped for the right hand...
+	magicHandEuler.y *= -1.0f;
+	magicHandEuler.z *= -1.0f;
 
-		NiTransform magicHandTransform;
-		EulerToNiMatrix(&magicHandTransform.rot, magicHandEuler.x, magicHandEuler.y, magicHandEuler.z);
+	NiTransform magicHandTransform;
+	EulerToNiMatrix(&magicHandTransform.rot, magicHandEuler.x, magicHandEuler.y, magicHandEuler.z);
 
-		magicHandTransform.pos = { *g_fMagicHandTranslateX, *g_fMagicHandTranslateY, *g_fMagicHandTranslateZ };
-		// x flipped for right hand...
-		magicHandTransform.pos.x *= -1.0f;
+	magicHandTransform.pos = { *g_fMagicHandTranslateX, *g_fMagicHandTranslateY, *g_fMagicHandTranslateZ };
+	// x flipped for right hand...
+	magicHandTransform.pos.x *= -1.0f;
 
-		magicHandTransform.scale = *g_fMagicHandScale;
+	magicHandTransform.scale = *g_fMagicHandScale;
 
-		NiTransform movedUp = rightWand->m_worldTransform;
-		movedUp.pos += NiPoint3(0.0f, 0.0f, 10.0f);
-		UpdateClavicleToTransformHand(rightClavicle, rightHand, &movedUp, &magicHandTransform);
-		*/
-
-		{
-			Grabber *grabber = g_rightGrabber;
-
-			grabber->handTransform = rightHand->m_worldTransform;
-
-			if (grabber->state == Grabber::State::HeldBody) {
-				NiPointer<bhkRigidBody> heldRigidBody = grabber->selectedObject.rigidBody;
-				if (heldRigidBody) {
-					NiPointer<NiAVObject> collidableNode = FindCollidableNode(&heldRigidBody->hkBody->m_collidable);
-					if (collidableNode) {
-						NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
-
-						NiTransform newHandTransform;
-
-						if (!grabber->selectedObject.isActor) {
-							hkTransform &heldHkTransform = heldRigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
-							heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
-							HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
-						}
-
-						NiTransform inverseDesired;
-						grabber->desiredHavokTransformHandSpace.Invert(inverseDesired);
-
-						//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
-						newHandTransform = heldTransform * inverseDesired;
-
-						UpdateNodeTransformLocal(rightHand, newHandTransform);
-						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-						NiAVObject_UpdateObjectUpwards(rightHand, &ctx);
-					}
-				}
-			}
-		}
-
-		{
-			Grabber *grabber = g_leftGrabber;
-
-			grabber->handTransform = leftHand->m_worldTransform;
-
-			if (grabber->state == Grabber::State::HeldBody) {
-				NiPointer<bhkRigidBody> heldRigidBody = grabber->selectedObject.rigidBody;
-				if (heldRigidBody) {
-					NiPointer<NiAVObject> collidableNode = FindCollidableNode(&heldRigidBody->hkBody->m_collidable);
-					if (collidableNode) {
-						NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
-
-						NiTransform newHandTransform;
-
-						if (!grabber->selectedObject.isActor) {
-							hkTransform &heldHkTransform = heldRigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
-							heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
-							HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
-						}
-
-						NiTransform inverseDesired;
-						grabber->desiredHavokTransformHandSpace.Invert(inverseDesired);
-
-						//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
-						newHandTransform = heldTransform * inverseDesired;
-
-						UpdateNodeTransformLocal(leftHand, newHandTransform);
-						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-						NiAVObject_UpdateObjectUpwards(leftHand, &ctx);
-					}
-				}
-			}
-		}
-
-		_MESSAGE("PC Update");
-	}
+	NiTransform movedUp = rightWand->m_worldTransform;
+	movedUp.pos += NiPoint3(0.0f, 0.0f, 10.0f);
+	UpdateClavicleToTransformHand(rightClavicle, rightHand, &movedUp, &magicHandTransform);
+	*/
 }
 
 
 void PCEndUpdateHook()
 {
-	PlayerCharacter *player = *g_thePlayer;
-
-	NiPointer<NiAVObject> rightHand = player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
-	NiPointer<NiAVObject> leftHand = player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone];
-	if (rightHand && leftHand) {
-		{
-			Grabber *grabber = g_rightGrabber;
-
-			NiTransform newHandTransform = grabber->handTransform;
-			UpdateNodeTransformLocal(rightHand, newHandTransform);
-			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(rightHand, &ctx);
-		}
-
-		{
-			Grabber *grabber = g_leftGrabber;
-
-			NiTransform newHandTransform = grabber->handTransform;
-			UpdateNodeTransformLocal(leftHand, newHandTransform);
-			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(leftHand, &ctx);
-		}
-	}
+	g_rightGrabber->RestoreHandTransform();
+	g_leftGrabber->RestoreHandTransform();
 }
 
 

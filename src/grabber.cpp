@@ -568,14 +568,24 @@ void Grabber::RemoveHandCollision(bhkWorld *world)
 }
 
 
-void Grabber::UpdateHandCollision(NiAVObject *handNode)
+void Grabber::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 {
+	bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
+
 	if (state == State::HeldBody && selectedObject.isActor) {
 		// Don't have the hand collide while we're holding a body
 		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+		if (!wasCollisionDisabled) {
+			BSWriteLocker lock(&world->worldLock);
+			hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+		}
 	}
 	else {
 		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+		if (wasCollisionDisabled) {
+			BSWriteLocker lock(&world->worldLock);
+			hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+		}
 	}
 
 	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
@@ -592,6 +602,29 @@ void Grabber::UpdateHandCollision(NiAVObject *handNode)
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(desiredRot);
 	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+}
+
+
+hkTransform Grabber::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision)
+{
+	PlayerCharacter *player = *g_thePlayer;
+	hkTransform transform = existingWeaponCollision->hkBody->getTransform();
+	if (g_vrikInterface) {
+		// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
+		static BSFixedString weaponNodeName("WEAPON");
+		static BSFixedString shieldNodeName("SHIELD");
+		bool useLeft = isLeft;
+		if (*g_leftHandedMode) useLeft = !useLeft;
+		BSFixedString &handWeaponNodeName = useLeft ? shieldNodeName : weaponNodeName;
+		NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(0)->GetObjectByName(&handWeaponNodeName.data);
+		if (weaponNode) {
+			NiTransform &nodeTransform = weaponNode->m_oldWorldTransform;
+			transform.m_translation = NiPointToHkVector(nodeTransform.pos * *g_havokWorldScale);
+			NiMatrixToHkMatrix(nodeTransform.rot, transform.m_rotation);
+		}
+	}
+
+	return transform;
 }
 
 
@@ -639,6 +672,8 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
 	filterInfo |= (ragdollBits << 8);
 
+	filterInfo |= (1 << 14); // Initially, turn collision off - we turn it on in the Update() if needed but don't spawn it in enabled
+
 	cInfo.collisionFilterInfo = filterInfo;
 	cInfo.hkCinfo.m_collisionFilterInfo = filterInfo;
 	cInfo.shape = clonedShape->shape;
@@ -647,7 +682,9 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_mass = 0.0f;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
 
-	cInfo.hkCinfo.m_position = NiPointToHkVector(player->loadedState->node->m_worldTransform.pos * *g_havokWorldScale); // Place it where the player is
+	hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
+	cInfo.hkCinfo.m_position = transform.m_translation;
+	cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
 
 	bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(0x40);
 	if (clonedBody) {
@@ -711,37 +748,30 @@ void Grabber::UpdateWeaponCollision()
 				}
 			}
 
+			bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
+
 			if (isUnarmed || !player->actorState.IsWeaponDrawn()) {
 				// Do not enable weapon collision when unarmed or no weapon drawn
 				// We DO still want to move it though, since once we enable it again we don't want a huge jump
-				weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+				if (!wasCollisionDisabled) {
+					weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+					bhkWorldObject_UpdateCollisionFilter(weaponBody);
+				}
 			}
 			else {
-				weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+				if (wasCollisionDisabled) {
+					weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+					bhkWorldObject_UpdateCollisionFilter(weaponBody);
+				}
 			}
 
 			// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
-			hkTransform transform = rigidBody->hkBody->getTransform();
-			if (g_vrikInterface) {
-				// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
-				static BSFixedString weaponNodeName("WEAPON");
-				static BSFixedString shieldNodeName("SHIELD");
-				bool useLeft = isLeft;
-				if (*g_leftHandedMode) useLeft = !useLeft;
-				BSFixedString &handWeaponNodeName = useLeft ? shieldNodeName : weaponNodeName;
-				NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(0)->GetObjectByName(&handWeaponNodeName.data);
-				if (weaponNode) {
-					NiTransform &nodeTransform = weaponNode->m_oldWorldTransform;
-					transform.m_translation = NiPointToHkVector(nodeTransform.pos * *g_havokWorldScale);
-					NiMatrixToHkMatrix(nodeTransform.rot, transform.m_rotation);
-				}
-			}
-
 			bhkRigidBody_setActivated(weaponBody, true);
 
+			hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
 			hkQuaternion desiredQuat;
 			desiredQuat.setFromRotationSimd(transform.m_rotation);
 			hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
@@ -1248,6 +1278,15 @@ void Grabber::SetPulledDuration(const NiPoint3 &hkPalmPos, const NiPoint3 &objPo
 }
 
 
+NiPointer<NiAVObject> Grabber::GetHandNode()
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player || !player->GetNiNode()) return nullptr;
+
+	return isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone] : player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+}
+
+
 void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
@@ -1255,8 +1294,10 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode()) return;
 
-	NiPointer<NiAVObject> handNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone] : player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+	NiPointer<NiAVObject> handNode = GetHandNode();
 	if (!handNode) return;
+
+	handTransform = handNode->m_worldTransform; // Save the old hand transform - we restore it later
 
 	float havokWorldScale = *g_havokWorldScale;
 
@@ -1300,7 +1341,7 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 	//}
 
 
-	UpdateHandCollision(handNode);
+	UpdateHandCollision(handNode, world);
 
 	UpdateWeaponCollision();
 
@@ -2398,6 +2439,27 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 
 				//ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, collidableNode, false);
 
+				{ // Update the hand to match the object
+					NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
+					NiTransform newHandTransform;
+
+					if (!selectedObject.isActor) {
+						hkTransform &heldHkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
+						heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
+						HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
+					}
+
+					NiTransform inverseDesired;
+					desiredHavokTransformHandSpace.Invert(inverseDesired);
+
+					//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
+					newHandTransform = heldTransform * inverseDesired;
+
+					UpdateNodeTransformLocal(handNode, newHandTransform);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+				}
+
 				if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 					haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
 				}
@@ -2562,6 +2624,20 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 	if (Config::options.disableTriggerWhenWeaponsSheathed && pc && !pc->actorState.IsWeaponDrawn() && (wasTriggerDisabledLastFrame || triggerRisingEdge)) {
 		pControllerState->ulButtonPressed &= ~triggerMask;
 		isTriggerDisabled = true;
+	}
+}
+
+
+void Grabber::RestoreHandTransform()
+{
+	if (state == State::HeldBody) {
+		NiPointer<NiAVObject> handNode = GetHandNode();
+		if (!handNode) return;
+
+		NiTransform newHandTransform = handTransform;
+		UpdateNodeTransformLocal(handNode, newHandTransform);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
 	}
 }
 

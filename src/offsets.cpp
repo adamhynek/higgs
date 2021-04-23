@@ -146,6 +146,8 @@ RelocAddr<_NiAVObject_RecalculateWorldTransform> NiAVObject_RecalculateWorldTran
 
 RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation(0xE08350);
 
+RelocAddr<_bhkWorldObject_UpdateCollisionFilter> bhkWorldObject_UpdateCollisionFilter(0xDF88D0);
+
 RelocAddr<_FindCollidableRef> FindCollidableRef(0x003B4940);
 
 RelocAddr<_FindCollidableNode> FindCollidableNode(0xE01FE0);

@@ -135,7 +135,8 @@ struct Grabber
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
-	void UpdateHandCollision(NiAVObject *handNode);
+	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);
+	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
 	void UpdateWeaponCollision();

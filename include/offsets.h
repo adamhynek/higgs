@@ -245,6 +245,9 @@ extern RelocAddr<_NiAVObject_RecalculateWorldTransform> NiAVObject_RecalculateWo
 typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
 extern RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation;
 
+typedef void(*_bhkWorldObject_UpdateCollisionFilter)(bhkWorldObject *_this);
+extern RelocAddr<_bhkWorldObject_UpdateCollisionFilter> bhkWorldObject_UpdateCollisionFilter;
+
 typedef TESObjectREFR* (*_FindCollidableRef)(hkpCollidable * a_collidable);
 extern RelocAddr<_FindCollidableRef> FindCollidableRef;
 
