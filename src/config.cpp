@@ -195,6 +195,8 @@ namespace Config {
 		if (!ReadBool("UseLoudSoundPull", options.useLoudSoundPull)) return false;
 
 		if (!ReadBool("EnableWeaponCollision", options.enableWeaponCollision)) return false;
+		if (!ReadBool("ForcePhysicsGrab", options.forcePhysicsGrab)) return false;
+		if (!ReadBool("DisableGrabHair", options.disableGrabHair)) return false;
 
 		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
 		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
@@ -206,8 +208,6 @@ namespace Config {
 		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
 		if (!ReadBool("DisableRolloverRumble", options.disableRolloverRumble)) return false;
 		if (!ReadBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) return false;
-		if (!ReadBool("DisableFarCastWhileAimingAtNPCRight", options.disableFarCastWhileAimingAtNPCRight)) return false;
-		if (!ReadBool("DisableFarCastWhileAimingAtNPCLeft", options.disableFarCastWhileAimingAtNPCLeft)) return false;
 
 		if (!ReadBool("EnableTrigger", options.enableTrigger)) return false;
 		if (!ReadBool("EnableGrip", options.enableGrip)) return false;

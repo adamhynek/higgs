@@ -1248,15 +1248,17 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 		skinPartition = skinData->m_spSkinPartition;
 	}
 
-	NiPointer<NiProperty> geomProperty = geom->m_spPropertyState;
-	if (geomProperty) {
-		BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
-		if (shaderProperty) {
-			BSShaderMaterialBase *material = shaderProperty->material;
-			if (material) {
-				if (material->GetShaderType() == BSShaderMaterial::kShaderType_HairTint) {
-					// Don't care about grabbing hair
-					return;
+	if (Config::options.disableGrabHair) {
+		NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
+		if (geomProperty) {
+			BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
+			if (shaderProperty) {
+				BSShaderMaterialBase *material = shaderProperty->material;
+				if (material) {
+					if (material->GetShaderType() == BSShaderMaterial::kShaderType_HairTint) {
+						// Don't care about grabbing hair
+						return;
+					}
 				}
 			}
 		}

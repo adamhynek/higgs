@@ -76,6 +76,8 @@ namespace Config {
 		double rolloverHideTime = 0.25f;
 
 		bool enableWeaponCollision = true;
+		bool forcePhysicsGrab = false;
+		bool disableGrabHair = true;
 
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;
@@ -87,9 +89,6 @@ namespace Config {
 		bool disableLooting = false;
 		bool skipActivateBooks = true;
 		bool disableRolloverRumble = true;
-
-		bool disableFarCastWhileAimingAtNPCRight = true;
-		bool disableFarCastWhileAimingAtNPCLeft = false;
 
 		bool useLoudSoundGrab = false;
 		bool useLoudSoundDrop = false;
