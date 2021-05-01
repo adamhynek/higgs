@@ -183,7 +183,7 @@ extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;
 typedef void(*_bhkRigidBody_setActivated)(bhkRigidBody *rigidBody, bool activate);
 extern RelocAddr<_bhkRigidBody_setActivated> bhkRigidBody_setActivated;
 
-typedef void(*_hkpEntity_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
+typedef void(*_hkpEntity_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkQuaternion& rotation);
 extern RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation;
 
 typedef void(*_hkpEntity_setTransform)(hkpEntity *_this, const hkTransform& transform);

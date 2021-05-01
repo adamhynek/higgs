@@ -12,7 +12,6 @@ namespace Config {
 		float nearCastDistance = 0.1f;
 		float nearbyGrabBodyRadius = 0.1f;
 		float requiredCastDotProduct = cosf(50.0f * 0.0174533);
-		float grabbedDotProductThreshold = cosf(45.0f * 0.0174533);
 		float rolloverScale = 10.0f;
 		float pullSpeedThreshold = 1.2f; // m/s
 		float grabStartSpeed = 200.0f; // skyrim units/s

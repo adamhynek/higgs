@@ -1231,6 +1231,23 @@ namespace MathUtils
 	}
 }
 
+bool IsHairGeometry(BSGeometry *geom)
+{
+	NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
+	if (geomProperty) {
+		BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
+		if (shaderProperty) {
+			BSShaderMaterialBase *material = shaderProperty->material;
+			if (material) {
+				if (material->GetShaderType() == BSShaderMaterial::kShaderType_HairTint) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 // Add a list of triangles to the given list for each skinned partition in geom
 void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 {
@@ -1243,26 +1260,15 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 	NiSkinDataPtr skinData = skinInstance->m_spSkinData;
 	if (!skinData) return;
 
+	if (Config::options.disableGrabHair && IsHairGeometry(geom)) {
+		// Don't care about grabbing hair
+		return;
+	}
+
 	NiSkinPartitionPtr skinPartition = skinInstance->m_spSkinPartition;
 	if (!skinPartition) {
 		skinPartition = skinData->m_spSkinPartition;
-	}
-
-	if (Config::options.disableGrabHair) {
-		NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
-		if (geomProperty) {
-			BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
-			if (shaderProperty) {
-				BSShaderMaterialBase *material = shaderProperty->material;
-				if (material) {
-					if (material->GetShaderType() == BSShaderMaterial::kShaderType_HairTint) {
-						// Don't care about grabbing hair
-						return;
-					}
-				}
-			}
-		}
-	}
+	}	
 
 	bool hasPartitions = skinPartition && skinPartition->m_pkPartitions && skinPartition->m_uiPartitions > 0;
 	if (!hasPartitions) {

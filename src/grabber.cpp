@@ -538,6 +538,8 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 
 void Grabber::CreateHandCollision(bhkWorld *world)
 {
+	static UInt32 skinMaterialId = 0x233db702;
+
 	UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
 
 	UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
@@ -679,6 +681,8 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	cInfo.shape = clonedShape->shape;
 	cInfo.hkCinfo.m_shape = clonedShape->shape;
 	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+	cInfo.hkCinfo.m_enableDeactivation = false;
+	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 	cInfo.hkCinfo.m_mass = 0.0f;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
 
@@ -1079,6 +1083,8 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		desiredTransform.pos += palmPos - ptPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredTransform;
 
+		dampedFrameCounter = 0;
+
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
 		state = usePhysicsGrab ? State::HeldBody : State::HeldInit;
@@ -1288,7 +1294,7 @@ NiPointer<NiAVObject> Grabber::GetHandNode()
 }
 
 
-void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
+void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
 
@@ -2394,16 +2400,109 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
 			if (collidableNode) {
-				bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-				//NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
-				NiTransform newTransform = handTransform * (selectedObject.isActor ? desiredNodeTransformHandSpace : desiredHavokTransformHandSpace);
-				NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
-				desiredPos += (avgPlayerVelocityWorldspace * *g_deltaTime) * havokWorldScale;
-				hkRotation desiredRot;
-				NiMatrixToHkMatrix(newTransform.rot, desiredRot);
-				hkQuaternion desiredQuat;
-				desiredQuat.setFromRotationSimd(desiredRot);
-				hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+				// Update the hand to match the object
+				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
+				NiTransform newHandTransform;
+
+				if (!selectedObject.isActor) {
+					hkTransform &heldHkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
+					heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
+					HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
+				}
+
+				NiTransform inverseDesired;
+				desiredHavokTransformHandSpace.Invert(inverseDesired);
+
+				//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
+				newHandTransform = heldTransform * inverseDesired;
+
+				float maxHandDistance = 0.7f / havokWorldScale;
+				if (VectorLength(newHandTransform.pos - handTransform.pos) > maxHandDistance) {
+					idleDesired = true; // TODO: Prevent stuff like eating or stashing when the object is dropped like this
+					/*
+					// Hand is too far from irl hand. Snap the object to where we need it to be. Current hand transform already matches irl hand so no need to move it.
+					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+					//NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+					NiTransform newTransform = handTransform * (selectedObject.isActor ? desiredNodeTransformHandSpace : desiredHavokTransformHandSpace);
+					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+					desiredPos += (avgPlayerVelocityWorldspace * *g_deltaTime) * havokWorldScale;
+					hkRotation desiredRot;
+					NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+					hkQuaternion desiredQuat;
+					desiredQuat.setFromRotationSimd(desiredRot);
+					hkpEntity_setPositionAndRotation(selectedObject.rigidBody->hkBody, NiPointToHkVector(desiredPos), desiredQuat);
+					*/
+				}
+				else {
+					// Not too far away. Update hand to object and set object velocity to target.
+					UpdateNodeTransformLocal(handNode, newHandTransform);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+
+
+					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+					//NiTransform newTransform = handNode->m_worldTransform * desiredObjTransformHandSpace;
+					NiTransform newTransform = handTransform * (selectedObject.isActor ? desiredNodeTransformHandSpace : desiredHavokTransformHandSpace);
+					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+					NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
+					desiredPos += playerHkVelocity * *g_deltaTime;
+					hkRotation desiredRot;
+					NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+					hkQuaternion desiredQuat;
+					desiredQuat.setFromRotationSimd(desiredRot);
+					hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+
+					hkTransform &currentTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
+					NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
+					//float currentLinearDamping = float(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping);
+
+					// Couple of ideas:
+					// 1: Do a penetrations (or closest points) query with increased radius to get any collisions near the object. If there are any, then restrict velocity. Since velocity is not fully damped, if we pull it away it should stop having nearby collision pretty quickly (I hope)
+					// 2: If object does not move completely freely (within velocity proportion) restrict velocity. In order to stop being damped, the movement condition must be met for X frames while damped.
+
+					float minRequiredVelocityProportion = 0.5f;
+					float velocityMultiplierIfUnmoved = 0.2f;
+					float minVelocityToPotentiallyDamp = 1.0f; // needs to be less than maxVelocityIfUnmoved
+					float maxLinearDamping = 200.0f;
+					float linearDampingIncrement = 1.0f;
+					float linearDampingDecrement = 4.0f;
+
+					NiPoint3 currentVelocityPlayerspace = currentVelocity - playerHkVelocity;
+
+					NiPoint3 hkPlayerPos = player->pos * havokWorldScale;
+					NiPoint3 hkPrevPlayerPos = prevPlayerPosWorldspace * havokWorldScale;
+
+					NiPoint3 heldObjPosPlayerspace = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation) - hkPlayerPos;
+
+					// THIS
+					// TODO: For constrained objects like books, if the player is moving, I think we'll basically always pass the second condition, since the player's velocity will be the largest contributor to the velocity and that part will most likely be fulfilled.
+					// THIS
+					bool shouldDampVelocity = VectorLength(currentVelocityPlayerspace) > minVelocityToPotentiallyDamp && VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < minRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace * *g_deltaTime);
+					if ((dampedFrameCounter > 0 && dampedFrameCounter < 5) || shouldDampVelocity) {
+						if (!shouldDampVelocity) {
+							// TODO: damp velocity less the higher the frame counter
+							++dampedFrameCounter;
+						}
+						else {
+							dampedFrameCounter = 1;
+						}
+						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplierIfUnmoved) + playerHkVelocity);
+						_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocityPlayerspace * velocityMultiplierIfUnmoved));
+						//float newLinearDamping = currentLinearDamping + linearDampingIncrement;
+						//newLinearDamping = min(newLinearDamping, maxLinearDamping);
+						//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
+					}
+					else {
+						dampedFrameCounter = 0;
+						_MESSAGE("%s: Not damped %.2f", name, VectorLength(currentVelocityPlayerspace));
+						//float newLinearDamping = currentLinearDamping - linearDampingDecrement;
+						//newLinearDamping = max(newLinearDamping, selectedObject.savedLinearDamping);
+						//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
+					}
+
+					prevHeldObjPosPlayerspace = heldObjPosPlayerspace;
+					prevHeldObjVelocityPlayerspace = currentVelocity - (avgPlayerVelocityWorldspace * havokWorldScale); // potentially damped - need to set here after keyframe and damping has occurred
+				}
 
 				// TODO: Check if the object has moved according to what its previous velocity is. If it has not (i.e. it's blocked by something) then limit the velocity
 				// TODO: Some sort of check for how far the hand-on-object is from the actual hand. If it's too far, just resort to SetPositionAndRotation / SetTransform ?
@@ -2423,27 +2522,6 @@ void Grabber::PoseUpdate(Grabber &other, bool allowGrab, NiNode *playerWorldNode
 				//UpdateBoneMatrices(objRoot);
 
 				//ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, collidableNode, false);
-
-				{ // Update the hand to match the object
-					NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
-					NiTransform newHandTransform;
-
-					if (!selectedObject.isActor) {
-						hkTransform &heldHkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
-						heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
-						HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
-					}
-
-					NiTransform inverseDesired;
-					desiredHavokTransformHandSpace.Invert(inverseDesired);
-
-					//NiTransform newObjTransform = rightHand->m_worldTransform * grabber->desiredObjTransformHandSpace;
-					newHandTransform = heldTransform * inverseDesired;
-
-					UpdateNodeTransformLocal(handNode, newHandTransform);
-					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateObjectUpwards(handNode, &ctx);
-				}
 
 				if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 					haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
@@ -2822,10 +2900,7 @@ void Grabber::SetupRollover()
 
 void Grabber::SetupSelectionBeam(NiNode *spellOrigin)
 {
-	PlayerCharacter *player = *g_thePlayer;
-	if (!player) return;
-
-	NiPointer<NiAVObject> handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
+	NiPointer<NiAVObject> handNode = GetHandNode();
 	if (!handNode) return;
 
 	NiPointer<TESObjectREFR> obj;
@@ -2845,6 +2920,8 @@ void Grabber::SetupSelectionBeam(NiNode *spellOrigin)
 		NiPoint3 dest = (hkObjPos + pulledPointOffset) / havokWorldScale;
 		NiPoint3 destToOrigin = origin - dest;
 		float distance = VectorLength(destToOrigin);
+		if (distance == 0.0f) return;
+
 		NiPoint3 destToOriginNormalized = destToOrigin / distance;
 
 		NiMatrix33 stretcher;

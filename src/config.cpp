@@ -115,10 +115,6 @@ namespace Config {
 		if (!ReadFloat("CastDirectionRequiredHalfAngle", castDirectionRequiredHalfAngle)) return false;
 		options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
 
-		float grabbedAngleThreshold;
-		if (!ReadFloat("GrabAngleThreshold", grabbedAngleThreshold)) return false;
-		options.grabbedDotProductThreshold = cosf(grabbedAngleThreshold * 0.0174533); // degrees to radians
-
 		if (!ReadDouble("SelectedFadeTime", options.selectedLeewayTime)) return false;
 		if (!ReadDouble("TriggerPreemptTime", options.triggerPressedLeewayTime)) return false;
 		if (!ReadDouble("InputLeewayTime", options.inputLeewayTime)) return false;

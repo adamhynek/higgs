@@ -424,8 +424,8 @@ void Update()
 		}
 	}
 
-	firstGrabberToUpdate->PoseUpdate(*lastGrabberToUpdate, isFirstValid, playerWorldNode, world);
-	lastGrabberToUpdate->PoseUpdate(*firstGrabberToUpdate, isLastValid, playerWorldNode, world);
+	firstGrabberToUpdate->Update(*lastGrabberToUpdate, isFirstValid, playerWorldNode, world);
+	lastGrabberToUpdate->Update(*firstGrabberToUpdate, isLastValid, playerWorldNode, world);
 
 	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
