@@ -2460,6 +2460,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					// 1: Do a penetrations (or closest points) query with increased radius to get any collisions near the object. If there are any, then restrict velocity. Since velocity is not fully damped, if we pull it away it should stop having nearby collision pretty quickly (I hope)
 					// 2: If object does not move completely freely (within velocity proportion) restrict velocity. In order to stop being damped, the movement condition must be met for X frames while damped.
 
+					int numDampingFrames = 5;
 					float minRequiredVelocityProportion = 0.5f;
 					float velocityMultiplierIfUnmoved = 0.2f;
 					float minVelocityToPotentiallyDamp = 1.0f; // needs to be less than maxVelocityIfUnmoved
@@ -2478,7 +2479,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					// TODO: For constrained objects like books, if the player is moving, I think we'll basically always pass the second condition, since the player's velocity will be the largest contributor to the velocity and that part will most likely be fulfilled.
 					// THIS
 					bool shouldDampVelocity = VectorLength(currentVelocityPlayerspace) > minVelocityToPotentiallyDamp && VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < minRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace * *g_deltaTime);
-					if ((dampedFrameCounter > 0 && dampedFrameCounter < 5) || shouldDampVelocity) {
+					if ((dampedFrameCounter > 0 && dampedFrameCounter < numDampingFrames) || shouldDampVelocity) {
 						if (!shouldDampVelocity) {
 							// TODO: damp velocity less the higher the frame counter
 							++dampedFrameCounter;
@@ -2486,8 +2487,12 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 						else {
 							dampedFrameCounter = 1;
 						}
-						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplierIfUnmoved) + playerHkVelocity);
-						_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocityPlayerspace * velocityMultiplierIfUnmoved));
+
+						//float velocityMultiplier = lerp(0.0f, 1.0f, (float)dampedFrameCounter / numDampingFrames);
+						float velocityMultiplier = velocityMultiplierIfUnmoved;
+
+						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplier) + playerHkVelocity);
+						_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocityPlayerspace * velocityMultiplier));
 						//float newLinearDamping = currentLinearDamping + linearDampingIncrement;
 						//newLinearDamping = min(newLinearDamping, maxLinearDamping);
 						//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
@@ -2501,7 +2506,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					}
 
 					prevHeldObjPosPlayerspace = heldObjPosPlayerspace;
-					prevHeldObjVelocityPlayerspace = currentVelocity - (avgPlayerVelocityWorldspace * havokWorldScale); // potentially damped - need to set here after keyframe and damping has occurred
+					prevHeldObjVelocityPlayerspace = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity) - playerHkVelocity; // potentially damped - need to set here after keyframe and damping has occurred
 				}
 
 				// TODO: Check if the object has moved according to what its previous velocity is. If it has not (i.e. it's blocked by something) then limit the velocity
