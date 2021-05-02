@@ -2460,9 +2460,9 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					// 1: Do a penetrations (or closest points) query with increased radius to get any collisions near the object. If there are any, then restrict velocity. Since velocity is not fully damped, if we pull it away it should stop having nearby collision pretty quickly (I hope)
 					// 2: If object does not move completely freely (within velocity proportion) restrict velocity. In order to stop being damped, the movement condition must be met for X frames while damped.
 
-					int numDampingFrames = 5;
+					int numDampingFrames = 10;
 					float minRequiredVelocityProportion = 0.5f;
-					float velocityMultiplierIfUnmoved = 0.2f;
+					float velocityMultiplierIfUnmoved = 0.1f;
 					float minVelocityToPotentiallyDamp = 1.0f; // needs to be less than maxVelocityIfUnmoved
 					float maxLinearDamping = 200.0f;
 					float linearDampingIncrement = 1.0f;
@@ -2478,7 +2478,36 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					// THIS
 					// TODO: For constrained objects like books, if the player is moving, I think we'll basically always pass the second condition, since the player's velocity will be the largest contributor to the velocity and that part will most likely be fulfilled.
 					// THIS
-					bool shouldDampVelocity = VectorLength(currentVelocityPlayerspace) > minVelocityToPotentiallyDamp && VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < minRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace * *g_deltaTime);
+
+
+					bool hasCollided = false;
+					float penetratingDistance = 0.01f;
+					cdPointCollector.reset();
+					world->worldLock.LockForRead();
+
+					// TODO: Could use custom collector that early out's when we hit something fixed / keyframed
+					hkpWorld_GetClosestPoints(world->world, selectedObject.collidable, world->world->m_collisionInput, &cdPointCollector);
+
+					// Process result of cast
+					for (auto &pair : cdPointCollector.m_hits) {
+						auto collidable = static_cast<hkpCollidable *>(pair.first);
+						hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+						if (!rigidBody) {
+							continue;
+						}
+						if (rigidBody->m_motion.m_type == hkpMotion::MotionType::MOTION_KEYFRAMED || rigidBody->m_motion.m_type == hkpMotion::MotionType::MOTION_FIXED || rigidBody->m_motion.m_type == hkpMotion::MotionType::MOTION_CHARACTER) {
+							hkContactPoint &contactPoint = pair.second;
+							if (contactPoint.getDistance() < penetratingDistance) {
+								hasCollided = true;
+								break;
+							}
+						}
+					}
+					world->worldLock.UnlockRead();
+
+
+					//bool shouldDampVelocity = VectorLength(currentVelocityPlayerspace) > minVelocityToPotentiallyDamp && VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < minRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace * *g_deltaTime);
+					bool shouldDampVelocity = hasCollided;
 					if ((dampedFrameCounter > 0 && dampedFrameCounter < numDampingFrames) || shouldDampVelocity) {
 						if (!shouldDampVelocity) {
 							// TODO: damp velocity less the higher the frame counter
@@ -2488,18 +2517,23 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 							dampedFrameCounter = 1;
 						}
 
-						//float velocityMultiplier = lerp(0.0f, 1.0f, (float)dampedFrameCounter / numDampingFrames);
-						float velocityMultiplier = velocityMultiplierIfUnmoved;
+						float velocityMultiplier = lerp(0.0f, 1.0f, (float)dampedFrameCounter / numDampingFrames);
+						//float velocityMultiplier = velocityMultiplierIfUnmoved;
 
-						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplier) + playerHkVelocity);
-						_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocityPlayerspace * velocityMultiplier));
+						//selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplier) + playerHkVelocity);
+
+						// TODO: Try actual native damping now that we're doing it based on collision instead
+						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity * velocityMultiplier);
+						NiPoint3 currentAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
+						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * velocityMultiplier);
+						_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocity * velocityMultiplier));
 						//float newLinearDamping = currentLinearDamping + linearDampingIncrement;
 						//newLinearDamping = min(newLinearDamping, maxLinearDamping);
 						//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
 					}
 					else {
 						dampedFrameCounter = 0;
-						_MESSAGE("%s: Not damped %.2f", name, VectorLength(currentVelocityPlayerspace));
+						_MESSAGE("%s: Not damped %.2f", name, VectorLength(currentVelocity));
 						//float newLinearDamping = currentLinearDamping - linearDampingDecrement;
 						//newLinearDamping = max(newLinearDamping, selectedObject.savedLinearDamping);
 						//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
