@@ -87,6 +87,14 @@ struct Grabber
 		LootOtherHand // want to loot from what the other hand is holding
 	};
 
+	enum class DampingState : UInt8
+	{
+		Undamped,
+		PreDamp,
+		Damped,
+		TryLeaveDamped
+	};
+
 	enum class InputState : UInt8
 	{
 		Idle,
@@ -219,7 +227,6 @@ struct Grabber
 
 	NiPoint3 prevHeldObjPosPlayerspace;
 	NiPoint3 prevHeldObjVelocityPlayerspace;
-	int dampedFrameCounter = 0;
 
 	bool idleDesired = false;
 
@@ -238,9 +245,13 @@ struct Grabber
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled
 	double heldTime = 0;
 	double forceInputTime = 0;
+	double preDampTime = 0;
+	double tryLeaveDampedTime = 0;
 
 	State state = State::Idle;
 	State prevState = State::Idle;
+
+	DampingState dampingState = DampingState::Undamped;
 
 	InputState inputState = InputState::Idle;
 	bool inputTrigger = false;

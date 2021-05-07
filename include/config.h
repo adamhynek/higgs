@@ -73,6 +73,8 @@ namespace Config {
 		double shoulderDropHapticFadeTime = 0.2f;
 		double mouthDropHapticFadeTime = 0.2f;
 		double rolloverHideTime = 0.25f;
+		double preDampVelocityTime = 0.1f;
+		double tryLeaveDampedTime = 0.1f;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;

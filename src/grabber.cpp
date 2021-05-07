@@ -1083,7 +1083,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		desiredTransform.pos += palmPos - ptPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredTransform;
 
-		dampedFrameCounter = 0;
+		dampingState = DampingState::Undamped;
 
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
@@ -2485,45 +2485,55 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					// TODO: Check directionalized velocity progress, not just magnitude?
 					// TODO: Maybe just don't damp when player moves / rotates?
 
-					bool shouldDampVelocity = VectorLength(currentVelocityPlayerspace) > minVelocityToPotentiallyDamp && VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < minRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace) * *g_deltaTime;
-					if ((dampedFrameCounter > 0 && dampedFrameCounter < (numFramesToDampAfter + numDampingFrames)) || shouldDampVelocity) {
-						if (!shouldDampVelocity) {
-							if (dampedFrameCounter <= numFramesToDampAfter) {
-								_MESSAGE("shouldnot reset");
-								dampedFrameCounter = 0;
-							}
-							else {
-								++dampedFrameCounter;
-								_MESSAGE("shouldnot inc");
-							}
+					bool shouldDamp = VectorLength(currentVelocityPlayerspace) > minVelocityToPotentiallyDamp && VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < minRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace) * *g_deltaTime;
+
+					if (dampingState == DampingState::Undamped) {
+						if (shouldDamp) {
+							dampingState = DampingState::PreDamp;
+							preDampTime = g_currentFrameTime;
 						}
-						else if (dampedFrameCounter <= numFramesToDampAfter) {
-							++dampedFrameCounter;
-							_MESSAGE("inc");
+
+						//_MESSAGE("%s: Not damped %.2f", name, VectorLength(currentVelocityPlayerspace));
+					}
+
+					if (dampingState == DampingState::PreDamp) {
+						if (shouldDamp) {
+							if (g_currentFrameTime - preDampTime > Config::options.preDampVelocityTime) {
+								dampingState = DampingState::Damped;
+							}
 						}
 						else {
-							dampedFrameCounter = numFramesToDampAfter + 1;
-							_MESSAGE("bump");
-						}
-
-						if (dampedFrameCounter > numFramesToDampAfter) {
-							//float velocityMultiplier = lerp(0.0f, 1.0f, (float)dampedFrameCounter / numDampingFrames);
-							float velocityMultiplier = velocityMultiplierIfUnmoved;
-
-							selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplier) + playerHkVelocity);
-							_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocityPlayerspace * velocityMultiplier));
-							NiPoint3 currentAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
-							selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * velocityMultiplier);
-							//float newLinearDamping = currentLinearDamping + linearDampingIncrement;
-							//newLinearDamping = min(newLinearDamping, maxLinearDamping);
-							//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
+							dampingState = DampingState::Undamped;
 						}
 					}
-					else {
-						dampedFrameCounter = 0;
-						_MESSAGE("%s: Not damped %.2f", name, VectorLength(currentVelocityPlayerspace));
-						//float newLinearDamping = currentLinearDamping - linearDampingDecrement;
-						//newLinearDamping = max(newLinearDamping, selectedObject.savedLinearDamping);
+
+					if (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped) {
+						if (dampingState == DampingState::Damped) {
+							if (!shouldDamp) {
+								dampingState = DampingState::TryLeaveDamped;
+								tryLeaveDampedTime = g_currentFrameTime;
+							}
+						}
+						if (dampingState == DampingState::TryLeaveDamped) {
+							if (shouldDamp) {
+								dampingState = DampingState::Damped;
+							}
+							else {
+								if (g_currentFrameTime - tryLeaveDampedTime > Config::options.tryLeaveDampedTime) {
+									dampingState = DampingState::Undamped;
+								}
+							}
+						}
+
+						//float velocityMultiplier = lerp(0.0f, 1.0f, (float)dampedFrameCounter / numDampingFrames);
+						float velocityMultiplier = velocityMultiplierIfUnmoved;
+
+						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector((currentVelocityPlayerspace * velocityMultiplier) + playerHkVelocity);
+						_MESSAGE("%s: Damped %.2f", name, VectorLength(currentVelocityPlayerspace * velocityMultiplier));
+						NiPoint3 currentAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
+						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * velocityMultiplier);
+						//float newLinearDamping = currentLinearDamping + linearDampingIncrement;
+						//newLinearDamping = min(newLinearDamping, maxLinearDamping);
 						//selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_linearDamping = hkHalf(newLinearDamping);
 					}
 
