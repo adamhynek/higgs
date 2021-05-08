@@ -8,7 +8,7 @@
 #include <Physics/Collide/Agent/Query/hkpCdPointCollector.h>
 #include <Physics/Collide/Agent/Query/hkpCdBodyPairCollector.h>
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
-#include <Physics/Dynamics/Collide/ContactListener/hkpContactPointEvent.h>
+#include <Physics/Dynamics/Collide/ContactListener/hkpContactListener.h>
 
 #include "skse64/GameReferences.h"
 
@@ -51,6 +51,13 @@ struct CdBodyPairCollector : public hkpCdBodyPairCollector
 	void reset() override;
 
 	std::vector<hkpCdBody *> m_hits;
+};
+
+struct ContactListener : public hkpContactListener
+{
+	void contactPointCallback(const hkpContactPointEvent& evnt) override;
+
+	NiPointer<bhkWorld> world = nullptr;
 };
 
 namespace CollisionInfo

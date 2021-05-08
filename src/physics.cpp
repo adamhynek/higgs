@@ -3,8 +3,12 @@
 #include "physics.h"
 #include "offsets.h"
 #include "utils.h"
+#include "pluginapi.h"
+#include "grabber.h"
+#include "config.h"
 
 #include "skse64/NiNodes.h"
+#include "skse64/gamethreads.h"
 
 
 CdPointCollector::CdPointCollector()
@@ -123,6 +127,119 @@ void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCas
 
 	m_hits.push_back(std::make_pair(body, hitInfo));
 	//m_earlyOutHitFraction = hitInfo->m_hitFraction; // Only accept closer hits after this
+}
+
+
+struct CreateDetectionEventTask : TaskDelegate
+{
+	static CreateDetectionEventTask * Create(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 position, int soundLevel, TESObjectREFR *source) {
+		CreateDetectionEventTask * cmd = new CreateDetectionEventTask;
+		if (cmd)
+		{
+			cmd->ownerProcess = ownerProcess;
+			cmd->owner = owner;
+			cmd->position = position;
+			cmd->soundLevel = soundLevel;
+			cmd->source = source;
+		}
+		return cmd;
+	}
+	virtual void Run() {
+		CreateDetectionEvent(ownerProcess, owner, &position, soundLevel, source);
+	}
+	virtual void Dispose() {
+		delete this;
+	}
+
+	ActorProcessManager *ownerProcess;
+	Actor* owner;
+	NiPoint3 position;
+	int soundLevel;
+	TESObjectREFR *source;
+};
+
+void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
+{
+	if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
+		// Early out
+		return;
+	}
+
+	hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
+	hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
+
+	UInt32 layerA = rigidBodyA->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
+	UInt32 layerB = rigidBodyB->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
+	if (layerA != 56 && layerB != 56) return; // Every collision we care about involves a body with our custom layer (hand, held object...)
+
+	float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
+	if (separatingVelocity < Config::options.collisionMinHapticSpeed) return;
+
+	bool isARightHand = rigidBodyA == g_rightGrabber->handCollBody;
+	bool isBRightHand = rigidBodyB == g_rightGrabber->handCollBody;
+	bool isALeftHand = rigidBodyA == g_leftGrabber->handCollBody;
+	bool isBLeftHand = rigidBodyB == g_leftGrabber->handCollBody;
+
+	bool rightHasHeld = g_rightGrabber->HasHeldObject();
+	bool leftHasHeld = g_leftGrabber->HasHeldObject();
+
+	bool isAHeldRight = rightHasHeld && &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable;
+	bool isBHeldRight = rightHasHeld && &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable;
+	bool isAHeldLeft = leftHasHeld && &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable;
+	bool isBHeldLeft = leftHasHeld && &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable;
+
+	bhkRigidBody *bhkRigidBodyA = (bhkRigidBody *)rigidBodyA->m_userData;
+	bhkRigidBody *bhkRigidBodyB = (bhkRigidBody *)rigidBodyB->m_userData;
+
+	bool isAWeapRight = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->weaponBody;
+	bool isBWeapRight = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->weaponBody;
+	bool isAWeapLeft = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->weaponBody;
+	bool isBWeapLeft = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->weaponBody;
+
+	bool isHand = isARightHand || isBRightHand || isALeftHand || isBLeftHand;
+	bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
+	bool isWeap = isAWeapRight || isBWeapRight || isAWeapLeft || isBWeapLeft;
+	if (!isHand && !isHeld && !isWeap) return;
+
+	auto TriggerCollisionHaptics = [separatingVelocity](float inverseMass, bool isLeft) {
+		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
+
+		float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
+		float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
+		float hapticStrength = min(1.0f, Config::options.collisionBaseHapticStrength + speedComponent + massComponent);
+		if (isLeft) {
+			g_leftGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+		}
+		else {
+			g_rightGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+		}
+
+		HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+	};
+
+	bool isA = isARightHand || isALeftHand || isAHeldRight || isAHeldLeft || isAWeapLeft || isAWeapRight;
+	if (isA) {
+		bool isLeft = isALeftHand || isAHeldLeft || isAWeapLeft;
+		TriggerCollisionHaptics(rigidBodyB->getMassInv(), isLeft);
+	}
+
+	bool isB = isBRightHand || isBLeftHand || isBHeldRight || isBHeldLeft || isBWeapLeft || isBWeapRight;
+	if (isB) {
+		bool isLeft = isBLeftHand || isBHeldLeft || isBWeapLeft;
+		TriggerCollisionHaptics(rigidBodyA->getMassInv(), isLeft);
+	}
+
+	/*
+	TESObjectREFR *ref = FindCollidableRef(&otherBody->m_collidable);
+	hkContactPoint *contactPoint = evnt.m_contactPoint;
+	if (ref && contactPoint) {
+		PlayerCharacter *player = *g_thePlayer;
+		NiPoint3 position = HkVectorToNiPoint(contactPoint->getPosition()) * *g_inverseHavokWorldScale;
+		// Very Loud == 200, Silent == 0, Normal == 50, Loud == 100
+		int soundLevel = 50;
+		g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, ref));
+	}
+	*/
 }
 
 

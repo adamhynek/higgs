@@ -22,7 +22,6 @@
 #include "skse64/GameVR.h"
 #include "skse64_common/SafeWrite.h"
 #include "skse64_common/BranchTrampoline.h"
-#include "skse64/gamethreads.h"
 
 #include <ShlObj.h>  // CSIDL_MYDOCUMENTS
 
@@ -38,6 +37,7 @@
 #include "papyrusapi.h"
 #include "pluginapi.h"
 #include "math_utils.h"
+#include "physics.h"
 
 
 // SKSE globals
@@ -60,122 +60,14 @@ TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 
 bool initComplete = false; // Whether grabbers have been initialized
 
-Grabber *g_rightGrabber;
-Grabber *g_leftGrabber;
+Grabber *g_rightGrabber = nullptr;
+Grabber *g_leftGrabber = nullptr;
 
 std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes;
 
 PlayingShader *g_playingShaders; // size == 2
 std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
 
-
-struct ContactListener : hkpContactListener
-{
-	struct CreateDetectionEventTask : TaskDelegate
-	{
-		static CreateDetectionEventTask * Create(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 position, int soundLevel, TESObjectREFR *source) {
-			CreateDetectionEventTask * cmd = new CreateDetectionEventTask;
-			if (cmd)
-			{
-				cmd->ownerProcess = ownerProcess;
-				cmd->owner = owner;
-				cmd->position = position;
-				cmd->soundLevel = soundLevel;
-				cmd->source = source;
-			}
-			return cmd;
-		}
-		virtual void Run() {
-			CreateDetectionEvent(ownerProcess, owner, &position, soundLevel, source);
-		}
-		virtual void Dispose() {
-			delete this;
-		}
-
-		ActorProcessManager *ownerProcess;
-		Actor* owner;
-		NiPoint3 position;
-		int soundLevel;
-		TESObjectREFR *source;
-	};
-
-	virtual void contactPointCallback(const hkpContactPointEvent& evnt)
-	{
-		if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
-			// Early out
-			return;
-		}
-
-		hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
-		hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
-
-		UInt32 layerA = rigidBodyA->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
-		UInt32 layerB = rigidBodyB->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
-		if (layerA != 56 && layerB != 56) return; // Every collision we care about involves a body with our custom layer (hand, held object...)
-
-		bool isARight = rigidBodyA == g_rightGrabber->handCollBody;
-		bool isBRight = rigidBodyB == g_rightGrabber->handCollBody;
-		bool isALeft = rigidBodyA == g_leftGrabber->handCollBody;
-		bool isBLeft = rigidBodyB == g_leftGrabber->handCollBody;
-
-		bool rightHasHeld = g_rightGrabber->HasHeldObject();
-		bool leftHasHeld = g_leftGrabber->HasHeldObject();
-
-		bool isAHeldRight = rightHasHeld && &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable;
-		bool isBHeldRight = rightHasHeld && &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable;
-		bool isAHeldLeft = leftHasHeld && &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable;
-		bool isBHeldLeft = leftHasHeld && &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable;
-
-		bhkRigidBody *bhkRigidBodyA = (bhkRigidBody *)rigidBodyA->m_userData;
-		bhkRigidBody *bhkRigidBodyB = (bhkRigidBody *)rigidBodyB->m_userData;
-
-		bool isAWeapRight = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->weaponBody;
-		bool isBWeapRight = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->weaponBody;
-		bool isAWeapLeft = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->weaponBody;
-		bool isBWeapLeft = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->weaponBody;
-
-		bool isHand = isARight || isBRight || isALeft || isBLeft;
-		bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
-		bool isWeap = isAWeapRight || isBWeapRight || isAWeapLeft || isBWeapLeft;
-		if (!isHand && !isHeld && !isWeap) return;
-
-		hkpRigidBody *otherBody = (isARight || isALeft || isAHeldRight || isAHeldLeft || isAWeapLeft || isAWeapRight) ? rigidBodyB : rigidBodyA;
-		float inverseMass = otherBody->getMassInv();
-		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
-
-		bool isLeft = isALeft || isBLeft || isAHeldLeft || isBHeldLeft || isAWeapLeft || isBWeapLeft;
-
-		float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
-
-		if (separatingVelocity >= Config::options.collisionMinHapticSpeed) {
-			float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
-			float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
-			float hapticStrength = min(1.0f, Config::options.collisionBaseHapticStrength + speedComponent + massComponent);
-			if (isLeft) {
-				g_leftGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
-			}
-			else {
-				g_rightGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
-			}
-
-			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
-
-			/*
-			TESObjectREFR *ref = FindCollidableRef(&otherBody->m_collidable);
-			hkContactPoint *contactPoint = evnt.m_contactPoint;
-			if (ref && contactPoint) {
-				PlayerCharacter *player = *g_thePlayer;
-				NiPoint3 position = HkVectorToNiPoint(contactPoint->getPosition()) * *g_inverseHavokWorldScale;
-				// Very Loud == 200, Silent == 0, Normal == 50, Loud == 100
-				int soundLevel = 50;
-				g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, ref));
-			}
-			*/
-		}
-	}
-
-	NiPointer<bhkWorld> world = nullptr;
-};
 ContactListener *contactListener = nullptr;
 
 
