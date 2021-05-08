@@ -59,6 +59,13 @@ namespace Config {
 		float mouthConstantHapticStrength = 0.3f;
 		float mouthDropHapticStrength = 0.5f;
 
+		float maxHandDistance = 0.7f;
+		float minDampedRequiredVelocityProportion = 0.5f;
+		float minVelocityToPotentiallyDamp = 1.0f;
+		float dampedLinearVelocityMultiplier = 0.2f;
+		float dampedLinearVelocityExponent = 0.8f;
+		float dampedAngularVelocityMultiplier = 0.2f;
+
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double inputLeewayTime = 0.3; // in s, time after pressing the trigger on a selected object, within which if you let go, input is retriggered
@@ -78,6 +85,7 @@ namespace Config {
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
+		bool disableDampedGrabForBodies = true;
 		bool disableGrabHair = true;
 
 		bool enableHavokFix = true;

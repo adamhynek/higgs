@@ -192,7 +192,7 @@ namespace Config {
 
 		if (!ReadBool("EnableWeaponCollision", options.enableWeaponCollision)) return false;
 		if (!ReadBool("ForcePhysicsGrab", options.forcePhysicsGrab)) return false;
-		if (!ReadBool("DisableGrabHair", options.disableGrabHair)) return false;
+		if (!ReadBool("DisableGrabHairGeometry", options.disableGrabHair)) return false;
 
 		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
 		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
