@@ -37,7 +37,7 @@ namespace HiggsPluginAPI {
 		typedef void(*CollisionCallback)(bool isLeft, float mass, float separatingVelocity);
 		virtual void AddCollisionCallback(CollisionCallback callback) = 0;
 
-		// Grab the given object reference. It must have collision, and the given hand must be in a ready state as returned by GetGrabbedObject.
+		// Grab the given object reference. It must have collision, and the given hand must be in a ready state as returned by CanGrabObject.
 		virtual void GrabObject(TESObjectREFR *object, bool isLeft) = 0;
 
 		// Get the currently held object reference. Note that some references can have multiple physics objects.
