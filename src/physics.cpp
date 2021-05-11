@@ -196,11 +196,6 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 	bool isAWeapLeft = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->weaponBody;
 	bool isBWeapLeft = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->weaponBody;
 
-	bool isHand = isARightHand || isBRightHand || isALeftHand || isBLeftHand;
-	bool isHeld = isAHeldRight || isBHeldRight || isAHeldLeft || isBHeldLeft;
-	bool isWeap = isAWeapRight || isBWeapRight || isAWeapLeft || isBWeapLeft;
-	if (!isHand && !isHeld && !isWeap) return;
-
 	auto TriggerCollisionHaptics = [separatingVelocity](float inverseMass, bool isLeft) {
 		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
 
