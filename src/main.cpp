@@ -51,10 +51,6 @@ SKSETaskInterface *g_taskInterface = nullptr;
 
 vrikPluginApi::IVrikInterface001 * g_vrikInterface;
 
-NiMatrix33 g_rolloverRotation; // Set on plugin load
-
-bool g_isLoaded = false;
-
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 
@@ -494,19 +490,13 @@ extern "C" {
 		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
 		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
-		g_rolloverRotation = EulerToMatrix(Config::options.rolloverRotation);
+		NiMatrix33 rightRolloverRotation = EulerToMatrix(Config::options.rolloverRotation);
+		NiMatrix33 leftRolloverRotation = EulerToMatrix({ Config::options.rolloverRotation.x, -Config::options.rolloverRotation.y, -Config::options.rolloverRotation.z });
 
-		g_rightGrabber->rolloverRotation = g_rolloverRotation;
+		g_rightGrabber->rolloverRotation = rightRolloverRotation;
 		g_rightGrabber->rolloverScale = Config::options.rolloverScale;
 
-		// Flip right/forward vectors
-		g_leftGrabber->rolloverRotation = g_rolloverRotation;
-		g_leftGrabber->rolloverRotation.data[0][0] = -g_leftGrabber->rolloverRotation.data[0][0];
-		g_leftGrabber->rolloverRotation.data[1][0] = -g_leftGrabber->rolloverRotation.data[1][0];
-		g_leftGrabber->rolloverRotation.data[2][0] = -g_leftGrabber->rolloverRotation.data[2][0];
-		g_leftGrabber->rolloverRotation.data[0][1] = -g_leftGrabber->rolloverRotation.data[0][1];
-		g_leftGrabber->rolloverRotation.data[1][1] = -g_leftGrabber->rolloverRotation.data[1][1];
-		g_leftGrabber->rolloverRotation.data[2][1] = -g_leftGrabber->rolloverRotation.data[2][1];
+		g_leftGrabber->rolloverRotation = leftRolloverRotation;
 		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
 
 		if (Config::options.disableRolloverRumble) {
@@ -533,14 +523,6 @@ extern "C" {
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_DataLoaded) {
 				OnDataLoaded();
-			}
-			else if (msg->type == SKSEMessagingInterface::kMessage_PreLoadGame) {
-				_MESSAGE("SKSE PreLoadGame message received");
-				g_isLoaded = false;
-			}
-			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoadGame || msg->type == SKSEMessagingInterface::kMessage_NewGame) {
-				_MESSAGE("SKSE PostLoadGame or NewGame message received, type: %d", msg->type);
-				g_isLoaded = true;
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
 				// Register our own mod api listener
