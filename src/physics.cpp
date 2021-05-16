@@ -198,15 +198,11 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 
 	auto TriggerCollisionHaptics = [separatingVelocity](float inverseMass, bool isLeft) {
 		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
-
-		float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
-		float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
-		float hapticStrength = min(1.0f, Config::options.collisionBaseHapticStrength + speedComponent + massComponent);
 		if (isLeft) {
-			g_leftGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+			g_leftGrabber->TriggerCollisionHaptics(mass, separatingVelocity);
 		}
 		else {
-			g_rightGrabber->haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+			g_rightGrabber->TriggerCollisionHaptics(mass, separatingVelocity);
 		}
 
 		HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);

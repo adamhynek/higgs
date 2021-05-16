@@ -65,6 +65,7 @@ namespace Config {
 		float dampedLinearVelocityMultiplier = 0.2f;
 		float dampedLinearVelocityExponent = 0.8f;
 		float dampedAngularVelocityMultiplier = 0.2f;
+		float dampedCollisionHapticStrengthMultiplier = 0.4f;
 
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore

@@ -167,6 +167,23 @@ void HapticsManager::Loop()
 }
 
 
+void Grabber::TriggerCollisionHaptics(float mass, float separatingVelocity)
+{
+	float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
+	float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
+	float hapticStrength = Config::options.collisionBaseHapticStrength + speedComponent + massComponent;
+	hapticStrength = min(1.0f, hapticStrength);
+
+	if (state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) {
+		hapticStrength *= Config::options.dampedCollisionHapticStrengthMultiplier;
+		hapticStrength = max(Config::options.collisionBaseHapticStrength, hapticStrength); // don't let it go below the base strength
+		hapticStrength = min(1.0f, hapticStrength);
+	}
+
+	haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
+}
+
+
 void Grabber::Select(TESObjectREFR *obj)
 {
 	selectedObject.handle = GetOrCreateRefrHandle(obj);

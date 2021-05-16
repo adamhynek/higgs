@@ -173,6 +173,7 @@ struct Grabber
 	void RestoreHandTransform();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
+	void TriggerCollisionHaptics(float mass, float separatingVelocity);
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
