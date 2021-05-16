@@ -2014,15 +2014,15 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 			if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 				// Do all this stuff even if the refr has been deleted / 3d unloaded
 				if (state == State::Held || state == State::HeldInit) {
-					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
-					}
-
 					ResetNearbyDamping();
 				}
 
-				if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+				if (g_vrikInterface) {
+					g_vrikInterface->restoreFingers(isLeft);
+
+					if (--isHeadBobbingSavedCount == 0) {
+						g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+					}
 				}
 			}
 
@@ -2411,10 +2411,10 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 		else {
 			if (g_vrikInterface) {
 				g_vrikInterface->restoreFingers(isLeft);
-			}
 
-			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+				if (--isHeadBobbingSavedCount == 0) {
+					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+				}
 			}
 
 			ResetNearbyDamping();
@@ -2550,8 +2550,12 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 			}
 		}
 		else {
-			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+			if (g_vrikInterface) {
+				g_vrikInterface->restoreFingers(isLeft);
+
+				if (--isHeadBobbingSavedCount == 0) {
+					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+				}
 			}
 
 			state = State::Idle;
