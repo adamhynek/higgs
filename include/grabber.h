@@ -231,7 +231,7 @@ struct Grabber
 	bool idleDesired = false;
 
 	bool isExternalGrab = false;
-	bool isExternallyGrabbedFrom = false;
+	bool disableDropEvents = false;
 
 	bool externalGrabRequested = false;
 	NiPointer<TESObjectREFR> externalGrabRequestedObject = nullptr;

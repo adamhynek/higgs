@@ -1249,7 +1249,7 @@ bool IsHairGeometry(BSGeometry *geom)
 }
 
 // Add a list of triangles to the given list for each skinned partition in geom
-void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
+void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> &nodesToSkinTo)
 {
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 	if (!skinInstance) return;
@@ -1299,7 +1299,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 		for (int t = 0; t < numPartBones; t++) {
 			UInt16 boneIndex = partBones[t];
 			if (boneIndex >= numBones) break;
-			// bonePalette == Bone Indices. Store bone incides per vertex
+			// bonePalette == Bone Indices. Store bone indices per vertex.
 			// bones == Bones. Map from partition bones to skinInstance bones.
 
 			NiTransform *boneTransform = boneTransforms[boneIndex];
@@ -1335,6 +1335,8 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 
 			std::vector<NiPoint3> transVerts(numTotalVerts); // Allocate space for _all vertices for all partitions_ but only fill in the ones mapped to by the individual partition
 
+			std::unordered_set<UInt16> includeVerts;
+
 			for (int v = 0; v < numPartVerts; v++) {
 				// partition.m_pusVertexMap: maps from partition vertex -> partition.shapeData->m_RawVertexData vertex
 				UInt16 vindex = partition.m_pusVertexMap[v];
@@ -1349,6 +1351,12 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 
 					if (weight != 0.0f) {
 						UInt16 boneIndex = partition.m_pucBonePalette[offset];
+
+						NiAVObject *bone = skinInstance->m_ppkBones[boneIndex];
+						if (bone && nodesToSkinTo.count(bone) != 0) {
+							includeVerts.insert(vindex);
+						}
+
 						NiTransform boneTransform = boneTrans[boneIndex];
 
 						transVerts[vindex] += boneTransform * vertPos * weight;
@@ -1358,8 +1366,11 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 
 			for (int t = 0; t < numTris; t++) {
 				Triangle tri = tris[t];
-				TriangleData triData(tri, transVerts);
-				triangles.push_back(triData);
+
+				if (includeVerts.count(tri.vertexIndices[0]) != 0 || includeVerts.count(tri.vertexIndices[1]) != 0 || includeVerts.count(tri.vertexIndices[2]) != 0) {
+					TriangleData triData(tri, transVerts);
+					triangles.push_back(triData);
+				}
 			}
 
 			_MESSAGE("%d skinned tris", numTris);
@@ -1404,11 +1415,11 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 }
 
 // Get a list of triangle lists for all geometry rooted at root
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> &nodesToSkinTo)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
-		UpdateSkinnedTriangles(geom, triangles);
+		UpdateSkinnedTriangles(geom, triangles, nodesToSkinTo);
 		return;
 	}
 
@@ -1419,7 +1430,7 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetSkinnedTriangles(child, triangles);
+					GetSkinnedTriangles(child, triangles, nodesToSkinTo);
 					return;
 				}
 			}
@@ -1428,7 +1439,7 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetSkinnedTriangles(child, triangles);
+					GetSkinnedTriangles(child, triangles, nodesToSkinTo);
 				}
 			}
 		}

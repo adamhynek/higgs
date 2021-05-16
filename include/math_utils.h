@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <unordered_set>
 
 #include "RE/havok.h"
 
@@ -127,7 +128,7 @@ inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
 
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> &nodesToSkinTo);
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
 
 bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,

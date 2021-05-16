@@ -22,6 +22,7 @@
 #include "finger_curves.h"
 #include "hooks.h"
 #include "pluginapi.h"
+#include "main.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
@@ -186,7 +187,7 @@ void Grabber::Select(TESObjectREFR *obj)
 		selectedObject.isActor = true;
 	}
 
-	isExternallyGrabbedFrom = false;
+	disableDropEvents = false;
 }
 
 
@@ -203,7 +204,7 @@ void Grabber::Deselect()
 	selectedObject.hitExtraList = nullptr;
 	selectedObject.isDisconnected = false;
 
-	isExternallyGrabbedFrom = false;
+	disableDropEvents = false;
 
 	state = State::Idle;
 }
@@ -611,7 +612,7 @@ hkTransform Grabber::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeapo
 {
 	PlayerCharacter *player = *g_thePlayer;
 	hkTransform transform = existingWeaponCollision->hkBody->getTransform();
-	if (g_vrikInterface) {
+	if (g_isVrikPresent) {
 		// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
 		static BSFixedString weaponNodeName("WEAPON");
 		static BSFixedString shieldNodeName("SHIELD");
@@ -933,8 +934,11 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		std::vector<TriangleData> triangles; // tris are in worldspace
 
+		std::unordered_set<NiAVObject *> nodesToSkinTo;
+		GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
+
 		double t = GetTime();
-		 GetSkinnedTriangles(objRoot, triangles);
+		 GetSkinnedTriangles(objRoot, triangles, nodesToSkinTo);
 		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
 		t = GetTime();
@@ -1769,7 +1773,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 								}
 								else {
 									// Grabbing the object from the other hand - make the other hand drop it and wait
-									other.isExternallyGrabbedFrom = true;
+									other.disableDropEvents = true;
 									other.idleDesired = true;
 									state = State::GrabFromOtherHand;
 								}
@@ -1902,7 +1906,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
 
-						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !isExternallyGrabbedFrom) {
+						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableDropEvents) {
 							// Object dropped at the mouth
 
 							TESForm *baseForm = selectedObj->baseForm;
@@ -1942,7 +1946,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 
 							haptics.QueueHapticEvent(Config::options.mouthDropHapticStrength, 0, Config::options.mouthDropHapticFadeTime);
 						}
-						else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && !isExternallyGrabbedFrom) {
+						else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && !disableDropEvents) {
 							// Object deposited in the shoulder
 
 							UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
@@ -1971,7 +1975,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 							float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
 							haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
 
-							if (!isExternallyGrabbedFrom) {
+							if (!disableDropEvents) {
 								//ObjectReference_SetActorCause(VM_REGISTRY, 0, selectedObj, player); // doesn't make people that your object hit get mad at you unfortunately
 
 								PlayPhysicsSound(palmPos, Config::options.useLoudSoundDrop);
@@ -2417,13 +2421,24 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 
 				float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
 				if (VectorLength(newHandTransform.pos - handTransform.pos) > maxHandDistance) {
-					idleDesired = true; // TODO: Prevent stuff like eating or stashing when the object is dropped like this
+					idleDesired = true;
+					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}
 				else {
 					// Not too far away. Update hand to object and set object velocity to target.
-					UpdateNodeTransformLocal(handNode, newHandTransform);
-					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+					if (g_isVrikPresent) {
+						UpdateNodeTransformLocal(handNode, newHandTransform);
+						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+						NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+					}
+					else {
+						// When not using vrik, we need to update the clavicle to move the hand just as beth does, otherwise only part of the "hand" moves and we get stretched verts
+						NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+						if (clavicle) {
+							NiTransform identity;
+							UpdateClavicleToTransformHand(clavicle, handNode, &newHandTransform, &identity);
+						}
+					}
 
 					// Update object velocity to go where we want it
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
@@ -2448,9 +2463,9 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					// TODO: Check directionalized velocity progress, not just magnitude?
 
 					bool isNontrivialVelocity = VectorLength(currentVelocityPlayerspace) > Config::options.minVelocityToPotentiallyDamp;
-					bool hasObjectMovedCorrectlyEnough = VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < Config::options.minDampedRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace) * *g_deltaTime;
+					bool isObjectPreventedFromMoving = VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < Config::options.minDampedRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace) * *g_deltaTime;
 
-					bool shouldDamp = isNontrivialVelocity && hasObjectMovedCorrectlyEnough;
+					bool shouldDamp = isNontrivialVelocity && isObjectPreventedFromMoving;
 
 					if (dampingState == DampingState::Undamped) {
 						if (shouldDamp && (!selectedObject.isActor || !Config::options.disableDampedGrabForBodies)) {
@@ -2672,6 +2687,8 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 
 void Grabber::RestoreHandTransform()
 {
+	if (!g_isVrikPresent) return;
+
 	if (state == State::HeldBody) {
 		NiPointer<NiAVObject> handNode = GetHandNode();
 		if (!handNode) return;

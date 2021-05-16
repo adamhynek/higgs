@@ -56,6 +56,8 @@ TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 
 bool initComplete = false; // Whether grabbers have been initialized
 
+bool g_isVrikPresent = false;
+
 Grabber *g_rightGrabber = nullptr;
 Grabber *g_leftGrabber = nullptr;
 
@@ -464,6 +466,8 @@ extern "C" {
 				BSFixedString("NPC L Finger42 [LF42]")
 			},
 		};
+
+		g_isVrikPresent = GetModuleHandle("vrik") != NULL;
 
 		// Need to heap-allocate and "leak" anything with NiPointers since if they're statically allocated we crash when the game exits and these objects destruct
 		g_shaderNodes = new std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>>;
