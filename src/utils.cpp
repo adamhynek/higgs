@@ -595,6 +595,23 @@ bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObje
 	return false;
 }
 
+void GetDownstreamNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &targets)
+{
+	if (!root) return;
+
+	targets.insert(root);
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				GetDownstreamNodes(child, targets);
+			}
+		}
+	}
+}
+
 void GetDownstreamNodesNoCollision(NiAVObject *root, std::unordered_set<NiAVObject *> &targets)
 {
 	if (!root) return;

@@ -1261,7 +1261,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 	if (!skinData) return;
 
 	if (Config::options.disableGrabHair && IsHairGeometry(geom)) {
-		// Don't care about grabbing hair
+		// Don't skin hair - it gets in the way
 		return;
 	}
 
@@ -1376,42 +1376,6 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 			_MESSAGE("%d skinned tris", numTris);
 		}
 	}
-
-	/*else {
-		for (int i = 0; i < skinData->m_uiBones; i++) {
-			NiSkinData::BoneData &boneData = skinData->m_pkBoneData[i];
-
-			NiTransform trans = NiTransform();
-
-			NiAVObject *bone = bones[i]; // TODO: Check if bone exists as child of root? Nifskope does
-			if (bone) {
-				trans = bone->m_worldTransform * boneData.m_kSkinToBone;
-			}
-
-			for (int v = 0; v < boneData.m_usVerts; v++) {
-				NiSkinData::BoneVertData &boneVertData = boneData.m_pkBoneVertData[v];
-				UInt16 vindex = boneVertData.m_usVert;
-				float weight = boneVertData.m_fWeight;
-			}
-		}
-
-		for (const BoneWeights& bw : weights) {
-			Transform trans = viewTrans() * skeletonTrans;
-			Node * bone = root ? root->findChild(bw.bone) : 0;
-
-			if (bone)
-				trans = trans * bone->localTrans(skeletonRoot) * bw.trans;
-
-			for (const VertexWeight& vw : bw.weights) {
-				int vindex = vw.vertex;
-				if (vindex < 0 || vindex >= vcnt)
-					break;
-
-				if (vcnt > vindex)
-					transVerts[vindex] += trans * verts[vindex] * vw.weight;
-			}
-		}
-	}*/
 }
 
 // Get a list of triangle lists for all geometry rooted at root

@@ -51,6 +51,7 @@ NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj);
 bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node);
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
 bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node);
+void GetDownstreamNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &targets);
 void GetDownstreamNodesNoCollision(NiAVObject *root, std::unordered_set<NiAVObject *> &targets);
 bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target);
 NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root);

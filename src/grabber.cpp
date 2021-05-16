@@ -935,7 +935,14 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		std::vector<TriangleData> triangles; // tris are in worldspace
 
 		std::unordered_set<NiAVObject *> nodesToSkinTo;
-		GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
+		if (selectedObject.isActor) {
+			// For ragdolls, skin to all nodes
+			GetDownstreamNodes(objRoot, nodesToSkinTo);
+		}
+		else {
+			// Skin only to nodes that are the collision node we grabbed or attached to it
+			GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
+		}
 
 		double t = GetTime();
 		 GetSkinnedTriangles(objRoot, triangles, nodesToSkinTo);

@@ -214,26 +214,6 @@ void PostWandUpdateHook()
 void PlayerCharacterUpdateHook()
 {
 	Update();
-
-	/*
-	NiPoint3 magicHandEuler = NiPoint3(*g_fMagicHandRotateX, *g_fMagicHandRotateY, *g_fMagicHandRotateZ) * 0.017453292;
-	// y and z get flipped for the right hand...
-	magicHandEuler.y *= -1.0f;
-	magicHandEuler.z *= -1.0f;
-
-	NiTransform magicHandTransform;
-	EulerToNiMatrix(&magicHandTransform.rot, magicHandEuler.x, magicHandEuler.y, magicHandEuler.z);
-
-	magicHandTransform.pos = { *g_fMagicHandTranslateX, *g_fMagicHandTranslateY, *g_fMagicHandTranslateZ };
-	// x flipped for right hand...
-	magicHandTransform.pos.x *= -1.0f;
-
-	magicHandTransform.scale = *g_fMagicHandScale;
-
-	NiTransform movedUp = rightWand->m_worldTransform;
-	movedUp.pos += NiPoint3(0.0f, 0.0f, 10.0f);
-	UpdateClavicleToTransformHand(rightClavicle, rightHand, &movedUp, &magicHandTransform);
-	*/
 }
 
 
