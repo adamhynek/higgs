@@ -554,74 +554,16 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 }
 
 
-void Grabber::CreateHandCollision(bhkWorld *world)
+hkTransform Grabber::ComputeHandCollisionTransform(NiAVObject *handNode)
 {
-	static UInt32 skinMaterialId = 0x233db702;
-
-	UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
-
-	UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
-	filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
-	filterInfo |= (ragdollBits << 8);
-
-	// Add collision object for the hand
-	hkpBoxShape_ctor(handCollShape, NiPointToHkVector(Config::options.handCollisionBoxHalfExtents), Config::options.handCollisionBoxRadius);
-	hkpRigidBodyCinfo_ctor(handCollCInfo); // initialize with defaults
-	handCollCInfo->m_shape = handCollShape;
-	handCollCInfo->m_collisionFilterInfo = filterInfo;
-	handCollCInfo->m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
-	handCollCInfo->m_enableDeactivation = false;
-	handCollCInfo->m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
-
-	handCollCInfo->m_position = NiPointToHkVector((*g_thePlayer)->loadedState->node->m_worldTransform.pos * *g_havokWorldScale); // Place it where the player is
-
-	hkpRigidBody_ctor(handCollBody, handCollCInfo);
-
-	hkpWorld_AddEntity(world->world, handCollBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
-}
-
-
-void Grabber::RemoveHandCollision(bhkWorld *world)
-{
-	hkBool ret;
-	hkpWorld_RemoveEntity(world->world, &ret, handCollBody);
-}
-
-
-void Grabber::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
-{
-	bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
-
-	if (state == State::HeldBody && selectedObject.isActor) {
-		// Don't have the hand collide while we're holding a body
-		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
-		if (!wasCollisionDisabled) {
-			BSWriteLocker lock(&world->worldLock);
-			hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-		}
-	}
-	else {
-		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
-		if (wasCollisionDisabled) {
-			BSWriteLocker lock(&world->worldLock);
-			hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-		}
-	}
-
-	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
-	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
-	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
-
-	// Put our hand collision where we want it
+	hkTransform transform;
 	NiPoint3 handCollisionBoxOffset = Config::options.handCollisionBoxOffset;
 	if (isLeft) handCollisionBoxOffset.x *= -1;
 	float havokWorldScale = *g_havokWorldScale;
-	NiPoint3 desiredPos = (handNode->m_worldTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale;
-	hkRotation desiredRot;
-	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, desiredRot);
-	hkQuaternion desiredQuat;
-	desiredQuat.setFromRotationSimd(desiredRot);
-	hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+	transform.m_translation = NiPointToHkVector((handNode->m_worldTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale);
+	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, transform.m_rotation);
+
+	return transform;
 }
 
 
@@ -645,6 +587,99 @@ hkTransform Grabber::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeapo
 	}
 
 	return transform;
+}
+
+
+void Grabber::CreateHandCollision(bhkWorld *world)
+{
+	static UInt32 skinMaterialId = 0x233db702;
+
+	bhkBoxShape *handShape = (bhkBoxShape *)Heap_Allocate(sizeof(bhkBoxShape));
+	if (!handShape) return;
+
+	hkVector4 halfExtents = NiPointToHkVector(Config::options.handCollisionBoxHalfExtents);
+	bhkBoxShape_ctor(handShape, &halfExtents);
+	handShape->materialId = skinMaterialId;
+	((hkpBoxShape*)handShape->shape)->m_radius = Config::options.handCollisionBoxRadius;
+
+	bhkRigidBodyCinfo cInfo;
+	bhkRigidBodyCinfo_ctor(&cInfo);
+
+	UInt32 filterInfo = ((UInt32)playerCollisionGroup << 16) | 56; // player group, our custom layer
+	filterInfo |= (1 << 15); // set bit 15 to collide with same group that also has bit 15
+
+	UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
+	filterInfo |= (ragdollBits << 8);
+
+	cInfo.collisionFilterInfo = filterInfo;
+	cInfo.hkCinfo.m_collisionFilterInfo = filterInfo;
+	cInfo.shape = handShape->shape;
+	cInfo.hkCinfo.m_shape = handShape->shape;
+	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
+	cInfo.hkCinfo.m_enableDeactivation = false;
+	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
+	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
+
+	NiPointer<NiAVObject> handNode = GetHandNode();
+	if (handNode) {
+		hkTransform transform = ComputeHandCollisionTransform(handNode);
+		cInfo.hkCinfo.m_position = transform.m_translation;
+		cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
+	}
+	else {
+		cInfo.hkCinfo.m_position = NiPointToHkVector((*g_thePlayer)->loadedState->node->m_worldTransform.pos * *g_havokWorldScale); // Place it where the player is
+	}
+
+	bhkRigidBody *handRigidBody = (bhkRigidBody *)Heap_Allocate(sizeof(bhkRigidBody));
+	if (handRigidBody) {
+		bhkRigidBody_ctor(handRigidBody, &cInfo);
+
+		bhkRigidBody_setActivated(handRigidBody, true);
+		hkpWorld_AddEntity(world->world, handRigidBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
+
+		handBody = handRigidBody;
+	}
+}
+
+
+void Grabber::RemoveHandCollision(bhkWorld *world)
+{
+	hkBool ret;
+	hkpWorld_RemoveEntity(world->world, &ret, handBody->hkBody);
+	handBody = nullptr;
+}
+
+
+void Grabber::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
+{
+	hkpRigidBody *handCollBody = handBody->hkBody;
+	bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
+
+	if (state == State::HeldBody && selectedObject.isActor) {
+		// Don't have the hand collide while we're holding a body
+		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+		if (!wasCollisionDisabled) {
+			BSWriteLocker lock(&world->worldLock);
+			hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+		}
+	}
+	else {
+		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+		if (wasCollisionDisabled) {
+			BSWriteLocker lock(&world->worldLock);
+			hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+		}
+	}
+
+	// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
+	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
+	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
+
+	// Put our hand collision where we want it
+	hkTransform transform = ComputeHandCollisionTransform(handNode);
+	hkQuaternion desiredQuat;
+	desiredQuat.setFromRotationSimd(transform.m_rotation);
+	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handCollBody);
 }
 
 
@@ -708,12 +743,11 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_position = transform.m_translation;
 	cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
 
-	bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(0x40);
+	bhkRigidBody *clonedBody = (bhkRigidBody *)Heap_Allocate(sizeof(bhkRigidBody));
 	if (clonedBody) {
 		bhkRigidBody_ctor(clonedBody, &cInfo);
 
 		bhkRigidBody_setActivated(clonedBody, true);
-
 		hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
 		clonedFromBody = rigidBody;
@@ -790,8 +824,6 @@ void Grabber::UpdateWeaponCollision()
 			// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
-
-			bhkRigidBody_setActivated(weaponBody, true);
 
 			hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
 			hkQuaternion desiredQuat;

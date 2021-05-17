@@ -43,7 +43,13 @@ static_assert(offsetof(ahkpWorld, m_userData) == 0x430);
 // Address of pointer that points to the bhkWorld pointer
 // RelocAddr<bhkWorld ***> BHKWORLD(0x1f850d0); - world for _tamriel outside_ is here - does not work for interiors
 
-struct bhkWorld : NiRefObject
+struct bhkRefObject : NiObject
+{
+	virtual void SetHavokObject(void); // 25
+	virtual void AddOrRemoveReference(void); // 26
+};
+
+struct bhkWorld : bhkRefObject
 {
 	ahkpWorld * world; // 10
 	UInt8 unk18[0xC598 - 0x18];
@@ -57,18 +63,12 @@ struct bhkWorld : NiRefObject
 static_assert(offsetof(bhkWorld, world) == 0x10);
 static_assert(offsetof(bhkWorld, worldLock) == 0xC598);
 
-struct bhkRefObject : NiObject
-{
-	virtual void Unk_25(void); // 25
-	virtual void AddOrRemoveReference(void); // 26
-};
-
 struct bhkSerializable : bhkRefObject
 {
 	virtual hkpWorld* GetHavokWorld_1(); // 27
-	virtual hkpWorld* GetHavokWorld_2(void); // 28
-	virtual void	  MoveToWorld(void); // 29
-	virtual void	  RemoveFromCurrentWorld(void); // 2A
+	virtual hkpWorld* GetHavokWorld_2(); // 28
+	virtual void	  MoveToWorld(bhkWorld *world); // 29
+	virtual void	  RemoveFromCurrentWorld(); // 2A
 	virtual void	  Unk_2B(void); // 2B
 	virtual void	  Unk_2C(void); // 2C
 	virtual void	  Unk_2D(void); // 2D
@@ -86,6 +86,13 @@ struct bhkShape : bhkSerializable
 	UInt32 pad28;
 };
 static_assert(sizeof(bhkShape) == 0x28);
+
+struct bhkSphereRepShape : bhkShape {};
+
+struct bhkConvexShape : bhkSphereRepShape {};
+
+struct bhkBoxShape : bhkConvexShape {};
+static_assert(sizeof(bhkBoxShape) == 0x28);
 
 struct bhkConstraint : bhkSerializable
 {

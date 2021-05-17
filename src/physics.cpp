@@ -175,10 +175,13 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 	float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
 	if (separatingVelocity < Config::options.collisionMinHapticSpeed) return;
 
-	bool isARightHand = rigidBodyA == g_rightGrabber->handCollBody;
-	bool isBRightHand = rigidBodyB == g_rightGrabber->handCollBody;
-	bool isALeftHand = rigidBodyA == g_leftGrabber->handCollBody;
-	bool isBLeftHand = rigidBodyB == g_leftGrabber->handCollBody;
+	bhkRigidBody *bhkRigidBodyA = (bhkRigidBody *)rigidBodyA->m_userData;
+	bhkRigidBody *bhkRigidBodyB = (bhkRigidBody *)rigidBodyB->m_userData;
+
+	bool isARightHand = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->handBody;
+	bool isBRightHand = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->handBody;
+	bool isALeftHand = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->handBody;
+	bool isBLeftHand = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->handBody;
 
 	bool rightHasHeld = g_rightGrabber->HasHeldObject();
 	bool leftHasHeld = g_leftGrabber->HasHeldObject();
@@ -187,9 +190,6 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 	bool isBHeldRight = rightHasHeld && &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable;
 	bool isAHeldLeft = leftHasHeld && &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable;
 	bool isBHeldLeft = leftHasHeld && &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable;
-
-	bhkRigidBody *bhkRigidBodyA = (bhkRigidBody *)rigidBodyA->m_userData;
-	bhkRigidBody *bhkRigidBodyB = (bhkRigidBody *)rigidBodyB->m_userData;
 
 	bool isAWeapRight = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->weaponBody;
 	bool isBWeapRight = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->weaponBody;

@@ -121,11 +121,6 @@ struct Grabber
 				this->fingerNodeNames[i][j] = fingerNodeNames[i][j];
 			}
 		}
-
-		// We don't want to even attempt to call the constructors of these, but we do want space for them
-		handCollShape = (hkpBoxShape *)malloc(sizeof(hkpBoxShape));
-		handCollCInfo = (hkpRigidBodyCinfo *)malloc(sizeof(hkpRigidBodyCinfo));
-		handCollBody = (hkpRigidBody *)malloc(sizeof(hkpRigidBody));
 	};
 
 	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
@@ -144,6 +139,7 @@ struct Grabber
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
 	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);
+	hkTransform ComputeHandCollisionTransform(NiAVObject *handNode);
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
@@ -179,9 +175,7 @@ struct Grabber
 
 	HapticsManager haptics;
 
-	hkpBoxShape *handCollShape;
-	hkpRigidBodyCinfo *handCollCInfo;
-	hkpRigidBody *handCollBody;
+	NiPointer<bhkRigidBody> handBody = nullptr;
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
 	bhkRigidBody *clonedFromBody = nullptr; // the collision we cloned to create ours
