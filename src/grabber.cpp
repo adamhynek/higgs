@@ -33,6 +33,9 @@
 int isHeadBobbingSavedCount = 0;
 double savedHeadBobbingHeight = 0.0;
 
+UInt32 skinMaterialId = 0x233db702;
+UInt32 stoneMaterialId = 0xdf02f237;
+
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
 hkpLinearCastInput linearCastInput;
@@ -592,8 +595,6 @@ hkTransform Grabber::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeapo
 
 void Grabber::CreateHandCollision(bhkWorld *world)
 {
-	static UInt32 skinMaterialId = 0x233db702;
-
 	bhkBoxShape *handShape = (bhkBoxShape *)Heap_Allocate(sizeof(bhkBoxShape));
 	if (!handShape) return;
 
@@ -836,8 +837,6 @@ void Grabber::UpdateWeaponCollision()
 
 void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 {
-	static UInt32 stoneMaterialId = 0xdf02f237;
-
 	BGSSoundDescriptorForm *sound = nullptr;
 	// Try and get the sound that plays when the object hits stone first, as the grab sound
 	if (selectedObject.collidable->m_shape && selectedObject.collidable->m_shape->m_userData) {
@@ -858,19 +857,50 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 			}
 
 			BGSMaterialType *material = GetMaterialType(materialId);
+			BGSMaterialType *skinMaterial = GetMaterialType(skinMaterialId);
 			BGSMaterialType *stoneMaterial = GetMaterialType(stoneMaterialId);
-			if (material && material->impactDataSet && stoneMaterial) {
-				auto impactDataSet = DYNAMIC_CAST(material->impactDataSet, TESForm, BGSImpactDataSet);
-				if (impactDataSet) {
-					BGSImpactData *impactData = BGSImpactDataSet_GetImpactData(impactDataSet, stoneMaterial);
-					if (impactData) {
-						// [0] is quieter sound, [1] is louder sound
-						int desiredIndex = (int)loud;
-						int alternateIndex = (int)!loud;
-						sound = impactData->sounds[desiredIndex];
-						if (!sound) {
-							sound = impactData->sounds[alternateIndex];
+			if (material) {
+				BGSImpactData *impactData = nullptr;
+				if (material->impactDataSet) {
+					auto impactDataSet = DYNAMIC_CAST(material->impactDataSet, TESForm, BGSImpactDataSet);
+					if (impactDataSet) {
+						if (skinMaterial) {
+							impactData = BGSImpactDataSet_GetImpactData(impactDataSet, skinMaterial);
 						}
+
+						if (!impactData) {
+							if (stoneMaterial) {
+								impactData = BGSImpactDataSet_GetImpactData(impactDataSet, stoneMaterial);
+							}
+						}
+					}
+				}
+				else {
+					// No impact data set for the material on the shape... try a lookup in the other direction
+					if (skinMaterial && skinMaterial->impactDataSet) {
+						auto impactDataSet = DYNAMIC_CAST(skinMaterial->impactDataSet, TESForm, BGSImpactDataSet);
+						if (impactDataSet) {
+							impactData = BGSImpactDataSet_GetImpactData(impactDataSet, material);
+						}
+					}
+
+					if (!impactData) {
+						if (stoneMaterial && stoneMaterial->impactDataSet) {
+							auto impactDataSet = DYNAMIC_CAST(stoneMaterial->impactDataSet, TESForm, BGSImpactDataSet);
+							if (impactDataSet) {
+								impactData = BGSImpactDataSet_GetImpactData(impactDataSet, material);
+							}
+						}
+					}
+				}
+
+				if (impactData) {
+					// [0] is quieter sound, [1] is louder sound
+					int desiredIndex = (int)loud;
+					int alternateIndex = (int)!loud;
+					sound = impactData->sounds[desiredIndex];
+					if (!sound) {
+						sound = impactData->sounds[alternateIndex];
 					}
 				}
 			}
