@@ -181,25 +181,6 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 }
 
 
-void AddCustomCollisionLayer(bhkWorld *world)
-{
-	// Create our own layer in the first ununsed vanilla layer (56)
-	bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-	UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
-
-	bitfield |= ((UInt64)1 << 56); // collide with ourselves
-	bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
-	worldFilter->layerBitfields[56] = bitfield;
-	worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
-	// Set whether other layers should collide with our new layer
-	for (int i = 0; i < 56; i++) {
-		if ((bitfield >> i) & 1) {
-			worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
-		}
-	}
-}
-
-
 void Update()
 {
 	if (!initComplete) return;

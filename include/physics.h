@@ -95,6 +95,8 @@ namespace CollisionInfo
 	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll = true);
 }
 
+void AddCustomCollisionLayer(bhkWorld *world);
+
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void SetAngularVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion rot, hkReal invDeltaTime);
