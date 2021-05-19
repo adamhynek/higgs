@@ -985,9 +985,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm);
 
-		if (!usePhysicsGrab) {
-			StartNearbyDamping(world);
-		}
+		StartNearbyDamping(world);
 
 		if (selectedObject.isActor) {
 			if (Config::options.overrideBodyCollision) {
@@ -1178,6 +1176,10 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
 		state = usePhysicsGrab ? State::HeldBody : State::HeldInit;
+
+		if (state == State::HeldBody) {
+			heldTime = g_currentFrameTime; // we set this only when going into HeldBody and Held, not HeldInit
+		}
 	}
 	else {
 		state = State::Idle;
@@ -2075,9 +2077,8 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 
 			if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 				// Do all this stuff even if the refr has been deleted / 3d unloaded
-				if (state == State::Held || state == State::HeldInit) {
-					ResetNearbyDamping();
-				}
+
+				ResetNearbyDamping();
 
 				if (g_vrikInterface) {
 					g_vrikInterface->restoreFingers(isLeft);
@@ -2610,6 +2611,10 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					}
 				}
 			}
+
+			if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
+				ResetNearbyDamping();
+			}
 		}
 		else {
 			if (g_vrikInterface) {
@@ -2619,6 +2624,8 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 				}
 			}
+
+			ResetNearbyDamping();
 
 			state = State::Idle;
 		}
