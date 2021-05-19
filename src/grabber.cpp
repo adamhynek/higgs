@@ -2843,6 +2843,11 @@ bool Grabber::CanOtherGrab() const
 	return HasHeldObject();
 }
 
+bool Grabber::HasHeldKeyframed() const
+{
+	return state == State::Held || state == State::HeldInit;
+}
+
 
 bool Grabber::ShouldDisplayRollover()
 {

@@ -261,8 +261,8 @@ void Update()
 	isRightValid &= !g_interface001.IsDisabled(false);
 	isLeftValid &= !g_interface001.IsDisabled(true);
 
-	bool isRightHeld = g_rightGrabber->state == Grabber::State::HeldInit || g_rightGrabber->state == Grabber::State::Held;
-	bool isLeftHeld = g_leftGrabber->state == Grabber::State::HeldInit || g_leftGrabber->state == Grabber::State::Held;
+	bool isRightHeld = g_rightGrabber->HasHeldKeyframed();
+	bool isLeftHeld = g_leftGrabber->HasHeldKeyframed();
 
 	Grabber *firstGrabberToUpdate = g_rightGrabber;
 	Grabber *lastGrabberToUpdate = g_leftGrabber;

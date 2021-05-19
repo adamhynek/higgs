@@ -161,6 +161,7 @@ struct Grabber
 	bool CanGrabObject() const;
 	bool HasHeldObject() const;
 	bool CanOtherGrab() const;
+	bool HasHeldKeyframed() const;
 	bool GetActivateText(std::string &str);
 	void SetupRollover();
 	void SetupSelectionBeam(NiNode *spellOrigin);
