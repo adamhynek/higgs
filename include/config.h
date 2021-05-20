@@ -86,6 +86,7 @@ namespace Config {
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
+		bool disableDampedGrab = false;
 		bool disableDampedGrabForBodies = true;
 		bool disableGrabHair = true;
 

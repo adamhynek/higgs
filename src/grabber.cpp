@@ -2555,7 +2555,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					bool shouldDamp = isNontrivialVelocity && isObjectPreventedFromMoving;
 
 					if (dampingState == DampingState::Undamped) {
-						if (shouldDamp && (!selectedObject.isActor || !Config::options.disableDampedGrabForBodies)) {
+						if (!Config::options.disableDampedGrab && shouldDamp && (!selectedObject.isActor || !Config::options.disableDampedGrabForBodies)) {
 							dampingState = DampingState::PreDamp;
 							preDampTime = g_currentFrameTime;
 						}
