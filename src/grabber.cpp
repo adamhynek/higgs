@@ -2493,7 +2493,6 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 			if (collidableNode) {
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
-				NiTransform newHandTransform;
 
 				if (!selectedObject.isActor) {
 					hkTransform &heldHkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
@@ -2504,17 +2503,17 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 				NiTransform inverseDesired;
 				desiredHavokTransformHandSpace.Invert(inverseDesired);
 
-				newHandTransform = heldTransform * inverseDesired;
+				adjustedHandTransform = heldTransform * inverseDesired;
 
 				float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
-				if (VectorLength(newHandTransform.pos - handTransform.pos) > maxHandDistance) {
+				if (VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
 					idleDesired = true;
 					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}
 				else {
 					// Not too far away. Update hand to object and set object velocity to target.
 					if (g_isVrikPresent) {
-						UpdateNodeTransformLocal(handNode, newHandTransform);
+						UpdateNodeTransformLocal(handNode, adjustedHandTransform);
 						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 						NiAVObject_UpdateObjectUpwards(handNode, &ctx);
 					}
@@ -2523,7 +2522,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 						NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
 						if (clavicle) {
 							NiTransform identity;
-							UpdateClavicleToTransformHand(clavicle, handNode, &newHandTransform, &identity);
+							UpdateClavicleToTransformHand(clavicle, handNode, &adjustedHandTransform, &identity);
 						}
 					}
 
@@ -2974,7 +2973,7 @@ void Grabber::SetupRollover()
 			NiPointer<NiAVObject> wandNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
 			NiPointer<NiAVObject> roomObj = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
 			NiNode *roomNode = roomObj ? roomObj->GetAsNiNode() : nullptr;
-			if (wandNode && roomNode) {
+			if (roomNode && wandNode) {
 				static BSFixedString rolloverNodeStr("WSActivateRollover");
 				NiPointer<NiAVObject> rolloverNode = roomNode->GetObjectByName(&rolloverNodeStr.data);
 				if (rolloverNode) {
@@ -2984,7 +2983,18 @@ void Grabber::SetupRollover()
 					desiredLocal.scale = rolloverScale;
 
 					// World transform where we would like the rollover node to be
-					NiTransform desiredWorld = wandNode->m_worldTransform * desiredLocal;
+					NiTransform desiredWorld;
+
+					if (state == State::HeldBody) {
+						NiTransform inverseHand;
+						handTransform.Invert(inverseHand);
+						NiTransform handToWand = inverseHand * wandNode->m_worldTransform;
+
+						desiredWorld = adjustedHandTransform * handToWand * desiredLocal;
+					}
+					else {
+						desiredWorld = wandNode->m_worldTransform * desiredLocal;
+					}
 
 					UpdateNodeTransformLocal(rolloverNode, desiredWorld);
 

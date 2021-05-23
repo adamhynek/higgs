@@ -218,6 +218,7 @@ struct Grabber
 	NiTransform desiredHavokTransformHandSpace;
 
 	NiTransform handTransform;
+	NiTransform adjustedHandTransform;
 
 	NiPoint3 prevPlayerPosWorldspace;
 
