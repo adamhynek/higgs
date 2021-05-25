@@ -133,9 +133,9 @@ struct Grabber
 	void ResetNearbyDamping();
 	void StartNearbyDamping(bhkWorld &world);
 	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
-		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
+		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
 	bool FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
-		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint);
+		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
 	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);

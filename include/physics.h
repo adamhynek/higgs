@@ -53,6 +53,16 @@ struct CdBodyPairCollector : public hkpCdBodyPairCollector
 	std::vector<hkpCdBody *> m_hits;
 };
 
+struct SpecificPairCollector : public hkpCdBodyPairCollector
+{
+	SpecificPairCollector();
+	void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) override;
+	void reset() override;
+
+	hkpCdBody *m_target = nullptr;
+	bool m_foundTarget = false;
+};
+
 struct ContactListener : public hkpContactListener
 {
 	void contactPointCallback(const hkpContactPointEvent& evnt) override;

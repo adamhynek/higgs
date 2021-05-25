@@ -42,6 +42,7 @@ hkpLinearCastInput linearCastInput;
 RayHitCollector rayHitCollector;
 AllRayHitCollector allRayHitCollector;
 CdBodyPairCollector pairCollector;
+SpecificPairCollector specificPairCollector;
 // 'ItemPicker' collision layer; player collision group
 // Why ItemPicker? It ignores stuff like weapons the player is holding
 //static hkpWorldRayCastInput rayCastInput(0x02420028);
@@ -402,7 +403,7 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 
 
 bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
-	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint)
+	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	if (!allowGrab) {
 		return false;
@@ -424,6 +425,10 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 
 	bool otherObjectIsGrabbable = other.CanOtherGrab();
 
+	NiPointer<TESObjectREFR> pulledObj;
+	UInt32 pulledHandle = pulledObject.handle;
+	LookupREFRByHandle(pulledHandle, pulledObj);
+
 	world->worldLock.LockForRead();
 	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
 
@@ -437,7 +442,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 		}
 		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 		if (ref && ref != *g_thePlayer) {
-			if (IsAllowedCollidable(collidable) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
+			if (IsAllowedCollidable(collidable) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable) || (ref->baseForm && ref->baseForm->formType == kFormType_Projectile)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
 					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
 					if (!impactData) {
@@ -453,10 +458,26 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 				if (dist < closestDistance) {
 					closestObj = ref;
 					closestRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-					closestPoint = pair.second;
+					closestPoint = pair.second.getPosition();
 					closestDistance = dist;
 				}
 			}
+		}
+	}
+
+	bool found = closestDistance != (std::numeric_limits<float>::max)();
+	if (!found && pulledObj) {
+		// No object found normally - do a check for the pulled object in a wider radius
+		sphereShape->m_radius = Config::options.widePullGrabRadius;
+		specificPairCollector.reset();
+		specificPairCollector.m_target = &pulledObject.rigidBody->hkBody->m_collidable;
+		hkpWorld_GetPenetrations(world->world, &sphere->phantom->m_collidable, world->world->m_collisionInput, &specificPairCollector);
+
+		if (specificPairCollector.m_foundTarget) {
+			closestObj = pulledObj;
+			closestRigidBody = pulledObject.rigidBody;
+			closestPoint = pulledObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
+			found = true;
 		}
 	}
 
@@ -466,12 +487,12 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 	sphereShape->m_radius = radiusBefore;
 	sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
 
-	return closestDistance != (std::numeric_limits<float>::max)();
+	return found;
 }
 
 
 bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
-	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkContactPoint &closestPoint)
+	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	NiPoint3 hkTargetPos = hkPalmPos + castDirection * Config::options.farCastDistance;
 
@@ -540,7 +561,7 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 				if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 					closestObj = ref;
 					closestRigidBody = bRigidBody;
-					closestPoint = pair.second;
+					closestPoint = pair.second.getPosition();
 					closestDistance = dist;
 				}
 			}
@@ -1527,7 +1548,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 		// See if there's something near the hand to pick up
 		NiPointer<TESObjectREFR> closestObj;
 		NiPointer<bhkRigidBody> closestRigidBody;
-		hkContactPoint closestPoint;
+		hkVector4 closestPoint;
 
 		bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere,
 			closestObj, closestRigidBody, closestPoint);
@@ -1547,7 +1568,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 			State newState = state; // We only want to set state after the collidable is updated, for threading reasons
 
 			// We save this while the casts hit so that during fade time when the casts don't hit, we still have a point to use.
-			selectedObject.point = HkVectorToNiPoint(closestPoint.getPosition());
+			selectedObject.point = HkVectorToNiPoint(closestPoint);
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (!LookupREFRByHandle(selectedObject.handle, selectedObj) || closestObj != selectedObj) {
@@ -2173,7 +2194,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 
 				NiPointer<TESObjectREFR> closestObj;
 				NiPointer<bhkRigidBody> closestRigidBody;
-				hkContactPoint closestPoint;
+				hkVector4 closestPoint;
 				bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere,
 					closestObj, closestRigidBody, closestPoint);
 
@@ -2185,7 +2206,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					}
 					else {
 						// Grabbing a regular object, not from the other hand or off of a body
-						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint.getPosition()), havokWorldScale, handNode, selectedObj);
+						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, selectedObj);
 					}
 				}
 
@@ -2506,7 +2527,8 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 				adjustedHandTransform = heldTransform * inverseDesired;
 
 				float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
-				if (VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
+				if (g_currentFrameTime - heldTime > Config::options.physicsGrabInitTime && VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
+					// Hand is too far from the actual hand's position in real life
 					idleDesired = true;
 					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}

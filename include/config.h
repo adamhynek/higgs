@@ -10,6 +10,7 @@ namespace Config {
 		float farCastRadius = 0.3f;
 		float nearCastRadius = 0.05f;
 		float nearCastDistance = 0.1f;
+		float widePullGrabRadius = 0.9f;
 		float nearbyGrabBodyRadius = 0.1f;
 		float requiredCastDotProduct = cosf(50.0f * 0.0174533);
 		float rolloverScale = 10.0f;
@@ -83,6 +84,7 @@ namespace Config {
 		double rolloverHideTime = 0.25f;
 		double preDampVelocityTime = 0.1f;
 		double tryLeaveDampedTime = 0.1f;
+		double physicsGrabInitTime = 0.1f;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;

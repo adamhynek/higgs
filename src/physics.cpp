@@ -66,6 +66,35 @@ void CdBodyPairCollector::addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody&
 	m_hits.push_back(cdBody);
 }
 
+SpecificPairCollector::SpecificPairCollector()
+{
+	reset();
+}
+
+void SpecificPairCollector::reset()
+{
+	m_earlyOut = false;
+	m_foundTarget = false;
+	m_target = nullptr;
+}
+
+void SpecificPairCollector::addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB)
+{
+	// Note: for optimization purposes this should set the m_earlyOut:
+	// - true if you want to get no more hits
+	// - false if you want to get more hits (which is the default)
+
+	hkpCdBody *cdBody = const_cast<hkpCdBody *>(&bodyB);
+	while (cdBody->m_parent) {
+		cdBody = const_cast<hkpCdBody *>(cdBody->m_parent);
+	}
+
+	if (cdBody == m_target) {
+		m_foundTarget = true;
+		m_earlyOut = true;
+	}
+}
+
 RayHitCollector::RayHitCollector()
 {
 	reset();
