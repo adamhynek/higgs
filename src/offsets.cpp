@@ -22,7 +22,11 @@ RelocPtr<float> fMaxTimeComplex(0x1EC8448);
 RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused(0x2FEB794); // like the one below, but is 0 if in menu mode (paused)
 RelocPtr<float> g_secondsSinceLastFrame_WorldTime(0x30C3A08); // is multiplied by timeMultiplier
 RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied(0x30C3A0C); // is not multiplied by timeMultiplier
+
+RelocPtr<int> g_currentFrameCounter(0x3186C5C);
 RelocPtr<int> g_sceneComplexCounter(0x2FEB76C);
+RelocPtr<int> g_iShadowUpdateFrameDelay(0x1ED4130);
+RelocPtr<int> g_nextShadowUpdateFrameCount(0x3485798);
 
 RelocPtr<ProcessLists *> g_processLists(0x1F831B0);
 
@@ -90,6 +94,10 @@ RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity(0xAB0E50);
 RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener(0xAB5580);
 
 RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener(0xC9F180);
+
+RelocAddr<_hkpWorld_addIslandActivationListener> hkpWorld_addIslandActivationListener(0xAB5100);
+
+RelocAddr<_hkpWorld_removeIslandActivationListener> hkpWorld_removeIslandActivationListener(0xAB5160);
 
 RelocAddr<_bhkWorld_addContactListener> bhkWorld_addContactListener(0xDA5C50);
 

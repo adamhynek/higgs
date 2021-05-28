@@ -64,7 +64,11 @@ extern RelocPtr<float> fMaxTimeComplex;
 extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused;
 extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime;
 extern RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied;
+
+extern RelocPtr<int> g_currentFrameCounter;
 extern RelocPtr<int> g_sceneComplexCounter;
+extern RelocPtr<int> g_iShadowUpdateFrameDelay;
+extern RelocPtr<int> g_nextShadowUpdateFrameCount;
 
 extern RelocPtr<ProcessLists *> g_processLists;
 
@@ -161,6 +165,12 @@ extern RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener;
 
 typedef void* (*_hkpWorld_removeContactListener)(hkpWorld *world, hkpContactListener* worldListener);
 extern RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener;
+
+typedef void* (*_hkpWorld_addIslandActivationListener)(hkpWorld *world, hkpIslandActivationListener* worldListener);
+extern RelocAddr<_hkpWorld_addIslandActivationListener> hkpWorld_addIslandActivationListener;
+
+typedef void* (*_hkpWorld_removeIslandActivationListener)(hkpWorld *world, hkpIslandActivationListener* worldListener);
+extern RelocAddr<_hkpWorld_removeIslandActivationListener> hkpWorld_removeIslandActivationListener;
 
 typedef void* (*_bhkWorld_addContactListener)(bhkWorld *world, hkpContactListener* worldListener);
 extern RelocAddr<_bhkWorld_addContactListener> bhkWorld_addContactListener;

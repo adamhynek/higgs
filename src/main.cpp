@@ -38,6 +38,7 @@
 #include "pluginapi.h"
 #include "math_utils.h"
 #include "physics.h"
+#include "main.h"
 
 
 // SKSE globals
@@ -67,6 +68,11 @@ PlayingShader *g_playingShaders; // size == 2
 std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
 
 ContactListener *contactListener = nullptr;
+IslandDeactivationListener activationListener;
+
+int g_savedShadowUpdateFrameDelay = -1;
+int g_shadowUpdateFrame = 0;
+int g_numShadowUpdates = 0;
 
 
 bool TryHook()
@@ -181,8 +187,29 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 }
 
 
+void UpdateShadowDelay()
+{
+	if (g_numShadowUpdates > 0) {
+		if (g_shadowUpdateFrame != *g_currentFrameCounter) {
+			if (g_numShadowUpdates > 1) {
+				*g_nextShadowUpdateFrameCount = *g_currentFrameCounter;
+				*g_iShadowUpdateFrameDelay = 1;
+			}
+			else { // == 1
+				// Done
+				*g_iShadowUpdateFrameDelay = g_savedShadowUpdateFrameDelay;
+			}
+
+			--g_numShadowUpdates;
+		}
+	}
+}
+
+
 void Update()
 {
+	UpdateShadowDelay();
+
 	if (!initComplete) return;
 
 	if (MenuChecker::isGameStopped()) return;
@@ -219,12 +246,16 @@ void Update()
 		bhkWorld *oldWorld = contactListener->world;
 		if (oldWorld) {
 			// If exists, remove the listener from the previous world
-			_MESSAGE("Removing collision listener and hand collision");
+			_MESSAGE("Removing listeners and collision from old havok world");
 
 			{
 				BSWriteLocker lock(&oldWorld->worldLock);
 
 				hkpWorld_removeContactListener(oldWorld->world, contactListener);
+				if (Config::options.enableShadowUpdateFix) {
+					hkpWorld_removeIslandActivationListener(oldWorld->world, &activationListener);
+				}
+
 				g_rightGrabber->RemoveHandCollision(oldWorld);
 				g_leftGrabber->RemoveHandCollision(oldWorld);
 
@@ -233,7 +264,7 @@ void Update()
 			}
 		}
 
-		_MESSAGE("Adding collision listener and hand collision");
+		_MESSAGE("Adding listeners and collision to new havok world");
 
 		{
 			BSWriteLocker lock(&world->worldLock);
@@ -241,6 +272,9 @@ void Update()
 			AddCustomCollisionLayer(world);
 
 			hkpWorld_addContactListener(world->world, contactListener);
+			if (Config::options.enableShadowUpdateFix) {
+				hkpWorld_addIslandActivationListener(world->world, &activationListener);
+			}
 
 			g_rightGrabber->CreateHandCollision(world);
 			g_leftGrabber->CreateHandCollision(world);

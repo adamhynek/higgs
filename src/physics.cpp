@@ -6,6 +6,7 @@
 #include "pluginapi.h"
 #include "grabber.h"
 #include "config.h"
+#include "main.h"
 
 #include "skse64/NiNodes.h"
 #include "skse64/gamethreads.h"
@@ -156,6 +157,62 @@ void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCas
 
 	m_hits.push_back(std::make_pair(body, hitInfo));
 	//m_earlyOutHitFraction = hitInfo->m_hitFraction; // Only accept closer hits after this
+}
+
+
+void IslandDeactivationListener::islandActivatedCallback(hkpSimulationIsland* island) {}
+
+void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* island)
+{
+	int numEntities = island->m_entities.getSize();
+
+	if (numEntities <= 0) return;
+
+	auto SetShadowsToUpdateThisFrame = []() {
+		_MESSAGE("Island deactived on frame %d", *g_currentFrameCounter);
+		if (g_savedShadowUpdateFrameDelay == -1) {
+			g_savedShadowUpdateFrameDelay = *g_iShadowUpdateFrameDelay;
+		}
+
+		*g_nextShadowUpdateFrameCount = *g_currentFrameCounter;
+		*g_iShadowUpdateFrameDelay = 1;
+
+		g_shadowUpdateFrame = *g_currentFrameCounter;
+		g_numShadowUpdates = 1;
+	};
+
+	if (numEntities > Config::options.maxNumEntitiesPerSimulationIslandToCheck) {
+		SetShadowsToUpdateThisFrame();
+		return;
+	}
+
+	bool isAllNPC = true;
+	for (hkpEntity *entity : island->m_entities) {
+		NiPointer<TESObjectREFR> ref = FindCollidableRef(&entity->m_collidable);
+		if (!ref || ref->formType != kFormType_Character) {
+			isAllNPC = false;
+		}
+	}
+
+	if (!isAllNPC) {
+		PlayerCharacter *player = *g_thePlayer;
+		float havokWorldScale = *g_havokWorldScale;
+		NiPoint3 playerPos = player->pos * havokWorldScale;
+
+		bool isAnyWithinRadius = false;
+		for (hkpEntity *entity : island->m_entities) {
+			NiPoint3 pos = HkVectorToNiPoint(entity->m_motion.getTransform().m_translation);
+			float distFromPlayer = VectorLength(pos - playerPos);
+			if (distFromPlayer < Config::options.maxRadiusOfSimulationIslandToUpdate) {
+				isAnyWithinRadius = true;
+				break;
+			}
+		}
+
+		if (isAnyWithinRadius) {
+			SetShadowsToUpdateThisFrame();
+		}
+	}
 }
 
 

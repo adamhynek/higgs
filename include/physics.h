@@ -9,6 +9,7 @@
 #include <Physics/Collide/Agent/Query/hkpCdBodyPairCollector.h>
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 #include <Physics/Dynamics/Collide/ContactListener/hkpContactListener.h>
+#include <Physics/Dynamics/World/Listener/hkpIslandActivationListener.h>
 
 #include "skse64/GameReferences.h"
 
@@ -61,6 +62,12 @@ struct SpecificPairCollector : public hkpCdBodyPairCollector
 
 	hkpCdBody *m_target = nullptr;
 	bool m_foundTarget = false;
+};
+
+struct IslandDeactivationListener : public hkpIslandActivationListener
+{
+	void islandActivatedCallback(hkpSimulationIsland* island) override;
+	void islandDeactivatedCallback(hkpSimulationIsland* island) override;
 };
 
 struct ContactListener : public hkpContactListener

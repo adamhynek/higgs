@@ -96,6 +96,10 @@ namespace Config {
 		float havokMaxTimeComplexMultiplier = 1.0f;
 		float havokMaxMaxTime = 0.02778f; // 36 fps
 
+		bool enableShadowUpdateFix = true;
+		int maxNumEntitiesPerSimulationIslandToCheck = 50;
+		float maxRadiusOfSimulationIslandToUpdate = 25.0f; // meters
+
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
 		bool disableSelectionBeam = false;
