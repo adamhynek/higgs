@@ -203,7 +203,7 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 		for (hkpEntity *entity : island->m_entities) {
 			NiPoint3 pos = HkVectorToNiPoint(entity->m_motion.getTransform().m_translation);
 			float distFromPlayer = VectorLength(pos - playerPos);
-			if (distFromPlayer < Config::options.maxRadiusOfSimulationIslandToUpdate) {
+			if (distFromPlayer < Config::options.maxDistanceOfSimulationIslandToUpdate) {
 				isAnyWithinRadius = true;
 				break;
 			}

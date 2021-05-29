@@ -98,7 +98,7 @@ namespace Config {
 
 		bool enableShadowUpdateFix = true;
 		int maxNumEntitiesPerSimulationIslandToCheck = 50;
-		float maxRadiusOfSimulationIslandToUpdate = 25.0f; // meters
+		float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
 
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;

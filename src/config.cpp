@@ -109,6 +109,11 @@ namespace Config {
 		if (!ReadFloat("FarCastRadius", options.farCastRadius)) return false;
 		if (!ReadFloat("FarCastDistance", options.farCastDistance)) return false;
 
+		if (!ReadFloat("NearCastRadius", options.nearCastRadius)) return false;
+		if (!ReadFloat("NearCastDistance", options.nearCastDistance)) return false;
+
+		if (!ReadFloat("WidePullGrabRadius", options.widePullGrabRadius)) return false;
+
 		if (!ReadFloat("NearbyGrabBodyRadius", options.nearbyGrabBodyRadius)) return false;
 
 		float castDirectionRequiredHalfAngle;
@@ -129,6 +134,9 @@ namespace Config {
 		if (!ReadDouble("ShoulderDropHapticFadeTime", options.shoulderDropHapticFadeTime)) return false;
 		if (!ReadDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) return false;
 		if (!ReadDouble("RolloverHideTime", options.rolloverHideTime)) return false;
+		if (!ReadDouble("PreDampVelocityTime", options.preDampVelocityTime)) return false;
+		if (!ReadDouble("TryLeaveDampedTime", options.tryLeaveDampedTime)) return false;
+		if (!ReadDouble("PhysicsGrabInitTime", options.physicsGrabInitTime)) return false;
 
 		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
 		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
@@ -183,6 +191,14 @@ namespace Config {
 		if (!ReadFloat("PullDurationB", options.pullDurationB)) return false;
 		if (!ReadFloat("PullDurationC", options.pullDurationC)) return false;
 
+		if (!ReadFloat("MaxHandDistance", options.maxHandDistance)) return false;
+		if (!ReadFloat("MinDampedRequiredVelocityProportion", options.minDampedRequiredVelocityProportion)) return false;
+		if (!ReadFloat("MinVelocityToPotentiallyDamp", options.minVelocityToPotentiallyDamp)) return false;
+		if (!ReadFloat("DampedLinearVelocityMultiplier", options.dampedLinearVelocityMultiplier)) return false;
+		if (!ReadFloat("DampedLinearVelocityExponent", options.dampedLinearVelocityExponent)) return false;
+		if (!ReadFloat("DampedAngularVelocityMultiplier", options.dampedAngularVelocityMultiplier)) return false;
+		if (!ReadFloat("DampedCollisionHapticStrengthMultiplier", options.dampedCollisionHapticStrengthMultiplier)) return false;
+
 		if (!ReadFloat("GrabLateralWeight", options.grabLateralWeight)) return false;
 		if (!ReadFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) return false;
 
@@ -192,11 +208,17 @@ namespace Config {
 
 		if (!ReadBool("EnableWeaponCollision", options.enableWeaponCollision)) return false;
 		if (!ReadBool("ForcePhysicsGrab", options.forcePhysicsGrab)) return false;
+		if (!ReadBool("DisableGrabDamping", options.disableDampedGrab)) return false;
+		if (!ReadBool("DisableGrabDampingForBodies", options.disableDampedGrabForBodies)) return false;
 		if (!ReadBool("DisableGrabHairGeometry", options.disableGrabHair)) return false;
 
 		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
 		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
 		if (!ReadFloat("HavokMaxMaxTime", options.havokMaxMaxTime)) return false;
+
+		if (!ReadBool("EnableShadowUpdateFix", options.enableShadowUpdateFix)) return false;
+		if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) return false;
+		if (!ReadFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) return false;
 
 		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
 		if (!ReadBool("DisableSelectionBeam", options.disableSelectionBeam)) return false;
