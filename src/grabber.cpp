@@ -964,7 +964,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		float mass = NiAVObject_GetMass(collidableNode, 0);
 		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
-		haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+		haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.grabHapticFadeTime);
 
 		grabbedTime = g_currentFrameTime;
 		rolloverDisplayTime = g_currentFrameTime;
