@@ -1064,25 +1064,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 			NiPoint3 palmToPoint = ptPos - palmPos;
 
-			float angle = acosf(DotProduct(VectorNormalized(palmToPoint), palmDirection));
-			NiPoint3 axis = VectorNormalized(CrossProduct(palmToPoint, palmDirection));
-
-			// Rotate the translation of the object by this axis/angle about the point, then rotate the object the other way
-			NiMatrix33 rotator = MatrixFromAxisAngle(axis, angle);
-			NiMatrix33 inverseRotator = rotator.Transpose();
-
-			// Move it up to the hand
-			NiTransform desiredNodeTransform = collidableNode->m_worldTransform;
-			desiredNodeTransform.pos += palmPos - ptPos;
-			// Rotate its translation about the attach point
-			desiredNodeTransform.pos = palmPos + RotateVectorByAxisAngle(desiredNodeTransform.pos - palmPos, axis, angle);
-			// Rotate the object as well
-			desiredNodeTransform.rot = rotator * desiredNodeTransform.rot;
-			// Yay
-			NiTransform inverseHand;
-			handNode->m_worldTransform.Invert(inverseHand);
-			desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
-
 			if (g_vrikInterface) {
 				double handSize = g_vrikInterface->getSettingDouble("handSize");
 				float handScale = handSize / 0.85; // 0.85 is the vrik default hand size
@@ -1106,18 +1087,17 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &originalTransform, &ptPos, &palmToPoint, &inverseRotator, &axis, angle]
+				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &originalTransform, &palmToPoint]
 				(int fingerIndex) -> float
 				{
 					// TODO: We should probably save the finger positions in hand-space when generating finger curves, instead of just using the 1st person finger position
 					NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					if (startFinger) {
-						NiPoint3 zeroAngleVectorWorldspace = inverseRotator * fingerZeroAngleVecsWorldspace[fingerIndex];
-						NiPoint3 normalWorldspace = inverseRotator * fingerNormalsWorldspace[fingerIndex];
+						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
 
 						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
 						startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
-						startFingerPos = ptPos + RotateVectorByAxisAngle(startFingerPos - ptPos, -axis, angle);
 
 						_MESSAGE("finger %d", fingerIndex);
 
@@ -1206,9 +1186,10 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 		}
 
-		//NiTransform desiredNodeTransform = collidableNode->m_worldTransform;
-		//desiredNodeTransform.pos += palmPos - ptPos;
-		//desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
+		NiTransform desiredNodeTransform = collidableNode->m_worldTransform;
+		desiredNodeTransform = collidableNode->m_worldTransform;
+		desiredNodeTransform.pos += palmPos - ptPos;
+		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
 		dampingState = DampingState::Undamped;
 
