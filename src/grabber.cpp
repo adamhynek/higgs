@@ -951,7 +951,7 @@ bool Grabber::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm 
 }
 
 
-bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
+bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
 {
 	bool wereFingersSet = false;
 
@@ -1018,15 +1018,14 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		NiTransform originalTransform = collidableNode->m_worldTransform;
-
-		NiTransform newTransform = originalTransform;
+		NiTransform adjustedTransform = originalTransform;
 
 		if (initialTransform) {
 			//UpdateKeyframedNode(collidableNode, *initialTransform);
-			newTransform = *initialTransform;
+			adjustedTransform = *initialTransform;
 		}
 		else if (shouldMoveHandBack) {
-			newTransform.pos += (castDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
+			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
 			//UpdateKeyframedNode(collidableNode, newTransform);
 		}
 
@@ -1055,18 +1054,34 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		NiPoint3 triPos, triNormal;
 		float closestDist = (std::numeric_limits<float>::max)();
 		t = GetTime();
-		NiPoint3 startPt = palmPos + originalTransform.pos - newTransform.pos;
-		bool success = GetClosestPointOnGraphicsGeometryToLine(triangles, startPt, castDirection, &triPos, &triNormal, &closestDist);
-
-		NiTransform desiredTransform = collidableNode->m_worldTransform;
+		NiPoint3 startPt = palmPos + originalTransform.pos - adjustedTransform.pos;
+		bool success = GetClosestPointOnGraphicsGeometryToLine(triangles, startPt, palmDirection, &triPos, &triNormal, &closestDist);
 
 		if (success) {
 			// We've got a point on the graphics geometry
 
 			ptPos = triPos;
 
-			newTransform = originalTransform; // Reset it since ptPos is relative to the _original_ transform because we modified the palm position when computing the closest point
-			newTransform.pos += palmPos - ptPos;
+			NiPoint3 palmToPoint = ptPos - palmPos;
+
+			float angle = acosf(DotProduct(VectorNormalized(palmToPoint), palmDirection));
+			NiPoint3 axis = VectorNormalized(CrossProduct(palmToPoint, palmDirection));
+
+			// Rotate the translation of the object by this axis/angle about the point, then rotate the object the other way
+			NiMatrix33 rotator = MatrixFromAxisAngle(axis, angle);
+			NiMatrix33 inverseRotator = rotator.Transpose();
+
+			// Move it up to the hand
+			NiTransform desiredNodeTransform = collidableNode->m_worldTransform;
+			desiredNodeTransform.pos += palmPos - ptPos;
+			// Rotate its translation about the attach point
+			desiredNodeTransform.pos = palmPos + RotateVectorByAxisAngle(desiredNodeTransform.pos - palmPos, axis, angle);
+			// Rotate the object as well
+			desiredNodeTransform.rot = rotator * desiredNodeTransform.rot;
+			// Yay
+			NiTransform inverseHand;
+			handNode->m_worldTransform.Invert(inverseHand);
+			desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
 			if (g_vrikInterface) {
 				double handSize = g_vrikInterface->getSettingDouble("handSize");
@@ -1091,16 +1106,18 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &newTransform, &originalTransform]
+				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &originalTransform, &ptPos, &palmToPoint, &inverseRotator, &axis, angle]
 				(int fingerIndex) -> float
 				{
+					// TODO: We should probably save the finger positions in hand-space when generating finger curves, instead of just using the 1st person finger position
 					NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					if (startFinger) {
-						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+						NiPoint3 zeroAngleVectorWorldspace = inverseRotator * fingerZeroAngleVecsWorldspace[fingerIndex];
+						NiPoint3 normalWorldspace = inverseRotator * fingerNormalsWorldspace[fingerIndex];
 
 						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-						startFingerPos += originalTransform.pos - newTransform.pos; // Move the finger up to where the hand would be if it was already holding the object
+						startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+						startFingerPos = ptPos + RotateVectorByAxisAngle(startFingerPos - ptPos, -axis, angle);
 
 						_MESSAGE("finger %d", fingerIndex);
 
@@ -1174,12 +1191,13 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
 
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
-			hkTransform &transform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
-			desiredTransform.pos = HkVectorToNiPoint(transform.m_translation) / havokWorldScale;
-			HkMatrixToNiMatrix(transform.m_rotation, desiredTransform.rot);
+			hkTransform &hkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
+			NiTransform desiredHavokTransform = collidableNode->m_worldTransform;
+			desiredHavokTransform.pos = HkVectorToNiPoint(hkTransform.m_translation) / havokWorldScale;
+			HkMatrixToNiMatrix(hkTransform.m_rotation, desiredHavokTransform.rot);
 
-			desiredTransform.pos += palmPos - ptPos;
-			desiredHavokTransformHandSpace = inverseHand * desiredTransform;
+			desiredHavokTransform.pos += palmPos - ptPos;
+			desiredHavokTransformHandSpace = inverseHand * desiredHavokTransform;
 		}
 		else {
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -1188,9 +1206,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 		}
 
-		desiredTransform = collidableNode->m_worldTransform;
-		desiredTransform.pos += palmPos - ptPos;
-		desiredNodeTransformHandSpace = inverseHand * desiredTransform;
+		//NiTransform desiredNodeTransform = collidableNode->m_worldTransform;
+		//desiredNodeTransform.pos += palmPos - ptPos;
+		//desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
 		dampingState = DampingState::Undamped;
 
@@ -2418,7 +2436,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 
 				if (state == State::HeldInit) {
 					if (g_currentFrameTime - grabbedTime > Config::options.grabStartMaxTime) {
-						// It shouldn't take more than a second to move the object to the hand. If it does for some reason, just snap it there.
+						// Taking too long to move the object to the hand, so just snap it there
 						heldTime = g_currentFrameTime;
 						state = State::Held;
 					}
