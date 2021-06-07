@@ -177,10 +177,14 @@ struct bhkSimpleShapePhantom : NiRefObject
 
 struct bhkRigidBodyCinfo
 {
-	UInt32 collisionFilterInfo; // 00
-	UInt32 unk04;
-	hkpShape *shape; // 08
-	UInt8 unk10[0x30 - 0x10];
+	UInt32 collisionFilterInfo; // 00 - initd to 0
+	hkpShape *shape; // 08 - initd to 0
+	UInt8 unk10; // initd to 1
+	UInt64 unk18; // initd to 0
+	UInt32 unk20; // initd to 0
+	float unk24; // initd to -0
+	UInt8 unk28; // initd to 1
+	UInt16 unk2A; // initd to -1 - quality type?
 	hkpRigidBodyCinfo hkCinfo; // 30 - size == 0xE0
 };
 static_assert(offsetof(bhkRigidBodyCinfo, shape) == 0x08);

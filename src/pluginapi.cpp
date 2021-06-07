@@ -185,3 +185,33 @@ bool HiggsInterface001::IsDisabled(bool isLeft)
 		return rightDisableCount > 0;
 	}
 }
+
+void HiggsInterface001::DisableWeaponCollision(bool isLeft)
+{
+	if (isLeft) {
+		leftWeaponDisableCount++;
+	}
+	else {
+		rightWeaponDisableCount++;
+	}
+}
+
+void HiggsInterface001::EnableWeaponCollision(bool isLeft)
+{
+	if (isLeft) {
+		leftWeaponDisableCount--;
+	}
+	else {
+		rightWeaponDisableCount--;
+	}
+}
+
+bool HiggsInterface001::IsWeaponCollisionDisabled(bool isLeft)
+{
+	if (isLeft) {
+		return leftWeaponDisableCount > 0;
+	}
+	else {
+		return rightWeaponDisableCount > 0;
+	}
+}

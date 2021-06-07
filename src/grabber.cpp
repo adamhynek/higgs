@@ -828,8 +828,9 @@ void Grabber::UpdateWeaponCollision()
 			}
 
 			bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
+			bool shouldDisableCollision = isUnarmed || !player->actorState.IsWeaponDrawn() || g_interface001.IsWeaponCollisionDisabled(isLeft);
 
-			if (isUnarmed || !player->actorState.IsWeaponDrawn()) {
+			if (shouldDisableCollision) {
 				// Do not enable weapon collision when unarmed or no weapon drawn
 				// We DO still want to move it though, since once we enable it again we don't want a huge jump
 				if (!wasCollisionDisabled) {

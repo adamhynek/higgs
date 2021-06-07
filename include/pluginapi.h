@@ -30,9 +30,14 @@ namespace HiggsPluginAPI {
 		virtual void GrabObject(TESObjectREFR *object, bool isLeft);
 		virtual TESObjectREFR * GetGrabbedObject(bool isLeft);
 		virtual bool CanGrabObject(bool isLeft);
+
 		virtual void DisableHand(bool isLeft);
 		virtual void EnableHand(bool isLeft);
 		virtual bool IsDisabled(bool isLeft);
+
+		virtual void DisableWeaponCollision(bool isLeft);
+		virtual void EnableWeaponCollision(bool isLeft);
+		virtual bool IsWeaponCollisionDisabled(bool isLeft);
 
 
 		std::mutex addCallbackLock;
@@ -45,6 +50,9 @@ namespace HiggsPluginAPI {
 
 		std::atomic<int> rightDisableCount = 0;
 		std::atomic<int> leftDisableCount = 0;
+
+		std::atomic<int> rightWeaponDisableCount = 0;
+		std::atomic<int> leftWeaponDisableCount = 0;
 	};
 
 	void TriggerPulledCallbacks(bool isLeft, TESObjectREFR *pulledRefr);

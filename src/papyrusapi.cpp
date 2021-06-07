@@ -28,6 +28,18 @@ namespace PapyrusAPI
 		return g_interface001.IsDisabled(isLeft);
 	}
 
+	void PapyrusDisableWeaponCollision(StaticFunctionTag *base, bool isLeft) {
+		g_interface001.DisableWeaponCollision(isLeft);
+	}
+
+	void PapyrusEnableWeaponCollision(StaticFunctionTag *base, bool isLeft) {
+		g_interface001.EnableWeaponCollision(isLeft);
+	}
+
+	bool PapyrusIsWeaponCollisionDisabled(StaticFunctionTag *base, bool isLeft) {
+		return g_interface001.IsWeaponCollisionDisabled(isLeft);
+	}
+
 	RegistrationSetHolder<TESForm*> g_pullEventRegs;
 	void RegisterForPullEvent(StaticFunctionTag *base, TESForm* object) {
 		if (!object) {
@@ -192,9 +204,14 @@ namespace PapyrusAPI
 		registry->RegisterFunction(new NativeFunction2 <StaticFunctionTag, void, TESObjectREFR*, bool>("GrabObject", "HiggsVR", PapyrusGrabObject, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, TESObjectREFR*, bool>("GetGrabbedObject", "HiggsVR", PapyrusGetGrabbedObject, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("CanGrabObject", "HiggsVR", PapyrusCanGrabObject, registry));
+
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("DisableHand", "HiggsVR", PapyrusDisableHand, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("EnableHand", "HiggsVR", PapyrusEnableHand, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("IsDisabled", "HiggsVR", PapyrusIsDisabled, registry));
+
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("DisableWeaponCollision", "HiggsVR", PapyrusDisableWeaponCollision, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("EnableWeaponCollision", "HiggsVR", PapyrusEnableWeaponCollision, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("IsWeaponCollisionDisabled", "HiggsVR", PapyrusIsWeaponCollisionDisabled, registry));
 
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("RegisterForPullEvent", "HiggsVR", RegisterForPullEvent, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("UnregisterForPullEvent", "HiggsVR", UnregisterForPullEvent, registry));
