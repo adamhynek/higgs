@@ -35,6 +35,7 @@ double savedHeadBobbingHeight = 0.0;
 
 UInt32 skinMaterialId = 0x233db702;
 UInt32 stoneMaterialId = 0xdf02f237;
+std::unordered_set<UInt32> softSoundIds { 0x5a284, 0x624ab, 0x3f355 };
 
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
@@ -843,7 +844,7 @@ void Grabber::UpdateWeaponCollision()
 				}
 			}
 
-			// Set collision group for the hand collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
+			// Set collision group for the weapon collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
@@ -936,7 +937,15 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 		}
 	}
 	if (sound) {
-		PlaySoundAtNode(sound, nullptr, location);
+		if (softSoundIds.count(sound->formID) > 0 && sound->standardSoundDef) {
+			UInt16 attenuation = sound->standardSoundDef->soundCharacteristics.dbAttenuation;
+			sound->standardSoundDef->soundCharacteristics.dbAttenuation = 0;
+			PlaySoundAtNode(sound, nullptr, location);
+			sound->standardSoundDef->soundCharacteristics.dbAttenuation = attenuation;
+		}
+		else {
+			PlaySoundAtNode(sound, nullptr, location);
+		}
 	}
 }
 
