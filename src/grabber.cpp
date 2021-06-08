@@ -759,7 +759,6 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
 	cInfo.hkCinfo.m_enableDeactivation = false;
 	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
-	cInfo.hkCinfo.m_mass = 0.0f;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
 
 	hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
@@ -853,6 +852,20 @@ void Grabber::UpdateWeaponCollision()
 			hkQuaternion desiredQuat;
 			desiredQuat.setFromRotationSimd(transform.m_rotation);
 			hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
+
+			NiPoint3 linearVelocity = HkVectorToNiPoint(weaponBody->hkBody->getLinearVelocity());
+			NiPoint3 angularVelocity = HkVectorToNiPoint(weaponBody->hkBody->getAngularVelocity());
+
+			linearVelocities.pop_back();
+			linearVelocities.push_front(VectorLength(linearVelocity));
+			angularVelocities.pop_back();
+			angularVelocities.push_front(VectorLength(angularVelocity));
+
+			if (*g_currentFrameCounter % 100 == 0) {
+				float maxLinear = *std::max_element(linearVelocities.begin(), linearVelocities.end());
+				float maxAngular = *std::max_element(angularVelocities.begin(), angularVelocities.end());
+				_MESSAGE("%s: %.2f\t%.2f", name, maxLinear, maxAngular);
+			}
 		}
 	}
 }
