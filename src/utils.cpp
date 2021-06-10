@@ -42,19 +42,30 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 	return (modInfo->modIndex << 24) | formLower;
 }
 
-bool IsAllowedCollidable(const hkpCollidable *collidable)
+bool IsMoveableRigidBody(hkpRigidBody *rigidBody)
 {
-	hkpRigidBody *rb = hkpGetRigidBody(collidable);
-	if (!rb)
-		return false;
-
-	auto motion = &rb->m_motion;
+	hkpMotion *motion = &rigidBody->m_motion;
 	return (
 		motion->m_type == hkpMotion::MotionType::MOTION_DYNAMIC ||
 		motion->m_type == hkpMotion::MotionType::MOTION_SPHERE_INERTIA ||
 		motion->m_type == hkpMotion::MotionType::MOTION_BOX_INERTIA ||
 		motion->m_type == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
 		);
+}
+
+bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref)
+{
+	if (IsMoveableRigidBody(rigidBody)) return true;
+
+	TESForm *baseForm = ref->baseForm;
+	if (baseForm) {
+		if (baseForm->formType == kFormType_Projectile ||
+			(baseForm->formType == kFormType_Weapon && rigidBody->m_motion.m_type == hkpMotion::MotionType::MOTION_KEYFRAMED)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool HasGeometryChildren(NiAVObject *obj)

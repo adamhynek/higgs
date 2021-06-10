@@ -29,7 +29,9 @@ NiPointer<NiAVObject> GetTorsoNode(Actor *actor);
 
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
-bool IsAllowedCollidable(const hkpCollidable *collidable);
+bool IsMoveableRigidBody(hkpRigidBody *rigidBody);
+bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref);
+
 bool HasGeometryChildren(NiAVObject *obj);
 
 bool IsTwoHanded(const TESObjectWEAP *weap);

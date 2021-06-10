@@ -307,7 +307,7 @@ void Grabber::StartNearbyDamping(bhkWorld &world)
 			continue; // No rigidbody -> no movement :/
 		}
 		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-		if (bRigidBody && IsAllowedCollidable(collidable)) {
+		if (bRigidBody && IsMoveableRigidBody(rigidBody)) {
 			hkContactPoint &contactPoint = pair.second;
 			if (contactPoint.getDistance() < Config::options.nearbyGrabBodyRadius) {
 				hkpMotion &motion = rigidBody->m_motion;
@@ -443,7 +443,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 		}
 		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 		if (ref && ref != *g_thePlayer) {
-			if (IsAllowedCollidable(collidable) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable) || (ref->baseForm && ref->baseForm->formType == kFormType_Projectile)) {
+			if (IsObjectSelectable(rigidBody, ref) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
 					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
 					if (!impactData) {
@@ -546,7 +546,7 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
 		if (ref && ref != *g_thePlayer) {
-			if (IsAllowedCollidable(collidable) || ref->baseForm && ref->baseForm->formType == kFormType_Projectile) {
+			if (IsObjectSelectable(rigidBody, ref)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
 					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
 					if (!impactData) {
@@ -952,6 +952,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 	}
 	if (sound) {
 		if (softSoundIds.count(sound->formID) > 0 && sound->standardSoundDef) {
+			// Set the attenuation to 0 for playing soft sounds in an attempt to make them louder
 			UInt16 attenuation = sound->standardSoundDef->soundCharacteristics.dbAttenuation;
 			sound->standardSoundDef->soundCharacteristics.dbAttenuation = 0;
 			PlaySoundAtNode(sound, nullptr, location);
@@ -1011,11 +1012,15 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			if (rigidBody) {
 				// Do not use selectedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 				auto collidable = &rigidBody->hkBody->m_collidable;
-				// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
+				// The filterinfo for impacted projectiles does not collide with much, so we need to change it
 				collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
-				// Projectiles have 'Fixed' motion type by default, making them unmovable
+				// Projectiles have 'Fixed' motion type by default
 				bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 			}
+		}
+
+		if (selectedObject.rigidBody->hkBody->m_motion.m_type == hkpMotion::MotionType::MOTION_KEYFRAMED) {
+			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 		}
 
 		if (playSound) {
@@ -1044,15 +1049,11 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		NiTransform adjustedTransform = originalTransform;
 
 		if (initialTransform) {
-			//UpdateKeyframedNode(collidableNode, *initialTransform);
 			adjustedTransform = *initialTransform;
 		}
 		else if (shouldMoveHandBack) {
 			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
-			//UpdateKeyframedNode(collidableNode, newTransform);
 		}
-
-		std::vector<TriangleData> triangles; // tris are in worldspace
 
 		std::unordered_set<NiAVObject *> nodesToSkinTo;
 		if (selectedObject.isActor) {
@@ -1064,6 +1065,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
 		}
 
+		std::vector<TriangleData> triangles; // tris are in worldspace
 		double t = GetTime();
 		 GetSkinnedTriangles(objRoot, triangles, nodesToSkinTo);
 		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
@@ -1078,11 +1080,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		float closestDist = (std::numeric_limits<float>::max)();
 		t = GetTime();
 		NiPoint3 startPt = palmPos + originalTransform.pos - adjustedTransform.pos;
-		bool success = GetClosestPointOnGraphicsGeometryToLine(triangles, startPt, palmDirection, &triPos, &triNormal, &closestDist);
+		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, startPt, palmDirection, &triPos, &triNormal, &closestDist);
 
-		if (success) {
-			// We've got a point on the graphics geometry
-
+		if (havePointOnGeometry) {
 			ptPos = triPos;
 
 			NiPoint3 palmToPoint = ptPos - palmPos;
@@ -1140,21 +1140,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					return 0;
 				};
 
-				// Update transform to snap to the hand
-				// Not needed since now we update the finger position manually, and doing it this way breaks skinning since we already skinned the object
-				//UpdateKeyframedNode(collidableNode, desiredTransform);
-
-				std::array<float, 5> fingerData;
-				for (int i = 0; i < fingerData.size(); i++) {
-					fingerData[i] = FingerCheck(i);
-				}
-
-				// Reset to original transform
-				//UpdateKeyframedNode(collidableNode, originalTransform);
-
 				std::array<float, 5> fingerRanges;
 				for (int i = 0; i < fingerRanges.size(); i++) {
-					float curveVal = fingerData[i];
+					float curveVal = FingerCheck(i);
 
 					if (curveVal < 0) {
 						// It's a negative angle - just open the hand
@@ -1172,7 +1160,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 				g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
 				wereFingersSet = true;
-				//g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], 1, fingerRanges[1], 1, fingerRanges[2], 1, fingerRanges[3], 1, fingerRanges[4], 1);
 			}
 
 			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
@@ -1182,9 +1169,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		handNode->m_worldTransform.Invert(inverseHand);
 
 		if (usePhysicsGrab) {
-			//bhkCollisionObject *collisionObject = GetCollisionObject(collidableNode);
-			//collisionObject->flags &= ~(1 << 7); // no kSyncOnUpdate
-
 			// Sync up the collision's transform with the node's
 			hkVector4 hkPos = NiPointToHkVector(collidableNode->m_worldTransform.pos * havokWorldScale);
 			NiQuaternion nodeRotation;
@@ -2194,6 +2178,10 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 									// Projectiles have 'Fixed' motion type by default, making them unmovable
 									bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 								}
+							}
+
+							if (motion->m_type == hkpMotion::MotionType::MOTION_KEYFRAMED) {
+								bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 							}
 
 							CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, CollisionInfo::State::Unheld);
