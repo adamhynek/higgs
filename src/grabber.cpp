@@ -965,43 +965,60 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
-bool Grabber::GetWeaponAttachTransform(TESObjectWEAP *weapon, NiTransform &transform)
+bool Grabber::GetAttachTransform(TESForm *baseForm, NiTransform &transform)
 {
-	UInt8 weaponType = weapon->type();
-	UInt32 offsetNodeIndex = 2; // MeleeWeaponOffset
-	if (weaponType == TESObjectWEAP::GameData::kType_Bow) {
-		offsetNodeIndex = 7;
-	}
-	else if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
-		offsetNodeIndex = 1;
-	}
-	else if (weaponType == TESObjectWEAP::GameData::kType_Staff) {
-		offsetNodeIndex = 3;
-	}
-
 	PlayerCharacter *player = *g_thePlayer;
 	bool isLeftHanded = *g_leftHandedMode;
 	bool left = isLeftHanded ? !isLeft : isLeft;
 	UInt32 leftToPass = left ? *(UInt32 *)((UInt64)player + 1752) : *(UInt32 *)((UInt64)player + 1748);
-	NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, offsetNodeIndex);
-	if (!offsetNode) return false;
 
-	NiTransform offsetNodeTransform = offsetNode->m_worldTransform;
-
-	if (weaponType == TESObjectWEAP::GameData::kType_Bow && isLeft == isLeftHanded) {
-		// Compute transform for bow node to the offhand (the hand that holds the bow), and mirror it for the main hand in this case
-		NiPointer<NiAVObject> primaryWandNode = isLeftHanded ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
-		NiPointer<NiAVObject> secondaryWandNode = isLeftHanded ? player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode];
-		if (primaryWandNode && secondaryWandNode) {
-			NiTransform inverseSecondaryWandTransform;
-			secondaryWandNode->m_worldTransform.Invert(inverseSecondaryWandTransform);
-			NiTransform offsetNodeLocalTransform = inverseSecondaryWandTransform * offsetNode->m_worldTransform;
-			offsetNodeTransform = primaryWandNode->m_worldTransform * offsetNodeLocalTransform;
+	TESObjectWEAP *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
+	if (weapon) {
+		UInt8 weaponType = weapon->type();
+		UInt32 offsetNodeIndex = 2; // MeleeWeaponOffset
+		if (weaponType == TESObjectWEAP::GameData::kType_Bow) {
+			offsetNodeIndex = 7;
 		}
+		else if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
+			offsetNodeIndex = 1;
+		}
+		else if (weaponType == TESObjectWEAP::GameData::kType_Staff) {
+			offsetNodeIndex = 3;
+		}
+
+		NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, offsetNodeIndex);
+		if (!offsetNode) return false;
+
+		NiTransform offsetNodeTransform = offsetNode->m_worldTransform;
+
+		if (weaponType == TESObjectWEAP::GameData::kType_Bow && isLeft == isLeftHanded) {
+			// Compute transform for bow node to the offhand (the hand that holds the bow), and mirror it for the main hand in this case
+			NiPointer<NiAVObject> primaryWandNode = isLeftHanded ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
+			NiPointer<NiAVObject> secondaryWandNode = isLeftHanded ? player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode];
+			if (primaryWandNode && secondaryWandNode) {
+				NiTransform inverseSecondaryWandTransform;
+				secondaryWandNode->m_worldTransform.Invert(inverseSecondaryWandTransform);
+				NiTransform offsetNodeLocalTransform = inverseSecondaryWandTransform * offsetNode->m_worldTransform;
+				offsetNodeTransform = primaryWandNode->m_worldTransform * offsetNodeLocalTransform;
+			}
+		}
+
+		transform = offsetNodeTransform;
+		return true;
 	}
 
-	transform = offsetNodeTransform;
-	return true;
+	TESObjectLIGH *light = DYNAMIC_CAST(baseForm, TESForm, TESObjectLIGH);
+	if (light) {
+		// This is basically all because of torches
+		if (!(light->unkE0.unk0C & (1 << 1))) return false; // kCanCarry
+		NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, 2); // MeleeWeaponOffset
+		if (!offsetNode) return false;
+
+		transform = offsetNode->m_worldTransform;
+		return true;
+	}
+
+	return false;
 }
 
 
@@ -1096,16 +1113,13 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		TESForm *baseForm = selectedObj->baseForm;
-		if (baseForm && baseForm->formType == kFormType_Weapon) {
-			TESObjectWEAP *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
-			if (weapon) {
-				NiTransform weaponAttachTransform;
-				bool haveTransform = GetWeaponAttachTransform(weapon, weaponAttachTransform);
+		if (baseForm) {
+			NiTransform attachTransform;
+			bool haveTransform = GetAttachTransform(baseForm, attachTransform);
+			if (haveTransform) {
 				// TODO: It needs to be the root of the object that's attached to the appropriate offset node, and we don't necessarily always grab the root
-				if (haveTransform) {
-					adjustedTransform = weaponAttachTransform;
-					adjustedTransform.scale = originalTransform.scale;
-				}
+				adjustedTransform = attachTransform;
+				adjustedTransform.scale = originalTransform.scale;
 			}
 		}
 
