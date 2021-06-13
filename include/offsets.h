@@ -361,3 +361,6 @@ extern RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor;
 typedef void(*_CleanupCloneList)(uintptr_t _this);
 extern RelocAddr<_CleanupCloneList> CleanupCloneList1;
 extern RelocAddr<_CleanupCloneList> CleanupCloneList2;
+
+typedef NiAVObject * (*_PlayerCharacter_GetOffsetNodeForWeaponIndex)(PlayerCharacter *_this, UInt32 isLeft, UInt32 weaponIndex);
+extern RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex;

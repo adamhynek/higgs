@@ -225,6 +225,8 @@ RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor(0x2AEB70);
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);
 RelocAddr<_CleanupCloneList> CleanupCloneList2(0x1C8BE0);
 
+RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex(0x6AF100);
+
 //bhkWorld_Update(0xDFB460);
 
 //BipedAnim_RemoveAllParts(0x1D6530);

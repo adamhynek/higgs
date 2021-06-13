@@ -965,6 +965,46 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
+bool Grabber::GetWeaponAttachTransform(TESObjectWEAP *weapon, NiTransform &transform)
+{
+	UInt8 weaponType = weapon->type();
+	UInt32 offsetNodeIndex = 2; // MeleeWeaponOffset
+	if (weaponType == TESObjectWEAP::GameData::kType_Bow) {
+		offsetNodeIndex = 7;
+	}
+	else if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
+		offsetNodeIndex = 1;
+	}
+	else if (weaponType == TESObjectWEAP::GameData::kType_Staff) {
+		offsetNodeIndex = 3;
+	}
+
+	PlayerCharacter *player = *g_thePlayer;
+	bool isLeftHanded = *g_leftHandedMode;
+	bool left = isLeftHanded ? !isLeft : isLeft;
+	UInt32 leftToPass = left ? *(UInt32 *)((UInt64)player + 1752) : *(UInt32 *)((UInt64)player + 1748);
+	NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, offsetNodeIndex);
+	if (!offsetNode) return false;
+
+	NiTransform offsetNodeTransform = offsetNode->m_worldTransform;
+
+	if (weaponType == TESObjectWEAP::GameData::kType_Bow && isLeft == isLeftHanded) {
+		// Compute transform for bow node to the offhand (the hand that holds the bow), and mirror it for the main hand in this case
+		NiPointer<NiAVObject> primaryWandNode = isLeftHanded ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
+		NiPointer<NiAVObject> secondaryWandNode = isLeftHanded ? player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode];
+		if (primaryWandNode && secondaryWandNode) {
+			NiTransform inverseSecondaryWandTransform;
+			secondaryWandNode->m_worldTransform.Invert(inverseSecondaryWandTransform);
+			NiTransform offsetNodeLocalTransform = inverseSecondaryWandTransform * offsetNode->m_worldTransform;
+			offsetNodeTransform = primaryWandNode->m_worldTransform * offsetNodeLocalTransform;
+		}
+	}
+
+	transform = offsetNodeTransform;
+	return true;
+}
+
+
 bool Grabber::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm)
 {
 	if (Config::options.forcePhysicsGrab) return true;
@@ -1055,6 +1095,29 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
 		}
 
+		TESForm *baseForm = selectedObj->baseForm;
+		if (baseForm && baseForm->formType == kFormType_Weapon) {
+			TESObjectWEAP *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
+			if (weapon) {
+				NiTransform weaponAttachTransform;
+				bool haveTransform = GetWeaponAttachTransform(weapon, weaponAttachTransform);
+				// TODO: It needs to be the root of the object that's attached to the WEAPON node, and we don't necessarily always grab the root
+				if (haveTransform) {
+					adjustedTransform = weaponAttachTransform;
+					adjustedTransform.scale = originalTransform.scale;
+				}
+			}
+		}
+
+		NiPoint3 objPos = originalTransform.pos;
+		NiTransform inverseCurrent;
+		originalTransform.Invert(inverseCurrent);
+
+		NiTransform diff = adjustedTransform * inverseCurrent;
+
+		NiTransform inverseDiff;
+		diff.Invert(inverseDiff);
+
 		std::unordered_set<NiAVObject *> nodesToSkinTo;
 		if (selectedObject.isActor) {
 			// For ragdolls, skin to all nodes
@@ -1079,13 +1142,16 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		NiPoint3 triPos, triNormal;
 		float closestDist = (std::numeric_limits<float>::max)();
 		t = GetTime();
-		NiPoint3 startPt = palmPos + originalTransform.pos - adjustedTransform.pos;
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, startPt, palmDirection, &triPos, &triNormal, &closestDist);
+		//NiPoint3 startPt = palmPos + originalTransform.pos - adjustedTransform.pos;
+		NiPoint3 adjustedPalmPos = objPos + inverseDiff * (palmPos - objPos);
+		NiPoint3 adjustedPalmDirection = inverseDiff.rot * palmDirection;
+		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, adjustedPalmPos, adjustedPalmDirection, &triPos, &triNormal, &closestDist);
 
 		if (havePointOnGeometry) {
 			ptPos = triPos;
 
-			NiPoint3 palmToPoint = ptPos - palmPos;
+			NiPoint3 adjustedPtPos = objPos + diff * (ptPos - objPos);
+			NiPoint3 palmToPoint = adjustedPtPos - palmPos;
 
 			if (g_vrikInterface) {
 				double handSize = g_vrikInterface->getSettingDouble("handSize");
@@ -1110,16 +1176,16 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &originalTransform, &palmToPoint]
+				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &originalTransform, &palmToPoint, &inverseDiff, &objPos]
 				(int fingerIndex) -> float
 				{
 					// TODO: We should probably save the finger positions in hand-space when generating finger curves, instead of just using the 1st person finger position
 					NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					if (startFinger) {
-						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+						NiPoint3 zeroAngleVectorWorldspace = inverseDiff.rot * fingerZeroAngleVecsWorldspace[fingerIndex];
+						NiPoint3 normalWorldspace = inverseDiff.rot * fingerNormalsWorldspace[fingerIndex];
 
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
+						NiPoint3 startFingerPos = objPos + inverseDiff * (startFinger->m_worldTransform.pos - objPos);
 						startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
 
 						_MESSAGE("finger %d", fingerIndex);
@@ -1193,9 +1259,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 		}
 
-		NiTransform desiredNodeTransform = collidableNode->m_worldTransform;
-		desiredNodeTransform = collidableNode->m_worldTransform;
-		desiredNodeTransform.pos += palmPos - ptPos;
+		NiTransform desiredNodeTransform = adjustedTransform;
+		//NiPoint3 adjustedPtPos = objPos + diff * (ptPos - objPos);
+		//desiredNodeTransform.pos += palmPos - adjustedPtPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
 		dampingState = DampingState::Undamped;
