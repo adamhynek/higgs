@@ -1133,11 +1133,9 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		originalTransform.Invert(inverseCurrent);
 		NiTransform localAdjustment = adjustedTransform * inverseCurrent;
 
-		t = GetTime();
 		for (TriangleData &triangle : triangles) {
 			triangle.ApplyTransform(localAdjustment);
 		}
-		_MESSAGE("Time spent adjusting triangles: %.3f ms", (GetTime() - t) * 1000);
 
 		//DumpVertices(skinnedTriangleLists);
 
@@ -1234,16 +1232,16 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 
 		if (usePhysicsGrab) {
 			// Sync up the collision's transform with the node's
-			hkVector4 hkPos = NiPointToHkVector(collidableNode->m_worldTransform.pos * havokWorldScale);
+			hkVector4 hkPos = NiPointToHkVector(adjustedTransform.pos * havokWorldScale);
 			NiQuaternion nodeRotation;
-			NiMatrixToNiQuaternion(nodeRotation, collidableNode->m_worldTransform.rot);
+			NiMatrixToNiQuaternion(nodeRotation, adjustedTransform.rot);
 			hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
 			hkQuat.normalize();
 			selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
 
 			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
 			hkTransform &hkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
-			NiTransform desiredHavokTransform = collidableNode->m_worldTransform;
+			NiTransform desiredHavokTransform = adjustedTransform;
 			desiredHavokTransform.pos = HkVectorToNiPoint(hkTransform.m_translation) / havokWorldScale;
 			HkMatrixToNiMatrix(hkTransform.m_rotation, desiredHavokTransform.rot);
 
@@ -2688,7 +2686,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 						NiPoint3 newVelocityPlayerspace = VectorNormalized(currentVelocityPlayerspace) * speed;
 
 						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(newVelocityPlayerspace + playerHkVelocity);
-						_MESSAGE("%s: Damped %.2f", name, speed);
+						//_MESSAGE("%s: Damped %.2f", name, speed);
 						// TODO: Damp angular velocity separately from linear velocity
 						NiPoint3 currentAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * Config::options.dampedAngularVelocityMultiplier);
