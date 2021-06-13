@@ -1101,22 +1101,13 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 			if (weapon) {
 				NiTransform weaponAttachTransform;
 				bool haveTransform = GetWeaponAttachTransform(weapon, weaponAttachTransform);
-				// TODO: It needs to be the root of the object that's attached to the WEAPON node, and we don't necessarily always grab the root
+				// TODO: It needs to be the root of the object that's attached to the appropriate offset node, and we don't necessarily always grab the root
 				if (haveTransform) {
 					adjustedTransform = weaponAttachTransform;
 					adjustedTransform.scale = originalTransform.scale;
 				}
 			}
 		}
-
-		NiPoint3 objPos = originalTransform.pos;
-		NiTransform inverseCurrent;
-		originalTransform.Invert(inverseCurrent);
-
-		NiTransform diff = adjustedTransform * inverseCurrent;
-
-		NiTransform inverseDiff;
-		diff.Invert(inverseDiff);
 
 		std::unordered_set<NiAVObject *> nodesToSkinTo;
 		if (selectedObject.isActor) {
@@ -1137,21 +1128,28 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		GetTriangles(objRoot, triangles);
 		_MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
 
+		// Transform triangles to the object's adjusted transform
+		NiTransform inverseCurrent;
+		originalTransform.Invert(inverseCurrent);
+		NiTransform localAdjustment = adjustedTransform * inverseCurrent;
+
+		t = GetTime();
+		for (TriangleData &triangle : triangles) {
+			triangle.ApplyTransform(localAdjustment);
+		}
+		_MESSAGE("Time spent adjusting triangles: %.3f ms", (GetTime() - t) * 1000);
+
 		//DumpVertices(skinnedTriangleLists);
 
 		NiPoint3 triPos, triNormal;
 		float closestDist = (std::numeric_limits<float>::max)();
 		t = GetTime();
-		//NiPoint3 startPt = palmPos + originalTransform.pos - adjustedTransform.pos;
-		NiPoint3 adjustedPalmPos = objPos + inverseDiff * (palmPos - objPos);
-		NiPoint3 adjustedPalmDirection = inverseDiff.rot * palmDirection;
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, adjustedPalmPos, adjustedPalmDirection, &triPos, &triNormal, &closestDist);
+		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, &triPos, &triNormal, &closestDist);
 
 		if (havePointOnGeometry) {
 			ptPos = triPos;
 
-			NiPoint3 adjustedPtPos = objPos + diff * (ptPos - objPos);
-			NiPoint3 palmToPoint = adjustedPtPos - palmPos;
+			NiPoint3 palmToPoint = ptPos - palmPos;
 
 			if (g_vrikInterface) {
 				double handSize = g_vrikInterface->getSettingDouble("handSize");
@@ -1176,16 +1174,16 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &originalTransform, &palmToPoint, &inverseDiff, &objPos]
+				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &palmToPoint]
 				(int fingerIndex) -> float
 				{
 					// TODO: We should probably save the finger positions in hand-space when generating finger curves, instead of just using the 1st person finger position
 					NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
 					if (startFinger) {
-						NiPoint3 zeroAngleVectorWorldspace = inverseDiff.rot * fingerZeroAngleVecsWorldspace[fingerIndex];
-						NiPoint3 normalWorldspace = inverseDiff.rot * fingerNormalsWorldspace[fingerIndex];
+						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
 
-						NiPoint3 startFingerPos = objPos + inverseDiff * (startFinger->m_worldTransform.pos - objPos);
+						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
 						startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
 
 						_MESSAGE("finger %d", fingerIndex);
@@ -1260,8 +1258,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 
 		NiTransform desiredNodeTransform = adjustedTransform;
-		//NiPoint3 adjustedPtPos = objPos + diff * (ptPos - objPos);
-		//desiredNodeTransform.pos += palmPos - adjustedPtPos;
+		desiredNodeTransform.pos += palmPos - ptPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
 		dampingState = DampingState::Undamped;
