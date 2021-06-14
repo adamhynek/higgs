@@ -1036,6 +1036,22 @@ bool Grabber::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform
 
 	NiTransform &currentTransform = collidableNode->m_worldTransform;
 
+	/*
+	NiQuaternion currentQuat, attachQuat;
+	NiMatrixToNiQuaternion(currentQuat, currentTransform.rot);
+	NiMatrixToNiQuaternion(attachQuat, initialTransform.rot);
+
+	float deltaPos = VectorLength(currentTransform.pos - initialTransform.pos);
+	float quatAngle = QuaternionAngle(currentQuat, attachQuat);
+
+	hkAabb aabb;
+	selectedObject.rigidBody->getAabbWorldspace(aabb);
+	NiPoint3 extents = VectorAbs(HkVectorToNiPoint(aabb.m_max) - HkVectorToNiPoint(aabb.m_min));
+	float maxExtent = max(extents.x, max(extents.y, extents.z)) * *g_inverseHavokWorldScale;
+
+	_MESSAGE("%.2f", deltaPos / maxExtent);
+	*/
+
 	initialTransform.scale = currentTransform.scale;
 	return true;
 }
