@@ -120,6 +120,7 @@ namespace Config {
 		bool enableDrinkPoison = false;
 		bool overrideActivateText = true;
 		bool overrideBodyCollision = false;
+		bool useAttachPointForInitialGrab = true;
 
 		NiPoint3 palmVector = { -0.018, -0.965, 0.261 };
 		NiPoint3 pointingVector = { 0, 0, 1 };

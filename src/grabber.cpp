@@ -1046,7 +1046,7 @@ bool Grabber::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm 
 	if (Config::options.forcePhysicsGrab) return true;
 
 	// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
-	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(root, node);// || IsSkinnedToNode(root, node);
+	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(root, node);
 	return selectedObject.isActor || usePhysicsBasedGrab || (baseForm && baseForm->formType == kFormType_Ammo);
 }
 
@@ -1990,7 +1990,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 								else {
 									// Grabbing a regular object, not from the other hand or off of a body
 									NiTransform initialTransform;
-									bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
+									bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
 									bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 									if (!wereFingersSet && g_vrikInterface) {
 										g_vrikInterface->restoreFingers(isLeft);
@@ -2304,7 +2304,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					else {
 						// Grabbing a regular object, not from the other hand or off of a body
 						NiTransform initialTransform;
-						bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
+						bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
 						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 					}
 				}
