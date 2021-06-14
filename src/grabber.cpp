@@ -965,7 +965,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
-bool Grabber::GetAttachTransform(TESForm *baseForm, NiTransform &transform)
+bool Grabber::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
 {
 	PlayerCharacter *player = *g_thePlayer;
 	bool isLeftHanded = *g_leftHandedMode;
@@ -1019,6 +1019,25 @@ bool Grabber::GetAttachTransform(TESForm *baseForm, NiTransform &transform)
 	}
 
 	return false;
+}
+
+
+bool Grabber::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &initialTransform)
+{
+	if (!baseForm) return false;
+
+	bool haveTransform = GetAttachTransform(baseForm, initialTransform);
+	if (!haveTransform) return false;
+
+	// TODO: It needs to be the root of the object that's attached to the appropriate offset node, and we don't necessarily always grab the root
+
+	NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
+	if (!collidableNode) return false;
+
+	NiTransform &currentTransform = collidableNode->m_worldTransform;
+
+	initialTransform.scale = currentTransform.scale;
+	return true;
 }
 
 
@@ -1110,17 +1129,6 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 		}
 		else if (shouldMoveHandBack) {
 			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
-		}
-
-		TESForm *baseForm = selectedObj->baseForm;
-		if (baseForm) {
-			NiTransform attachTransform;
-			bool haveTransform = GetAttachTransform(baseForm, attachTransform);
-			if (haveTransform) {
-				// TODO: It needs to be the root of the object that's attached to the appropriate offset node, and we don't necessarily always grab the root
-				adjustedTransform = attachTransform;
-				adjustedTransform.scale = originalTransform.scale;
-			}
 		}
 
 		std::unordered_set<NiAVObject *> nodesToSkinTo;
@@ -1455,16 +1463,17 @@ void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR 
 {
 	selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
 
-	// Position the object in the direction of the palm for better grab results
-	NiTransform initialTransform = collidableNode->m_worldTransform;
-	initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
-
+	NiTransform initialTransform;
+	if (!ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform)) {
+		// Position the object in the direction of the palm for better grab results
+		NiTransform initialTransform = collidableNode->m_worldTransform;
+		initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
+	}
 	TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
 
 	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
 		NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
-		bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 		UpdateKeyframedNode(collidableNode, newTransform);
 	}
 }
@@ -1980,7 +1989,9 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 								}
 								else {
 									// Grabbing a regular object, not from the other hand or off of a body
-									bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+									NiTransform initialTransform;
+									bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
+									bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 									if (!wereFingersSet && g_vrikInterface) {
 										g_vrikInterface->restoreFingers(isLeft);
 									}
@@ -2292,7 +2303,9 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 					}
 					else {
 						// Grabbing a regular object, not from the other hand or off of a body
-						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, selectedObj);
+						NiTransform initialTransform;
+						bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
+						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 					}
 				}
 
@@ -2384,7 +2397,9 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 								GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, sphere, hkPalmPos, palmVector, havokWorldScale);
 							}
 							else {
-								TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+								NiTransform initialTransform;
+								bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
+								TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 							}
 						}
 					}
