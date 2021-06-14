@@ -1195,12 +1195,15 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 				NiPoint3 fingerNormalsWorldspace[5];
 				NiPoint3 fingerZeroAngleVecsWorldspace[5];
+				NiPoint3 fingerStartPositionsWorldspace[5];
 				for (int i = 0; i < 5; i++) {
 					NiPoint3 normalHandspace = g_fingerNormals[i];
 					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+					NiPoint3 startPos = g_fingerStartPositions[i];
 					if (isLeft) {
 						// x axis is flipped for left hand
 						zeroAngleVecHandspace.x *= -1;
+						startPos.x *= -1;
 
 						// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
 						normalHandspace.y *= -1;
@@ -1208,32 +1211,29 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 					}
 					fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
 					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+					fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, handScale, &triangles, &palmToPoint]
+				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
 				(int fingerIndex) -> float
 				{
-					// TODO: We should probably save the finger positions in hand-space when generating finger curves, instead of just using the 1st person finger position
-					NiPointer<NiAVObject> startFinger = player->GetNiRootNode(1)->GetObjectByName(&fingerNodeNames[fingerIndex][0].data);
-					if (startFinger) {
-						NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-						NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+					NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+					NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+					NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
 
-						NiPoint3 startFingerPos = startFinger->m_worldTransform.pos;
-						startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+					startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
 
-						_MESSAGE("finger %d", fingerIndex);
+					_MESSAGE("finger %d", fingerIndex);
 
-						float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
-						bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-							&curveValOrAngle);
-						if (intersects) {
-							return curveValOrAngle;
-						}
-						else {
-							// No finger intersection, so just close it completely
-							return 0.0f; // 0 == closed
-						}
+					float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
+					bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+						&curveValOrAngle);
+					if (intersects) {
+						return curveValOrAngle;
+					}
+					else {
+						// No finger intersection, so just close it completely
+						return 0.0f; // 0 == closed
 					}
 					// Couldn't get the fingers... that's a problem
 					_ERROR("Could not get finger %d", fingerIndex);

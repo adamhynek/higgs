@@ -20,6 +20,7 @@ int LookupFingerByAngle(SavedFingerData fingerVals[], float desiredAngle, SavedF
 
 extern NiPoint3 g_fingerZeroAngleVecs[5];
 extern NiPoint3 g_fingerNormals[5];
+extern NiPoint3 g_fingerStartPositions[5];
 extern SavedFingerData g_fingerTipVals[5][201];
 extern SavedFingerData g_fingerOuterVals[5][201];
 extern SavedFingerData g_fingerInnerVals[5][201];

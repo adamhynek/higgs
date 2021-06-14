@@ -49,6 +49,7 @@ struct FingerCurveData
 
 	NiPoint3 zeroAngleVector[5]; // handspace
 	NiPoint3 fingerNormal[5]; // handspace
+	NiPoint3 fingerStartPos[5]; // handspace
 
 	float currentRangeVal;
 
@@ -90,6 +91,9 @@ void DumpFingerCurve(FingerCurveData *fingerCurve)
 
 		file << "Normal Vector" << '\n';
 		file << VectorToString(fingerCurve->fingerNormal[i]) << '\n';
+
+		file << "Finger Start" << '\n';
+		file << VectorToString(fingerCurve->fingerStartPos[i]) << '\n';
 
 		file << "Tip Values" << '\n';
 		for (int j = 0; j < std::size(fingerCurve->fingerTipVals[i]); j++) {
@@ -138,6 +142,13 @@ void DumpFingerCurve(FingerCurveData *fingerCurve)
 	file << "{\n";
 	for (int i = 0; i < 5; i++) {
 		file << "{ " << VectorToString(fingerCurve->fingerNormal[i]) << " }," << '\n';
+	}
+	file << "};\n";
+
+	file << "Finger Start Positions" << '\n';
+	file << "{\n";
+	for (int i = 0; i < 5; i++) {
+		file << "{ " << VectorToString(fingerCurve->fingerStartPos[i]) << " }," << '\n';
 	}
 	file << "};\n";
 
@@ -211,12 +222,17 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 				}
 				else {
 					// Extract zero angle vector from whatever the vector is at this point
+
+					NiTransform inverseHandNode3rd;
+					handNode3rd->m_oldWorldTransform.Invert(inverseHandNode3rd);
+
 					for (int i = 0; i < 5; i++) {
 						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
 						NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
 						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
 						g_fingerCurveData->zeroAngleVector[i] = VectorNormalized(handNode3rd->m_oldWorldTransform.rot.Transpose() * VectorNormalized(startToEnd));
+						g_fingerCurveData->fingerStartPos[i] = inverseHandNode3rd * fingerStart3rd->m_oldWorldTransform.pos;
 					}
 
 					g_fingerCurveData->frameCount = 0;
@@ -443,6 +459,15 @@ NiPoint3 g_fingerNormals[5] =
 { 0.983581, 0.179916, 0.0141207 },
 { 0.943571, 0.292948, 0.154453 },
 { 0.894761, 0.400593, 0.197302 },
+};
+
+NiPoint3 g_fingerStartPositions[5] =
+{
+{ 3.16086, -0.920162, 2.56616 },
+{ 2.29526, -0.0742645, 9.22144 },
+{ -0.00482178, -0.173977, 9.20801 },
+{ -1.90207, -0.713717, 8.77271 },
+{ -3.40421, -1.56821, 7.83643 },
 };
 
 // open/closed value, angle (rad), finger length
