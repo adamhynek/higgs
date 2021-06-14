@@ -1464,6 +1464,7 @@ void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR 
 	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
 		NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
+		bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 		UpdateKeyframedNode(collidableNode, newTransform);
 	}
 }
@@ -2551,6 +2552,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 								newTransform.pos = currentPosCompensated + deltaPos;
 							}
 
+							bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 							UpdateKeyframedNode(n, newTransform);
 						}
 						else {
@@ -2562,6 +2564,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 				}
 
 				if (state == State::Held) {
+					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					UpdateKeyframedNode(n, newTransform);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {

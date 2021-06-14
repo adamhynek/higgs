@@ -119,7 +119,7 @@ struct bhkRigidBody : bhkEntity
 	virtual void getCenterOfMassLocal(void); // 38
 	virtual void getCenterOfMassInWorld(void); // 39
 	virtual void getTransform(void); // 3A
-	virtual void getAabb(void); // 3B
+	virtual void getAabbWorldspace(hkAabb &aabb); // 3B
 	virtual void Unk_3C(void); // 3C
 
 	hkpRigidBody * hkBody; // 10
