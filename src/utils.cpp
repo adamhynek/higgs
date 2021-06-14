@@ -15,7 +15,7 @@
 #include "utils.h"
 #include "offsets.h"
 #include "config.h"
-#include "grabber.h"
+#include "hand.h"
 
 
 RelocPtr<UInt64> unk_141E703BC(0x1E703BC);
@@ -755,27 +755,27 @@ EquipData GetWornItem(Actor* thisActor, UInt32 mask)
 	return containerChanges->FindEquipped(matcher);
 }
 
-Grabber * GetGrabberToShowRolloverFor()
+Hand * GetHandToShowRolloverFor()
 {
-	bool displayLeft = g_leftGrabber->ShouldDisplayRollover();
-	bool displayRight = g_rightGrabber->ShouldDisplayRollover();
+	bool displayLeft = g_leftHand->ShouldDisplayRollover();
+	bool displayRight = g_rightHand->ShouldDisplayRollover();
 
 	bool isRolloverSet = displayRight || displayLeft;
 	if (isRolloverSet) {
 		if (displayRight && displayLeft) {
 			// Pick whichever hand grabbed last
-			if (g_leftGrabber->rolloverDisplayTime > g_rightGrabber->rolloverDisplayTime) {
-				return g_leftGrabber;
+			if (g_leftHand->rolloverDisplayTime > g_rightHand->rolloverDisplayTime) {
+				return g_leftHand;
 			}
 			else {
-				return g_rightGrabber;
+				return g_rightHand;
 			}
 		}
 		else if (displayRight) {
-			return g_rightGrabber;
+			return g_rightHand;
 		}
 		else if (displayLeft) {
-			return g_leftGrabber;
+			return g_leftHand;
 		}
 	}
 	

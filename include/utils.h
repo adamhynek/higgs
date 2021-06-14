@@ -61,7 +61,7 @@ UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const Ni
 const char * GetItemName(TESForm *form, BaseExtraList *extraList);
 SInt32 GetItemId(TESForm * form, BaseExtraList * extraList);
 EquipData GetWornItem(Actor* thisActor, UInt32 mask);
-struct Grabber * GetGrabberToShowRolloverFor();
+struct Hand * GetHandToShowRolloverFor();
 void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
 void ReplaceBSString(BSString &replacee, std::string &replacer);
 

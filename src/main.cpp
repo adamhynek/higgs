@@ -25,7 +25,7 @@
 
 #include <ShlObj.h>  // CSIDL_MYDOCUMENTS
 
-#include "grabber.h"
+#include "hand.h"
 #include "version.h"
 #include "utils.h"
 #include "config.h"
@@ -55,12 +55,12 @@ vrikPluginApi::IVrikInterface001 * g_vrikInterface;
 TESEffectShader *g_itemSelectedShader = nullptr;
 TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 
-bool initComplete = false; // Whether grabbers have been initialized
+bool initComplete = false; // Whether hands have been initialized
 
 bool g_isVrikPresent = false;
 
-Grabber *g_rightGrabber = nullptr;
-Grabber *g_leftGrabber = nullptr;
+Hand *g_rightHand = nullptr;
+Hand *g_leftHand = nullptr;
 
 std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes;
 
@@ -163,8 +163,8 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
 
-								g_rightGrabber->controllerVelocities.pop_back();
-								g_rightGrabber->controllerVelocities.push_front(velocityWorldspace);
+								g_rightHand->controllerVelocities.pop_back();
+								g_rightHand->controllerVelocities.push_front(velocityWorldspace);
 							}
 						}
 						else if (i == leftIndex && isLeftConnected) {
@@ -175,8 +175,8 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
 
-								g_leftGrabber->controllerVelocities.pop_back();
-								g_leftGrabber->controllerVelocities.push_front(velocityWorldspace);
+								g_leftHand->controllerVelocities.pop_back();
+								g_leftHand->controllerVelocities.push_front(velocityWorldspace);
 							}
 						}
 					}
@@ -256,11 +256,11 @@ void Update()
 					hkpWorld_removeIslandActivationListener(oldWorld->world, &activationListener);
 				}
 
-				g_rightGrabber->RemoveHandCollision(oldWorld);
-				g_leftGrabber->RemoveHandCollision(oldWorld);
+				g_rightHand->RemoveHandCollision(oldWorld);
+				g_leftHand->RemoveHandCollision(oldWorld);
 
-				g_rightGrabber->RemoveWeaponCollision(oldWorld);
-				g_leftGrabber->RemoveWeaponCollision(oldWorld);
+				g_rightHand->RemoveWeaponCollision(oldWorld);
+				g_leftHand->RemoveWeaponCollision(oldWorld);
 			}
 		}
 
@@ -276,11 +276,11 @@ void Update()
 				hkpWorld_addIslandActivationListener(world->world, &activationListener);
 			}
 
-			g_rightGrabber->CreateHandCollision(world);
-			g_leftGrabber->CreateHandCollision(world);
+			g_rightHand->CreateHandCollision(world);
+			g_leftHand->CreateHandCollision(world);
 
-			g_rightGrabber->CreateWeaponCollision(world);
-			g_leftGrabber->CreateWeaponCollision(world);
+			g_rightHand->CreateWeaponCollision(world);
+			g_leftHand->CreateWeaponCollision(world);
 		}
 
 		contactListener->world = world;
@@ -295,44 +295,44 @@ void Update()
 	isRightValid &= !g_interface001.IsDisabled(false);
 	isLeftValid &= !g_interface001.IsDisabled(true);
 
-	bool isRightHeld = g_rightGrabber->HasHeldKeyframed();
-	bool isLeftHeld = g_leftGrabber->HasHeldKeyframed();
+	bool isRightHeld = g_rightHand->HasHeldKeyframed();
+	bool isLeftHeld = g_leftHand->HasHeldKeyframed();
 
-	Grabber *firstGrabberToUpdate = g_rightGrabber;
-	Grabber *lastGrabberToUpdate = g_leftGrabber;
+	Hand *firstHandToUpdate = g_rightHand;
+	Hand *lastHandToUpdate = g_leftHand;
 	bool isFirstValid = isRightValid;
 	bool isLastValid = isLeftValid;
-	if (isRightHeld && isLeftHeld && g_rightGrabber->selectedObject.handle == g_leftGrabber->selectedObject.handle) {
+	if (isRightHeld && isLeftHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
 		// Both hands are holding something using the transform method, and they belong to the same object reference.
 		// We need to see if one of the held nodes is a child of the other, and make sure to do the update for the child node last.
 
 		NiPointer<TESObjectREFR> selectedObj;
-		if (LookupREFRByHandle(g_rightGrabber->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> leftNode = FindCollidableNode(g_leftGrabber->selectedObject.collidable);
-			NiPointer<NiAVObject> rightNode = FindCollidableNode(g_rightGrabber->selectedObject.collidable);
+		if (LookupREFRByHandle(g_rightHand->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
+			NiPointer<NiAVObject> leftNode = FindCollidableNode(g_leftHand->selectedObject.collidable);
+			NiPointer<NiAVObject> rightNode = FindCollidableNode(g_rightHand->selectedObject.collidable);
 			if (leftNode && rightNode) {
 				if (DoesNodeHaveNode(leftNode, rightNode)) {
 					// Right is the child
-					firstGrabberToUpdate = g_leftGrabber;
+					firstHandToUpdate = g_leftHand;
 					isFirstValid = isLeftValid;
-					lastGrabberToUpdate = g_rightGrabber;
+					lastHandToUpdate = g_rightHand;
 					isLastValid = isRightValid;
 				}
 				else if (DoesNodeHaveNode(rightNode, leftNode)) {
 					// Left is the child
-					firstGrabberToUpdate = g_rightGrabber;
+					firstHandToUpdate = g_rightHand;
 					isFirstValid = isRightValid;
-					lastGrabberToUpdate = g_leftGrabber;
+					lastHandToUpdate = g_leftHand;
 					isLastValid = isLeftValid;
 				}
 			}
 		}
 	}
 
-	firstGrabberToUpdate->Update(*lastGrabberToUpdate, isFirstValid, playerWorldNode, world);
-	lastGrabberToUpdate->Update(*firstGrabberToUpdate, isLastValid, playerWorldNode, world);
+	firstHandToUpdate->Update(*lastHandToUpdate, isFirstValid, playerWorldNode, world);
+	lastHandToUpdate->Update(*firstHandToUpdate, isLastValid, playerWorldNode, world);
 
-	if (g_rightGrabber->IsSafeToClearSavedCollision() && g_leftGrabber->IsSafeToClearSavedCollision()) {
+	if (g_rightHand->IsSafeToClearSavedCollision() && g_leftHand->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
 		CollisionInfo::ClearCollisionMap();
 	}
@@ -376,10 +376,10 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
 
 	if (unControllerDeviceIndex == rightController) {
-		g_rightGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isRightValid);
+		g_rightHand->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isRightValid);
 	}
 	else if (unControllerDeviceIndex == leftController) {
-		g_leftGrabber->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isLeftValid);
+		g_leftHand->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isLeftValid);
 	}
 }
 
@@ -424,7 +424,7 @@ extern "C" {
 			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
 		}
 
-		// Init both grabbers
+		// Init both hands
 
 		BSFixedString rightFingerNames[5][3] = {
 			{
@@ -496,27 +496,27 @@ extern "C" {
 		NiPoint3 leftPalm = rightPalm;
 		leftPalm.x *= -1;
 
-		g_rightGrabber = new Grabber(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
-		g_leftGrabber = new Grabber(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
-		if (!g_rightGrabber || !g_leftGrabber || !g_shaderNodes) {
+		g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
+		g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
+		if (!g_rightHand || !g_leftHand || !g_shaderNodes) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
 		}
 
-		g_rightGrabber->itemSelectedShader = g_itemSelectedShader;
-		g_rightGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
+		g_rightHand->itemSelectedShader = g_itemSelectedShader;
+		g_rightHand->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
-		g_leftGrabber->itemSelectedShader = g_itemSelectedShader;
-		g_leftGrabber->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
+		g_leftHand->itemSelectedShader = g_itemSelectedShader;
+		g_leftHand->itemSelectedShaderOffLimits = g_itemSelectedShaderOffLimits;
 
 		NiMatrix33 rightRolloverRotation = EulerToMatrix(Config::options.rolloverRotation);
 		NiMatrix33 leftRolloverRotation = EulerToMatrix({ Config::options.rolloverRotation.x, -Config::options.rolloverRotation.y, -Config::options.rolloverRotation.z });
 
-		g_rightGrabber->rolloverRotation = rightRolloverRotation;
-		g_rightGrabber->rolloverScale = Config::options.rolloverScale;
+		g_rightHand->rolloverRotation = rightRolloverRotation;
+		g_rightHand->rolloverScale = Config::options.rolloverScale;
 
-		g_leftGrabber->rolloverRotation = leftRolloverRotation;
-		g_leftGrabber->rolloverScale = Config::options.rolloverScale;
+		g_leftHand->rolloverRotation = leftRolloverRotation;
+		g_leftHand->rolloverScale = Config::options.rolloverScale;
 
 		if (Config::options.disableRolloverRumble) {
 			_MESSAGE("Disabling rollover rumble");

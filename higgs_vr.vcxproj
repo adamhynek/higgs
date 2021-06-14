@@ -193,7 +193,7 @@
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
     <ClCompile Include="src\finger_curves.cpp" />
-    <ClCompile Include="src\grabber.cpp" />
+    <ClCompile Include="src\hand.cpp" />
     <ClCompile Include="src\higgsinterface001.cpp" />
     <ClCompile Include="src\hooks.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -217,7 +217,7 @@
     <ClInclude Include="include\PQP\TriDist.h" />
     <ClInclude Include="include\triangle_triangle_intersection.h" />
     <ClInclude Include="include\config.h" />
-    <ClInclude Include="include\grabber.h" />
+    <ClInclude Include="include\hand.h" />
     <ClInclude Include="include\havok_ref_ptr.h" />
     <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\math_utils.h" />

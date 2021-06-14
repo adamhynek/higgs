@@ -11,7 +11,7 @@
 #include "skse64/NiGeometry.h"
 #include "skse64/GameExtraData.h"
 
-#include "grabber.h"
+#include "hand.h"
 #include "offsets.h"
 #include "utils.h"
 #include "config.h"
@@ -172,7 +172,7 @@ void HapticsManager::Loop()
 }
 
 
-void Grabber::TriggerCollisionHaptics(float mass, float separatingVelocity)
+void Hand::TriggerCollisionHaptics(float mass, float separatingVelocity)
 {
 	float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
 	float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
@@ -189,7 +189,7 @@ void Grabber::TriggerCollisionHaptics(float mass, float separatingVelocity)
 }
 
 
-void Grabber::Select(TESObjectREFR *obj)
+void Hand::Select(TESObjectREFR *obj)
 {
 	selectedObject.handle = GetOrCreateRefrHandle(obj);
 
@@ -213,7 +213,7 @@ void Grabber::Select(TESObjectREFR *obj)
 }
 
 
-void Grabber::Deselect()
+void Hand::Deselect()
 {
 	std::scoped_lock lock(deselectLock);
 
@@ -232,7 +232,7 @@ void Grabber::Deselect()
 }
 
 
-void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
+void Hand::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
 {
 	if (Config::options.disableShaders) return;
 
@@ -250,7 +250,7 @@ void Grabber::PlaySelectionEffect(UInt32 objHandle, NiAVObject *node)
 }
 
 
-void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
+void Hand::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 {
 	if (Config::options.disableShaders) return;
 
@@ -268,7 +268,7 @@ void Grabber::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 }
 
 
-void Grabber::ResetNearbyDamping()
+void Hand::ResetNearbyDamping()
 {
 	if (nearbyBodies.size() > 0) {
 		for (NiPointer<bhkRigidBody> body : nearbyBodies) {
@@ -286,7 +286,7 @@ void Grabber::ResetNearbyDamping()
 
 
 std::unordered_set<bhkRigidBody *> g_nearbyBodies; // prevent duplicates due to multiple contact points
-void Grabber::StartNearbyDamping(bhkWorld &world)
+void Hand::StartNearbyDamping(bhkWorld &world)
 {
 	nearbyBodies.clear();
 	nearbyBodyMap.clear();
@@ -403,7 +403,7 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 }
 
 
-bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
+bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	if (!allowGrab) {
@@ -492,7 +492,7 @@ bool Grabber::FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &ot
 }
 
 
-bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
+bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	NiPoint3 hkTargetPos = hkPalmPos + castDirection * Config::options.farCastDistance;
@@ -579,7 +579,7 @@ bool Grabber::FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint
 }
 
 
-hkTransform Grabber::ComputeHandCollisionTransform(NiAVObject *handNode)
+hkTransform Hand::ComputeHandCollisionTransform(NiAVObject *handNode)
 {
 	hkTransform transform;
 	NiPoint3 handCollisionBoxOffset = Config::options.handCollisionBoxOffset;
@@ -592,7 +592,7 @@ hkTransform Grabber::ComputeHandCollisionTransform(NiAVObject *handNode)
 }
 
 
-hkTransform Grabber::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision)
+hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision)
 {
 	PlayerCharacter *player = *g_thePlayer;
 	hkTransform transform = existingWeaponCollision->hkBody->getTransform();
@@ -615,7 +615,7 @@ hkTransform Grabber::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeapo
 }
 
 
-void Grabber::CreateHandCollision(bhkWorld *world)
+void Hand::CreateHandCollision(bhkWorld *world)
 {
 	bhkBoxShape *handShape = (bhkBoxShape *)Heap_Allocate(sizeof(bhkBoxShape));
 	if (!handShape) return;
@@ -665,7 +665,7 @@ void Grabber::CreateHandCollision(bhkWorld *world)
 }
 
 
-void Grabber::RemoveHandCollision(bhkWorld *world)
+void Hand::RemoveHandCollision(bhkWorld *world)
 {
 	hkBool ret;
 	hkpWorld_RemoveEntity(world->world, &ret, handBody->hkBody);
@@ -673,7 +673,7 @@ void Grabber::RemoveHandCollision(bhkWorld *world)
 }
 
 
-void Grabber::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
+void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 {
 	hkpRigidBody *handCollBody = handBody->hkBody;
 	bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
@@ -706,7 +706,7 @@ void Grabber::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 }
 
 
-void Grabber::CreateWeaponCollision(bhkWorld *world)
+void Hand::CreateWeaponCollision(bhkWorld *world)
 {
 	if (!Config::options.enableWeaponCollision) return;
 
@@ -778,7 +778,7 @@ void Grabber::CreateWeaponCollision(bhkWorld *world)
 }
 
 
-void Grabber::RemoveWeaponCollision(bhkWorld *world)
+void Hand::RemoveWeaponCollision(bhkWorld *world)
 {
 	if (!Config::options.enableWeaponCollision) return;
 
@@ -791,7 +791,7 @@ void Grabber::RemoveWeaponCollision(bhkWorld *world)
 }
 
 
-void Grabber::UpdateWeaponCollision()
+void Hand::UpdateWeaponCollision()
 {
 	if (!Config::options.enableWeaponCollision) return;
 
@@ -871,7 +871,7 @@ void Grabber::UpdateWeaponCollision()
 }
 
 
-void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
+void Hand::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 {
 	BGSSoundDescriptorForm *sound = nullptr;
 	// Try and get the sound that plays when the object hits stone first, as the grab sound
@@ -965,7 +965,7 @@ void Grabber::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
-bool Grabber::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
+bool Hand::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
 {
 	PlayerCharacter *player = *g_thePlayer;
 	bool isLeftHanded = *g_leftHandedMode;
@@ -1022,7 +1022,7 @@ bool Grabber::GetAttachTransform(const TESForm *baseForm, NiTransform &transform
 }
 
 
-bool Grabber::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &initialTransform)
+bool Hand::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &initialTransform)
 {
 	if (!baseForm) return false;
 
@@ -1057,7 +1057,7 @@ bool Grabber::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform
 }
 
 
-bool Grabber::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm)
+bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm)
 {
 	if (Config::options.forcePhysicsGrab) return true;
 
@@ -1067,7 +1067,7 @@ bool Grabber::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm 
 }
 
 
-bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
+bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
 {
 	bool wereFingersSet = false;
 
@@ -1315,7 +1315,7 @@ bool Grabber::TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hk
 }
 
 
-void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
+void Hand::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
 {
 	StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
@@ -1337,7 +1337,7 @@ void Grabber::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
 }
 
 
-bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
+bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
 {
 	if (selectedObject.isActor) return false;
 
@@ -1374,7 +1374,7 @@ bool Grabber::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, cons
 }
 
 
-bool Grabber::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &palmPos) const
+bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &palmPos) const
 {
 	TESForm *baseForm = refr->baseForm;
 	if (!baseForm || !baseForm->IsPlayable() || (baseForm->formType != kFormType_Potion && baseForm->formType != kFormType_Ingredient && baseForm->formType != kFormType_Book)) {
@@ -1409,7 +1409,7 @@ bool Grabber::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const
 }
 
 
-UInt32 Grabber::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected)
+UInt32 Hand::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected)
 {
 	UInt32 droppedObjHandle = *g_invalidRefHandle;
 
@@ -1446,7 +1446,7 @@ UInt32 Grabber::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zO
 }
 
 
-bool Grabber::TransitionGrabExternal(TESObjectREFR *refr)
+bool Hand::TransitionGrabExternal(TESObjectREFR *refr)
 {
 	if (CanGrabObject() && refr) {
 		_MESSAGE("External grab");
@@ -1475,7 +1475,7 @@ bool Grabber::TransitionGrabExternal(TESObjectREFR *refr)
 }
 
 
-void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmPos, const NiPoint3 &palmVector, float havokWorldScale)
+void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmPos, const NiPoint3 &palmVector, float havokWorldScale)
 {
 	selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
 
@@ -1495,7 +1495,7 @@ void Grabber::GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR 
 }
 
 
-void Grabber::SetPulledDuration(const NiPoint3 &hkPalmPos, const NiPoint3 &objPoint)
+void Hand::SetPulledDuration(const NiPoint3 &hkPalmPos, const NiPoint3 &objPoint)
 {
 	float distance = VectorLength(hkPalmPos - objPoint);
 
@@ -1505,7 +1505,7 @@ void Grabber::SetPulledDuration(const NiPoint3 &hkPalmPos, const NiPoint3 &objPo
 }
 
 
-NiPointer<NiAVObject> Grabber::GetHandNode()
+NiPointer<NiAVObject> Hand::GetHandNode()
 {
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode()) return nullptr;
@@ -1514,7 +1514,7 @@ NiPointer<NiAVObject> Grabber::GetHandNode()
 }
 
 
-void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
+void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
 
@@ -2780,7 +2780,7 @@ void Grabber::Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bh
 }
 
 
-void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab)
+void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab)
 {
 	bool wasTriggerDisabledLastFrame = isTriggerDisabled;
 	isTriggerDisabled = false;
@@ -2922,7 +2922,7 @@ void Grabber::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VR
 }
 
 
-void Grabber::RestoreHandTransform()
+void Hand::RestoreHandTransform()
 {
 	if (!g_isVrikPresent) return;
 
@@ -2938,7 +2938,7 @@ void Grabber::RestoreHandTransform()
 }
 
 
-void Grabber::EndPull()
+void Hand::EndPull()
 {
 	NiPointer<TESObjectREFR> pulledObj;
 	if (LookupREFRByHandle(pulledObject.handle, pulledObj)) {
@@ -2953,7 +2953,7 @@ void Grabber::EndPull()
 }
 
 
-bool Grabber::IsObjectPullable()
+bool Hand::IsObjectPullable()
 {
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
@@ -2963,33 +2963,33 @@ bool Grabber::IsObjectPullable()
 }
 
 
-bool Grabber::HasExclusiveObject() const
+bool Hand::HasExclusiveObject() const
 {
 	return state == State::Pulled || state == State::SelectionLocked || state == State::Held || state == State::HeldInit || state == State::HeldBody;
 }
 
-bool Grabber::CanGrabObject() const
+bool Hand::CanGrabObject() const
 {
 	return state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectionLocked;
 }
 
-bool Grabber::HasHeldObject() const
+bool Hand::HasHeldObject() const
 {
 	return state == State::Held || state == State::HeldInit || state == State::HeldBody;
 }
 
-bool Grabber::CanOtherGrab() const
+bool Hand::CanOtherGrab() const
 {
 	return HasHeldObject();
 }
 
-bool Grabber::HasHeldKeyframed() const
+bool Hand::HasHeldKeyframed() const
 {
 	return state == State::Held || state == State::HeldInit;
 }
 
 
-bool Grabber::ShouldDisplayRollover()
+bool Hand::ShouldDisplayRollover()
 {
 	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody && state != State::LootOtherHand)
 		return false;
@@ -3002,7 +3002,7 @@ bool Grabber::ShouldDisplayRollover()
 }
 
 
-bool Grabber::IsSafeToClearSavedCollision() const
+bool Hand::IsSafeToClearSavedCollision() const
 {
 	return (
 		(state == State::Idle || state == State::SelectedFar || state == State::SelectedClose)
@@ -3010,7 +3010,7 @@ bool Grabber::IsSafeToClearSavedCollision() const
 		);
 }
 
-bool Grabber::GetActivateText(std::string &strOut)
+bool Hand::GetActivateText(std::string &strOut)
 {
 	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand) {
 		return false;
@@ -3043,7 +3043,7 @@ bool Grabber::GetActivateText(std::string &strOut)
 					if (state == State::SelectedClose) {
 						verb = Config::options.grabString;
 
-						Grabber *other = isLeft ? g_rightGrabber : g_leftGrabber;
+						Hand *other = isLeft ? g_rightHand : g_leftHand;
 
 						if (selectedObject.isActor && (selectedObject.isDisconnected || (selectedObject.hitForm && selectedObject.rigidBody == other->selectedObject.rigidBody && other->CanOtherGrab()))) {
 							TESForm *wornForm = selectedObject.hitForm;
@@ -3103,7 +3103,7 @@ bool Grabber::GetActivateText(std::string &strOut)
 	return true;
 }
 
-void Grabber::SetupRollover()
+void Hand::SetupRollover()
 {
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
@@ -3147,7 +3147,7 @@ void Grabber::SetupRollover()
 	}
 }
 
-void Grabber::SetupSelectionBeam(NiNode *spellOrigin)
+void Hand::SetupSelectionBeam(NiNode *spellOrigin)
 {
 	NiPointer<NiAVObject> handNode = GetHandNode();
 	if (!handNode) return;

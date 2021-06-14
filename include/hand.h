@@ -44,7 +44,7 @@ struct HapticsManager
 };
 
 
-struct Grabber
+struct Hand
 {
 	struct SelectedObject
 	{
@@ -103,7 +103,7 @@ struct Grabber
 		Force
 	};
 
-	Grabber(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
+	Hand(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
 		isLeft(isLeft),
 		collisionMapState(isLeft ? CollisionInfo::State::HeldLeft : CollisionInfo::State::HeldRight),
 		name(name),
@@ -125,18 +125,18 @@ struct Grabber
 		}
 	};
 
-	~Grabber() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
+	~Hand() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
-	void Update(Grabber &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world);
+	void Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void ResetNearbyDamping();
 	void StartNearbyDamping(bhkWorld &world);
-	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
+	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
-	bool FindFarObject(bhkWorld *world, const Grabber &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
+	bool FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
@@ -149,10 +149,10 @@ struct Grabber
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
-	bool TransitionHeld(Grabber &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
+	bool TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
 	bool TransitionGrabExternal(TESObjectREFR *refr);
-	void GrabExternalObject(Grabber &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
+	void GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
 	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
 	NiPointer<NiAVObject> GetHandNode();
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
@@ -269,5 +269,5 @@ struct Grabber
 	bool wasObjectGrabbed = false;
 };
 
-extern Grabber *g_rightGrabber;
-extern Grabber *g_leftGrabber;
+extern Hand *g_rightHand;
+extern Hand *g_leftHand;

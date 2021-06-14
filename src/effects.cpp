@@ -1,7 +1,7 @@
 #include "effects.h"
 #include "utils.h"
 #include "offsets.h"
-#include "grabber.h"
+#include "hand.h"
 
 #include "skse64/NiGeometry.h"
 #include "skse64/GameRTTI.h"
@@ -53,7 +53,7 @@ void SaveShaderData(UInt32 handle, NiAVObject *root)
 							if ((shaderReference->target == handle && !attachRoot) || attachRoot == root) {
 								if (shaderReference->effectShaderData == effectData) { // Make sure we save the shader that's actually affecting the node
 									TESEffectShader *shader = shaderReference->effectData;
-									if (shader != g_rightGrabber->itemSelectedShader && shader != g_rightGrabber->itemSelectedShaderOffLimits) {
+									if (shader != g_rightHand->itemSelectedShader && shader != g_rightHand->itemSelectedShaderOffLimits) {
 										// Only save shader data for shaders that are not our own
 										auto &effectDataMap = *g_effectDataMap;
 										effectDataMap[root] = shaderReference;
@@ -169,7 +169,7 @@ void FillGeometryNodes(NiAVObject *root, std::unordered_set<BSGeometry *> &geome
 			NiAVObject *child = node->m_children.m_data[i];
 			if (child) {
 				auto rigidBody = GetRigidBody(child);
-				bool isSelected = rigidBody == g_rightGrabber->selectedObject.rigidBody || rigidBody == g_leftGrabber->selectedObject.rigidBody;
+				bool isSelected = rigidBody == g_rightHand->selectedObject.rigidBody || rigidBody == g_leftHand->selectedObject.rigidBody;
 				// Do not play the shader on nodes that have collision and have a motion type that actually makes them interact with physics
 				// If the rigidbody does not interact with physics, if one of the hands is holding it, do not play the shader on it
 				if (!rigidBody || (!IsMoveableRigidBody(rigidBody->hkBody) && !isSelected) || !terminateAtCollision) {

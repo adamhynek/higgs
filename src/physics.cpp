@@ -4,7 +4,7 @@
 #include "offsets.h"
 #include "utils.h"
 #include "pluginapi.h"
-#include "grabber.h"
+#include "hand.h"
 #include "config.h"
 #include "main.h"
 
@@ -264,31 +264,31 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 	bhkRigidBody *bhkRigidBodyA = (bhkRigidBody *)rigidBodyA->m_userData;
 	bhkRigidBody *bhkRigidBodyB = (bhkRigidBody *)rigidBodyB->m_userData;
 
-	bool isARightHand = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->handBody;
-	bool isBRightHand = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->handBody;
-	bool isALeftHand = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->handBody;
-	bool isBLeftHand = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->handBody;
+	bool isARightHand = bhkRigidBodyA && bhkRigidBodyA == g_rightHand->handBody;
+	bool isBRightHand = bhkRigidBodyB && bhkRigidBodyB == g_rightHand->handBody;
+	bool isALeftHand = bhkRigidBodyA && bhkRigidBodyA == g_leftHand->handBody;
+	bool isBLeftHand = bhkRigidBodyB && bhkRigidBodyB == g_leftHand->handBody;
 
-	bool rightHasHeld = g_rightGrabber->HasHeldObject();
-	bool leftHasHeld = g_leftGrabber->HasHeldObject();
+	bool rightHasHeld = g_rightHand->HasHeldObject();
+	bool leftHasHeld = g_leftHand->HasHeldObject();
 
-	bool isAHeldRight = rightHasHeld && &rigidBodyA->m_collidable == g_rightGrabber->selectedObject.collidable;
-	bool isBHeldRight = rightHasHeld && &rigidBodyB->m_collidable == g_rightGrabber->selectedObject.collidable;
-	bool isAHeldLeft = leftHasHeld && &rigidBodyA->m_collidable == g_leftGrabber->selectedObject.collidable;
-	bool isBHeldLeft = leftHasHeld && &rigidBodyB->m_collidable == g_leftGrabber->selectedObject.collidable;
+	bool isAHeldRight = rightHasHeld && &rigidBodyA->m_collidable == g_rightHand->selectedObject.collidable;
+	bool isBHeldRight = rightHasHeld && &rigidBodyB->m_collidable == g_rightHand->selectedObject.collidable;
+	bool isAHeldLeft = leftHasHeld && &rigidBodyA->m_collidable == g_leftHand->selectedObject.collidable;
+	bool isBHeldLeft = leftHasHeld && &rigidBodyB->m_collidable == g_leftHand->selectedObject.collidable;
 
-	bool isAWeapRight = bhkRigidBodyA && bhkRigidBodyA == g_rightGrabber->weaponBody;
-	bool isBWeapRight = bhkRigidBodyB && bhkRigidBodyB == g_rightGrabber->weaponBody;
-	bool isAWeapLeft = bhkRigidBodyA && bhkRigidBodyA == g_leftGrabber->weaponBody;
-	bool isBWeapLeft = bhkRigidBodyB && bhkRigidBodyB == g_leftGrabber->weaponBody;
+	bool isAWeapRight = bhkRigidBodyA && bhkRigidBodyA == g_rightHand->weaponBody;
+	bool isBWeapRight = bhkRigidBodyB && bhkRigidBodyB == g_rightHand->weaponBody;
+	bool isAWeapLeft = bhkRigidBodyA && bhkRigidBodyA == g_leftHand->weaponBody;
+	bool isBWeapLeft = bhkRigidBodyB && bhkRigidBodyB == g_leftHand->weaponBody;
 
 	auto TriggerCollisionHaptics = [separatingVelocity](float inverseMass, bool isLeft) {
 		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
 		if (isLeft) {
-			g_leftGrabber->TriggerCollisionHaptics(mass, separatingVelocity);
+			g_leftHand->TriggerCollisionHaptics(mass, separatingVelocity);
 		}
 		else {
-			g_rightGrabber->TriggerCollisionHaptics(mass, separatingVelocity);
+			g_rightHand->TriggerCollisionHaptics(mass, separatingVelocity);
 		}
 
 		HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);

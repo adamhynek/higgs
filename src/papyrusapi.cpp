@@ -1,6 +1,6 @@
 #include "papyrusapi.h"
 #include "pluginapi.h"
-#include "grabber.h"
+#include "hand.h"
 
 namespace PapyrusAPI
 {

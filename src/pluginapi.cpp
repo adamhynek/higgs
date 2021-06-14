@@ -3,7 +3,7 @@
 #include "pluginapi.h"
 #include "version.h"
 #include "papyrusapi.h"
-#include "grabber.h"
+#include "hand.h"
 
 using namespace HiggsPluginAPI;
 
@@ -126,20 +126,20 @@ void HiggsPluginAPI::TriggerCollisionCallbacks(bool isLeft, float mass, float se
 
 void HiggsInterface001::GrabObject(TESObjectREFR *object, bool isLeft)
 {
-	Grabber *grabber = isLeft ? g_leftGrabber : g_rightGrabber;
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
 
-	grabber->externalGrabRequestedObject = object;
-	grabber->externalGrabRequested = true;
+	hand->externalGrabRequestedObject = object;
+	hand->externalGrabRequested = true;
 }
 
 TESObjectREFR * HiggsInterface001::GetGrabbedObject(bool isLeft)
 {
-	Grabber *grabber = isLeft ? g_leftGrabber : g_rightGrabber;
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
 
-	if (grabber->HasHeldObject()) {
-		UInt32 handle = grabber->selectedObject.handle;
+	if (hand->HasHeldObject()) {
+		UInt32 handle = hand->selectedObject.handle;
 		// To be somewhat thread-safe, check again if we're in held after getting the handle
-		if (grabber->HasHeldObject()) {
+		if (hand->HasHeldObject()) {
 			NiPointer<TESObjectREFR> grabbedObj;
 			if (LookupREFRByHandle(handle, grabbedObj)) {
 				return grabbedObj;
@@ -152,8 +152,8 @@ TESObjectREFR * HiggsInterface001::GetGrabbedObject(bool isLeft)
 
 bool HiggsInterface001::CanGrabObject(bool isLeft)
 {
-	Grabber *grabber = isLeft ? g_leftGrabber : g_rightGrabber;
-	return grabber->CanGrabObject();
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	return hand->CanGrabObject();
 }
 
 void HiggsInterface001::DisableHand(bool isLeft)

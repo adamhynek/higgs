@@ -10,7 +10,7 @@
 #include "hooks.h"
 #include "effects.h"
 #include "RE/havok.h"
-#include "grabber.h"
+#include "hand.h"
 #include "vrikinterface001.h"
 #include "config.h"
 #include "offsets.h"
@@ -83,7 +83,7 @@ ShaderReferenceEffect *g_shaderReference = nullptr; // This gets set before the 
 typedef void(*_ShaderProperty_SetEffectData)(BSLightingShaderProperty *shaderProperty, void *effectShaderData);
 void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *effectShaderData, TESEffectShader *shader)
 {
-	if (shader == g_rightGrabber->itemSelectedShader || shader == g_rightGrabber->itemSelectedShaderOffLimits) {
+	if (shader == g_rightHand->itemSelectedShader || shader == g_rightHand->itemSelectedShaderOffLimits) {
 		{
 			if (!g_shaderReference) return;
 
@@ -104,12 +104,12 @@ UInt32 g_pickedHandle = 0;
 
 void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLinearCastInput* input, hkpCdPointCollector* castCollector, hkpCdPointCollector* startCollector)
 {
-	Grabber *rolloverGrabber = GetGrabberToShowRolloverFor();
+	Hand *rolloverHand = GetHandToShowRolloverFor();
 
 	bool isLeftHanded = *g_leftHandedMode;
 
-	if (rolloverGrabber) {
-		SetSelectedHandles(isLeftHanded, rolloverGrabber->selectedObject.handle);
+	if (rolloverHand) {
+		SetSelectedHandles(isLeftHanded, rolloverHand->selectedObject.handle);
 		g_pickedHandle = *g_invalidRefHandle;
 		return;
 	}
@@ -141,11 +141,11 @@ void PostWandUpdateHook()
 	static BSFixedString rolloverNodeStr("WSActivateRollover");
 	NiPointer<NiAVObject> rolloverNode = playerWorldNode ? playerWorldNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
 
-	// This hook is on the main thread, so we're kind of okay to do stuff with the Grabber as this won't interleave with its PoseUpdate
+	// This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its PoseUpdate
 
-	Grabber *rolloverGrabber = GetGrabberToShowRolloverFor();
+	Hand *rolloverHand = GetHandToShowRolloverFor();
 
-	if (rolloverGrabber) {
+	if (rolloverHand) {
 		// Something is grabbed
 
 		if (!hasSavedRollover) {
@@ -155,7 +155,7 @@ void PostWandUpdateHook()
 			}
 		}
 
-		rolloverGrabber->SetupRollover();
+		rolloverHand->SetupRollover();
 
 		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
 		if (!hasSavedRumbleIntensity) {
@@ -165,7 +165,7 @@ void PostWandUpdateHook()
 		activateRumbleIntensitySetting->SetDouble(0);
 
 		if (Config::options.overrideActivateText) {
-			g_overrideActivateText = rolloverGrabber->GetActivateText(g_overrideActivateTextStr);
+			g_overrideActivateText = rolloverHand->GetActivateText(g_overrideActivateTextStr);
 		}
 	}
 	else {
@@ -190,18 +190,18 @@ void PostWandUpdateHook()
 		}
 	}
 
-	wasRolloverSet = rolloverGrabber != nullptr;
+	wasRolloverSet = rolloverHand != nullptr;
 
 
 	if (!Config::options.disableSelectionBeam) {
 		NiAVObject *spellOrigin = player->unk3F0[PlayerCharacter::Node::kNode_SpellOrigin];
 		NiNode *spellOriginNode = spellOrigin ? spellOrigin->GetAsNiNode() : nullptr;
 		if (spellOriginNode && spellOriginNode->m_children.m_emptyRunStart >= 2) {
-			if (g_rightGrabber && g_rightGrabber->state == Grabber::State::SelectionLocked) {
-				g_rightGrabber->SetupSelectionBeam(spellOriginNode);
+			if (g_rightHand && g_rightHand->state == Hand::State::SelectionLocked) {
+				g_rightHand->SetupSelectionBeam(spellOriginNode);
 			}
-			else if (g_leftGrabber && g_leftGrabber->state == Grabber::State::SelectionLocked) {
-				g_leftGrabber->SetupSelectionBeam(spellOriginNode);
+			else if (g_leftHand && g_leftHand->state == Hand::State::SelectionLocked) {
+				g_leftHand->SetupSelectionBeam(spellOriginNode);
 			}
 			else {
 				spellOriginNode->m_flags |= 1; // hide spell origin
@@ -219,8 +219,8 @@ void PlayerCharacterUpdateHook()
 
 void PCEndUpdateHook()
 {
-	g_rightGrabber->RestoreHandTransform();
-	g_leftGrabber->RestoreHandTransform();
+	g_rightHand->RestoreHandTransform();
+	g_leftHand->RestoreHandTransform();
 }
 
 
