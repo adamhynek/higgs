@@ -59,6 +59,7 @@ struct Hand
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		bool isActor = false;
+		bool isBook = false;
 		bool isDisconnected = false;
 		bool isImpactedProjectile = false;
 	};

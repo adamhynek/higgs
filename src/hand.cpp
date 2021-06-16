@@ -204,9 +204,13 @@ void Hand::Select(TESObjectREFR *obj)
 	}
 
 	selectedObject.isActor = false;
-	auto actor = DYNAMIC_CAST(obj, TESObjectREFR, Actor);
-	if (actor) {
+	if (DYNAMIC_CAST(obj, TESObjectREFR, Actor)) {
 		selectedObject.isActor = true;
+	}
+
+	selectedObject.isBook = false;
+	if (baseForm && baseForm->formType == kFormType_Book) {
+		selectedObject.isBook = true;
 	}
 
 	disableDropEvents = false;
@@ -2173,7 +2177,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 							HiggsPluginAPI::TriggerStashedCallbacks(isLeft, baseForm); // Do this before activating it so that a callback could still get the held object
 
-							if (Config::options.skipActivateBooks && baseForm && baseForm->formType == kFormType_Book) {
+							if (Config::options.skipActivateBooks && selectedObject.isBook) {
 								// PickUpObject is vfunc 0xCE
 
 								// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.

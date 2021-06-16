@@ -490,7 +490,7 @@ namespace CollisionInfo
 		}
 	}
 
-	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll)
+	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll, bool collideNone)
 	{
 		UInt32 entityId = entity->hkBody->m_uid;
 		if (collisionInfoIdMap.count(entityId) != 0) {
@@ -530,6 +530,10 @@ namespace CollisionInfo
 					entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 					entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
 				}
+				else if (collideNone) {
+					entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+					entity->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipBoth << 8);
+				}
 
 				entity->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = HK_COLLIDABLE_QUALITY_CRITICAL; // Will make object collide with other things as motion type is changed
 				bhkRigidBody_setMotionType(entity, motionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
@@ -541,7 +545,7 @@ namespace CollisionInfo
 		}
 	}
 
-	void ResetCollisionInfoDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode, bool collideAll)
+	void ResetCollisionInfoDownstream(NiAVObject *obj, State reason, hkpCollidable *skipNode, bool collideAll, bool collideNone)
 	{
 		auto rigidBody = GetRigidBody(obj);
 		if (rigidBody) {
@@ -589,6 +593,10 @@ namespace CollisionInfo
 							if (collideAll) {
 								collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
 								collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+							}
+							else if (collideNone) {
+								collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+								collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipBoth << 8);
 							}
 
 							hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
