@@ -104,7 +104,7 @@ struct Hand
 		Force
 	};
 
-	Hand(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
+	Hand(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
 		isLeft(isLeft),
 		collisionMapState(isLeft ? CollisionInfo::State::HeldLeft : CollisionInfo::State::HeldRight),
 		name(name),
@@ -119,11 +119,6 @@ struct Hand
 		angularVelocities(100),
 		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right)
 	{
-		for (int i = 0; i < 5; i++) {
-			for (int j = 0; j < 3; j++) {
-				this->fingerNodeNames[i][j] = fingerNodeNames[i][j];
-			}
-		}
 	};
 
 	~Hand() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
@@ -190,7 +185,6 @@ struct Hand
 	const bool delayGripInput = false;
 	const CollisionInfo::State collisionMapState = CollisionInfo::State::HeldRight;
 	const NiPoint3 palmPosHandspace;
-	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
 	BSFixedString name; // Used for logging
 	BSFixedString handNodeName;
 	BSFixedString wandNodeName;

@@ -424,64 +424,6 @@ extern "C" {
 			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
 		}
 
-		// Init both hands
-
-		BSFixedString rightFingerNames[5][3] = {
-			{
-				BSFixedString("NPC R Finger00 [RF00]"),
-				BSFixedString("NPC R Finger01 [RF01]"),
-				BSFixedString("NPC R Finger02 [RF02]")
-			},
-			{
-				BSFixedString("NPC R Finger10 [RF10]"),
-				BSFixedString("NPC R Finger11 [RF11]"),
-				BSFixedString("NPC R Finger12 [RF12]")
-			},
-			{
-				BSFixedString("NPC R Finger20 [RF20]"),
-				BSFixedString("NPC R Finger21 [RF21]"),
-				BSFixedString("NPC R Finger22 [RF22]")
-			},
-			{
-				BSFixedString("NPC R Finger30 [RF30]"),
-				BSFixedString("NPC R Finger31 [RF31]"),
-				BSFixedString("NPC R Finger32 [RF32]")
-			},
-			{
-				BSFixedString("NPC R Finger40 [RF40]"),
-				BSFixedString("NPC R Finger41 [RF41]"),
-				BSFixedString("NPC R Finger42 [RF42]")
-			},
-		};
-
-		BSFixedString leftFingerNames[5][3] = {
-			{
-				BSFixedString("NPC L Finger00 [LF00]"),
-				BSFixedString("NPC L Finger01 [LF01]"),
-				BSFixedString("NPC L Finger02 [LF02]")
-			},
-			{
-				BSFixedString("NPC L Finger10 [LF10]"),
-				BSFixedString("NPC L Finger11 [LF11]"),
-				BSFixedString("NPC L Finger12 [LF12]")
-			},
-			{
-				BSFixedString("NPC L Finger20 [LF20]"),
-				BSFixedString("NPC L Finger21 [LF21]"),
-				BSFixedString("NPC L Finger22 [LF22]")
-			},
-			{
-				BSFixedString("NPC L Finger30 [LF30]"),
-				BSFixedString("NPC L Finger31 [LF31]"),
-				BSFixedString("NPC L Finger32 [LF32]")
-			},
-			{
-				BSFixedString("NPC L Finger40 [LF40]"),
-				BSFixedString("NPC L Finger41 [LF41]"),
-				BSFixedString("NPC L Finger42 [LF42]")
-			},
-		};
-
 		g_isVrikPresent = GetModuleHandle("vrik") != NULL;
 
 		// Need to heap-allocate and "leak" anything with NiPointers since if they're statically allocated we crash when the game exits and these objects destruct
@@ -492,12 +434,13 @@ extern "C" {
 
 		contactListener = new ContactListener;
 
+		// Init both hands
 		NiPoint3 rightPalm = Config::options.palmPosition;
 		NiPoint3 leftPalm = rightPalm;
 		leftPalm.x *= -1;
 
-		g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
-		g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
+		g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
+		g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
 		if (!g_rightHand || !g_leftHand || !g_shaderNodes) {
 			_ERROR("[CRITICAL] Couldn't allocate memory");
 			return;
