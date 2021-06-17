@@ -160,11 +160,15 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 
 								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
 								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
-
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
-
 								g_rightHand->controllerVelocities.pop_back();
 								g_rightHand->controllerVelocities.push_front(velocityWorldspace);
+
+								NiPoint3 openvrAngularVelocity = { pose.vAngularVelocity.v[0], pose.vAngularVelocity.v[1], pose.vAngularVelocity.v[2] };
+								NiPoint3 skyrimAngularVelocity = { openvrAngularVelocity.x, -openvrAngularVelocity.z, openvrAngularVelocity.y };
+								NiPoint3 angularVelocityWorldspace = openvrToSkyrimWorldTransform * skyrimAngularVelocity;
+								g_rightHand->controllerAngularVelocities.pop_back();
+								g_rightHand->controllerAngularVelocities.push_front(angularVelocityWorldspace);
 							}
 						}
 						else if (i == leftIndex && isLeftConnected) {
@@ -172,11 +176,15 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 							if (pose.bDeviceIsConnected && pose.bPoseIsValid && pose.eTrackingResult == vr_src::ETrackingResult::TrackingResult_Running_OK) {
 								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
 								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
-
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
-
 								g_leftHand->controllerVelocities.pop_back();
 								g_leftHand->controllerVelocities.push_front(velocityWorldspace);
+
+								NiPoint3 openvrAngularVelocity = { pose.vAngularVelocity.v[0], pose.vAngularVelocity.v[1], pose.vAngularVelocity.v[2] };
+								NiPoint3 skyrimAngularVelocity = { openvrAngularVelocity.x, -openvrAngularVelocity.z, openvrAngularVelocity.y };
+								NiPoint3 angularVelocityWorldspace = openvrToSkyrimWorldTransform * skyrimAngularVelocity;
+								g_leftHand->controllerAngularVelocities.pop_back();
+								g_leftHand->controllerAngularVelocities.push_front(angularVelocityWorldspace);
 							}
 						}
 					}

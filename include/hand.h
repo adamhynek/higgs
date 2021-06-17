@@ -114,6 +114,7 @@ struct Hand
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput),
 		controllerVelocities(10, NiPoint3()),
+		controllerAngularVelocities(10, NiPoint3()),
 		playerVelocitiesWorldspace(5, NiPoint3()),
 		linearVelocities(100),
 		angularVelocities(100),
@@ -202,6 +203,7 @@ struct Hand
 
 	std::deque<NiPoint3> playerVelocitiesWorldspace; // previous n player velocities in skyrim worldspace
 	std::deque<NiPoint3> controllerVelocities;
+	std::deque<NiPoint3> controllerAngularVelocities;
 
 	std::deque<float> linearVelocities;
 	std::deque<float> angularVelocities;
@@ -215,6 +217,7 @@ struct Hand
 	NiPoint3 pulledPointOffset; // Offset from the center of mass of the point we're pulling on the pulled object
 	NiPoint3 pullTarget;
 	NiPoint3 initialGrabbedObjRelativePosition;
+	NiPoint3 previousObjectAngularVelocity;
 
 	NiTransform desiredNodeTransformHandSpace;
 	NiTransform desiredHavokTransformHandSpace;

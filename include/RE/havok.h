@@ -112,14 +112,14 @@ struct bhkEntity : bhkWorldObject
 
 struct bhkRigidBody : bhkEntity
 {
-	virtual void getPosition(hkVector4 *position); // 33
-	virtual void getRotation(void); // 34
-	virtual void setPosition(void); // 35
-	virtual void setRotation(void); // 36
+	virtual hkVector4 & getPosition(hkVector4 &position); // 33
+	virtual hkVector4 & getRotation(hkQuaternion &rotation); // 34
+	virtual void setPosition(hkVector4 &position); // 35
+	virtual void setRotation(hkQuaternion &rotation); // 36
 	virtual void setPositionAndRotation(hkVector4 &pos, hkQuaternion &rot); // 37
-	virtual void getCenterOfMassLocal(void); // 38
-	virtual void getCenterOfMassInWorld(void); // 39
-	virtual void getTransform(void); // 3A
+	virtual hkVector4 & getCenterOfMassLocal(hkVector4 &centerOfMassLocal); // 38
+	virtual hkVector4 & getCenterOfMassInWorld(hkVector4 &centerOfMassWorld); // 39
+	virtual hkTransform & getTransform(hkTransform &transform); // 3A
 	virtual void getAabbWorldspace(hkAabb &aabb); // 3B
 	virtual void Unk_3C(void); // 3C
 

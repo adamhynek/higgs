@@ -600,6 +600,7 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 {
 	PlayerCharacter *player = *g_thePlayer;
 	hkTransform transform = existingWeaponCollision->hkBody->getTransform();
+	/* This is broken for some people. I have no idea why.
 	if (g_isVrikPresent) {
 		// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
 		static BSFixedString weaponNodeName("WEAPON");
@@ -613,7 +614,7 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 			transform.m_translation = NiPointToHkVector(nodeTransform.pos * *g_havokWorldScale);
 			NiMatrixToHkMatrix(nodeTransform.rot, transform.m_rotation);
 		}
-	}
+	}*/
 
 	return transform;
 }
@@ -2099,6 +2100,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							velocityHandComponent = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
 						}
 
+						hkVector4 centerOfMass;
+						NiPoint3 handAngularVelocity = controllerAngularVelocities[0];
+						// TODO: This gives magnitude of the velocity for each axis, but does not give the correct direction (it gives the axis, which is wrong, it is a rotation _about that axis_ and so direction for each would be in its plane somehere)
+						NiPoint3 velocityTangentialAngularComponent = handAngularVelocity * VectorLength(HkVectorToNiPoint(selectedObject.rigidBody->getCenterOfMassInWorld(centerOfMass)) - hkPalmPos);
+						//velocityHandComponent += velocityTangentialAngularComponent;
+
 						if (VectorLength(velocityHandComponent) > Config::options.throwVelocityThreshold) {
 							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
 						}
@@ -2127,6 +2134,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
+						//selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(handAngularVelocity);
+						//selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(previousObjectAngularVelocity);
 
 						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableDropEvents) {
 							// Object dropped at the mouth
@@ -2589,6 +2598,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 							bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 							UpdateKeyframedNode(n, newTransform);
+							previousObjectAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 						}
 						else {
 							// Both position and rotation are close enough to their final values - we're done
@@ -2601,6 +2611,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				if (state == State::Held) {
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					UpdateKeyframedNode(n, newTransform);
+
+					previousObjectAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
@@ -2746,6 +2758,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 					prevHeldObjPosPlayerspace = heldObjPosPlayerspace;
 					prevHeldObjVelocityPlayerspace = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity) - playerHkVelocity; // potentially damped - need to set here after keyframe and damping has occurred
+
+					previousObjectAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 
 					if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 						haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
