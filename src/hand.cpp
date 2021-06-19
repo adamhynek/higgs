@@ -458,8 +458,7 @@ bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, c
 				// Get distance from the hit on the collidable to the ray
 				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
 				NiPoint3 handToHit = hit - hkPalmPos;
-				NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
-				float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+				float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection)); // distance from hit location to closest point on the ray
 				if (dist < closestDistance) {
 					closestObj = ref;
 					closestRigidBody = (bhkRigidBody *)rigidBody->m_userData;
@@ -561,8 +560,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkP
 				// Get distance from the hit on the collidable to the ray
 				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
 				NiPoint3 handToHit = hit - hkPalmPos;
-				NiPoint3 handToHitAlongRay = castDirection * DotProduct(handToHit, castDirection); // project above vector onto ray
-				float dist = VectorLength(handToHit - handToHitAlongRay); // distance from hit location to closest point on the ray
+				float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection)); // distance from hit location to closest point on the ray
 				if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 					closestObj = ref;
 					closestRigidBody = bRigidBody;
@@ -1519,6 +1517,34 @@ NiPointer<NiAVObject> Hand::GetHandNode()
 }
 
 
+NiPoint3 Hand::GetHandVelocity()
+{
+	float largestSpeed = -1;
+	int largestIndex = -1;
+	for (int i = 0; i < controllerVelocities.size(); i++) {
+		NiPoint3 velocity = controllerVelocities[i];
+		float speed = VectorLength(velocity);
+		if (speed > largestSpeed) {
+			largestSpeed = speed;
+			largestIndex = i;
+		}
+	}
+
+	if (largestIndex == 0) {
+		// Max is the first value
+		return controllerVelocities[0];
+	}
+	else if (largestIndex == controllerVelocities.size() - 1) {
+		// Max is the last value
+		return controllerVelocities[largestIndex];
+	}
+	else {
+		// Regular case - avg 3 values centered at the peak
+		return (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
+	}
+}
+
+
 void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
@@ -2075,44 +2101,33 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 					if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 
-						float largestSpeed = -1;
-						int largestIndex = -1;
-						for (int i = 0; i < controllerVelocities.size(); i++) {
-							NiPoint3 velocity = controllerVelocities[i];
-							float speed = VectorLength(velocity);
-							if (speed > largestSpeed) {
-								largestSpeed = speed;
-								largestIndex = i;
-							}
-						}
-
-						NiPoint3 velocityHandComponent;
-						if (largestIndex == 0) {
-							// Max is the first value
-							velocityHandComponent = controllerVelocities[0];
-						}
-						else if (largestIndex == controllerVelocities.size() - 1) {
-							// Max is the last value
-							velocityHandComponent = controllerVelocities[largestIndex];
-						}
-						else {
-							// Regular case - avg 3 values centered at the peak
-							velocityHandComponent = (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
-						}
-
-						hkVector4 centerOfMass;
-						NiPoint3 handAngularVelocity = controllerAngularVelocities[0];
-						// TODO: This gives magnitude of the velocity for each axis, but does not give the correct direction (it gives the axis, which is wrong, it is a rotation _about that axis_ and so direction for each would be in its plane somehere)
-						NiPoint3 velocityTangentialAngularComponent = handAngularVelocity * VectorLength(HkVectorToNiPoint(selectedObject.rigidBody->getCenterOfMassInWorld(centerOfMass)) - hkPalmPos);
-						//velocityHandComponent += velocityTangentialAngularComponent;
-
+						NiPoint3 velocityHandComponent = GetHandVelocity();
 						if (VectorLength(velocityHandComponent) > Config::options.throwVelocityThreshold) {
 							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
 						}
 
+						hkVector4 centerOfMass;
+						NiPoint3 handAngularVelocity = controllerAngularVelocities[0];
+
+						NiPoint3 axis = VectorNormalized(handAngularVelocity);
+						float angle = VectorLength(handAngularVelocity);
+
+						NiPoint3 handToCenterOfMass = HkVectorToNiPoint(selectedObject.rigidBody->getCenterOfMassInWorld(centerOfMass)) - hkPalmPos;
+						NiPoint3 handToCenterOfMassInRotationPlane = ProjectVectorOntoPlane(handToCenterOfMass, axis);
+						NiPoint3 tangentialDirection = VectorNormalized(CrossProduct(axis, handToCenterOfMassInRotationPlane));
+
+						// TODO: Incorporate inertia somehow, i.e. 'damp' rotation a bit according to inertia tensor
+						//hkMatrix3 hkInertiaTensor;
+						//NiMatrix33 inertiaTensor;
+						//selectedObject.rigidBody->hkBody->getInertiaWorld(hkInertiaTensor);
+						//HkMatrixToNiMatrix(hkInertiaTensor, inertiaTensor);
+
+						float tangentialMagnitude = VectorLength(handToCenterOfMassInRotationPlane) * angle;
+						NiPoint3 tangentialVelocity = tangentialDirection * tangentialMagnitude;
+
 						NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
 
-						NiPoint3 totalVelocity = velocityPlayerComponent + velocityHandComponent; // add the player velocity
+						NiPoint3 totalVelocity = velocityPlayerComponent + velocityHandComponent + tangentialVelocity;
 
 						bool velocityAboveThreshold = VectorLength(totalVelocity) > Config::options.throwVelocityThreshold;
 						bool collideWithHandWhenLettingGo = !velocityAboveThreshold;
@@ -2134,8 +2149,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
-						//selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(handAngularVelocity);
-						//selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(previousObjectAngularVelocity);
+						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(handAngularVelocity);
 
 						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableDropEvents) {
 							// Object dropped at the mouth
@@ -2598,7 +2612,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 							bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 							UpdateKeyframedNode(n, newTransform);
-							previousObjectAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 						}
 						else {
 							// Both position and rotation are close enough to their final values - we're done
@@ -2611,8 +2624,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				if (state == State::Held) {
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					UpdateKeyframedNode(n, newTransform);
-
-					previousObjectAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
@@ -2758,8 +2769,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 					prevHeldObjPosPlayerspace = heldObjPosPlayerspace;
 					prevHeldObjVelocityPlayerspace = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity) - playerHkVelocity; // potentially damped - need to set here after keyframe and damping has occurred
-
-					previousObjectAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
 
 					if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 						haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);

@@ -49,6 +49,31 @@ NiMatrix33 MatrixFromAxisAngle(const NiPoint3 &axis, float theta)
 	return result;
 }
 
+float RotationAngle(const NiMatrix33 &rot)
+{
+	float trace = rot.data[0][0] + rot.data[1][1] + rot.data[2][2];
+	return acosf((trace - 1.0f) / 2.0f);
+}
+
+std::tuple<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q)
+{
+	float angle = 2.0f * acosf(q.m_fW);
+	double s = sqrtf(1.0f - q.m_fW * q.m_fW);
+
+	NiPoint3 axis;
+	if (s < 0.001f) {
+		axis.x = 1.0f;
+		axis.y = 0.0f;
+		axis.z = 0.0f;
+	}
+	else {
+		axis.x = q.m_fX / s;
+		axis.y = q.m_fY / s;
+		axis.z = q.m_fZ / s;
+	}
+	return { axis, angle };
+}
+
 NiPoint3 MatrixToEuler(const NiMatrix33 &mat)
 {
 	// Thanks DavidJCobb
@@ -112,6 +137,12 @@ NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, f
 	// Rodrigues' rotation formula
 	float cosTheta = cosf(angle);
 	return vector * cosTheta + (CrossProduct(axis, vector) * sinf(angle)) + axis * DotProduct(axis, vector) * (1.0f - cosTheta);
+}
+
+NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal)
+{
+	NiPoint3 vectorAlongNormal = normal * DotProduct(vector, normal); // project above vector onto normal
+	return vector - vectorAlongNormal;
 }
 
 void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat)
