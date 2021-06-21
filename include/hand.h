@@ -116,8 +116,6 @@ struct Hand
 		controllerVelocities(10, NiPoint3()),
 		controllerAngularVelocities(10, NiPoint3()),
 		playerVelocitiesWorldspace(5, NiPoint3()),
-		linearVelocities(100),
-		angularVelocities(100),
 		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right)
 	{
 	};
@@ -205,9 +203,6 @@ struct Hand
 	std::deque<NiPoint3> playerVelocitiesWorldspace; // previous n player velocities in skyrim worldspace
 	std::deque<NiPoint3> controllerVelocities;
 	std::deque<NiPoint3> controllerAngularVelocities;
-
-	std::deque<float> linearVelocities;
-	std::deque<float> angularVelocities;
 
 	std::vector<NiPointer<bhkRigidBody>> nearbyBodies; // This only exists to hold the NiPointers
 	std::unordered_map<bhkRigidBody *, std::pair<hkHalf, hkHalf>> nearbyBodyMap;

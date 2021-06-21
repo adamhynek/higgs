@@ -855,20 +855,6 @@ void Hand::UpdateWeaponCollision()
 			hkQuaternion desiredQuat;
 			desiredQuat.setFromRotationSimd(transform.m_rotation);
 			hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
-
-			NiPoint3 linearVelocity = HkVectorToNiPoint(weaponBody->hkBody->getLinearVelocity());
-			NiPoint3 angularVelocity = HkVectorToNiPoint(weaponBody->hkBody->getAngularVelocity());
-
-			linearVelocities.pop_back();
-			linearVelocities.push_front(VectorLength(linearVelocity));
-			angularVelocities.pop_back();
-			angularVelocities.push_front(VectorLength(angularVelocity));
-
-			if (*g_currentFrameCounter % 100 == 0) {
-				float maxLinear = *std::max_element(linearVelocities.begin(), linearVelocities.end());
-				float maxAngular = *std::max_element(angularVelocities.begin(), angularVelocities.end());
-				_MESSAGE("%s: %.2f\t%.2f", name, maxLinear, maxAngular);
-			}
 		}
 	}
 }
@@ -2108,21 +2094,23 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 						hkVector4 centerOfMass;
 						NiPoint3 handAngularVelocity = controllerAngularVelocities[0];
+						NiPoint3 angularVelocity = handAngularVelocity * Config::options.angularVelocityMultiplier;
 
-						NiPoint3 axis = VectorNormalized(handAngularVelocity);
-						float angle = VectorLength(handAngularVelocity);
+						NiPoint3 axis = VectorNormalized(angularVelocity);
+						float angle = VectorLength(angularVelocity);
 
 						NiPoint3 handToCenterOfMass = HkVectorToNiPoint(selectedObject.rigidBody->getCenterOfMassInWorld(centerOfMass)) - hkPalmPos;
 						NiPoint3 handToCenterOfMassInRotationPlane = ProjectVectorOntoPlane(handToCenterOfMass, axis);
 						NiPoint3 tangentialDirection = VectorNormalized(CrossProduct(axis, handToCenterOfMassInRotationPlane));
 
-						// TODO: Incorporate inertia somehow, i.e. 'damp' rotation a bit according to inertia tensor
-						//hkMatrix3 hkInertiaTensor;
-						//NiMatrix33 inertiaTensor;
-						//selectedObject.rigidBody->hkBody->getInertiaWorld(hkInertiaTensor);
-						//HkMatrixToNiMatrix(hkInertiaTensor, inertiaTensor);
+						float centerOfMassDistance = VectorLength(handToCenterOfMassInRotationPlane);
+						float tangentialMagnitude = centerOfMassDistance * angle;
 
-						float tangentialMagnitude = VectorLength(handToCenterOfMassInRotationPlane) * angle;
+						if (tangentialMagnitude > Config::options.tangentialVelocityLimit) {
+							tangentialMagnitude = Config::options.tangentialVelocityLimit;
+							angularVelocity = axis * (tangentialMagnitude / centerOfMassDistance); // limit the angular velocity to match the clamped tangential velocity
+						}
+
 						NiPoint3 tangentialVelocity = tangentialDirection * tangentialMagnitude;
 
 						NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
@@ -2147,9 +2135,18 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
 						}
 
+						/* This should work to get inertia about the rotation axis, but I don't know if there's a good thing to do with it
+						hkMatrix3 hkInertiaTensor;
+						NiMatrix33 inertiaTensor;
+						selectedObject.rigidBody->hkBody->getInertiaWorld(hkInertiaTensor);
+						HkMatrixToNiMatrix(hkInertiaTensor, inertiaTensor);
+						float inertiaInPlane = DotProduct(inertiaTensor * axis, axis);
+						//_MESSAGE("Inertia: %.3f", inertiaInPlane);
+						*/
+
 						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
-						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(handAngularVelocity);
+						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(angularVelocity);
 
 						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableDropEvents) {
 							// Object dropped at the mouth

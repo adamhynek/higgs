@@ -152,10 +152,10 @@ namespace Config {
 		if (!ReadFloat("MouthVelocityThreshold", options.mouthVelocityThreshold)) return false;
 
 		if (!ReadFloat("PullDestinationZOffset", options.pullDestinationZOffset)) return false;
-
 		if (!ReadFloat("PulledAngularDamping", options.pulledAngularDamping)) return false;
-
 		if (!ReadFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) return false;
+		if (!ReadFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) return false;
+		if (!ReadFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) return false;
 
 		if (!ReadFloat("SelectionLockedStartHapticStrength", options.selectionLockedStartHapticStrength)) return false;
 		if (!ReadFloat("SelectionLockedStartHapticDuration", options.selectionLockedStartHapticDuration)) return false;
