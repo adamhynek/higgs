@@ -1137,18 +1137,17 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 		}
 
 		std::unordered_set<NiAVObject *> nodesToSkinTo;
-		if (selectedObject.isActor) {
-			// For ragdolls, skin to all nodes
-			GetDownstreamNodes(objRoot, nodesToSkinTo);
-		}
-		else {
+		bool skinToSpecificNodes = false;
+		if (selectedObject.isBook) {
 			// Skin only to nodes that are the collision node we grabbed or attached to it
+			// Only do this for objects we are sure will be okay. Sometimes bones don't exist, or don't appear in the skin instance, and so we can end up missing verts
 			GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
+			skinToSpecificNodes = true;
 		}
 
 		std::vector<TriangleData> triangles; // tris are in worldspace
 		double t = GetTime();
-		 GetSkinnedTriangles(objRoot, triangles, nodesToSkinTo);
+		 GetSkinnedTriangles(objRoot, triangles, skinToSpecificNodes ? &nodesToSkinTo : nullptr);
 		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
 		t = GetTime();

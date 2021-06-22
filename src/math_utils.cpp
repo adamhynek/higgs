@@ -1280,7 +1280,7 @@ bool IsHairGeometry(BSGeometry *geom)
 }
 
 // Add a list of triangles to the given list for each skinned partition in geom
-void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> &nodesToSkinTo)
+void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 	if (!skinInstance) return;
@@ -1312,9 +1312,6 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 	if (!boneTransforms || numBones <= 0) return;
 
 	BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSTriShape, BSDynamicTriShape);
-
-	NiTransform inverseRoot;
-	skeletonRoot->m_worldTransform.Invert(inverseRoot);
 
 	NiSkinData::BoneData *boneData = skinData->m_pkBoneData;
 
@@ -1383,9 +1380,14 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 					if (weight != 0.0f) {
 						UInt16 boneIndex = partition.m_pucBonePalette[offset];
 
-						NiAVObject *bone = skinInstance->m_ppkBones[boneIndex];
-						if (bone && nodesToSkinTo.count(bone) != 0) {
+						if (!nodesToSkinTo) {
 							includeVerts.insert(vindex);
+						}
+						else {
+							NiAVObject *bone = skinInstance->m_ppkBones[boneIndex];
+							if (bone && nodesToSkinTo->count(bone) != 0) {
+								includeVerts.insert(vindex);
+							}
 						}
 
 						NiTransform boneTransform = boneTrans[boneIndex];
@@ -1410,7 +1412,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 }
 
 // Get a list of triangle lists for all geometry rooted at root
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> &nodesToSkinTo)
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
