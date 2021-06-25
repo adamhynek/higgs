@@ -1,8 +1,6 @@
 #include "math_utils.h"
 #include "utils.h"
 #include "config.h"
-#include "triangle_triangle_intersection.h"
-#include "PQP/TriDist.h"
 #include "finger_curves.h"
 
 #include "skse64/NiGeometry.h"
@@ -1279,7 +1277,7 @@ bool IsHairGeometry(BSGeometry *geom)
 	return false;
 }
 
-// Add a list of triangles to the given list for each skinned partition in geom
+// Add triangles to the given list for each skinned partition in geom
 void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
@@ -1411,7 +1409,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 	}
 }
 
-// Get a list of triangle lists for all geometry rooted at root
+// Get skinned triangles for all geometry rooted at root
 void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
@@ -1595,27 +1593,6 @@ bool DoesAnyVertexMatch(const std::array<NiPoint3, 3> &verts1, const std::array<
 		}
 	}
 	return false;
-}
-
-bool TriangleIntersectsTriangle(const std::array<NiPoint3, 3> &verts1, const std::array<NiPoint3, 3> &verts2)
-{
-	float *p1 = (float *)&verts1[0];
-	float *q1 = (float *)&verts1[1];
-	float *r1 = (float *)&verts1[2];
-
-	float *p2 = (float *)&verts2[0];
-	float *q2 = (float *)&verts2[1];
-	float *r2 = (float *)&verts2[2];
-
-	return tri_tri_overlap_test_3d(p1, q1, r1, p2, q2, r2);
-}
-
-float TriangleTriangleDistance(const std::array<NiPoint3, 3> &verts1, const std::array<NiPoint3, 3> &verts2)
-{
-	float P[3], Q[3];
-	auto S = (float(*)[3])&verts1;
-	auto T = (float(*)[3])&verts2;
-	return TriDist(P, Q, S, T);
 }
 
 

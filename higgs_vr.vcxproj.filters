@@ -13,9 +13,6 @@
     <Filter Include="include\RE">
       <UniqueIdentifier>{a9203d2d-0171-4ad8-aabc-e773ac9d7a09}</UniqueIdentifier>
     </Filter>
-    <Filter Include="include\PQP">
-      <UniqueIdentifier>{8fc22e79-e821-476f-91bd-f4f1cad13f8f}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\physics.cpp">
@@ -100,15 +97,6 @@
     </ClInclude>
     <ClInclude Include="include\effects.h">
       <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\triangle_triangle_intersection.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\PQP\MatVec.h">
-      <Filter>include\PQP</Filter>
-    </ClInclude>
-    <ClInclude Include="include\PQP\TriDist.h">
-      <Filter>include\PQP</Filter>
     </ClInclude>
     <ClInclude Include="include\finger_curves.h">
       <Filter>include</Filter>

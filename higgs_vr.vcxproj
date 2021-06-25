@@ -213,9 +213,6 @@
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\papyrusapi.h" />
     <ClInclude Include="include\pluginapi.h" />
-    <ClInclude Include="include\PQP\MatVec.h" />
-    <ClInclude Include="include\PQP\TriDist.h" />
-    <ClInclude Include="include\triangle_triangle_intersection.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\hand.h" />
     <ClInclude Include="include\havok_ref_ptr.h" />
