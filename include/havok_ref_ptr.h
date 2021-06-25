@@ -1,6 +1,6 @@
 #pragma once
 
-#include "offsets.h"
+#include "RE/offsets.h"
 
 
 /*

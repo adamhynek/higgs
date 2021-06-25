@@ -10,10 +10,10 @@
 #include "hooks.h"
 #include "effects.h"
 #include "RE/havok.h"
+#include "RE/offsets.h"
 #include "hand.h"
 #include "vrikinterface001.h"
 #include "config.h"
-#include "offsets.h"
 #include "main.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>

@@ -1,6 +1,6 @@
+#include "RE/offsets.h"
 #include "effects.h"
 #include "utils.h"
-#include "offsets.h"
 #include "hand.h"
 
 #include "skse64/NiGeometry.h"

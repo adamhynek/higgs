@@ -12,7 +12,7 @@
 #include "skse64/GameExtraData.h"
 
 #include "hand.h"
-#include "offsets.h"
+#include "RE/offsets.h"
 #include "utils.h"
 #include "config.h"
 #include "menu_checker.h"
@@ -445,7 +445,7 @@ bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, c
 		if (!rigidBody || !rigidBody->m_userData) {
 			continue; // No rigidbody -> no movement :/
 		}
-		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
+		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(collidable);
 		if (ref && ref != *g_thePlayer) {
 			if (IsObjectSelectable(rigidBody, ref) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
@@ -547,7 +547,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkP
 			continue; // No rigidbody -> no movement :/
 		}
 		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-		NiPointer<TESObjectREFR> ref = FindCollidableRef(collidable);
+		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(collidable);
 		if (ref && ref != *g_thePlayer) {
 			if (IsObjectSelectable(rigidBody, ref)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
@@ -1020,7 +1020,7 @@ bool Hand::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &i
 
 	// TODO: It needs to be the root of the object that's attached to the appropriate offset node, and we don't necessarily always grab the root
 
-	NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
+	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	if (!collidableNode) return false;
 
 	NiTransform &currentTransform = collidableNode->m_worldTransform;
@@ -1060,7 +1060,7 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 {
 	bool wereFingersSet = false;
 
-	NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
+	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 	if (collidableNode && objRoot) {
 		StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -1647,7 +1647,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					auto rigidBody = GetFirstRigidBody(objRoot);
 					if (rigidBody) {
 						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
-						NiPointer<NiAVObject> collidableNode = FindCollidableNode(collidable);
+						NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable);
 						if (collidableNode) {
 							selectedObject.rigidBody = rigidBody;
 							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
@@ -1739,7 +1739,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			bool breakStickiness = false;
 
 			if (actor) {
-				NiPointer<NiAVObject> hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+				NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
 				if (hitNode) {
 					BipedModel *biped = actor->GetBipedSmall();
 					if (biped) {
@@ -1881,7 +1881,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 						selectedObject.hitForm = nullptr;
 
 						if (!selectedObject.isActor) {
-							NiPointer<NiAVObject> hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+							NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
 							if (hitNode) {
 								if (!IsSkinnedToNode(objRoot, hitNode)) {
 									selectedObject.shaderNode = hitNode;
@@ -1907,7 +1907,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							}
 						}
 						else {
-							NiPointer<NiAVObject> hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+							NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
 							if (hitNode != selectedObject.shaderNode) {
 								// Moved nodes on the same reference
 								StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -1928,7 +1928,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					}
 					else {
 						// Same refr, no node selected before (skinned?)
-						NiPointer<NiAVObject> hitNode = FindCollidableNode(&closestRigidBody->hkBody->m_collidable);
+						NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
 						if (hitNode && !IsSkinnedToNode(objRoot, hitNode)) {
 							// Only replay the shader if we now have a specific node to play on
 							StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -2212,7 +2212,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
 						}
 						else {
-							float mass = NiAVObject_GetMass(FindCollidableNode(selectedObject.collidable), 0);
+							float mass = NiAVObject_GetMass(GetNodeFromCollidable(selectedObject.collidable), 0);
 							float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
 							haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
 
@@ -2424,7 +2424,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					auto rigidBody = GetFirstRigidBody(objRoot);
 					if (rigidBody) {
 						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
-						NiPointer<NiAVObject> collidableNode = FindCollidableNode(collidable);
+						NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable);
 						if (collidableNode) {
 							selectedObject.rigidBody = rigidBody;
 							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
@@ -2524,7 +2524,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					float verticalDelta = pullTarget.z - objPoint.z;
 					velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
-					NiPointer<NiAVObject> n = FindCollidableNode(selectedObject.collidable);
+					NiPointer<NiAVObject> n = GetNodeFromCollidable(selectedObject.collidable);
 					if (n && DoesNodeHaveConstraint(objRoot, n)) {
 						// TODO: Set velocity for only the connected component of constrained objects containing this one, not all in the refr
 						SetVelocityDownstream(objRoot, NiPointToHkVector(velocity));
@@ -2552,7 +2552,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	if (state == State::HeldInit || state == State::Held) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> n = FindCollidableNode(selectedObject.collidable);
+			NiPointer<NiAVObject> n = GetNodeFromCollidable(selectedObject.collidable);
 			if (n) {
 				NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
@@ -2652,7 +2652,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	if (state == State::HeldBody) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> collidableNode = FindCollidableNode(selectedObject.collidable);
+			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 			if (collidableNode) {
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale

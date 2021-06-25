@@ -1,7 +1,7 @@
 #include <sstream>
 
+#include "RE/offsets.h"
 #include "physics.h"
-#include "offsets.h"
 #include "utils.h"
 #include "pluginapi.h"
 #include "hand.h"
@@ -188,7 +188,7 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 
 	bool isAllNPC = true;
 	for (hkpEntity *entity : island->m_entities) {
-		NiPointer<TESObjectREFR> ref = FindCollidableRef(&entity->m_collidable);
+		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(&entity->m_collidable);
 		if (!ref || ref->formType != kFormType_Character) {
 			isAllNPC = false;
 		}
@@ -307,7 +307,7 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 	}
 
 	/*
-	TESObjectREFR *ref = FindCollidableRef(&otherBody->m_collidable);
+	TESObjectREFR *ref = GetRefFromCollidable(&otherBody->m_collidable);
 	hkContactPoint *contactPoint = evnt.m_contactPoint;
 	if (ref && contactPoint) {
 		PlayerCharacter *player = *g_thePlayer;

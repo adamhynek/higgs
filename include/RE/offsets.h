@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RE/havok.h"
+#include "RE/misc.h"
 #include "effects.h"
 
 #include "skse64_common/Relocation.h"
@@ -13,35 +14,6 @@
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 #include <Physics/Utilities/Collide/TriggerVolume/hkpTriggerVolume.h>
-
-
-// 0x2FEAC78: TESObjectREFR * to selected object?
-struct CrosshairPickData
-{
-	UInt32 unk00;
-	UInt32 leftHandle1; // 04
-	UInt32 rightHandle1; // 08
-	UInt32 unk0C;
-	UInt32 leftHandle2; // 10
-	UInt32 rightHandle2; // 14
-	UInt32 unk18;
-	UInt32 leftHandle3; // 1C
-	UInt32 rightHandle3; // 20
-	UInt8 unk24[0x50 - 0x24];
-	bhkRigidBody *rigidBodies[2]; // 50 - slot depends on hand
-	UInt8 unk60[0x78 - 0x60];
-	NiPointer<bhkSimpleShapePhantom> sphere; // 78
-};
-static_assert(offsetof(CrosshairPickData, rigidBodies) == 0x50);
-static_assert(offsetof(CrosshairPickData, sphere) == 0x78);
-
-struct SoundData
-{
-	UInt32 id = -1; // 00
-	UInt8 unk04 = 0;
-	UInt32 unk08 = 0; // set to 1 when playing
-};
-static_assert(sizeof(SoundData) == 0x0C);
 
 
 // Multiply skyrim coords by this to get havok coords
@@ -91,54 +63,7 @@ extern RelocPtr<float> g_fMagicHandRotateZ;
 extern RelocPtr<float> g_fMagicHandScale;
 
 
-typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);
-extern RelocAddr<_BSVRInterface_GetHandTransform> BSOpenVR_GetHandTransform;
-
-typedef void(*_CreateDetectionEvent)(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 *position, int soundLevel, TESObjectREFR *source);
-extern RelocAddr<_CreateDetectionEvent> CreateDetectionEvent;
-
-typedef void(*_ShadowSceneNode_UpdateNodeList)(ShadowSceneNode *sceneNode, NiAVObject *node, bool useOtherList);
-extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList;
-
-typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
-extern RelocAddr<_IsInMenuMode> IsInMenuMode;
-
-typedef bool(*_ObjectReference_SetActorCause)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, Actor *actor);
-extern RelocAddr<_ObjectReference_SetActorCause> ObjectReference_SetActorCause;
-
-typedef bool(*_ObjectReference_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
-extern RelocAddr<_ObjectReference_Activate> ObjectReference_Activate;
-
-typedef bool(*_TESObjectREFR_Activate)(TESObjectREFR* activatee, TESObjectREFR* activator, UInt32 unk01, UInt32 unk02, UInt32 count, bool defaultProcessingOnly); // unks are 0, 0
-extern RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate;
-
-typedef bool(*_TESObjectREFR_SetScale)(TESObjectREFR* refr, float scale);
-extern RelocAddr<_TESObjectREFR_SetScale> TESObjectREFR_SetScale;
-
-typedef void(*_EffectShader_Play)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target, float duration);
-extern RelocAddr<_EffectShader_Play> EffectShader_Play;
-
-typedef void(*_EffectShader_Stop)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target);
-extern RelocAddr<_EffectShader_Stop> EffectShader_Stop;
-
-typedef void(*_VisualEffect_Play)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target, float duration, TESObjectREFR *objToFace);
-extern RelocAddr<_VisualEffect_Play> VisualEffect_Play;
-
-typedef void(*_VisualEffect_Stop)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target);
-extern RelocAddr<_VisualEffect_Stop> VisualEffect_Stop;
-
-typedef UInt32(*_Sound_Play)(VMClassRegistry* registry, UInt32 stackId, BGSSoundDescriptorForm *sound, TESObjectREFR *source);
-extern RelocAddr<_Sound_Play> Sound_Play;
-
-typedef void(*_BSExtraDataList_RemoveOwnership)(BaseExtraList *_this);
-extern RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership;
-
-typedef void(*_BSExtraDataList_SetOwnerForm)(BaseExtraList *_this, TESForm *form);
-extern RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm;
-
-typedef void(*_TESObjectREFR_SetActorOwner)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR *_this, TESForm *owner);
-extern RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner;
-
+// Havok / Bethesda havok wrappers
 typedef float(*_hkpWorld_getCurrentTime)(hkpWorld *world);
 extern RelocAddr<_hkpWorld_getCurrentTime> hkpWorld_getCurrentTime;
 
@@ -249,23 +174,80 @@ extern RelocAddr<_bhkRigidBody_MoveToPositionAndRotation> bhkRigidBody_MoveToPos
 typedef void(*_bhkCollisionObject_SetNodeTransformsFromWorldTransform)(bhkCollisionObject *_this, NiTransform &worldTransform);
 extern RelocAddr<_bhkCollisionObject_SetNodeTransformsFromWorldTransform> bhkCollisionObject_SetNodeTransformsFromWorldTransform;
 
-typedef void(*_NiAVObject_RecalculateWorldTransform)(NiAVObject *_this);
-extern RelocAddr<_NiAVObject_RecalculateWorldTransform> NiAVObject_RecalculateWorldTransform;
-
 typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
 extern RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation;
 
 typedef void(*_bhkWorldObject_UpdateCollisionFilter)(bhkWorldObject *_this);
 extern RelocAddr<_bhkWorldObject_UpdateCollisionFilter> bhkWorldObject_UpdateCollisionFilter;
 
-typedef TESObjectREFR* (*_FindCollidableRef)(hkpCollidable * a_collidable);
-extern RelocAddr<_FindCollidableRef> FindCollidableRef;
+typedef void(*_hkReferencedObject_addReference)(hkReferencedObject *_this);
+extern RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReference;
 
-typedef NiAVObject* (*_FindCollidableNode)(hkpCollidable * a_collidable);
-extern RelocAddr<_FindCollidableNode> FindCollidableNode;
+typedef void(*_hkReferencedObject_removeReference)(hkReferencedObject *_this);
+extern RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference;
 
-typedef bhkWorld* (*_GetWorld)(TESObjectCELL *cell);
-extern RelocAddr<_GetWorld> GetWorld;
+
+// More havok-related
+typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);
+extern RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell;
+
+typedef NiAVObject * (*_GetNodeFromCollidable)(hkpCollidable * a_collidable);
+extern RelocAddr<_GetNodeFromCollidable> GetNodeFromCollidable;
+
+typedef TESObjectREFR * (*_GetRefFromCollidable)(hkpCollidable * a_collidable);
+extern RelocAddr<_GetRefFromCollidable> GetRefFromCollidable;
+
+
+typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);
+extern RelocAddr<_BSVRInterface_GetHandTransform> BSOpenVR_GetHandTransform;
+
+typedef void(*_CreateDetectionEvent)(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 *position, int soundLevel, TESObjectREFR *source);
+extern RelocAddr<_CreateDetectionEvent> CreateDetectionEvent;
+
+typedef void(*_ShadowSceneNode_UpdateNodeList)(ShadowSceneNode *sceneNode, NiAVObject *node, bool useOtherList);
+extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList;
+
+typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
+extern RelocAddr<_IsInMenuMode> IsInMenuMode;
+
+typedef bool(*_ObjectReference_SetActorCause)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, Actor *actor);
+extern RelocAddr<_ObjectReference_SetActorCause> ObjectReference_SetActorCause;
+
+typedef bool(*_ObjectReference_Activate)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR* objectRefr, TESObjectREFR* activator, bool defaultProcessingOnly);
+extern RelocAddr<_ObjectReference_Activate> ObjectReference_Activate;
+
+typedef bool(*_TESObjectREFR_Activate)(TESObjectREFR* activatee, TESObjectREFR* activator, UInt32 unk01, UInt32 unk02, UInt32 count, bool defaultProcessingOnly); // unks are 0, 0
+extern RelocAddr<_TESObjectREFR_Activate> TESObjectREFR_Activate;
+
+typedef bool(*_TESObjectREFR_SetScale)(TESObjectREFR* refr, float scale);
+extern RelocAddr<_TESObjectREFR_SetScale> TESObjectREFR_SetScale;
+
+typedef void(*_EffectShader_Play)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target, float duration);
+extern RelocAddr<_EffectShader_Play> EffectShader_Play;
+
+typedef void(*_EffectShader_Stop)(VMClassRegistry* registry, UInt32 stackId, TESEffectShader *shader, TESObjectREFR *target);
+extern RelocAddr<_EffectShader_Stop> EffectShader_Stop;
+
+typedef void(*_VisualEffect_Play)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target, float duration, TESObjectREFR *objToFace);
+extern RelocAddr<_VisualEffect_Play> VisualEffect_Play;
+
+typedef void(*_VisualEffect_Stop)(VMClassRegistry* registry, UInt32 stackId, BGSReferenceEffect *effect, TESObjectREFR *target);
+extern RelocAddr<_VisualEffect_Stop> VisualEffect_Stop;
+
+typedef UInt32(*_Sound_Play)(VMClassRegistry* registry, UInt32 stackId, BGSSoundDescriptorForm *sound, TESObjectREFR *source);
+extern RelocAddr<_Sound_Play> Sound_Play;
+
+typedef void(*_BSExtraDataList_RemoveOwnership)(BaseExtraList *_this);
+extern RelocAddr<_BSExtraDataList_RemoveOwnership> BSExtraDataList_RemoveOwnership;
+
+typedef void(*_BSExtraDataList_SetOwnerForm)(BaseExtraList *_this, TESForm *form);
+extern RelocAddr<_BSExtraDataList_SetOwnerForm> BSExtraDataList_SetOwnerForm;
+
+typedef void(*_TESObjectREFR_SetActorOwner)(VMClassRegistry* registry, UInt32 stackId, TESObjectREFR *_this, TESForm *owner);
+extern RelocAddr<_TESObjectREFR_SetActorOwner> TESObjectREFR_SetActorOwner;
+
+typedef void(*_NiAVObject_RecalculateWorldTransform)(NiAVObject *_this);
+extern RelocAddr<_NiAVObject_RecalculateWorldTransform> NiAVObject_RecalculateWorldTransform;
 
 typedef void(*_ActivatePickRef)(PlayerCharacter *player);
 extern RelocAddr<_ActivatePickRef> ActivatePickRef;
@@ -279,16 +261,6 @@ extern RelocAddr<_NiAVObject_GetMass> NiAVObject_GetMass;
 typedef void(*_StartGrabObject)(PlayerCharacter *_this, UInt64 isRightHand);
 extern RelocAddr<_StartGrabObject> StartGrabObject;
 
-typedef void(*_AddRemoveConstraintFunctor)(__int64 a1, void *a2);
-extern RelocAddr<_AddRemoveConstraintFunctor> AddRemoveConstraintFunctor;
-
-typedef void(*_AddHavokBallAndSocketConstraint)(VMClassRegistry *registry, UInt32 stackId, UInt64 unk, TESObjectREFR *refA, const char **refANode, TESObjectREFR *refB, const char **refBNode,
-	float afRefALocalOffsetX, float afRefALocalOffsetY, float afRefALocalOffsetZ, float afRefBLocalOffsetX, float afRefBLocalOffsetY, float afRefBLocalOffsetZ);
-extern RelocAddr<_AddHavokBallAndSocketConstraint> AddHavokBallAndSocketConstraint;
-
-typedef void(*_RemoveHavokConstraints)(VMClassRegistry *registry, UInt32 stackId, UInt64 unk, TESObjectREFR *refA, const char **refANode, TESObjectREFR *refB, const char **refBNode);
-extern RelocAddr<_RemoveHavokConstraints> RemoveHavokConstraints;
-
 typedef void(*_TESObjectREFR_SetPosition)(TESObjectREFR *_this, NiPoint3 &newPos);
 extern RelocAddr<_TESObjectREFR_SetPosition> TESObjectREFR_SetPosition;
 
@@ -297,12 +269,6 @@ extern RelocAddr<_TESObjectREFR_SetRotation> TESObjectREFR_SetRotation;
 
 typedef void(*_NiAVObject_UpdateObjectUpwards)(NiAVObject *_this, NiAVObject::ControllerUpdateContext *ctx);
 extern RelocAddr<_NiAVObject_UpdateObjectUpwards> NiAVObject_UpdateObjectUpwards;
-
-typedef void(*_hkReferencedObject_addReference)(hkReferencedObject *_this);
-extern RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReference;
-
-typedef void(*_hkReferencedObject_removeReference)(hkReferencedObject *_this);
-extern RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference;
 
 typedef BGSMaterialType * (*_GetMaterialType)(UInt32 materialId); // materialId is gotten from the bhkShape at offset 0x20
 extern RelocAddr<_GetMaterialType> GetMaterialType;
@@ -357,10 +323,6 @@ extern RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor;
 
 typedef void(*_bhkBoxShape_ctor)(bhkBoxShape *_this, hkVector4 *halfExtents);
 extern RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor;
-
-typedef void(*_CleanupCloneList)(uintptr_t _this);
-extern RelocAddr<_CleanupCloneList> CleanupCloneList1;
-extern RelocAddr<_CleanupCloneList> CleanupCloneList2;
 
 typedef NiAVObject * (*_PlayerCharacter_GetOffsetNodeForWeaponIndex)(PlayerCharacter *_this, UInt32 isLeft, UInt32 weaponIndex);
 extern RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex;

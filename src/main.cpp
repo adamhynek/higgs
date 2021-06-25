@@ -25,13 +25,13 @@
 
 #include <ShlObj.h>  // CSIDL_MYDOCUMENTS
 
+#include "RE/offsets.h"
 #include "hand.h"
 #include "version.h"
 #include "utils.h"
 #include "config.h"
 #include "menu_checker.h"
 #include "effects.h"
-#include "offsets.h"
 #include "hooks.h"
 #include "vrikinterface001.h"
 #include "papyrusapi.h"
@@ -244,7 +244,7 @@ void Update()
 	TESObjectCELL *cell = player->parentCell;
 	if (!cell) return;
 
-	NiPointer<bhkWorld> world = GetWorld(cell);
+	NiPointer<bhkWorld> world = GetHavokWorldFromCell(cell);
 	if (!world) {
 		_MESSAGE("Could not get havok world from player cell");
 		return;
@@ -316,8 +316,8 @@ void Update()
 
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(g_rightHand->selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> leftNode = FindCollidableNode(g_leftHand->selectedObject.collidable);
-			NiPointer<NiAVObject> rightNode = FindCollidableNode(g_rightHand->selectedObject.collidable);
+			NiPointer<NiAVObject> leftNode = GetNodeFromCollidable(g_leftHand->selectedObject.collidable);
+			NiPointer<NiAVObject> rightNode = GetNodeFromCollidable(g_rightHand->selectedObject.collidable);
 			if (leftNode && rightNode) {
 				if (DoesNodeHaveNode(leftNode, rightNode)) {
 					// Right is the child

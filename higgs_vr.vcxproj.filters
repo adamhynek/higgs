@@ -13,6 +13,9 @@
     <Filter Include="include\RE">
       <UniqueIdentifier>{a9203d2d-0171-4ad8-aabc-e773ac9d7a09}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\RE">
+      <UniqueIdentifier>{7903ded5-f7cc-4939-a27e-d9a819146828}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\physics.cpp">
@@ -28,9 +31,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\menu_checker.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\offsets.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\hooks.cpp">
@@ -60,6 +60,9 @@
     <ClCompile Include="src\hand.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\RE\offsets.cpp">
+      <Filter>src\RE</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\version.h">
@@ -78,9 +81,6 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\config.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\offsets.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\menu_checker.h">
@@ -115,6 +115,12 @@
     </ClInclude>
     <ClInclude Include="include\hand.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RE\offsets.h">
+      <Filter>include\RE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RE\misc.h">
+      <Filter>include\RE</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

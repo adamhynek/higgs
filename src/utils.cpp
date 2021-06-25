@@ -13,13 +13,8 @@
 #include "skse64/HashUtil.h"
 
 #include "utils.h"
-#include "offsets.h"
 #include "config.h"
 #include "hand.h"
-
-
-RelocPtr<UInt64> unk_141E703BC(0x1E703BC);
-RelocPtr<UInt64> unk_141E703B8(0x1E703B8);
 
 
 ITimer g_timer;

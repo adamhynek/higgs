@@ -199,11 +199,11 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\math_utils.cpp" />
     <ClCompile Include="src\menu_checker.cpp" />
-    <ClCompile Include="src\offsets.cpp" />
     <ClCompile Include="src\papyrusapi.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\effects.cpp" />
     <ClCompile Include="src\pluginapi.cpp" />
+    <ClCompile Include="src\RE\offsets.cpp" />
     <ClCompile Include="src\utils.cpp" />
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
@@ -218,11 +218,12 @@
     <ClInclude Include="include\havok_ref_ptr.h" />
     <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\math_utils.h" />
-    <ClInclude Include="include\offsets.h" />
     <ClInclude Include="include\menu_checker.h" />
     <ClInclude Include="include\physics.h" />
     <ClInclude Include="include\RE\havok.h" />
     <ClInclude Include="include\effects.h" />
+    <ClInclude Include="include\RE\misc.h" />
+    <ClInclude Include="include\RE\offsets.h" />
     <ClInclude Include="include\utils.h" />
     <ClInclude Include="include\version.h" />
     <ClInclude Include="include\vrikinterface001.h" />
