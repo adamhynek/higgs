@@ -124,7 +124,7 @@ struct bhkRigidBody : bhkEntity
 	virtual void Unk_3C(void); // 3C
 
 	hkpRigidBody * hkBody; // 10
-	UInt16 flags; // 18 - flags? if or'd with 0x20 (bit 5), it makes havok sim more stable - actually, that might apply to the flags in bhkCollisionObject?
+	UInt64 unk18;
 	UInt64 unk20; // at least first byte are some flags? bit 2 is set -> has constraints?
 	tArray<bhkConstraint *> constraints; // 28
 };
@@ -143,7 +143,7 @@ static_assert(offsetof(bhkRigidBodyT, unkPos) == 0x50);
 struct NiCollisionObject : NiObject
 {
 	virtual void Unk_25(void); // 25
-	virtual void UpdateWithContext(void); // 26
+	virtual void Update(NiAVObject::ControllerUpdateContext *ctx); // 26
 	virtual void Unk_27(void); // 27
 	virtual void Unk_28(void); // 28 - { return; }
 	virtual void Unk_29(void); // 29 - { return; }
