@@ -1277,6 +1277,22 @@ bool IsHairGeometry(BSGeometry *geom)
 	return false;
 }
 
+bool IsBloodOrDecal(BSGeometry *geom)
+{
+	NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
+	if (geomProperty) {
+		BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
+		if (shaderProperty) {
+			if (shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Decal ||
+				shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Dynamic_Decal ||
+				shaderProperty->shaderFlags2 & BSShaderProperty::ShaderFlags2::kSLSF2_Weapon_Blood) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 // Add triangles to the given list for each skinned partition in geom
 void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
@@ -1288,6 +1304,8 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 
 	NiSkinDataPtr skinData = skinInstance->m_spSkinData;
 	if (!skinData) return;
+
+	if (IsBloodOrDecal(geom)) return;
 
 	if (Config::options.disableGrabHair && IsHairGeometry(geom)) {
 		// Don't skin hair - it gets in the way
@@ -1450,6 +1468,8 @@ void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 		// Probably skinned mesh
 		return;
 	}
+
+	if (IsBloodOrDecal(geom)) return;
 
 	_MESSAGE("%d tris", numTris);
 

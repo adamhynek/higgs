@@ -134,8 +134,8 @@ static_assert(sizeof(bhkRigidBody) == 0x40);
 struct bhkRigidBodyT : bhkRigidBody
 {
 	// I'm really not sure about these. The first one likes to be { 0, 0, 0, 1 } which seems to be a quat.
-	hkQuaternion unkRot;
-	hkVector4 unkPos;
+	hkQuaternion unkRot; // 40
+	hkVector4 unkPos; // 50
 };
 static_assert(offsetof(bhkRigidBodyT, unkRot) == 0x40);
 static_assert(offsetof(bhkRigidBodyT, unkPos) == 0x50);
