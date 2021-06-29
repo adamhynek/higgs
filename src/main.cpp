@@ -20,6 +20,7 @@
 #include "skse64/GameForms.h"
 #include "skse64/PapyrusActor.h"
 #include "skse64/GameVR.h"
+#include "skse64/gamethreads.h"
 #include "skse64_common/SafeWrite.h"
 #include "skse64_common/BranchTrampoline.h"
 
@@ -392,38 +393,83 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 }
 
 
+void ShowErrorBox(const char *errorString)
+{
+	_ERROR(errorString);
+	int msgboxID = MessageBox(
+		NULL,
+		(LPCTSTR)errorString,
+		(LPCTSTR)"HIGGS Fatal Error",
+		MB_ICONERROR | MB_OK | MB_TASKMODAL
+	);
+}
+
+void ShowErrorBoxAndTerminate(const char *errorString)
+{
+	ShowErrorBox(errorString);
+	*((int *)0) = 0xDEADBEEF; // crash
+}
+
+struct ShowErrorBoxAndTerminateTask : TaskDelegate
+{
+	static ShowErrorBoxAndTerminateTask * Create(const char *errorString) {
+		ShowErrorBoxAndTerminateTask * cmd = new ShowErrorBoxAndTerminateTask;
+		if (cmd)
+		{
+			cmd->errorString = errorString;
+		}
+		return cmd;
+	}
+	virtual void Run() {
+		ShowErrorBoxAndTerminate(errorString);
+	}
+	virtual void Dispose() {
+		delete this;
+	}
+
+	const char *errorString;
+};
+
+void QueueErrorBox(const char *errorString)
+{
+	// Show error box and terminate on main thread
+	g_taskInterface->AddTask(ShowErrorBoxAndTerminateTask::Create(errorString));
+}
+
+
 extern "C" {
 	void OnDataLoaded()
 	{
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("higgs_vr.esp");
 		if (!modInfo) {
-			_ERROR("[CRITICAL] Could not get modinfo. Most likely the .esp doesn't exist.");
+			QueueErrorBox("[CRITICAL] Could not get modinfo. Most likely the higgs .esp doesn't exist.");
 			return;
 		}
 
 		if (!modInfo->IsActive()) {
-			_ERROR("[CRITICAL] The .esp is not active");
+			QueueErrorBox("[CRITICAL] The higgs .esp exists, but is not active. Make sure the esp is enabled in your mod manager.");
+			return;
 		}
 
 		TESForm *shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F00));
 		if (!shaderForm) {
-			_ERROR("Failed to get slected item shader form");
+			QueueErrorBox("Failed to get slected item shader form");
 			return;
 		}
 		g_itemSelectedShader = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
 		if (!g_itemSelectedShader) {
-			_ERROR("Failed to cast selected item shader form");
+			QueueErrorBox("Failed to cast selected item shader form");
 			return;
 		}
 		
 		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F01));
 		if (!shaderForm) {
-			_ERROR("Failed to get slected item off limits shader form");
+			QueueErrorBox("Failed to get slected item off limits shader form");
 			return;
 		}
 		g_itemSelectedShaderOffLimits = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
 		if (!g_itemSelectedShaderOffLimits) {
-			_ERROR("Failed to cast selected item off limits shader form");
+			QueueErrorBox("Failed to cast selected item off limits shader form");
 			return;
 		}
 		
@@ -450,7 +496,7 @@ extern "C" {
 		g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
 		g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
 		if (!g_rightHand || !g_leftHand || !g_shaderNodes) {
-			_ERROR("[CRITICAL] Couldn't allocate memory");
+			QueueErrorBox("[CRITICAL] Couldn't allocate memory");
 			return;
 		}
 
@@ -554,7 +600,7 @@ extern "C" {
 
 		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
 		if (!g_vrInterface) {
-			_ERROR("[CRITICAL] Couldn't get SKSE VR interface. You probably have an outdated SKSE version.");
+			ShowErrorBox("[CRITICAL] Couldn't get SKSE VR interface. You probably have an outdated SKSE version.");
 			return false;
 		}
 		g_vrInterface->RegisterForControllerState(g_pluginHandle, 66, ControllerStateCB);
@@ -562,7 +608,7 @@ extern "C" {
 
 		g_papyrus = (SKSEPapyrusInterface *)skse->QueryInterface(kInterface_Papyrus);
 		if (!g_papyrus) {
-			_ERROR("[CRITICAL] Couldn't get Papyrus interface");
+			ShowErrorBox("[CRITICAL] Couldn't get Papyrus interface");
 			return false;
 		}
 		if (g_papyrus->Register(PapyrusAPI::RegisterPapyrusFuncs)) {
@@ -571,7 +617,7 @@ extern "C" {
 
 		g_taskInterface = (SKSETaskInterface *)skse->QueryInterface(kInterface_Task);
 		if (!g_taskInterface) {
-			_ERROR("[CRITICAL] Could not get SKSE task interface");
+			ShowErrorBox("[CRITICAL] Could not get SKSE task interface");
 			return false;
 		}
 
@@ -580,7 +626,7 @@ extern "C" {
 			_WARNING("Couldn't get trampoline interface");
 		}
 		if (!TryHook()) {
-			_ERROR("[CRITICAL] Failed to perform hooks");
+			ShowErrorBox("[CRITICAL] Failed to perform hooks");
 			return false;
 		}
 
