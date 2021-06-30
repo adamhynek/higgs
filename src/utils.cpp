@@ -198,11 +198,35 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 	UpdateNodeTransformLocal(node, transform);
 	
 	NiAVObject::ControllerUpdateContext ctx;
-	ctx.flags = 0x2000; // makes havok sim more stable
+	ctx.flags = 0x2000; // Use velocity for moving the collision object - this won't actually move it until the next sim
 	ctx.delta = 0;
-	NiAVObject_UpdateObjectUpwards(node, &ctx);
+	NiAVObject_UpdateObjectUpwards(node, &ctx); // This will set the collision object's velocity as well
+
+	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
+	if (rigidBody) {
+		bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT);
+		if (rigidBodyT) {
+			// bhkRigidBodyT means the collision object is offset from the node. Bethesda didn't code it correctly in the node update when using the velocity flag for this case, so I have to do it myself.
+
+			NiTransform rigidBodyLocalTransform;
+			rigidBodyLocalTransform.pos = HkVectorToNiPoint(rigidBodyT->translation) * *g_inverseHavokWorldScale;
+			rigidBodyLocalTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(rigidBodyT->rotation));
+
+			NiTransform rigidBodyTransform = transform * rigidBodyLocalTransform;
+
+			NiPoint3 pos = rigidBodyTransform.pos;
+			NiQuaternion rot;
+			NiMatrixToNiQuaternion(rot, rigidBodyTransform.rot);
+
+			bhkRigidBody_setActivated(rigidBody, 1);
+			//bhkRigidBody_MoveToPositionAndRotation(rigidBody, pos, rot); // This doesn't work because this function does stuff like read the collision object's center of mass without compensating for bhkRigidBodyT transformations...
+			hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(pos * *g_havokWorldScale), NiQuatToHkQuat(rot), 1.0f / *g_deltaTime, rigidBody->hkBody);
+		}
+	}
 	
-	UpdateBoneMatrices(node);
+	UpdateBoneMatrices(node); // Update skinned geometry on the object so that it's not a frame behind
+
+	ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false); // Gets shadows to update since keyframed nodes are not "dynamic" and so the game doesn't think they can move
 
 	//UpdateNodeTransformLocal(node, transform);
 
@@ -229,8 +253,6 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 		bhkCollisionObject_SetNodeTransformsFromWorldTransform(collisionObject, transform);
 	}
 	*/
-
-	ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false);
 }
 
 bool IsTwoHanded(const TESObjectWEAP *weap)

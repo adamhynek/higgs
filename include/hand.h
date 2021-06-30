@@ -143,7 +143,7 @@ struct Hand
 	void UpdateWeaponCollision();
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
-	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm);
+	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
 	bool TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
 	bool TransitionGrabExternal(TESObjectREFR *refr);

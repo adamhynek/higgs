@@ -1046,13 +1046,13 @@ bool Hand::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &i
 }
 
 
-bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node, TESForm *baseForm)
+bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node)
 {
 	if (Config::options.forcePhysicsGrab) return true;
 
 	// Ragdolls, arrows (their collision gets offset for some reason when keyframed) and objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) use physics based motion
 	bool usePhysicsBasedGrab = DoesNodeHaveConstraint(root, node);
-	return selectedObject.isActor || usePhysicsBasedGrab || (baseForm && baseForm->formType == kFormType_Ammo);
+	return selectedObject.isActor || usePhysicsBasedGrab;
 }
 
 
@@ -1113,7 +1113,7 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 			g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
 		}
 
-		bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode, selectedObj->baseForm);
+		bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode);
 
 		StartNearbyDamping(world);
 
@@ -2606,7 +2606,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 								newTransform.pos = currentPosCompensated + deltaPos;
 							}
 
-							bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 							UpdateKeyframedNode(n, newTransform);
 						}
 						else {
@@ -2618,7 +2617,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 
 				if (state == State::Held) {
-					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					UpdateKeyframedNode(n, newTransform);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {

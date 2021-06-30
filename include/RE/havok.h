@@ -133,12 +133,11 @@ static_assert(sizeof(bhkRigidBody) == 0x40);
 
 struct bhkRigidBodyT : bhkRigidBody
 {
-	// I'm really not sure about these. The first one likes to be { 0, 0, 0, 1 } which seems to be a quat.
-	hkQuaternion unkRot; // 40
-	hkVector4 unkPos; // 50
+	hkQuaternion rotation; // 40
+	hkVector4 translation; // 50
 };
-static_assert(offsetof(bhkRigidBodyT, unkRot) == 0x40);
-static_assert(offsetof(bhkRigidBodyT, unkPos) == 0x50);
+static_assert(offsetof(bhkRigidBodyT, rotation) == 0x40);
+static_assert(offsetof(bhkRigidBodyT, translation) == 0x50);
 
 struct NiCollisionObject : NiObject
 {
