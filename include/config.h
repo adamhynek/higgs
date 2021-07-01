@@ -93,6 +93,7 @@ namespace Config {
 		bool disableDampedGrab = false;
 		bool disableDampedGrabForBodies = true;
 		bool disableGrabHair = true;
+		bool inheritTangentialVelocity = true;
 
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;

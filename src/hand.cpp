@@ -1228,9 +1228,15 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 					return 0;
 				};
 
+				std::array<float, 5> fingerData;
+				for (int i = 0; i < fingerData.size(); i++) {
+					fingerData[i] = FingerCheck(i);
+				}
+
+				// Doing a separate pass over all fingers here meas we can print the final results all next to each other
 				std::array<float, 5> fingerRanges;
 				for (int i = 0; i < fingerRanges.size(); i++) {
-					float curveVal = FingerCheck(i);
+					float curveVal = fingerData[i];
 
 					if (curveVal < 0) {
 						// It's a negative angle - just open the hand
@@ -1470,7 +1476,7 @@ void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selec
 	NiTransform initialTransform;
 	if (!ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform)) {
 		// Position the object in the direction of the palm for better grab results
-		NiTransform initialTransform = collidableNode->m_worldTransform;
+		initialTransform = collidableNode->m_worldTransform;
 		initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
 	}
 	TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
@@ -2091,26 +2097,29 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
 						}
 
-						hkVector4 centerOfMass;
 						NiPoint3 handAngularVelocity = controllerAngularVelocities[0];
 						NiPoint3 angularVelocity = handAngularVelocity * Config::options.angularVelocityMultiplier;
 
-						NiPoint3 axis = VectorNormalized(angularVelocity);
-						float angle = VectorLength(angularVelocity);
+						NiPoint3 tangentialVelocity = { 0, 0, 0 };
+						if (Config::options.inheritTangentialVelocity) {
+							NiPoint3 axis = VectorNormalized(angularVelocity);
+							float angle = VectorLength(angularVelocity);
 
-						NiPoint3 handToCenterOfMass = HkVectorToNiPoint(selectedObject.rigidBody->getCenterOfMassInWorld(centerOfMass)) - hkPalmPos;
-						NiPoint3 handToCenterOfMassInRotationPlane = ProjectVectorOntoPlane(handToCenterOfMass, axis);
-						NiPoint3 tangentialDirection = VectorNormalized(CrossProduct(axis, handToCenterOfMassInRotationPlane));
+							hkVector4 centerOfMass;
+							NiPoint3 handToCenterOfMass = HkVectorToNiPoint(selectedObject.rigidBody->getCenterOfMassInWorld(centerOfMass)) - hkPalmPos;
+							NiPoint3 handToCenterOfMassInRotationPlane = ProjectVectorOntoPlane(handToCenterOfMass, axis);
+							NiPoint3 tangentialDirection = VectorNormalized(CrossProduct(axis, handToCenterOfMassInRotationPlane));
 
-						float centerOfMassDistance = VectorLength(handToCenterOfMassInRotationPlane);
-						float tangentialMagnitude = centerOfMassDistance * angle;
+							float centerOfMassDistance = VectorLength(handToCenterOfMassInRotationPlane);
+							float tangentialMagnitude = centerOfMassDistance * angle;
 
-						if (tangentialMagnitude > Config::options.tangentialVelocityLimit) {
-							tangentialMagnitude = Config::options.tangentialVelocityLimit;
-							angularVelocity = axis * (tangentialMagnitude / centerOfMassDistance); // limit the angular velocity to match the clamped tangential velocity
+							if (tangentialMagnitude > Config::options.tangentialVelocityLimit) {
+								tangentialMagnitude = Config::options.tangentialVelocityLimit;
+								angularVelocity = axis * (tangentialMagnitude / centerOfMassDistance); // limit the angular velocity to match the clamped tangential velocity
+							}
+
+							tangentialVelocity = tangentialDirection * tangentialMagnitude;
 						}
-
-						NiPoint3 tangentialVelocity = tangentialDirection * tangentialMagnitude;
 
 						NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
 

@@ -211,6 +211,7 @@ namespace Config {
 		if (!ReadBool("DisableGrabDamping", options.disableDampedGrab)) return false;
 		if (!ReadBool("DisableGrabDampingForBodies", options.disableDampedGrabForBodies)) return false;
 		if (!ReadBool("DisableGrabHairGeometry", options.disableGrabHair)) return false;
+		if (!ReadBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) return false;
 
 		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
 		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
