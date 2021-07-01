@@ -111,6 +111,9 @@ namespace Config {
 		bool skipActivateBooks = true;
 		bool disableRolloverRumble = true;
 
+		bool allowGrabWithEmptyArrowHand = false;
+		bool allowGrabWithTwoHandedOffhand = false;
+
 		bool useLoudSoundGrab = false;
 		bool useLoudSoundDrop = false;
 		bool useLoudSoundPull = true;
