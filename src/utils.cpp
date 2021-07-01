@@ -262,8 +262,6 @@ bool IsTwoHanded(const TESObjectWEAP *weap)
 	case TESObjectWEAP::GameData::kType_2HS:
 	case TESObjectWEAP::GameData::kType_CBow:
 	case TESObjectWEAP::GameData::kType_CrossBow:
-	case TESObjectWEAP::GameData::kType_Staff:
-	case TESObjectWEAP::GameData::kType_Staff2:
 	case TESObjectWEAP::GameData::kType_TwoHandAxe:
 	case TESObjectWEAP::GameData::kType_TwoHandSword:
 		return true;
