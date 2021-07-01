@@ -168,6 +168,10 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 
 	if (numEntities <= 0) return;
 
+	if (g_shadowUpdateFrame == *g_currentFrameCounter) {
+		return; // We're already doing an update this frame
+	}
+
 	auto SetShadowsToUpdateThisFrame = []() {
 		_MESSAGE("Island deactived on frame %d", *g_currentFrameCounter);
 		if (g_savedShadowUpdateFrameDelay == -1) {
