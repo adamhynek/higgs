@@ -1180,14 +1180,20 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 				float handScale = handSize / 0.85; // 0.85 is the vrik default hand size
 
 				PlayerCharacter *player = *g_thePlayer;
+				bool isFist = player->actorState.IsWeaponDrawn();
 
-				NiPoint3 fingerNormalsWorldspace[5];
-				NiPoint3 fingerZeroAngleVecsWorldspace[5];
-				NiPoint3 fingerStartPositionsWorldspace[5];
+				NiPoint3 fingerNormalsWorldspace[6];
+				NiPoint3 fingerZeroAngleVecsWorldspace[6];
+				NiPoint3 fingerStartPositionsWorldspace[6];
 				for (int i = 0; i < 5; i++) {
-					NiPoint3 normalHandspace = g_fingerNormals[i];
-					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
-					NiPoint3 startPos = g_fingerStartPositions[i];
+					int fingerIndex = i;
+					if (i == 0 && isFist && Config::options.useAlternateThumbCurveWhenUnsheathed) {
+						fingerIndex = 5; // Special thumb
+					}
+
+					NiPoint3 normalHandspace = g_fingerNormals[fingerIndex];
+					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[fingerIndex];
+					NiPoint3 startPos = g_fingerStartPositions[fingerIndex];
 					if (isLeft) {
 						// x axis is flipped for left hand
 						zeroAngleVecHandspace.x *= -1;
@@ -1197,9 +1203,9 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 						normalHandspace.y *= -1;
 						normalHandspace.z *= -1;
 					}
-					fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
-					fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
+					fingerNormalsWorldspace[fingerIndex] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+					fingerZeroAngleVecsWorldspace[fingerIndex] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+					fingerStartPositionsWorldspace[fingerIndex] = handNode->m_worldTransform * startPos;
 				}
 
 				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
@@ -1216,21 +1222,22 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 					float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
 					bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
 						&curveValOrAngle);
+
 					if (intersects) {
 						return curveValOrAngle;
 					}
-					else {
-						// No finger intersection, so just close it completely
-						return 0.0f; // 0 == closed
-					}
-					// Couldn't get the fingers... that's a problem
-					_ERROR("Could not get finger %d", fingerIndex);
-					return 0;
+
+					// No finger intersection, so just close it completely
+					return 0.0f; // 0 == closed
 				};
 
 				std::array<float, 5> fingerData;
 				for (int i = 0; i < fingerData.size(); i++) {
-					fingerData[i] = FingerCheck(i);
+					int fingerIndex = i;
+					if (i == 0 && isFist && Config::options.useAlternateThumbCurveWhenUnsheathed) {
+						fingerIndex = 5; // Special thumb
+					}
+					fingerData[i] = FingerCheck(fingerIndex);
 				}
 
 				// Doing a separate pass over all fingers here meas we can print the final results all next to each other
