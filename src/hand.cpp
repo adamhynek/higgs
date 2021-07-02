@@ -1180,20 +1180,14 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 				float handScale = handSize / 0.85; // 0.85 is the vrik default hand size
 
 				PlayerCharacter *player = *g_thePlayer;
-				bool isFist = player->actorState.IsWeaponDrawn();
 
 				NiPoint3 fingerNormalsWorldspace[6];
 				NiPoint3 fingerZeroAngleVecsWorldspace[6];
 				NiPoint3 fingerStartPositionsWorldspace[6];
 				for (int i = 0; i < 5; i++) {
-					int fingerIndex = i;
-					if (i == 0 && isFist && Config::options.useAlternateThumbCurveWhenUnsheathed) {
-						fingerIndex = 5; // Special thumb
-					}
-
-					NiPoint3 normalHandspace = g_fingerNormals[fingerIndex];
-					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[fingerIndex];
-					NiPoint3 startPos = g_fingerStartPositions[fingerIndex];
+					NiPoint3 normalHandspace = g_fingerNormals[i];
+					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+					NiPoint3 startPos = g_fingerStartPositions[i];
 					if (isLeft) {
 						// x axis is flipped for left hand
 						zeroAngleVecHandspace.x *= -1;
@@ -1203,9 +1197,9 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 						normalHandspace.y *= -1;
 						normalHandspace.z *= -1;
 					}
-					fingerNormalsWorldspace[fingerIndex] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-					fingerZeroAngleVecsWorldspace[fingerIndex] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
-					fingerStartPositionsWorldspace[fingerIndex] = handNode->m_worldTransform * startPos;
+					fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+					fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
 				}
 
 				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
@@ -1233,11 +1227,7 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 				std::array<float, 5> fingerData;
 				for (int i = 0; i < fingerData.size(); i++) {
-					int fingerIndex = i;
-					if (i == 0 && isFist && Config::options.useAlternateThumbCurveWhenUnsheathed) {
-						fingerIndex = 5; // Special thumb
-					}
-					fingerData[i] = FingerCheck(fingerIndex);
+					fingerData[i] = FingerCheck(i);
 				}
 
 				// Doing a separate pass over all fingers here means we can print the final results all next to each other
@@ -1545,7 +1535,6 @@ NiPoint3 Hand::GetHandVelocity()
 
 NiPoint3 Hand::LerpFingerPosition(int finger, int knuckle, float lerpVal)
 {
-	// TODO: Hand scale
 	NiPoint3 pos = lerp(g_closedFingerPositions[finger][knuckle], g_openFingerPositions[finger][knuckle], lerpVal);
 	if (isLeft) {
 		pos.x *= -1;
