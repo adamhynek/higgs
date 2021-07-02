@@ -2,6 +2,7 @@
 #include <regex>
 #include <sstream>
 #include <chrono>
+#include <optional>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -1554,42 +1555,123 @@ NiMatrix33 Hand::LerpFingerRotation(int finger, int knuckle, float lerpVal)
 	return rot;
 }
 
+bool FillFingerNodes(NiPointer<NiAVObject> fingerNodes[5][3], BSFixedString fingerNodeNames[5][3])
+{
+	PlayerCharacter *player = *g_thePlayer;
+	NiPointer<NiNode> tpNode = player->GetNiRootNode(0);
+	if (tpNode) {
+		for (int i = 0; i < 5; i++) {
+			fingerNodes[i][0] = tpNode->GetObjectByName(&fingerNodeNames[i][0].data);
+			if (!fingerNodes[i][0]) return false;
+			fingerNodes[i][1] = fingerNodes[i][0]->GetObjectByName(&fingerNodeNames[i][1].data);
+			if (!fingerNodes[i][1]) return false;
+			fingerNodes[i][2] = fingerNodes[i][1]->GetObjectByName(&fingerNodeNames[i][2].data);
+			if (!fingerNodes[i][2]) return false;
+		}
+		return true;
+	}
+	return false;
+}
+
+std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed)
+{
+	NiQuaternion currentQuat;
+	NiMatrixToNiQuaternion(currentQuat, currentTransform.rot);
+
+	NiQuaternion desiredQuat;
+	NiMatrixToNiQuaternion(desiredQuat, targetTransform.rot);
+
+	float deltaAngle = rotSpeed * 0.0174533f * *g_deltaTime;
+	float quatAngle = QuaternionAngle(currentQuat, desiredQuat);
+
+	NiPoint3 deltaDir = VectorNormalized(targetTransform.pos - currentTransform.pos);
+	NiPoint3 deltaPos = deltaDir * posSpeed * *g_deltaTime;
+
+	bool doRotation = deltaAngle < quatAngle;
+	bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(targetTransform.pos - currentTransform.pos);
+
+	if (doRotation || doTranslation) {
+		// Rotation or position is not yet close enough
+
+		NiTransform advancedTransform = targetTransform;
+		if (doRotation) {
+			// update rotation
+			double slerpAmount = deltaAngle / quatAngle;
+			NiQuaternion newQuat = slerp(currentQuat, desiredQuat, slerpAmount);
+			newQuat = QuaternionNormalized(newQuat);
+			advancedTransform.rot = QuaternionToMatrix(newQuat);
+		}
+
+		if (doTranslation) {
+			// If not close enough, move the object closer to the hand at some velocity
+			advancedTransform.pos = currentTransform.pos + deltaPos;
+		}
+
+		return advancedTransform;
+	}
+	return std::nullopt;
+}
+
 void Hand::AnimateFingers()
 {
 	if (!fingerAnimations.animate) return;
 
-	PlayerCharacter *player = *g_thePlayer;
-	NiPointer<NiNode> tpNode = player->GetNiRootNode(0);
-	if (tpNode) {
-		NiPointer<NiAVObject> fingerNodes[5][3];
+	NiPointer<NiAVObject> fingerNodes[5][3];
+	if (!FillFingerNodes(fingerNodes, fingerNodeNames)) return;
 
-		for (int i = 0; i < 5; i++) {
-			fingerNodes[i][0] = tpNode->GetObjectByName(&fingerNodeNames[i][0].data);
-			if (!fingerNodes[i][0]) return;
-			fingerNodes[i][1] = fingerNodes[i][0]->GetObjectByName(&fingerNodeNames[i][1].data);
-			if (!fingerNodes[i][1]) return;
-			fingerNodes[i][2] = fingerNodes[i][1]->GetObjectByName(&fingerNodeNames[i][2].data);
-			if (!fingerNodes[i][2]) return;
+	bool stopAnimating = true;
+	auto AnimateFinger = [this, &fingerNodes, &stopAnimating](int finger, float lerpVal)
+	{
+		// What we should do:
+		// - When starting to animate, start from where the fingers started, and move towards the desired state at a constant speed
+		// - When ending animating, start from where _we_ had them last (NOT oldWorldTransform), and move towards oldWorldTransform at a constant speed
+		//   - This raises a question: When do we terminate?
+
+		// Current 3rd person finger transform: The transform that vrik sets
+		// Old 3rd person finger transform: Ours if we set it last frame, vriks if we didn't
+
+		for (int i = 0; i < 3; i++) {
+			NiTransform desiredTransform = fingerNodes[finger][i]->m_localTransform;
+			if (fingerAnimations.animState == FingerAnimations::AnimState::Start) {
+				desiredTransform.pos = LerpFingerPosition(finger, i, lerpVal);
+				desiredTransform.rot = LerpFingerRotation(finger, i, lerpVal);
+			}
+
+			NiAVObject *fingerNode = fingerNodes[finger][i];
+			NiTransform &vrikLocalTransform = fingerNodes[finger][i]->m_localTransform;
+			if (fingerAnimations.saveVrikTransforms) {
+				fingerAnimations.localTransforms[finger][i] = vrikLocalTransform;
+			}
+
+			NiTransform &currentTransform = fingerAnimations.localTransforms[finger][i]; // Is the vrik transform if we just started animating, or our last transform if we already were animating
+
+			std::optional<NiTransform> advancedTransform = AdvanceTransform(currentTransform, desiredTransform, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
+			NiTransform finalTransform;
+			if (advancedTransform) {
+				// This part of the finger has not reached its destination yet - keep animating
+				finalTransform = *advancedTransform;
+				stopAnimating = false;
+			}
+			else {
+				finalTransform = desiredTransform;
+			}
+			fingerAnimations.localTransforms[finger][i] = finalTransform;
+			fingerNodes[finger][i]->m_localTransform = finalTransform;
 		}
-		// Now we have all the finger nodes
-		auto AnimateFinger = [this, &fingerNodes](int finger, float lerpVal)
-		{
-			fingerNodes[finger][0]->m_localTransform.pos = LerpFingerPosition(finger, 0, lerpVal);
-			fingerNodes[finger][1]->m_localTransform.pos = LerpFingerPosition(finger, 1, lerpVal);
-			fingerNodes[finger][2]->m_localTransform.pos = LerpFingerPosition(finger, 2, lerpVal);
 
-			fingerNodes[finger][0]->m_localTransform.rot = LerpFingerRotation(finger, 0, lerpVal);
-			fingerNodes[finger][1]->m_localTransform.rot = LerpFingerRotation(finger, 1, lerpVal);
-			fingerNodes[finger][2]->m_localTransform.rot = LerpFingerRotation(finger, 2, lerpVal);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(fingerNodes[finger][0], &ctx);
+	};
 
-			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(fingerNodes[finger][0], &ctx);
-		};
-
-		for (int i = 0; i < 5; i++) {
-			AnimateFinger(i, fingerAnimations.animValues[i]);
-		}
+	for (int i = 0; i < 5; i++) {
+		AnimateFinger(i, fingerAnimations.animValues[i]);
 	}
+
+	if (fingerAnimations.animState == FingerAnimations::AnimState::End && stopAnimating) {
+		fingerAnimations.animate = false;
+	}
+
+	fingerAnimations.saveVrikTransforms = false;
 }
 
 void Hand::SetFingerValues(float thumb, float index, float middle, float ring, float pinky)
@@ -1599,12 +1681,19 @@ void Hand::SetFingerValues(float thumb, float index, float middle, float ring, f
 	fingerAnimations.animValues[2] = middle;
 	fingerAnimations.animValues[3] = ring;
 	fingerAnimations.animValues[4] = pinky;
+	fingerAnimations.animState = FingerAnimations::AnimState::Start;
+
+	if (!fingerAnimations.animate) {
+		fingerAnimations.saveVrikTransforms = true;
+	}
+
 	fingerAnimations.animate = true;
 }
 
 void Hand::RestoreFingers()
 {
-	fingerAnimations.animate = false;
+	if (!fingerAnimations.animate) return;
+	fingerAnimations.animState = FingerAnimations::AnimState::End;
 }
 
 
@@ -2649,18 +2738,11 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					else {
 						// Interpolate pos/rot towards the hand so it doesn't 'snap' too much
 
-						hkQuaternion hkQuat;
-						hkRotation hkRot;
+						NiQuaternion currentQuat;
+						NiMatrixToNiQuaternion(currentQuat, n->m_worldTransform.rot);
 
-						NiMatrixToHkMatrix(n->m_worldTransform.rot, hkRot);
-						hkQuat.setFromRotationSimd(hkRot);
-						NiQuaternion currentQuat = HkQuatToNiQuat(hkQuat);
-						currentQuat = QuaternionNormalized(currentQuat);
-
-						NiMatrixToHkMatrix(newTransform.rot, hkRot);
-						hkQuat.setFromRotationSimd(hkRot);
-						NiQuaternion desiredQuat = HkQuatToNiQuat(hkQuat);
-						desiredQuat = QuaternionNormalized(desiredQuat);
+						NiQuaternion desiredQuat;
+						NiMatrixToNiQuaternion(desiredQuat, newTransform.rot);
 
 						float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
 						float quatAngle = QuaternionAngle(currentQuat, desiredQuat);

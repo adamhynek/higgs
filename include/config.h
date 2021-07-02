@@ -29,6 +29,9 @@ namespace Config {
 		float angularVelocityMultiplier = 0.6f;
 		float tangentialVelocityLimit = 5.0f;
 
+		float fingerAnimateLinearSpeed = 5.0f;
+		float fingerAnimateAngularSpeed = 540.0f;
+
 		float nearbyGrabMaxLinearVelocity = 0.2f;
 		float nearbyGrabMaxAngularVelocity = 1.0f;
 		float nearbyGrabLinearDamping = 500.0f;

@@ -73,8 +73,17 @@ struct Hand
 
 	struct FingerAnimations
 	{
+		enum class AnimState : UInt8
+		{
+			Start,
+			End
+		};
+
+		NiTransform localTransforms[5][3];
 		float animValues[5];
+		AnimState animState = AnimState::Start;
 		bool animate = false;
+		bool saveVrikTransforms = false;
 	};
 
 	enum class State : UInt8
