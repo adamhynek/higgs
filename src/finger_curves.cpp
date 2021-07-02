@@ -7,6 +7,8 @@
 #include "finger_curves.h"
 #include "math_utils.h"
 #include "vrikinterface001.h"
+#include "utils.h"
+#include "RE/offsets.h"
 
 
 NiPoint3 g_fingerOffsetsTip[] = { {0, -0.44, 2.2}, {0, -0.26, 2.295}, {0, -0.26, 2.192}, {0, -0.26, 1.6676}, {0, -0.26, 1.7275} };
@@ -50,6 +52,9 @@ struct FingerCurveData
 	NiPoint3 zeroAngleVector[5]; // handspace
 	NiPoint3 fingerNormal[5]; // handspace
 	NiPoint3 fingerStartPos[5]; // handspace
+
+	NiTransform openFingerTransforms[5][3];
+	NiTransform closedFingerTransforms[5][3];
 
 	float currentRangeVal;
 
@@ -203,6 +208,66 @@ void DumpFingerCurve(FingerCurveData *fingerCurve)
 	file.close();
 }
 
+void DumpFingerPoses(FingerCurveData *fingerCurve)
+{
+	std::ofstream file;
+	file.open("fingerPoses.txt");
+
+	file << "Open Positions" << '\n';
+	file << "{\n";
+	for (int i = 0; i < 5; i++) {
+		file << "{\n";
+		for (int j = 0; j < 3; j++) {
+			NiPoint3 pos = fingerCurve->openFingerTransforms[i][j].pos;
+			file << "{ " << pos.x << ", " << pos.y << ", " << pos.z << " }," << '\n';
+		}
+		file << "},\n";
+	}
+	file << "};\n";
+
+	file << "Closed Positions" << '\n';
+	file << "{\n";
+	for (int i = 0; i < 5; i++) {
+		file << "{\n";
+		for (int j = 0; j < 3; j++) {
+			NiPoint3 pos = fingerCurve->closedFingerTransforms[i][j].pos;
+			file << "{ " << pos.x << ", " << pos.y << ", " << pos.z << " }," << '\n';
+		}
+		file << "},\n";
+	}
+	file << "};\n";
+
+	file << "Open Rotations" << '\n';
+	file << "{\n";
+	for (int i = 0; i < 5; i++) {
+		file << "{\n";
+		for (int j = 0; j < 3; j++) {
+			NiMatrix33 &rot = fingerCurve->openFingerTransforms[i][j].rot;
+			NiQuaternion quat;
+			NiMatrixToNiQuaternion(quat, rot);
+			file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
+		}
+		file << "},\n";
+	}
+	file << "};\n";
+
+	file << "Closed Rotations" << '\n';
+	file << "{\n";
+	for (int i = 0; i < 5; i++) {
+		file << "{\n";
+		for (int j = 0; j < 3; j++) {
+			NiMatrix33 &rot = fingerCurve->closedFingerTransforms[i][j].rot;
+			NiQuaternion quat;
+			NiMatrixToNiQuaternion(quat, rot);
+			file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
+		}
+		file << "},\n";
+	}
+	file << "};\n";
+
+	file.close();
+}
+
 void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString fingerNodeNames[5][3])
 {
 	if (g_fingerCurveData && g_fingerCurveData->state != FingerCurveData::State::Inactive) {
@@ -228,11 +293,16 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 
 					for (int i = 0; i < 5; i++) {
 						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
+						NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
 						NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
 						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
 						g_fingerCurveData->zeroAngleVector[i] = VectorNormalized(handNode3rd->m_oldWorldTransform.rot.Transpose() * VectorNormalized(startToEnd));
 						g_fingerCurveData->fingerStartPos[i] = inverseHandNode3rd * fingerStart3rd->m_oldWorldTransform.pos;
+
+						g_fingerCurveData->openFingerTransforms[i][0] = GetLocalTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->openFingerTransforms[i][1] = GetLocalTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->openFingerTransforms[i][2] = GetLocalTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
 					}
 
 					g_fingerCurveData->frameCount = 0;
@@ -327,10 +397,15 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 
 						angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
 						g_fingerCurveData->fingerInnerVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+
+						g_fingerCurveData->closedFingerTransforms[i][0] = GetLocalTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->closedFingerTransforms[i][1] = GetLocalTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->closedFingerTransforms[i][2] = GetLocalTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
 					}
 
 					// Dump results to file
 					DumpFingerCurve(g_fingerCurveData.get());
+					DumpFingerPoses(g_fingerCurveData.get());
 
 					g_fingerCurveData->state = FingerCurveData::State::Inactive;
 				}
@@ -442,6 +517,123 @@ SavedFingerData g_fingerOuterVals[5][201] =
 SavedFingerData g_fingerInnerVals[5][201] =
 
 */
+
+NiPoint3 g_openFingerPositions[5][3] =
+{
+{
+{ 3.1604, -0.919983, 2.56604 },
+{ 0.000488281, 0.000854492, 3.32336 },
+{ 0.000366211, 0.000488281, 2.93115 },
+},
+{
+{ 2.2941, -0.0739441, 9.22168 },
+{ -0.00012207, 0.00012207, 3.14453 },
+{ -6.10352e-05, 6.10352e-05, 1.89172 },
+},
+{
+{ -0.00595093, -0.173706, 9.20874 },
+{ -9.15527e-05, 0.00012207, 3.79517 },
+{ -6.10352e-05, 6.10352e-05, 2.12854 },
+},
+{
+{ -1.90302, -0.713486, 8.77319 },
+{ -6.10352e-05, 0.000213623, 3.32813 },
+{ -6.10352e-05, 6.10352e-05, 1.99146 },
+},
+{
+{ -3.40515, -1.56802, 7.83728 },
+{ -0.00012207, 0.000183105, 2.34241 },
+{ -6.10352e-05, 9.15527e-05, 1.74512 },
+},
+};
+
+NiPoint3 g_closedFingerPositions[5][3] =
+{
+{
+{ 2.8595, -0.920166, 3.16614 },
+{ 0.000366211, -0.000518799, 3.32288 },
+{ 0.000610352, 0, 2.93207 },
+},
+{
+{ 2.29401, -0.0752106, 9.22156 },
+{ -0.000488281, 0.000610352, 3.14557 },
+{ 0.00012207, -0.000274658, 1.89209 },
+},
+{
+{ -0.00524902, -0.175537, 9.2085 },
+{ -0.000549316, 0.000976563, 3.79626 },
+{ 0.000183105, -0.000488281, 2.12903 },
+},
+{
+{ -1.90167, -0.715866, 8.77283 },
+{ -0.000427246, 0.000732422, 3.32886 },
+{ 0.000244141, -0.000427246, 1.9917 },
+},
+{
+{ -3.40356, -1.57097, 7.83691 },
+{ 0, 0.000488281, 2.3428 },
+{ 0.00012207, -0.000396729, 1.74548 },
+},
+};
+
+NiQuaternion g_openFingerRotations[5][3] =
+{
+{
+{ 0.721813, -0.126622, 0.516716, -0.442563 },
+{ 0.993003, 0.0728553, -0.091031, 0.0144567 },
+{ 0.998337, -0.0484949, -0.0287837, 0.000149812 },
+},
+{
+{ 0.982222, 0.175832, 0.032405, 0.055909 },
+{ 0.999814, 0.0151648, 1.18673e-06, 1.63943e-07 },
+{ 0.998995, -0.0432016, -3.38783e-06, -5.4444e-07 },
+},
+{
+{ 0.977503, 0.192297, 0.0119529, 0.0849696 },
+{ 0.999265, 0.0364175, 3.23966e-06, 4.17539e-07 },
+{ 0.999922, -0.00370855, -3.37165e-07, -3.35302e-08 },
+},
+{
+{ 0.947687, 0.235687, -0.0523741, 0.208449 },
+{ 0.998923, 0.0448257, 5.0271e-06, 4.69892e-07 },
+{ 0.991587, -0.128884, -1.44077e-05, -2.56972e-06 },
+},
+{
+{ 0.965317, 0.178404, -0.0508129, 0.183328 },
+{ 0.999335, 0.0344568, 3.7315e-06, 8.12654e-07 },
+{ 0.99957, 0.0267852, 2.94052e-06, 4.47227e-07 },
+},
+};
+
+NiQuaternion g_closedFingerRotations[5][3] =
+{
+{
+{ 0.735851, 0.0381072, 0.446129, -0.507735 },
+{ 0.808868, 0.587869, 3.58082e-05, -6.90374e-05 },
+{ 0.837652, 0.546073, -4.66833e-05, -5.38323e-05 },
+},
+{
+{ 0.617262, 0.784079, -0.0360942, 0.052504 },
+{ 0.728521, 0.684913, 5.94188e-05, 2.50254e-05 },
+{ 0.636252, 0.77138, 2.72377e-05, -7.85515e-05 },
+},
+{
+{ 0.600327, 0.794254, -0.00869992, 0.0924008 },
+{ 0.728525, 0.684901, 7.2867e-05, 2.11902e-05 },
+{ 0.728525, 0.684901, 2.56287e-05, -7.14453e-05 },
+},
+{
+{ 0.55543, 0.822106, 0.0286786, 0.121024 },
+{ 0.728529, 0.684888, 8.54047e-05, 1.07331e-05 },
+{ 0.517454, 0.855572, -1.29443e-05, -0.000150835 },
+},
+{
+{ 0.531576, 0.806695, -0.028302, 0.256375 },
+{ 0.728525, 0.6849, 7.7377e-05, -1.27734e-05 },
+{ 0.443542, 0.89617, 1.82698e-05, 3.70047e-05 },
+},
+};
+
 
 // 6 fingers, what gives? The 6th finger is actually the thumb while fists are out.
 

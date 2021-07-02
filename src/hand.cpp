@@ -1240,7 +1240,7 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 					fingerData[i] = FingerCheck(fingerIndex);
 				}
 
-				// Doing a separate pass over all fingers here meas we can print the final results all next to each other
+				// Doing a separate pass over all fingers here means we can print the final results all next to each other
 				std::array<float, 5> fingerRanges;
 				for (int i = 0; i < fingerRanges.size(); i++) {
 					float curveVal = fingerData[i];
@@ -1259,7 +1259,7 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 					fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
 				}
 
-				g_vrikInterface->setFingerRange(isLeft, fingerRanges[0], fingerRanges[0], fingerRanges[1], fingerRanges[1], fingerRanges[2], fingerRanges[2], fingerRanges[3], fingerRanges[3], fingerRanges[4], fingerRanges[4]);
+				SetFingerValues(fingerRanges[0], fingerRanges[1], fingerRanges[2], fingerRanges[3], fingerRanges[4]);
 				wereFingersSet = true;
 			}
 
@@ -1454,7 +1454,7 @@ bool Hand::TransitionGrabExternal(TESObjectREFR *refr)
 
 		if (state == State::SelectedClose) {
 			if (g_vrikInterface) {
-				g_vrikInterface->restoreFingers(isLeft);
+				RestoreFingers();
 			}
 		}
 
@@ -1543,6 +1543,82 @@ NiPoint3 Hand::GetHandVelocity()
 }
 
 
+NiPoint3 Hand::LerpFingerPosition(int finger, int knuckle, float lerpVal)
+{
+	// TODO: Hand scale
+	NiPoint3 pos = lerp(g_closedFingerPositions[finger][knuckle], g_openFingerPositions[finger][knuckle], lerpVal);
+	if (isLeft) {
+		pos.x *= -1;
+	}
+	return pos;
+}
+
+NiMatrix33 Hand::LerpFingerRotation(int finger, int knuckle, float lerpVal)
+{
+	NiMatrix33 rot = QuaternionToMatrix(slerp(g_closedFingerRotations[finger][knuckle], g_openFingerRotations[finger][knuckle], lerpVal));
+	if (isLeft) {
+		NiPoint3 euler = MatrixToEuler(rot);
+		euler.y *= -1;
+		euler.z *= -1;
+		rot = EulerToMatrix(euler);
+	}
+	return rot;
+}
+
+void Hand::AnimateFingers()
+{
+	if (!fingerAnimations.animate) return;
+
+	PlayerCharacter *player = *g_thePlayer;
+	NiPointer<NiNode> tpNode = player->GetNiRootNode(0);
+	if (tpNode) {
+		NiPointer<NiAVObject> fingerNodes[5][3];
+
+		for (int i = 0; i < 5; i++) {
+			fingerNodes[i][0] = tpNode->GetObjectByName(&fingerNodeNames[i][0].data);
+			if (!fingerNodes[i][0]) return;
+			fingerNodes[i][1] = fingerNodes[i][0]->GetObjectByName(&fingerNodeNames[i][1].data);
+			if (!fingerNodes[i][1]) return;
+			fingerNodes[i][2] = fingerNodes[i][1]->GetObjectByName(&fingerNodeNames[i][2].data);
+			if (!fingerNodes[i][2]) return;
+		}
+		// Now we have all the finger nodes
+		auto AnimateFinger = [this, &fingerNodes](int finger, float lerpVal)
+		{
+			fingerNodes[finger][0]->m_localTransform.pos = LerpFingerPosition(finger, 0, lerpVal);
+			fingerNodes[finger][1]->m_localTransform.pos = LerpFingerPosition(finger, 1, lerpVal);
+			fingerNodes[finger][2]->m_localTransform.pos = LerpFingerPosition(finger, 2, lerpVal);
+
+			fingerNodes[finger][0]->m_localTransform.rot = LerpFingerRotation(finger, 0, lerpVal);
+			fingerNodes[finger][1]->m_localTransform.rot = LerpFingerRotation(finger, 1, lerpVal);
+			fingerNodes[finger][2]->m_localTransform.rot = LerpFingerRotation(finger, 2, lerpVal);
+
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(fingerNodes[finger][0], &ctx);
+		};
+
+		for (int i = 0; i < 5; i++) {
+			AnimateFinger(i, fingerAnimations.animValues[i]);
+		}
+	}
+}
+
+void Hand::SetFingerValues(float thumb, float index, float middle, float ring, float pinky)
+{
+	fingerAnimations.animValues[0] = thumb;
+	fingerAnimations.animValues[1] = index;
+	fingerAnimations.animValues[2] = middle;
+	fingerAnimations.animValues[3] = ring;
+	fingerAnimations.animValues[4] = pinky;
+	fingerAnimations.animate = true;
+}
+
+void Hand::RestoreFingers()
+{
+	fingerAnimations.animate = false;
+}
+
+
 void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
@@ -1591,6 +1667,9 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		return;
 	}
 
+	//float v = *g_currentFrameCounter % 300 / 300.0f;
+	//SetFingerValues(v, v, v, v, v);
+
 
 	//if (!isLeft) {
 	//	UpdateGenerateFingerCurve(handNodeName, fingerNodeNames);
@@ -1636,12 +1715,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 			bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 			if (!wereFingersSet && g_vrikInterface) {
-				g_vrikInterface->restoreFingers(isLeft);
+				RestoreFingers();
 			}
 		}
 		else {
 			if (g_vrikInterface) {
-				g_vrikInterface->restoreFingers(isLeft);
+				RestoreFingers();
 			}
 
 			state = State::Idle;
@@ -1719,13 +1798,13 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				if (newState == State::SelectedClose) {
 					if (g_vrikInterface) {
 						float val = 0.9f;
-						g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
+						SetFingerValues(val, val, val, val, val);
 					}
 					rolloverDisplayTime = g_currentFrameTime;
 				}
 				else if (newState == State::SelectedFar) {
 					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
+						RestoreFingers();
 					}
 				}
 			}
@@ -1735,13 +1814,13 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				if (newState == State::SelectedClose) {
 					if (g_vrikInterface) {
 						float val = 0.9f;
-						g_vrikInterface->setFingerRange(isLeft, val, val, val, val, val, val, val, val, val, val);
+						SetFingerValues(val, val, val, val, val);
 					}
 					rolloverDisplayTime = g_currentFrameTime;
 				}
 				else if (newState == State::SelectedFar) {
 					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
+						RestoreFingers();
 					}
 				}
 			}
@@ -1975,7 +2054,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					// If time has run out and nothing is selected, deselect whatever is selected
 					if (state == State::SelectedClose) {
 						if (g_vrikInterface) {
-							g_vrikInterface->restoreFingers(isLeft);
+							RestoreFingers();
 						}
 					}
 
@@ -2009,7 +2088,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
 								if (selectedObject.isActor && selectedObject.hitForm) {
 									if (g_vrikInterface) {
-										g_vrikInterface->restoreFingers(isLeft);
+										RestoreFingers();
 									}
 
 									rolloverDisplayTime = g_currentFrameTime;
@@ -2027,7 +2106,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 								if (selectedObject.hitForm && selectedObject.isDisconnected) {
 									// Grabbing a weapon or something that's part of a body
 									if (g_vrikInterface) {
-										g_vrikInterface->restoreFingers(isLeft);
+										RestoreFingers();
 									}
 
 									TransitionPreGrab(selectedObj);
@@ -2038,7 +2117,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 									bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
 									bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 									if (!wereFingersSet && g_vrikInterface) {
-										g_vrikInterface->restoreFingers(isLeft);
+										RestoreFingers();
 									}
 								}
 							}
@@ -2053,7 +2132,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				// Selected object no longer exists
 				if (state == State::SelectedClose) {
 					if (g_vrikInterface) {
-						g_vrikInterface->restoreFingers(isLeft);
+						RestoreFingers();
 					}
 				}
 				state = State::Idle;
@@ -2250,7 +2329,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				ResetNearbyDamping();
 
 				if (g_vrikInterface) {
-					g_vrikInterface->restoreFingers(isLeft);
+					RestoreFingers();
 
 					if (--isHeadBobbingSavedCount == 0) {
 						g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
@@ -2650,7 +2729,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		}
 		else {
 			if (g_vrikInterface) {
-				g_vrikInterface->restoreFingers(isLeft);
+				RestoreFingers();
 
 				if (--isHeadBobbingSavedCount == 0) {
 					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
@@ -2795,7 +2874,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		}
 		else {
 			if (g_vrikInterface) {
-				g_vrikInterface->restoreFingers(isLeft);
+				RestoreFingers();
 
 				if (--isHeadBobbingSavedCount == 0) {
 					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);

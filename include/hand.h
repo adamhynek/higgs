@@ -71,6 +71,12 @@ struct Hand
 		hkHalf savedAngularDamping;
 	};
 
+	struct FingerAnimations
+	{
+		float animValues[5];
+		bool animate = false;
+	};
+
 	enum class State : UInt8
 	{
 		Idle, // not pointing at anything meaningful
@@ -129,6 +135,12 @@ struct Hand
 
 	void Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab);
+	void AnimateFingers();
+
+	void SetFingerValues(float thumb, float index, float middle, float ring, float pinky);
+	void RestoreFingers();
+	NiPoint3 LerpFingerPosition(int finger, int knuckle, float lerpVal);
+	NiMatrix33 LerpFingerRotation(int finger, int knuckle, float lerpVal);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
@@ -180,6 +192,7 @@ struct Hand
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	HapticsManager haptics;
+	FingerAnimations fingerAnimations;
 
 	NiPointer<bhkRigidBody> handBody = nullptr;
 

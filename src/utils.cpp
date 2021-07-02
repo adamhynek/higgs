@@ -155,20 +155,27 @@ void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext 
 	}
 }
 
-void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
+NiTransform GetLocalTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform)
 {
-	// Given world transform, set the necessary local transform
-
 	NiPointer<NiNode> parent = node->m_parent;
 	if (parent) {
 		NiTransform inverseParent;
-		node->m_parent->m_worldTransform.Invert(inverseParent);
+		if (useOldParentTransform) {
+			node->m_parent->m_oldWorldTransform.Invert(inverseParent);
+		}
+		else {
+			node->m_parent->m_worldTransform.Invert(inverseParent);
+		}
 
-		node->m_localTransform = inverseParent * worldTransform;
+		return inverseParent * worldTransform;
 	}
-	else {
-		node->m_localTransform = worldTransform;
-	}
+	return worldTransform;
+}
+
+void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
+{
+	// Given world transform, set the necessary local transform
+	node->m_localTransform = GetLocalTransform(node, worldTransform);
 }
 
 void UpdateBoneMatrices(NiAVObject *obj)

@@ -15,6 +15,7 @@
 #include "vrikinterface001.h"
 #include "config.h"
 #include "main.h"
+#include "finger_curves.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -42,6 +43,10 @@ auto preVRIKMainThreadHookedFunc = RelocAddr<uintptr_t>(0xDFE470); // Some bhkWo
 uintptr_t preVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
 auto preVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCCA); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
 auto preVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x6AE8C0);
+
+uintptr_t postVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
+auto postVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCFC); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
+auto postVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x62ED20); // Actor::GetWeapon
 
 uintptr_t playerCharacterUpdateHookedFuncAddr = 0;
 auto playerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x649FD3); // In Job_Non_render_safe_AI(), calls PlayerCharacter::Update()
@@ -217,10 +222,27 @@ void PlayerCharacterUpdateHook()
 }
 
 
-void PCEndUpdateHook()
+void PostVRIKPCUpdateHook()
 {
 	g_rightHand->RestoreHandTransform();
 	g_leftHand->RestoreHandTransform();
+
+	g_rightHand->AnimateFingers();
+	g_leftHand->AnimateFingers();
+
+	/*
+	PlayerCharacter *player = *g_thePlayer;
+	NiPointer<NiNode> tpNode = player->GetNiRootNode(0);
+	if (tpNode) {
+		static BSFixedString thumbFirstKnuckleName("NPC R Finger00 [RF00]");
+		NiAVObject *thumbFirstKnuckle = tpNode->GetObjectByName(&thumbFirstKnuckleName.data);
+		if (thumbFirstKnuckle) {
+			thumbFirstKnuckle->m_localTransform.pos.z += 20;
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(thumbFirstKnuckle, &ctx);
+		}
+	}
+	*/
 }
 
 
@@ -262,6 +284,7 @@ void PerformHooks(void)
 	postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
 	preVRIKMainThreadHookedFuncAddr = preVRIKMainThreadHookedFunc.GetUIntPtr();
 	preVRIKPlayerCharacterUpdateHookedFuncAddr = preVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
+	postVRIKPlayerCharacterUpdateHookedFuncAddr = postVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
 	playerCharacterUpdateHookedFuncAddr = playerCharacterHookedFunc.GetUIntPtr();
 	updatePhysicsTimesHookedFuncAddr = updatePhysicsTimesHookedFunc.GetUIntPtr();
 
@@ -689,7 +712,7 @@ void PerformHooks(void)
 				Xbyak::Label jumpBack;
 
 				// Original code
-				mov(rax, playerCharacterUpdateHookedFuncAddr);
+				mov(rax, postVRIKPlayerCharacterUpdateHookedFuncAddr);
 				call(rax);
 
 				push(rax);
@@ -708,7 +731,7 @@ void PerformHooks(void)
 				movsd(ptr[rsp + 0x50], xmm5);
 
 				// Call our hook
-				mov(rax, (uintptr_t)PCEndUpdateHook);
+				mov(rax, (uintptr_t)PostVRIKPCUpdateHook);
 				call(rax);
 
 				movsd(xmm0, ptr[rsp]);
@@ -730,7 +753,7 @@ void PerformHooks(void)
 				jmp(ptr[rip + jumpBack]);
 
 				L(jumpBack);
-				dq(playerCharacterUpdateHookLoc.GetUIntPtr() + 5);
+				dq(postVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr() + 5);
 			}
 		};
 
@@ -738,9 +761,9 @@ void PerformHooks(void)
 		Code code(codeBuf);
 		g_localTrampoline.EndAlloc(code.getCurr());
 
-		g_branchTrampoline.Write5Branch(playerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+		g_branchTrampoline.Write5Branch(postVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
-		_MESSAGE("PlayerCharacter::Update hook complete");
+		_MESSAGE("PlayerCharacter::Update post-vrik hook complete");
 	}
 
 	if (Config::options.enableHavokFix) {

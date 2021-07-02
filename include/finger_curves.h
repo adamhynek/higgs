@@ -18,6 +18,12 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 int LookupFingerByAngle(SavedFingerData fingerVals[], float desiredAngle, SavedFingerData *out);
 
 
+
+extern NiPoint3 g_openFingerPositions[5][3];
+extern NiPoint3 g_closedFingerPositions[5][3];
+extern NiQuaternion g_openFingerRotations[5][3];
+extern NiQuaternion g_closedFingerRotations[5][3];
+
 extern NiPoint3 g_fingerZeroAngleVecs[6];
 extern NiPoint3 g_fingerNormals[6];
 extern NiPoint3 g_fingerStartPositions[6];
