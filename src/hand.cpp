@@ -536,7 +536,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
 
-	NiPointer<NiAVObject> handNode = GetHandNode();
+	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (handNode) {
 		hkTransform transform = ComputeHandCollisionTransform(handNode);
 		cInfo.hkCinfo.m_position = transform.m_translation;
@@ -627,10 +627,8 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 	NiCloningProcess cloningProcess = NiCloningProcess();
 	cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
 
-	// TODO: Read the 3rd person hand node scale instead of getting it from the interface
-	if (g_vrikInterface) {
-		double handSize = g_vrikInterface->getSettingDouble("handSize"); // 0.85 is the default
-		cloningProcess.scale *= handSize;
+	if (g_isVrikPresent) {
+		cloningProcess.scale *= GetHandSize(); // Scale by the vrik hand size
 	}
 
 	bhkShape *clonedShape = (bhkShape *)NiObject_Clone(bShape, &cloningProcess);
@@ -947,7 +945,7 @@ bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node)
 }
 
 
-void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
+void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
 {
 	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
@@ -1064,79 +1062,75 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 			NiPoint3 palmToPoint = ptPos - palmPos;
 
-			if (g_vrikInterface) {
-				// TODO: Read the 3rd person hand node scale instead of getting it from the interface
-				double handSize = g_vrikInterface->getSettingDouble("handSize");
-				float handScale = handSize / 0.85; // 0.85 is the vrik default hand size
+			float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
 
-				PlayerCharacter *player = *g_thePlayer;
+			PlayerCharacter *player = *g_thePlayer;
 
-				NiPoint3 fingerNormalsWorldspace[6];
-				NiPoint3 fingerZeroAngleVecsWorldspace[6];
-				NiPoint3 fingerStartPositionsWorldspace[6];
-				for (int i = 0; i < 5; i++) {
-					NiPoint3 normalHandspace = g_fingerNormals[i];
-					NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
-					NiPoint3 startPos = g_fingerStartPositions[i];
-					if (isLeft) {
-						// x axis is flipped for left hand
-						zeroAngleVecHandspace.x *= -1;
-						startPos.x *= -1;
+			NiPoint3 fingerNormalsWorldspace[6];
+			NiPoint3 fingerZeroAngleVecsWorldspace[6];
+			NiPoint3 fingerStartPositionsWorldspace[6];
+			for (int i = 0; i < 5; i++) {
+				NiPoint3 normalHandspace = g_fingerNormals[i];
+				NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+				NiPoint3 startPos = g_fingerStartPositions[i];
+				if (isLeft) {
+					// x axis is flipped for left hand
+					zeroAngleVecHandspace.x *= -1;
+					startPos.x *= -1;
 
-						// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-						normalHandspace.y *= -1;
-						normalHandspace.z *= -1;
-					}
-					fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-					fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
-					fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
+					// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+					normalHandspace.y *= -1;
+					normalHandspace.z *= -1;
+				}
+				fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+				fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+				fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
+			}
+
+			auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
+			(int fingerIndex) -> float
+			{
+				NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+				NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+				NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
+
+				startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+
+				_MESSAGE("finger %d", fingerIndex);
+
+				float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
+				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+					&curveValOrAngle);
+
+				if (intersects) {
+					return curveValOrAngle;
 				}
 
-				auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
-				(int fingerIndex) -> float
-				{
-					NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-					NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
-					NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
+				// No finger intersection, so just close it completely
+				return 0.0f; // 0 == closed
+			};
 
-					startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+			float fingerData[5];
+			for (int i = 0; i < std::size(fingerData); i++) {
+				fingerData[i] = FingerCheck(i);
+			}
 
-					_MESSAGE("finger %d", fingerIndex);
+			// Doing a separate pass over all fingers here means we can print the final results all next to each other
+			for (int i = 0; i < std::size(fingerData); i++) {
+				float curveVal = fingerData[i];
 
-					float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
-					bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-						&curveValOrAngle);
-
-					if (intersects) {
-						return curveValOrAngle;
-					}
-
-					// No finger intersection, so just close it completely
-					return 0.0f; // 0 == closed
-				};
-
-				float fingerData[5];
-				for (int i = 0; i < std::size(fingerData); i++) {
-					fingerData[i] = FingerCheck(i);
+				if (curveVal < 0) {
+					// It's a negative angle - just open the hand
+					_MESSAGE("%d angle: %.2f", i, curveVal);
+					grabbedFingerValues[i] = 1.0f;
+				}
+				else {
+					// Positive => it's a curve val
+					_MESSAGE("%d curve val: %.2f", i, curveVal);
+					grabbedFingerValues[i] = curveVal;
 				}
 
-				// Doing a separate pass over all fingers here means we can print the final results all next to each other
-				for (int i = 0; i < std::size(fingerData); i++) {
-					float curveVal = fingerData[i];
-
-					if (curveVal < 0) {
-						// It's a negative angle - just open the hand
-						_MESSAGE("%d angle: %.2f", i, curveVal);
-						grabbedFingerValues[i] = 1.0f;
-					}
-					else {
-						// Positive => it's a curve val
-						_MESSAGE("%d curve val: %.2f", i, curveVal);
-						grabbedFingerValues[i] = curveVal;
-					}
-
-					grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
-				}
+				grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
 			}
 
 			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
@@ -1344,7 +1338,7 @@ bool Hand::TransitionGrabExternal(TESObjectREFR *refr)
 }
 
 
-void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmPos, const NiPoint3 &palmVector, float havokWorldScale)
+void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, float handSize, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmPos, const NiPoint3 &palmVector, float havokWorldScale)
 {
 	selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
 
@@ -1354,7 +1348,7 @@ void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selec
 		initialTransform = collidableNode->m_worldTransform;
 		initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
 	}
-	TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, &initialTransform);
+	TransitionHeld(other, world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, &initialTransform);
 
 	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
@@ -1374,12 +1368,31 @@ void Hand::SetPulledDuration(const NiPoint3 &hkPalmPos, const NiPoint3 &objPoint
 }
 
 
-NiPointer<NiAVObject> Hand::GetHandNode()
+NiPointer<NiAVObject> Hand::GetFirstPersonHandNode()
 {
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player || !player->GetNiNode()) return nullptr;
+	if (!player->GetNiRootNode(1)) return nullptr;
 
 	return isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftHandBone] : player->unk3F0[PlayerCharacter::Node::kNode_RightHandBone];
+}
+
+NiPointer<NiAVObject> Hand::GetThirdPersonHandNode()
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player) return nullptr;
+
+	NiPointer<NiAVObject> rootNode = player->GetNiRootNode(0);
+	if (!rootNode) return nullptr;
+
+	return rootNode->GetObjectByName(&handNodeName.data);
+}
+
+
+float Hand::GetHandSize()
+{
+	NiPointer<NiAVObject> handNode = g_isVrikPresent ? GetThirdPersonHandNode() : GetFirstPersonHandNode();
+	if (!handNode) return 1.0f;
+	return handNode->m_worldTransform.scale;
 }
 
 
@@ -1411,6 +1424,28 @@ NiPoint3 Hand::GetHandVelocity()
 }
 
 
+void Hand::UpdateHandTransform(NiTransform &worldTransform)
+{
+	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+	if (!handNode) return;
+
+	if (g_isVrikPresent) {
+		UpdateNodeTransformLocal(handNode, worldTransform);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+	}
+	else {
+		// When not using vrik, we need to update the clavicle to move the hand just as beth does, otherwise only part of the "hand" moves and we get stretched verts
+		PlayerCharacter *player = *g_thePlayer;
+		NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (clavicle) {
+			NiTransform identity;
+			UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
+		}
+	}
+}
+
+
 void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
@@ -1418,8 +1453,10 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode()) return;
 
-	NiPointer<NiAVObject> handNode = GetHandNode();
+	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (!handNode) return;
+
+	float handSize = GetHandSize();
 
 	handTransform = handNode->m_worldTransform; // Save the old hand transform - we restore it later
 
@@ -1505,7 +1542,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	if (state == State::GrabFromOtherHand) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+			TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj);
 		}
 		else {
 			state = State::Idle;
@@ -1529,7 +1566,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							selectedObject.rigidBody = rigidBody;
 							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
-							GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, sphere, hkPalmPos, palmVector, havokWorldScale);
+							GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, handSize, sphere, hkPalmPos, palmVector, havokWorldScale);
 
 							grabRequested = false;
 							wasObjectGrabbed = true;
@@ -1876,7 +1913,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 									// Grabbing a regular object, not from the other hand or off of a body
 									NiTransform initialTransform;
 									bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
-									TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
+									TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, haveTransform ? &initialTransform : nullptr);
 								}
 							}
 						}
@@ -2196,7 +2233,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 						// Grabbing a regular object, not from the other hand or off of a body
 						NiTransform initialTransform;
 						bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
-						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
+						TransitionHeld(other, *world, hkPalmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, handSize, selectedObj, haveTransform ? &initialTransform : nullptr);
 					}
 				}
 
@@ -2250,7 +2287,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 				else {
 					// Other hand let go - we grab it then
-					TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
+					TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj);
 				}
 			}
 			else {
@@ -2285,12 +2322,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							TESObjectREFR_SetActorOwner(VM_REGISTRY, 0, selectedObj, player->baseForm);
 
 							if (isExternalGrab) {
-								GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, sphere, hkPalmPos, palmVector, havokWorldScale);
+								GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, handSize, sphere, hkPalmPos, palmVector, havokWorldScale);
 							}
 							else {
 								NiTransform initialTransform;
 								bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
-								TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
+								TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, haveTransform ? &initialTransform : nullptr);
 							}
 						}
 					}
@@ -2519,19 +2556,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 				else {
 					// Not too far away. Update hand to object and set object velocity to target.
-					if (g_isVrikPresent) {
-						UpdateNodeTransformLocal(handNode, adjustedHandTransform);
-						NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-						NiAVObject_UpdateObjectUpwards(handNode, &ctx);
-					}
-					else {
-						// When not using vrik, we need to update the clavicle to move the hand just as beth does, otherwise only part of the "hand" moves and we get stretched verts
-						NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
-						if (clavicle) {
-							NiTransform identity;
-							UpdateClavicleToTransformHand(clavicle, handNode, &adjustedHandTransform, &identity);
-						}
-					}
+					UpdateHandTransform(adjustedHandTransform);
 
 					// Update object velocity to go where we want it
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
@@ -2789,7 +2814,7 @@ void Hand::RestoreHandTransform()
 	if (!g_isVrikPresent) return;
 
 	if (state == State::HeldBody) {
-		NiPointer<NiAVObject> handNode = GetHandNode();
+		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 		if (!handNode) return;
 
 		NiTransform newHandTransform = handTransform;
@@ -3011,7 +3036,7 @@ void Hand::SetupRollover()
 
 void Hand::SetupSelectionBeam(NiNode *spellOrigin)
 {
-	NiPointer<NiAVObject> handNode = GetHandNode();
+	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (!handNode) return;
 
 	NiPointer<TESObjectREFR> obj;

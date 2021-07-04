@@ -7,6 +7,7 @@
 #include "math_utils.h"
 #include "config.h"
 #include "utils.h"
+#include "main.h"
 #include "RE/offsets.h"
 
 
@@ -34,10 +35,10 @@ NiMatrix33 FingerAnimator::LerpFingerRotation(int finger, int knuckle, float ler
 bool FillFingerNodes(NiPointer<NiAVObject> fingerNodes[5][3], BSFixedString fingerNodeNames[5][3])
 {
 	PlayerCharacter *player = *g_thePlayer;
-	NiPointer<NiNode> tpNode = player->GetNiRootNode(0);
-	if (tpNode) {
+	NiPointer<NiNode> rootNode = player->GetNiRootNode(g_isVrikPresent ? 0 : 1); // first-person if no vrik, third-person if vrik
+	if (rootNode) {
 		for (int i = 0; i < 5; i++) {
-			fingerNodes[i][0] = tpNode->GetObjectByName(&fingerNodeNames[i][0].data);
+			fingerNodes[i][0] = rootNode->GetObjectByName(&fingerNodeNames[i][0].data);
 			if (!fingerNodes[i][0]) return false;
 			fingerNodes[i][1] = fingerNodes[i][0]->GetObjectByName(&fingerNodeNames[i][1].data);
 			if (!fingerNodes[i][1]) return false;
@@ -68,12 +69,10 @@ void FingerAnimator::Update()
 	//std::vector<NiAVObject *> stillAnimating;
 	auto AnimateFinger = [this, &fingerNodes, &stopAnimating, posSpeed, rotSpeed](int finger, float lerpVal)
 	{
-		// What we should do:
-		// - When starting to animate, start from where the fingers started, and move towards the desired state at a constant speed
-		// - When ending animating, start from where _we_ had them last (NOT oldWorldTransform), and move towards oldWorldTransform at a constant speed
-		//   - This raises a question: When do we terminate?
+		// - When starting to animate, move towards the desired state at a fixed speed
+		// - When ending animating, move towards where the game/vrik wants them at a fixed speed
 
-		// Current 3rd person finger transform: The transform that vrik sets
+		// Current local transform: The transform that the game / vrik sets
 		// Old 3rd person finger transform: Ours if we set it last frame, vriks if we didn't
 
 		for (int i = 0; i < 3; i++) {
@@ -84,9 +83,9 @@ void FingerAnimator::Update()
 			}
 
 			NiAVObject *fingerNode = fingerNodes[finger][i];
-			NiTransform &vrikLocalTransform = fingerNodes[finger][i]->m_localTransform;
-			if (saveVrikTransforms) {
-				localTransforms[finger][i] = vrikLocalTransform;
+			NiTransform &currentLocalTransform = fingerNodes[finger][i]->m_localTransform;
+			if (saveCurrentTransforms) {
+				localTransforms[finger][i] = currentLocalTransform;
 			}
 
 			NiTransform &currentTransform = localTransforms[finger][i]; // Is the vrik transform if we just started animating, or our last transform if we already were animating
@@ -106,8 +105,11 @@ void FingerAnimator::Update()
 			fingerNodes[finger][i]->m_localTransform = finalTransform;
 		}
 
-		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateObjectUpwards(fingerNodes[finger][0], &ctx);
+		if (!g_isVrikPresent) {
+			// First-person root update happens before our hook, so need to update world transforms
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(fingerNodes[finger][0], &ctx);
+		}
 	};
 
 	for (int i = 0; i < 5; i++) {
@@ -128,7 +130,7 @@ void FingerAnimator::Update()
 		RestoreFingers();
 	}
 
-	saveVrikTransforms = false;
+	saveCurrentTransforms = false;
 
 	wereFingersSetLastFrame = wereFingersSetThisFrame;
 	wereFingersSetThisFrame = false;
@@ -141,7 +143,7 @@ void FingerAnimator::SetFingerValues(float values[5], float linearSpeed, float a
 	}
 
 	if (!animate) {
-		saveVrikTransforms = true;
+		saveCurrentTransforms = true;
 	}
 
 	animSpeedLinear = linearSpeed;

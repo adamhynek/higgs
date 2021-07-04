@@ -121,12 +121,16 @@ struct Hand
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
-	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
+	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj,
+		NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
 	bool TransitionGrabExternal(TESObjectREFR *refr);
-	void GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
+	void GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, float handSize, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
 	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
-	NiPointer<NiAVObject> GetHandNode();
+	NiPointer<NiAVObject> GetFirstPersonHandNode();
+	NiPointer<NiAVObject> GetThirdPersonHandNode();
+	float GetHandSize();
+	void UpdateHandTransform(NiTransform &worldTransform);
 	NiPoint3 GetHandVelocity();
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
