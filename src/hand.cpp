@@ -2445,7 +2445,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			if (n) {
 				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
 
-				NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
+				NiTransform desiredTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
 				if (state == State::HeldInit) {
 					if (g_currentFrameTime - grabbedTime > Config::options.grabStartMaxTime) {
@@ -2455,42 +2455,10 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					}
 					else {
 						// Interpolate pos/rot towards the hand so it doesn't 'snap' too much
-
-						NiQuaternion currentQuat;
-						NiMatrixToNiQuaternion(currentQuat, n->m_worldTransform.rot);
-
-						NiQuaternion desiredQuat;
-						NiMatrixToNiQuaternion(desiredQuat, newTransform.rot);
-
-						float deltaAngle = Config::options.grabStartAngularSpeed * 0.0174533f * *g_deltaTime;
-						float quatAngle = QuaternionAngle(currentQuat, desiredQuat);
-
-						NiPoint3 deltaPlayerPos = player->pos - prevPlayerPosWorldspace;
-						NiPoint3 currentPosCompensated = n->m_worldTransform.pos + deltaPlayerPos;
-
-						NiPoint3 deltaDir = VectorNormalized(newTransform.pos - currentPosCompensated);
-						NiPoint3 deltaPos = deltaDir * Config::options.grabStartSpeed * *g_deltaTime;
-
-						bool doRotation = deltaAngle < quatAngle;
-						bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(newTransform.pos - currentPosCompensated);
-
-						if (doRotation || doTranslation) {
+						std::optional<NiTransform> advancedTransform = AdvanceTransform(n->m_worldTransform, desiredTransform, Config::options.grabStartSpeed, Config::options.grabStartAngularSpeed);
+						if (advancedTransform) {
 							// Rotation or position is not yet close enough
-
-							if (doRotation) {
-								// update rotation
-								double slerpAmount = deltaAngle / quatAngle;
-								NiQuaternion newQuat = slerp(currentQuat, desiredQuat, slerpAmount);
-								newQuat = QuaternionNormalized(newQuat);
-								newTransform.rot = QuaternionToMatrix(newQuat);
-							}
-
-							if (doTranslation) {
-								// If not close enough, move the object closer to the hand at some velocity
-								newTransform.pos = currentPosCompensated + deltaPos;
-							}
-
-							UpdateKeyframedNode(n, newTransform);
+							UpdateKeyframedNode(n, *advancedTransform);
 						}
 						else {
 							// Both position and rotation are close enough to their final values - we're done
@@ -2501,7 +2469,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 
 				if (state == State::Held) {
-					UpdateKeyframedNode(n, newTransform);
+					UpdateKeyframedNode(n, desiredTransform);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
