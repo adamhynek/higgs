@@ -1,3 +1,5 @@
+#pragma once
+
 #include "skse64/PapyrusNativeFunctions.h"
 #include "skse64/PapyrusEvents.h"
 

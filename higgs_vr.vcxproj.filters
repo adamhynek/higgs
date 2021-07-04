@@ -63,6 +63,12 @@
     <ClCompile Include="src\RE\offsets.cpp">
       <Filter>src\RE</Filter>
     </ClCompile>
+    <ClCompile Include="src\finger_animator.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\haptics.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\version.h">
@@ -121,6 +127,12 @@
     </ClInclude>
     <ClInclude Include="include\RE\misc.h">
       <Filter>include\RE</Filter>
+    </ClInclude>
+    <ClInclude Include="include\finger_animator.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\haptics.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

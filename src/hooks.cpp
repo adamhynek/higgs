@@ -12,7 +12,6 @@
 #include "RE/havok.h"
 #include "RE/offsets.h"
 #include "hand.h"
-#include "vrikinterface001.h"
 #include "config.h"
 #include "main.h"
 #include "finger_curves.h"
@@ -227,8 +226,8 @@ void PostVRIKPCUpdateHook()
 	g_rightHand->RestoreHandTransform();
 	g_leftHand->RestoreHandTransform();
 
-	g_rightHand->AnimateFingers();
-	g_leftHand->AnimateFingers();
+	g_rightHand->fingerAnimator.Update();
+	g_leftHand->fingerAnimator.Update();
 
 	/*
 	PlayerCharacter *player = *g_thePlayer;

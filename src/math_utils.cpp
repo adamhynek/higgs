@@ -238,7 +238,7 @@ NiQuaternion QuaternionInverse(const NiQuaternion &q)
 {
 	NiQuaternion inverse;
 	float normSquared = q.m_fW*q.m_fW + q.m_fX*q.m_fX + q.m_fY*q.m_fY + q.m_fZ*q.m_fZ;
-	if (!normSquared)
+	if (normSquared <= 0.0001)
 		normSquared = 1;
 	inverse.m_fW = q.m_fW / normSquared;
 	inverse.m_fX = -q.m_fX / normSquared;
@@ -253,12 +253,12 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 	NiQuaternion qm;
 	// Calculate angle between them.
 	double cosHalfTheta = DotProduct(qa, qb);
-	// if qa=qb or qa=-qb then theta = 0 and we can return qa
-	if (abs(cosHalfTheta) >= 0.9995) {
-		qm.m_fW = qa.m_fW;
-		qm.m_fX = qa.m_fX;
-		qm.m_fY = qa.m_fY;
-		qm.m_fZ = qa.m_fZ;
+	// if qa=qb or qa=-qb then theta = 0 and we can return qb
+	if (abs(cosHalfTheta) >= 0.99999) { // I actually experimentally determined this value. The value where I got this code was 0.9995 which is way too low for small angles
+		qm.m_fW = qb.m_fW;
+		qm.m_fX = qb.m_fX;
+		qm.m_fY = qb.m_fY;
+		qm.m_fZ = qb.m_fZ;
 		return qm;
 	}
 
@@ -289,12 +289,51 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 	}
 	double ratioA = sin((1 - t) * halfTheta) / sinHalfTheta;
 	double ratioB = sin(t * halfTheta) / sinHalfTheta;
-	//calculate Quaternion.
+	// calculate Quaternion
 	qm.m_fW = (qa.m_fW * ratioA + q2.m_fW * ratioB);
 	qm.m_fX = (qa.m_fX * ratioA + q2.m_fX * ratioB);
 	qm.m_fY = (qa.m_fY * ratioA + q2.m_fY * ratioB);
 	qm.m_fZ = (qa.m_fZ * ratioA + q2.m_fZ * ratioB);
 	return qm;
+}
+
+std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed)
+{
+	NiQuaternion currentQuat;
+	NiMatrixToNiQuaternion(currentQuat, currentTransform.rot);
+
+	NiQuaternion desiredQuat;
+	NiMatrixToNiQuaternion(desiredQuat, targetTransform.rot);
+
+	float deltaAngle = rotSpeed * 0.0174533f * *g_deltaTime;
+	float quatAngle = QuaternionAngle(currentQuat, desiredQuat);
+
+	NiPoint3 deltaDir = VectorNormalized(targetTransform.pos - currentTransform.pos);
+	NiPoint3 deltaPos = deltaDir * posSpeed * *g_deltaTime;
+
+	bool doRotation = deltaAngle < quatAngle;
+	bool doTranslation = VectorLengthSquared(deltaPos) < VectorLengthSquared(targetTransform.pos - currentTransform.pos);
+
+	if (doRotation || doTranslation) {
+		// Rotation or position is not yet close enough
+
+		NiTransform advancedTransform = targetTransform;
+		if (doRotation) {
+			// update rotation
+			double slerpAmount = deltaAngle / quatAngle;
+			NiQuaternion newQuat = slerp(currentQuat, desiredQuat, slerpAmount);
+			newQuat = QuaternionNormalized(newQuat);
+			advancedTransform.rot = QuaternionToMatrix(newQuat);
+		}
+
+		if (doTranslation) {
+			// If not close enough, move the object closer to the hand at some velocity
+			advancedTransform.pos = currentTransform.pos + deltaPos;
+		}
+
+		return advancedTransform;
+	}
+	return std::nullopt;
 }
 
 float Determinant33(const NiMatrix33 &m)

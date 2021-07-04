@@ -17,6 +17,46 @@
 #include "hand.h"
 
 
+UInt32 priorities[] = { // lower is better
+	4, // head
+	3, // hair
+	10, // body
+	6, // hands
+	7, // forearms
+	2, // amulet
+	5, // ring
+	8, // feet
+	9, // calves
+	0, // shield
+	13, // tail - seems to be used by cloaks
+	11, // longhair
+	1, // circlet
+	12, // ears
+	84, // 14
+	85, // 15
+	14, // 16 - seems to be used by cloaks as well
+	86, // 17
+	87, // 18
+	88, // 19
+	89, // decapitatehead
+	90, // decapitate
+	91, // 22
+	92, // 23
+	93, // 24
+	94, // 25
+	95, // 26
+	96, // 27
+	97, // 28
+	98, // 29
+	99, // 30
+	100  // fx01
+};
+bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat)
+{
+	// Return true if fist index beats second index
+	return priorities[indexInQuestion] < priorities[indexToBeat];
+}
+
 ITimer g_timer;
 double g_currentFrameTime;
 double GetTime()

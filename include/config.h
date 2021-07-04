@@ -29,8 +29,13 @@ namespace Config {
 		float angularVelocityMultiplier = 0.6f;
 		float tangentialVelocityLimit = 5.0f;
 
-		float fingerAnimateLinearSpeed = 5.0f;
+		float selectedCloseFingerAnimValue = 0.9f;
+		float fingerAnimateLinearSpeed = 4.0f;
 		float fingerAnimateAngularSpeed = 540.0f;
+		float fingerAnimateStartLinearSpeed = 2.0f;
+		float fingerAnimateStartAngularSpeed = 135.0f;
+		float fingerAnimateEndLinearSpeed = 2.0f;
+		float fingerAnimateEndAngularSpeed = 45.0f;
 
 		float nearbyGrabMaxLinearVelocity = 0.2f;
 		float nearbyGrabMaxAngularVelocity = 1.0f;
@@ -90,6 +95,8 @@ namespace Config {
 		double preDampVelocityTime = 0.1f;
 		double tryLeaveDampedTime = 0.1f;
 		double physicsGrabInitTime = 0.1f;
+		double fingerAnimateEndTime = 0.35f;
+		double afterDropFingerAnimateTime = 0.3f;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;

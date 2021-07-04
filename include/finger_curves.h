@@ -1,3 +1,5 @@
+#pragma once
+
 #include <vector>
 
 #include "skse64/GameTypes.h"

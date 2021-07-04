@@ -5,43 +5,14 @@
 #include <deque>
 
 #include "skse64/InternalVR.h"
-#include "skse64/GameVR.h"
-#include "skse64/GameBSExtraData.h"
 
 #include "RE/havok.h"
 #include "physics.h"
 #include "utils.h"
-#include "havok_ref_ptr.h"
+#include "haptics.h"
+#include "finger_animator.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
-
-
-struct HapticsManager
-{
-	struct HapticEvent
-	{
-		float startStrength;
-		float endStrength;
-		double duration;
-		double startTime;
-		bool isNew;
-	};
-
-	HapticsManager(BSVRInterface::BSControllerHand hand) :
-		hand(hand),
-		thread(&HapticsManager::Loop, this)
-	{}
-
-	BSVRInterface::BSControllerHand hand;
-	std::vector<HapticEvent> events;
-	std::mutex eventsLock;
-	std::thread thread;
-
-	void TriggerHapticPulse(float duration);
-	void QueueHapticEvent(float startStrength, float endStrength, float duration);
-	void QueueHapticPulse(float duration);
-	void Loop();
-};
 
 
 struct Hand
@@ -69,21 +40,6 @@ struct Hand
 		NiPointer<bhkRigidBody> rigidBody;
 		UInt32 handle = 0;
 		hkHalf savedAngularDamping;
-	};
-
-	struct FingerAnimations
-	{
-		enum class AnimState : UInt8
-		{
-			Start,
-			End
-		};
-
-		NiTransform localTransforms[5][3];
-		float animValues[5];
-		AnimState animState = AnimState::Start;
-		bool animate = false;
-		bool saveVrikTransforms = false;
 	};
 
 	enum class State : UInt8
@@ -131,7 +87,8 @@ struct Hand
 		controllerVelocities(10, NiPoint3()),
 		controllerAngularVelocities(10, NiPoint3()),
 		playerVelocitiesWorldspace(5, NiPoint3()),
-		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right)
+		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right),
+		fingerAnimator(isLeft, fingerNodeNames)
 	{
 		for (int i = 0; i < 5; i++) {
 			for (int j = 0; j < 3; j++) {
@@ -144,12 +101,6 @@ struct Hand
 
 	void Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab);
-	void AnimateFingers();
-
-	void SetFingerValues(float thumb, float index, float middle, float ring, float pinky);
-	void RestoreFingers();
-	NiPoint3 LerpFingerPosition(int finger, int knuckle, float lerpVal);
-	NiMatrix33 LerpFingerRotation(int finger, int knuckle, float lerpVal);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
@@ -201,7 +152,7 @@ struct Hand
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 
 	HapticsManager haptics;
-	FingerAnimations fingerAnimations;
+	FingerAnimator fingerAnimator;
 
 	NiPointer<bhkRigidBody> handBody = nullptr;
 
@@ -265,6 +216,7 @@ struct Hand
 	double grabRequestedTime = 0; // Timestamp when the trigger was pressed
 	double rolloverDisplayTime = 0; // Timestamp when we performed the last action that warrants showing the rollover text
 	double grabbedTime = 0; // Timestamp when the currently grabbed object (if there is one) was grabbed
+	double droppedTime = 0;
 	double pullDuration = 0;
 	double pulledExpireTime = 0; // Amount of time after pulling to wait before restoring original collision information
 	double pulledTime = 0; // Timestamp when the last pulled object was pulled

@@ -9,6 +9,7 @@
 #include "vrikinterface001.h"
 #include "utils.h"
 #include "hand.h"
+#include "config.h"
 #include "RE/offsets.h"
 
 
@@ -284,7 +285,8 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 			if (g_fingerCurveData->state == FingerCurveData::State::Init) {
 				if (g_fingerCurveData->frameCount < 100) {
 					g_fingerCurveData->currentRangeVal = 1.0f;
-					g_rightHand->SetFingerValues(1, 1, 1, 1, 1);
+					float vals[5] = { 1, 1, 1, 1, 1 };
+					g_rightHand->fingerAnimator.SetFingerValues(vals, 100.0f, 1000.0f);
 				}
 				else {
 					// Extract zero angle vector from whatever the vector is at this point
@@ -314,7 +316,8 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 				if (g_fingerCurveData->frameCount < 8000) {
 					float val = max(0, 1.0f - (g_fingerCurveData->frameCount / 8000.0f));
 					g_fingerCurveData->currentRangeVal = val;
-					g_rightHand->SetFingerValues(val, val, val, val, val);
+					float vals[5] = { val, val, val, val, val };
+					g_rightHand->fingerAnimator.SetFingerValues(vals, 100.0f, 1000.0f);
 					g_fingerCurveData->state = FingerCurveData::State::Skip;
 				}
 				else {
@@ -371,7 +374,8 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 			if (g_fingerCurveData->state == FingerCurveData::State::Finish) {
 				if (g_fingerCurveData->frameCount < 100) {
 					g_fingerCurveData->currentRangeVal = 0.0f;
-					g_rightHand->SetFingerValues(0, 0, 0, 0, 0);
+					float vals[5] = { 0, 0, 0, 0, 0 };
+					g_rightHand->fingerAnimator.SetFingerValues(vals, 100.0f, 1000.0f);
 				}
 				else {
 					for (int i = 0; i < 5; i++) {

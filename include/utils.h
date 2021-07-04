@@ -39,6 +39,8 @@ bool IsTwoHanded(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
 std::pair<bool, bool> AreEquippedItemsValid(Actor *actor);
 
+bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
+
 double GetTime();
 
 void PrintVector(const NiPoint3 &p);

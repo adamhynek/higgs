@@ -192,8 +192,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
+    <ClCompile Include="src\finger_animator.cpp" />
     <ClCompile Include="src\finger_curves.cpp" />
     <ClCompile Include="src\hand.cpp" />
+    <ClCompile Include="src\haptics.cpp" />
     <ClCompile Include="src\higgsinterface001.cpp" />
     <ClCompile Include="src\hooks.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -208,7 +210,9 @@
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\finger_animator.h" />
     <ClInclude Include="include\finger_curves.h" />
+    <ClInclude Include="include\haptics.h" />
     <ClInclude Include="include\higgsinterface001.h" />
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\papyrusapi.h" />
