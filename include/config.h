@@ -95,8 +95,10 @@ namespace Config {
 		double preDampVelocityTime = 0.1f;
 		double tryLeaveDampedTime = 0.1f;
 		double physicsGrabInitTime = 0.1f;
-		double fingerAnimateEndTime = 0.35f;
+		double fingerAnimateEndTime = 0.8f;
+		double fingerAnimateEndDoubleSpeedTime = 0.2f;
 		double afterDropFingerAnimateTime = 0.3f;
+		double fingerAnimateStartDoubleSpeedTime = 0.25f;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;

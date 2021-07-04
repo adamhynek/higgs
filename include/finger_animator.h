@@ -36,5 +36,7 @@ struct FingerAnimator
 	AnimState animState = AnimState::Start;
 	bool animate = false;
 	bool saveVrikTransforms = false;
+	bool wereFingersSetThisFrame = false;
+	bool wereFingersSetLastFrame = false;
 	bool isLeft;
 };

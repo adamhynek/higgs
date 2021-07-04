@@ -121,7 +121,7 @@ struct Hand
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
-	bool TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
+	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
 	bool TransitionGrabExternal(TESObjectREFR *refr);
 	void GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
@@ -224,6 +224,8 @@ struct Hand
 	double forceInputTime = 0;
 	double preDampTime = 0;
 	double tryLeaveDampedTime = 0;
+
+	float grabbedFingerValues[5];
 
 	State state = State::Idle;
 	State prevState = State::Idle;

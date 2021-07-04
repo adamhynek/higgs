@@ -59,7 +59,7 @@ void FingerAnimator::Update()
 	float posSpeed = animSpeedLinear;
 	float rotSpeed = animSpeedAngular;
 	if (animState == AnimState::End) {
-		double elapsedTimeFraction = (g_currentFrameTime - restoreFingersTime) / Config::options.fingerAnimateEndTime;
+		double elapsedTimeFraction = (g_currentFrameTime - restoreFingersTime) / Config::options.fingerAnimateEndDoubleSpeedTime;
 		posSpeed += elapsedTimeFraction * animSpeedLinear;
 		rotSpeed += elapsedTimeFraction * animSpeedAngular;
 	}
@@ -124,7 +124,14 @@ void FingerAnimator::Update()
 		animate = false;
 	}
 
+	if (!wereFingersSetThisFrame && wereFingersSetLastFrame) {
+		RestoreFingers();
+	}
+
 	saveVrikTransforms = false;
+
+	wereFingersSetLastFrame = wereFingersSetThisFrame;
+	wereFingersSetThisFrame = false;
 }
 
 void FingerAnimator::SetFingerValues(float values[5], float linearSpeed, float angularSpeed)
@@ -139,6 +146,7 @@ void FingerAnimator::SetFingerValues(float values[5], float linearSpeed, float a
 
 	animSpeedLinear = linearSpeed;
 	animSpeedAngular = angularSpeed;
+	wereFingersSetThisFrame = true;
 	animState = AnimState::Start;
 	animate = true;
 }

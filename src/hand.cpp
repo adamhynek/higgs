@@ -947,10 +947,8 @@ bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node)
 }
 
 
-bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
+void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool playSound)
 {
-	bool wereFingersSet = false;
-
 	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 	if (collidableNode && objRoot) {
@@ -1123,26 +1121,22 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 				}
 
 				// Doing a separate pass over all fingers here means we can print the final results all next to each other
-				float fingerRanges[5];
-				for (int i = 0; i < std::size(fingerRanges); i++) {
+				for (int i = 0; i < std::size(fingerData); i++) {
 					float curveVal = fingerData[i];
 
 					if (curveVal < 0) {
 						// It's a negative angle - just open the hand
 						_MESSAGE("%d angle: %.2f", i, curveVal);
-						fingerRanges[i] = 1.0f;
+						grabbedFingerValues[i] = 1.0f;
 					}
 					else {
 						// Positive => it's a curve val
 						_MESSAGE("%d curve val: %.2f", i, curveVal);
-						fingerRanges[i] = curveVal;
+						grabbedFingerValues[i] = curveVal;
 					}
 
-					fingerRanges[i] = max(0.2f, fingerRanges[i]); // some min value to not overcurl the finger
+					grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
 				}
-
-				fingerAnimator.SetFingerValues(fingerRanges, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
-				wereFingersSet = true;
 			}
 
 			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
@@ -1193,8 +1187,6 @@ bool Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 	else {
 		state = State::Idle;
 	}
-
-	return wereFingersSet;
 }
 
 
@@ -1333,10 +1325,6 @@ bool Hand::TransitionGrabExternal(TESObjectREFR *refr)
 {
 	if (CanGrabObject() && refr) {
 		_MESSAGE("External grab");
-
-		if (state == State::SelectedClose) {
-			fingerAnimator.RestoreFingers();
-		}
 
 		if (state == State::SelectedClose || state == State::SelectedFar || state == State::SelectionLocked) {
 			StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -1517,13 +1505,9 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	if (state == State::GrabFromOtherHand) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
-			if (!wereFingersSet) {
-				fingerAnimator.RestoreFingers();
-			}
+			TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj);
 		}
 		else {
-			fingerAnimator.RestoreFingers();
 			state = State::Idle;
 		}
 	}
@@ -1598,10 +1582,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 				if (newState == State::SelectedClose) {
 					rolloverDisplayTime = g_currentFrameTime;
-					fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, Config::options.fingerAnimateStartLinearSpeed, Config::options.fingerAnimateStartAngularSpeed);
-				}
-				else if (newState == State::SelectedFar) {
-					fingerAnimator.RestoreFingers();
 				}
 			}
 			else if ((state == State::SelectedFar && isSelectedNear) || (state == State::SelectedClose && !isSelectedNear)) {
@@ -1609,10 +1589,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				newState = isSelectedNear ? State::SelectedClose : State::SelectedFar;
 				if (newState == State::SelectedClose) {
 					rolloverDisplayTime = g_currentFrameTime;
-					fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, Config::options.fingerAnimateStartLinearSpeed, Config::options.fingerAnimateStartAngularSpeed);
-				}
-				else if (newState == State::SelectedFar) {
-					fingerAnimator.RestoreFingers();
 				}
 			}
 
@@ -1841,11 +1817,15 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (state == State::SelectedClose || state == State::SelectedFar) {
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+				if (state == State::SelectedClose) {
+					double elapsedTimeFraction = (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
+					float posSpeed = (1 + elapsedTimeFraction) * Config::options.fingerAnimateStartLinearSpeed;
+					float rotSpeed = (1 + elapsedTimeFraction) * Config::options.fingerAnimateStartAngularSpeed;
+					fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
+				}
+
 				if (!isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
 					// If time has run out and nothing is selected, deselect whatever is selected
-					if (state == State::SelectedClose) {
-						fingerAnimator.RestoreFingers();
-					}
 
 
 					//if (!isLeft) {
@@ -1876,8 +1856,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 						else if (state == State::SelectedClose) {
 							if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
 								if (selectedObject.isActor && selectedObject.hitForm) {
-									fingerAnimator.RestoreFingers();
-
 									rolloverDisplayTime = g_currentFrameTime;
 
 									state = State::LootOtherHand;
@@ -1892,18 +1870,13 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 							else {
 								if (selectedObject.hitForm && selectedObject.isDisconnected) {
 									// Grabbing a weapon or something that's part of a body
-									fingerAnimator.RestoreFingers();
-
 									TransitionPreGrab(selectedObj);
 								}
 								else {
 									// Grabbing a regular object, not from the other hand or off of a body
 									NiTransform initialTransform;
 									bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
-									bool wereFingersSet = TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
-									if (!wereFingersSet) {
-										fingerAnimator.RestoreFingers();
-									}
+									TransitionHeld(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, selectedObj, haveTransform ? &initialTransform : nullptr);
 								}
 							}
 						}
@@ -1915,9 +1888,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			}
 			else {
 				// Selected object no longer exists
-				if (state == State::SelectedClose) {
-					fingerAnimator.RestoreFingers();
-				}
 				state = State::Idle;
 			}
 		}
@@ -1925,9 +1895,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (state == State::Idle || state == State::SelectedFar) {
 			if (g_currentFrameTime - droppedTime < Config::options.afterDropFingerAnimateTime) {
 				fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, Config::options.fingerAnimateStartLinearSpeed, Config::options.fingerAnimateStartAngularSpeed);
-			}
-			else {
-				fingerAnimator.RestoreFingers();
 			}
 		}
 
@@ -2121,7 +2088,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				// Do all this stuff even if the refr has been deleted / 3d unloaded
 
 				ResetNearbyDamping();
-				fingerAnimator.RestoreFingers();
 
 				if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
@@ -2440,6 +2406,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> n = GetNodeFromCollidable(selectedObject.collidable);
 			if (n) {
+				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
+
 				NiTransform newTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
 				if (state == State::HeldInit) {
@@ -2512,7 +2480,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			}
 		}
 		else {
-			fingerAnimator.RestoreFingers();
 			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 			}
@@ -2528,6 +2495,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 			if (collidableNode) {
+				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
+
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
 
@@ -2654,7 +2623,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			}
 		}
 		else {
-			fingerAnimator.RestoreFingers();
 			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 			}
