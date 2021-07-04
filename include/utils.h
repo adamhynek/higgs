@@ -44,6 +44,7 @@ bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
 double GetTime();
 
 void PrintVector(const NiPoint3 &p);
+void PrintQuat(const NiQuaternion &q);
 void PrintSceneGraph(NiAVObject *node);
 void PrintToFile(std::string entry, std::string filename);
 void DumpVertices(std::vector<TriangleData> &triangles);

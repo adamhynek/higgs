@@ -40,6 +40,7 @@
 #include "math_utils.h"
 #include "physics.h"
 #include "main.h"
+#include "finger_curves.h"
 
 
 // SKSE globals

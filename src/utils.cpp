@@ -364,6 +364,11 @@ void PrintVector(const NiPoint3 &p)
 	_MESSAGE("%.2f, %.2f, %.2f", p.x, p.y, p.z);
 }
 
+void PrintQuat(const NiQuaternion &q)
+{
+	_MESSAGE("%f, %f, %f, %f", q.m_fW, q.m_fX, q.m_fY, q.m_fZ);
+}
+
 bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth = 0)
 {
 	if (!parent) return false;
