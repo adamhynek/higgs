@@ -574,8 +574,14 @@ extern "C" {
 
 		if (Config::options.disableRolloverRumble) {
 			_MESSAGE("Disabling rollover rumble");
-			Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-			activateRumbleIntensitySetting->SetDouble(0);
+			Setting	* setting = GetINISetting("fActivateRumbleIntensity:VRInput");
+			setting->SetDouble(0);
+		}
+
+		if (Config::options.alwaysShowHands) {
+			_MESSAGE("Setting bAlwaysShowHands to true");
+			Setting	*setting = GetINISetting("bAlwaysShowHands:VR");
+			setting->SetDouble(1);
 		}
 
 		initComplete = true;
