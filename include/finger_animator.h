@@ -23,14 +23,15 @@ struct FingerAnimator
 	NiPoint3 LerpFingerPosition(int finger, int knuckle, float lerpVal);
 	NiMatrix33 LerpFingerRotation(int finger, int knuckle, float lerpVal);
 	void Update();
-	void SetFingerValues(float values[5], float linearSpeed, float angularSpeed);
-	void SetFingerValues(float value, float linearSpeed, float angularSpeed);
+	void SetFingerValues(float values[5], float linearSpeed, float angularSpeed, bool useAlternateThumb = false);
+	void SetFingerValues(float value, float linearSpeed, float angularSpeed, bool useAlternateThumb = false);
 	void RestoreFingers();
 
 	BSFixedString fingerNodeNames[5][3];
 	NiTransform localTransforms[5][3];
 	double restoreFingersTime;
 	float animValues[5];
+	int animCurves[5];
 	float animSpeedLinear;
 	float animSpeedAngular;
 	AnimState animState = AnimState::Start;

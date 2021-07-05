@@ -297,7 +297,7 @@ extern RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData;
 typedef bool(*_TESObjectBOOK_LearnSpell)(TESObjectBOOK *book, Actor *reader);
 extern RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell;
 
-typedef bool(*_NiMatrixToNiQuaternion)(NiQuaternion &quatOut, const NiMatrix33 &matIn);
+typedef void(*_NiMatrixToNiQuaternion)(NiQuaternion &quatOut, const NiMatrix33 &matIn);
 extern RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion;
 
 typedef NiMatrix33 * (*_MatrixFromForwardVector)(NiMatrix33 *matOut, NiPoint3 *forward, NiPoint3 *world);

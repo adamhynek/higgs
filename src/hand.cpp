@@ -1069,7 +1069,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 			NiPoint3 fingerNormalsWorldspace[6];
 			NiPoint3 fingerZeroAngleVecsWorldspace[6];
 			NiPoint3 fingerStartPositionsWorldspace[6];
-			for (int i = 0; i < 5; i++) {
+			for (int i = 0; i < 6; i++) {
 				NiPoint3 normalHandspace = g_fingerNormals[i];
 				NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
 				NiPoint3 startPos = g_fingerStartPositions[i];
@@ -1116,8 +1116,22 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 			}
 
 			// Doing a separate pass over all fingers here means we can print the final results all next to each other
-			for (int i = 0; i < std::size(fingerData); i++) {
+			useAlternateThumbCurve = false;
+			for (int i = 0; i < 5; i++) {
 				float curveVal = fingerData[i];
+
+				if (i == 0) {
+					// If standard sideways thumb misses or is negative, check the other thumb curve
+					if (curveVal <= 0.0f) {
+						// TODO: Still use the old curve for a small leeway for negative angles too?
+						float alternateCurveVal = FingerCheck(5); // 5 is the alternate thumb curve
+						if (alternateCurveVal > 0 || (alternateCurveVal == 0.0f && curveVal == 0.0f)) {
+							// Alternate curve intersected at a non-negative angle, or both curves missed completely
+							curveVal = alternateCurveVal;
+							useAlternateThumbCurve = true;
+						}
+					}
+				}
 
 				if (curveVal < 0) {
 					// It's a negative angle - just open the hand
@@ -2443,7 +2457,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> n = GetNodeFromCollidable(selectedObject.collidable);
 			if (n) {
-				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
+				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed, useAlternateThumbCurve);
 
 				NiTransform desiredTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
@@ -2500,7 +2514,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 			if (collidableNode) {
-				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed);
+				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed, useAlternateThumbCurve);
 
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale

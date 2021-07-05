@@ -13,7 +13,8 @@
 
 NiPoint3 FingerAnimator::LerpFingerPosition(int finger, int knuckle, float lerpVal)
 {
-	NiPoint3 pos = lerp(g_closedFingerPositions[finger][knuckle], g_openFingerPositions[finger][knuckle], lerpVal);
+	int curve = animCurves[finger];
+	NiPoint3 pos = lerp(g_closedFingerPositions[curve][knuckle], g_openFingerPositions[curve][knuckle], lerpVal);
 	if (isLeft) {
 		pos.x *= -1;
 	}
@@ -22,7 +23,8 @@ NiPoint3 FingerAnimator::LerpFingerPosition(int finger, int knuckle, float lerpV
 
 NiMatrix33 FingerAnimator::LerpFingerRotation(int finger, int knuckle, float lerpVal)
 {
-	NiMatrix33 rot = QuaternionToMatrix(slerp(g_closedFingerRotations[finger][knuckle], g_openFingerRotations[finger][knuckle], lerpVal));
+	int curve = animCurves[finger];
+	NiMatrix33 rot = QuaternionToMatrix(slerp(g_closedFingerRotations[curve][knuckle], g_openFingerRotations[curve][knuckle], lerpVal));
 	if (isLeft) {
 		NiPoint3 euler = MatrixToEuler(rot);
 		euler.y *= -1;
@@ -136,10 +138,15 @@ void FingerAnimator::Update()
 	wereFingersSetThisFrame = false;
 }
 
-void FingerAnimator::SetFingerValues(float values[5], float linearSpeed, float angularSpeed)
+void FingerAnimator::SetFingerValues(float values[5], float linearSpeed, float angularSpeed, bool useAlternateThumb)
 {
 	for (int i = 0; i < 5; i++) {
 		animValues[i] = values[i];
+		animCurves[i] = i;
+	}
+
+	if (useAlternateThumb) {
+		animCurves[0] = 5;
 	}
 
 	if (!animate) {
@@ -153,10 +160,10 @@ void FingerAnimator::SetFingerValues(float values[5], float linearSpeed, float a
 	animate = true;
 }
 
-void FingerAnimator::SetFingerValues(float value, float linearSpeed, float angularSpeed)
+void FingerAnimator::SetFingerValues(float value, float linearSpeed, float angularSpeed, bool useAlternateThumb)
 {
 	float values[5] = { value, value, value, value, value };
-	SetFingerValues(values, linearSpeed, angularSpeed);
+	SetFingerValues(values, linearSpeed, angularSpeed, useAlternateThumb);
 }
 
 void FingerAnimator::RestoreFingers()

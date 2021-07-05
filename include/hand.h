@@ -230,6 +230,7 @@ struct Hand
 	double tryLeaveDampedTime = 0;
 
 	float grabbedFingerValues[5];
+	bool useAlternateThumbCurve = false;
 
 	State state = State::Idle;
 	State prevState = State::Idle;

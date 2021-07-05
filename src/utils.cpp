@@ -251,6 +251,8 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 
 	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
 	if (rigidBody) {
+		bhkRigidBody_setActivated(rigidBody, 1);
+
 		bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT);
 		if (rigidBodyT) {
 			// bhkRigidBodyT means the collision object is offset from the node. Bethesda didn't code it correctly in the node update when using the velocity flag for this case, so I have to do it myself.
@@ -265,7 +267,6 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 			NiQuaternion rot;
 			NiMatrixToNiQuaternion(rot, rigidBodyTransform.rot);
 
-			bhkRigidBody_setActivated(rigidBody, 1);
 			//bhkRigidBody_MoveToPositionAndRotation(rigidBody, pos, rot); // This doesn't work because this function does stuff like read the collision object's center of mass without compensating for bhkRigidBodyT transformations...
 			hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(pos * *g_havokWorldScale), NiQuatToHkQuat(rot), 1.0f / *g_deltaTime, rigidBody->hkBody);
 		}
