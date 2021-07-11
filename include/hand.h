@@ -117,7 +117,7 @@ struct Hand
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
-	void UpdateWeaponCollision();
+	void UpdateWeaponCollision(NiPoint3 &playerVelocity);
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
@@ -162,7 +162,8 @@ struct Hand
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
 	bhkRigidBody *clonedFromBody = nullptr; // the collision we cloned to create ours
-	float weaponVelocityMultiplier = 1.0f;
+	float maxWeaponSpeed = 100.0f; // m/s
+	float maxWeaponAngularSpeed = 100.0f; // rad/s
 
 	const bool isLeft = false;
 	const bool delayGripInput = false;

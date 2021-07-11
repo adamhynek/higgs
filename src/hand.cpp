@@ -69,7 +69,8 @@ void Hand::TriggerCollisionHaptics(float mass, float separatingVelocity)
 	float hapticStrength = Config::options.collisionBaseHapticStrength + speedComponent + massComponent;
 	hapticStrength = min(1.0f, hapticStrength);
 
-	if (state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) {
+	if ((state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) ||
+		(g_currentFrameTime - weaponVelocityDampTime < Config::options.dampedWeaponCollisionHapticsReducedTime)) {
 		hapticStrength *= Config::options.dampedCollisionHapticStrengthMultiplier;
 		hapticStrength = max(Config::options.collisionBaseHapticStrength, hapticStrength); // don't let it go below the base strength
 		hapticStrength = min(1.0f, hapticStrength);
@@ -683,7 +684,7 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
 }
 
 
-void Hand::UpdateWeaponCollision()
+void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
 {
 	if (!Config::options.enableWeaponCollision) return;
 
@@ -748,19 +749,41 @@ void Hand::UpdateWeaponCollision()
 	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
 
 	// Damp velocity if we need to
-	//float speed = powf(VectorLength(currentVelocity), Config::options.dampedLinearVelocityExponent) * Config::options.dampedLinearVelocityMultiplier;
-	//weaponBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(VectorNormalized(currentVelocity) * speed);
+	NiPoint3 playerHkVelocity = playerVelocity * *g_havokWorldScale;
+
 	NiPoint3 currentVelocity = HkVectorToNiPoint(weaponBody->hkBody->m_motion.m_linearVelocity);
-	weaponBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity * weaponVelocityMultiplier);
+	NiPoint3 currentVelocityPlayerspace = currentVelocity - playerHkVelocity;
+	NiPoint3 newVelocityPlayerspace = VectorNormalized(currentVelocityPlayerspace) * min(maxWeaponSpeed, VectorLength(currentVelocityPlayerspace));
+	weaponBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(newVelocityPlayerspace + playerHkVelocity);
 
 	NiPoint3 currentAngularVelocity = HkVectorToNiPoint(weaponBody->hkBody->m_motion.m_angularVelocity);
-	weaponBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * weaponVelocityMultiplier);
+	NiPoint3 newAngularVelocity = VectorNormalized(currentAngularVelocity) * min(maxWeaponAngularSpeed, VectorLength(currentAngularVelocity));
+	weaponBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(newAngularVelocity);
 
-	// TODO: Use a fixed limit that increases at a fixed speed over time instead of a multiplier. A multiplier creates a positive feedback loop.
-	// Or, just smooth it out a bunch? Both?
-	float base = Config::options.dampedWeaponVelocityMultiplierBase;
-	double elapsedFraction = (g_currentFrameTime - weaponVelocityDampTime) / Config::options.dampedWeaponVelocityMultiplierIncreaseTime;
-	weaponVelocityMultiplier = min(1.0f, base + (1.0f - base) * elapsedFraction);
+	double elapsedTime = g_currentFrameTime - weaponVelocityDampTime;
+	maxWeaponSpeed = Config::options.dampedWeaponVelocityBase + elapsedTime * Config::options.dampedWeaponVelocityIncreasePerSecond;
+	maxWeaponAngularSpeed = Config::options.dampedWeaponAngularVelocityBase + elapsedTime * Config::options.dampedWeaponAngularVelocityIncreasePerSecond;
+
+	/*
+	// This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
+	NiPointer<NiAVObject> weaponNode = collisionNode;
+	NiTransform &weaponTransform = weaponNode->m_worldTransform;
+	NiAVObject *handNode = GetFirstPersonHandNode();
+	NiTransform &handTransform = handNode->m_worldTransform;
+	NiTransform inverseHand;
+	handTransform.Invert(inverseHand);
+	NiTransform handToWeapon = inverseHand * weaponTransform;
+
+	NiTransform inverseDesired;
+	handToWeapon.Invert(inverseDesired);
+
+	NiTransform newWeaponTransform = weaponTransform; // gets the scale
+	const hkTransform &t = weaponBody->hkBody->getTransform();
+	newWeaponTransform.pos = HkVectorToNiPoint(t.getTranslation()) * *g_inverseHavokWorldScale;
+	HkMatrixToNiMatrix(t.getRotation(), newWeaponTransform.rot);
+
+	UpdateHandTransform(newWeaponTransform * inverseDesired);
+	*/
 }
 
 
@@ -1534,17 +1557,14 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	//}
 
 
-	UpdateHandCollision(handNode, world);
-
-	UpdateWeaponCollision();
-
 	// Update velocities to this frame
 	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;
-
 	playerVelocitiesWorldspace.pop_back();
 	playerVelocitiesWorldspace.push_front(playerVelocityWorldspace);
-
 	NiPoint3 avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
+
+	UpdateHandCollision(handNode, world);
+	UpdateWeaponCollision(avgPlayerVelocityWorldspace);
 
 	if (g_currentFrameTime - pulledTime > pulledExpireTime) {
 		EndPull();

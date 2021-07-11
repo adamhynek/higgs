@@ -412,59 +412,30 @@ void ShowErrorBoxAndLog(const char *errorString)
 
 void ShowErrorBoxAndTerminate(const char *errorString)
 {
-	ShowErrorBox(errorString);
+	ShowErrorBoxAndLog(errorString);
 	*((int *)0) = 0xDEADBEEF; // crash
 }
 
-struct ShowErrorBoxAndTerminateTask : TaskDelegate
-{
-	static ShowErrorBoxAndTerminateTask * Create(const char *errorString) {
-		ShowErrorBoxAndTerminateTask * cmd = new ShowErrorBoxAndTerminateTask;
-		if (cmd)
-		{
-			cmd->errorString = errorString;
-		}
-		return cmd;
-	}
-	virtual void Run() {
-		ShowErrorBoxAndTerminate(errorString);
-	}
-	virtual void Dispose() {
-		delete this;
-	}
 
-	const char *errorString;
-};
-
-void QueueErrorBox(const char *errorString)
-{
-	_ERROR(errorString);
-	// Show error box and terminate on main thread
-	g_taskInterface->AddTask(ShowErrorBoxAndTerminateTask::Create(errorString));
-}
-
-
-struct DeathEventSink : BSTEventSink<TESDeathEvent>
-{
-	virtual	EventResult ReceiveEvent(TESDeathEvent *evn, EventDispatcher<TESDeathEvent> *dispatcher)
-	{
-		if (evn->state == 0 && evn->killer == *g_thePlayer) {
-			g_rightHand->weaponVelocityDampTime = g_currentFrameTime;
-			g_leftHand->weaponVelocityDampTime = g_currentFrameTime;
-		}
-		return EventResult::kEvent_Continue;
-	}
-};
-DeathEventSink deathEventSink;
-
-// Hit(Character *source, Character *target) is at 0x631AF0 - probably is Actor *source, Actor *target
 class HitEventHandler : public BSTEventSink <TESHitEvent>
 {
 public:
 	virtual	EventResult ReceiveEvent(TESHitEvent *evn, EventDispatcher<TESHitEvent> *dispatcher)
 	{
-		if (evn->caster == *g_thePlayer) {
-			_MESSAGE("%.2f\t%.2f", g_rightHand->weaponVelocityMultiplier, VectorLength(HkVectorToNiPoint(g_rightHand->weaponBody->hkBody->m_motion.m_linearVelocity)));
+		PlayerCharacter *player = *g_thePlayer;
+		if (evn->caster == player) {
+			TESForm *weapon = LookupFormByID(evn->sourceFormID);
+				bool isLeftHanded = *g_leftHandedMode;
+				TESForm *rightWeapon = player->GetEquippedObject(isLeftHanded);
+				TESForm *leftWeapon = player->GetEquippedObject(!isLeftHanded);
+				if (weapon == rightWeapon) {
+					_MESSAGE("Right weapon hit");
+					g_rightHand->weaponVelocityDampTime = g_currentFrameTime;
+				}
+				else if (weapon == leftWeapon) {
+					_MESSAGE("Left weapon hit");
+					g_leftHand->weaponVelocityDampTime = g_currentFrameTime;
+				}
 		}
 		return kEvent_Continue;
 	}
@@ -476,34 +447,34 @@ extern "C" {
 	{
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("higgs_vr.esp");
 		if (!modInfo) {
-			QueueErrorBox("[CRITICAL] Could not get modinfo. Most likely the higgs .esp doesn't exist.");
+			ShowErrorBoxAndTerminate("[CRITICAL] Could not get modinfo. Most likely the higgs .esp doesn't exist.");
 			return;
 		}
 
 		if (!modInfo->IsActive()) {
-			QueueErrorBox("[CRITICAL] The higgs .esp exists, but is not active. Make sure the esp is enabled in your mod manager.");
+			ShowErrorBoxAndTerminate("[CRITICAL] The higgs .esp exists, but is not active. Make sure the esp is enabled in your mod manager.");
 			return;
 		}
 
 		TESForm *shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F00));
 		if (!shaderForm) {
-			QueueErrorBox("Failed to get slected item shader form");
+			ShowErrorBoxAndTerminate("Failed to get slected item shader form");
 			return;
 		}
 		g_itemSelectedShader = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
 		if (!g_itemSelectedShader) {
-			QueueErrorBox("Failed to cast selected item shader form");
+			ShowErrorBoxAndTerminate("Failed to cast selected item shader form");
 			return;
 		}
 		
 		shaderForm = LookupFormByID(GetFullFormID(modInfo, 0x6F01));
 		if (!shaderForm) {
-			QueueErrorBox("Failed to get slected item off limits shader form");
+			ShowErrorBoxAndTerminate("Failed to get slected item off limits shader form");
 			return;
 		}
 		g_itemSelectedShaderOffLimits = DYNAMIC_CAST(shaderForm, TESForm, TESEffectShader);
 		if (!g_itemSelectedShaderOffLimits) {
-			QueueErrorBox("Failed to cast selected item off limits shader form");
+			ShowErrorBoxAndTerminate("Failed to cast selected item off limits shader form");
 			return;
 		}
 		
@@ -514,11 +485,10 @@ extern "C" {
 
 		EventDispatcherList *eventDispatcherList = GetEventDispatcherList();
 		if (eventDispatcherList) {
-			eventDispatcherList->deathDispatcher.AddEventSink(&deathEventSink);
 			((EventDispatcher<TESHitEvent> *)(&eventDispatcherList->unk630))->AddEventSink(&hitEventHandler);
 		}
 		else {
-			QueueErrorBox("Failed to get event dispatcher list");
+			ShowErrorBoxAndTerminate("Failed to get event dispatcher list");
 			return;
 		}
 
@@ -596,7 +566,7 @@ extern "C" {
 		g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
 		g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
 		if (!g_rightHand || !g_leftHand || !g_shaderNodes) {
-			QueueErrorBox("[CRITICAL] Couldn't allocate memory");
+			ShowErrorBoxAndTerminate("[CRITICAL] Couldn't allocate memory");
 			return;
 		}
 

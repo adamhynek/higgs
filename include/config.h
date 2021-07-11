@@ -28,7 +28,10 @@ namespace Config {
 		float pulledGrabHandAdjustDistance = 0.15f; // in meters, amount to move the hand back when grabbing a pulled object
 		float angularVelocityMultiplier = 0.6f;
 		float tangentialVelocityLimit = 5.0f;
-		float dampedWeaponVelocityMultiplierBase = 0.1f;
+		float dampedWeaponVelocityBase = 1.5f;
+		float dampedWeaponVelocityIncreasePerSecond = 2.0f;
+		float dampedWeaponAngularVelocityBase = 3.0f;
+		float dampedWeaponAngularVelocityIncreasePerSecond = 6.0f;
 
 		float selectedCloseFingerAnimValue = 0.9f;
 		float fingerAnimateGrabLinearSpeed = 4.0f;
@@ -101,7 +104,7 @@ namespace Config {
 		double afterDropFingerAnimateTime = 0.3f;
 		double fingerAnimateStartDoubleSpeedTime = 0.1f;
 		double fingerAnimateGrabDoubleSpeedTime = 0.25f;
-		double dampedWeaponVelocityMultiplierIncreaseTime = 4.0f;
+		double dampedWeaponCollisionHapticsReducedTime = 1.0f;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
