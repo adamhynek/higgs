@@ -84,8 +84,8 @@ struct Hand
 		palmPosHandspace(palmPosHandspace),
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput),
-		controllerVelocities(10, NiPoint3()),
-		controllerAngularVelocities(10, NiPoint3()),
+		controllerVelocities(5, NiPoint3()),
+		controllerAngularVelocities(5, NiPoint3()),
 		playerVelocitiesWorldspace(5, NiPoint3()),
 		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right),
 		fingerAnimator(isLeft, fingerNodeNames)
@@ -162,6 +162,7 @@ struct Hand
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
 	bhkRigidBody *clonedFromBody = nullptr; // the collision we cloned to create ours
+	float weaponVelocityMultiplier = 1.0f;
 
 	const bool isLeft = false;
 	const bool delayGripInput = false;
@@ -228,6 +229,7 @@ struct Hand
 	double forceInputTime = 0;
 	double preDampTime = 0;
 	double tryLeaveDampedTime = 0;
+	double weaponVelocityDampTime = 0;
 
 	float grabbedFingerValues[5];
 	bool useAlternateThumbCurve = false;

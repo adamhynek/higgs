@@ -201,7 +201,7 @@ void Hand::StartNearbyDamping(bhkWorld &world)
 			continue; // No rigidbody -> no movement :/
 		}
 		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-		if (bRigidBody && IsMoveableRigidBody(rigidBody)) {
+		if (bRigidBody && IsMoveableEntity(rigidBody)) {
 			hkContactPoint &contactPoint = pair.second;
 			if (contactPoint.getDistance() < Config::options.nearbyGrabBodyRadius) {
 				hkpMotion &motion = rigidBody->m_motion;
@@ -694,58 +694,73 @@ void Hand::UpdateWeaponCollision()
 	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
 
 	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
-	if (collisionNode) {
-		NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
-		if (rigidBody) {
-			if (rigidBody != clonedFromBody) {
-				NiPointer<bhkWorld> world = meleeData->world;
-				if (world) {
-					BSWriteLocker(&world->worldLock);
-					RemoveWeaponCollision(world);
-					CreateWeaponCollision(world);
-				}
-			}
+	if (!collisionNode) return;
 
-			TESForm *equippedItem = *g_leftHandedMode ? player->GetEquippedObject(!isLeft) : player->GetEquippedObject(isLeft);
-			bool isUnarmed = equippedItem == nullptr;
-			if (equippedItem) {
-				TESObjectWEAP *equippedWeapon = DYNAMIC_CAST(equippedItem, TESForm, TESObjectWEAP);
-				if (equippedWeapon) {
-					UInt8 type = equippedWeapon->type();
-					if (type == TESObjectWEAP::GameData::kType_HandToHandMelee || type == TESObjectWEAP::GameData::kType_H2H) {
-						isUnarmed = true;
-					}
-				}
-			}
+	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
+	if (!rigidBody) return;
 
-			bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
-			bool shouldDisableCollision = isUnarmed || !player->actorState.IsWeaponDrawn() || g_interface001.IsWeaponCollisionDisabled(isLeft);
-
-			if (shouldDisableCollision) {
-				// Do not enable weapon collision when unarmed or no weapon drawn
-				// We DO still want to move it though, since once we enable it again we don't want a huge jump
-				if (!wasCollisionDisabled) {
-					weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
-					bhkWorldObject_UpdateCollisionFilter(weaponBody);
-				}
-			}
-			else {
-				if (wasCollisionDisabled) {
-					weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
-					bhkWorldObject_UpdateCollisionFilter(weaponBody);
-				}
-			}
-
-			// Set collision group for the weapon collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
-			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
-			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
-
-			hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
-			hkQuaternion desiredQuat;
-			desiredQuat.setFromRotationSimd(transform.m_rotation);
-			hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
+	if (rigidBody != clonedFromBody) {
+		NiPointer<bhkWorld> world = meleeData->world;
+		if (world) {
+			BSWriteLocker(&world->worldLock);
+			RemoveWeaponCollision(world);
+			CreateWeaponCollision(world);
 		}
 	}
+
+	TESForm *equippedItem = *g_leftHandedMode ? player->GetEquippedObject(!isLeft) : player->GetEquippedObject(isLeft);
+	bool isUnarmed = equippedItem == nullptr;
+	if (equippedItem) {
+		TESObjectWEAP *equippedWeapon = DYNAMIC_CAST(equippedItem, TESForm, TESObjectWEAP);
+		if (equippedWeapon) {
+			UInt8 type = equippedWeapon->type();
+			if (type == TESObjectWEAP::GameData::kType_HandToHandMelee || type == TESObjectWEAP::GameData::kType_H2H) {
+				isUnarmed = true;
+			}
+		}
+	}
+
+	bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
+	bool shouldDisableCollision = isUnarmed || !player->actorState.IsWeaponDrawn() || g_interface001.IsWeaponCollisionDisabled(isLeft);
+
+	if (shouldDisableCollision) {
+		// Do not enable weapon collision when unarmed or no weapon drawn
+		// We DO still want to move it though, since once we enable it again we don't want a huge jump
+		if (!wasCollisionDisabled) {
+			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
+			bhkWorldObject_UpdateCollisionFilter(weaponBody);
+		}
+	}
+	else {
+		if (wasCollisionDisabled) {
+			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+			bhkWorldObject_UpdateCollisionFilter(weaponBody);
+		}
+	}
+
+	// Set collision group for the weapon collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
+	weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
+	weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
+
+	hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
+	hkQuaternion desiredQuat;
+	desiredQuat.setFromRotationSimd(transform.m_rotation);
+	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
+
+	// Damp velocity if we need to
+	//float speed = powf(VectorLength(currentVelocity), Config::options.dampedLinearVelocityExponent) * Config::options.dampedLinearVelocityMultiplier;
+	//weaponBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(VectorNormalized(currentVelocity) * speed);
+	NiPoint3 currentVelocity = HkVectorToNiPoint(weaponBody->hkBody->m_motion.m_linearVelocity);
+	weaponBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity * weaponVelocityMultiplier);
+
+	NiPoint3 currentAngularVelocity = HkVectorToNiPoint(weaponBody->hkBody->m_motion.m_angularVelocity);
+	weaponBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * weaponVelocityMultiplier);
+
+	// TODO: Use a fixed limit that increases at a fixed speed over time instead of a multiplier. A multiplier creates a positive feedback loop.
+	// Or, just smooth it out a bunch? Both?
+	float base = Config::options.dampedWeaponVelocityMultiplierBase;
+	double elapsedFraction = (g_currentFrameTime - weaponVelocityDampTime) / Config::options.dampedWeaponVelocityMultiplierIncreaseTime;
+	weaponVelocityMultiplier = min(1.0f, base + (1.0f - base) * elapsedFraction);
 }
 
 
@@ -1541,12 +1556,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	NiPoint3 palmPos = handNode->m_worldTransform * palmPosHandspace;
 	NiPoint3 hkPalmPos = palmPos * havokWorldScale;
 
-	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
-	// Save sphere properties so we can change them and restore them later
-	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
-	float radiusBefore = sphereShape->getRadius();
-	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
-
 	if (externalGrabRequested) {
 		TransitionGrabExternal(externalGrabRequestedObject);
 		externalGrabRequested = false;
@@ -1572,7 +1581,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 				if (objRoot && objRoot->m_parent) {
-					auto rigidBody = GetFirstRigidBody(objRoot);
+					NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot);
 					if (rigidBody) {
 						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
 						NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable);
@@ -1869,9 +1878,9 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (state == State::SelectedClose) {
-					double elapsedTimeFraction = (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
-					float posSpeed = (1 + elapsedTimeFraction) * Config::options.fingerAnimateStartLinearSpeed;
-					float rotSpeed = (1 + elapsedTimeFraction) * Config::options.fingerAnimateStartAngularSpeed;
+					double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
+					float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
+					float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
 					fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
 				}
 
@@ -2455,9 +2464,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	if (state == State::HeldInit || state == State::Held) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> n = GetNodeFromCollidable(selectedObject.collidable);
-			if (n) {
-				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed, useAlternateThumbCurve);
+			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
+			if (collidableNode) {
+				double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
+				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
+				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
+				fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
 
 				NiTransform desiredTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
@@ -2469,10 +2481,10 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					}
 					else {
 						// Interpolate pos/rot towards the hand so it doesn't 'snap' too much
-						std::optional<NiTransform> advancedTransform = AdvanceTransform(n->m_worldTransform, desiredTransform, Config::options.grabStartSpeed, Config::options.grabStartAngularSpeed);
+						std::optional<NiTransform> advancedTransform = AdvanceTransform(collidableNode->m_worldTransform, desiredTransform, Config::options.grabStartSpeed, Config::options.grabStartAngularSpeed);
 						if (advancedTransform) {
 							// Rotation or position is not yet close enough
-							UpdateKeyframedNode(n, *advancedTransform);
+							UpdateKeyframedNode(collidableNode, *advancedTransform);
 						}
 						else {
 							// Both position and rotation are close enough to their final values - we're done
@@ -2483,7 +2495,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 
 				if (state == State::Held) {
-					UpdateKeyframedNode(n, desiredTransform);
+					UpdateKeyframedNode(collidableNode, desiredTransform);
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
@@ -2514,7 +2526,10 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 			if (collidableNode) {
-				fingerAnimator.SetFingerValues(grabbedFingerValues, Config::options.fingerAnimateLinearSpeed, Config::options.fingerAnimateAngularSpeed, useAlternateThumbCurve);
+				double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
+				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
+				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
+				fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
 
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale

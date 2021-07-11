@@ -396,13 +396,18 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 
 void ShowErrorBox(const char *errorString)
 {
-	_ERROR(errorString);
 	int msgboxID = MessageBox(
 		NULL,
 		(LPCTSTR)errorString,
 		(LPCTSTR)"HIGGS Fatal Error",
 		MB_ICONERROR | MB_OK | MB_TASKMODAL
 	);
+}
+
+void ShowErrorBoxAndLog(const char *errorString)
+{
+	_ERROR(errorString);
+	ShowErrorBox(errorString);
 }
 
 void ShowErrorBoxAndTerminate(const char *errorString)
@@ -433,10 +438,38 @@ struct ShowErrorBoxAndTerminateTask : TaskDelegate
 
 void QueueErrorBox(const char *errorString)
 {
+	_ERROR(errorString);
 	// Show error box and terminate on main thread
 	g_taskInterface->AddTask(ShowErrorBoxAndTerminateTask::Create(errorString));
 }
 
+
+struct DeathEventSink : BSTEventSink<TESDeathEvent>
+{
+	virtual	EventResult ReceiveEvent(TESDeathEvent *evn, EventDispatcher<TESDeathEvent> *dispatcher)
+	{
+		if (evn->state == 0 && evn->killer == *g_thePlayer) {
+			g_rightHand->weaponVelocityDampTime = g_currentFrameTime;
+			g_leftHand->weaponVelocityDampTime = g_currentFrameTime;
+		}
+		return EventResult::kEvent_Continue;
+	}
+};
+DeathEventSink deathEventSink;
+
+// Hit(Character *source, Character *target) is at 0x631AF0 - probably is Actor *source, Actor *target
+class HitEventHandler : public BSTEventSink <TESHitEvent>
+{
+public:
+	virtual	EventResult ReceiveEvent(TESHitEvent *evn, EventDispatcher<TESHitEvent> *dispatcher)
+	{
+		if (evn->caster == *g_thePlayer) {
+			_MESSAGE("%.2f\t%.2f", g_rightHand->weaponVelocityMultiplier, VectorLength(HkVectorToNiPoint(g_rightHand->weaponBody->hkBody->m_motion.m_linearVelocity)));
+		}
+		return kEvent_Continue;
+	}
+};
+HitEventHandler hitEventHandler;
 
 extern "C" {
 	void OnDataLoaded()
@@ -477,6 +510,16 @@ extern "C" {
 		MenuManager * menuManager = MenuManager::GetSingleton();
 		if (menuManager) {
 			menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&MenuChecker::menuEvent);
+		}
+
+		EventDispatcherList *eventDispatcherList = GetEventDispatcherList();
+		if (eventDispatcherList) {
+			eventDispatcherList->deathDispatcher.AddEventSink(&deathEventSink);
+			((EventDispatcher<TESHitEvent> *)(&eventDispatcherList->unk630))->AddEventSink(&hitEventHandler);
+		}
+		else {
+			QueueErrorBox("Failed to get event dispatcher list");
+			return;
 		}
 
 		g_isVrikPresent = GetModuleHandle("vrik") != NULL;
@@ -663,7 +706,7 @@ extern "C" {
 
 		g_vrInterface = (SKSEVRInterface *)skse->QueryInterface(kInterface_VR);
 		if (!g_vrInterface) {
-			ShowErrorBox("[CRITICAL] Couldn't get SKSE VR interface. You probably have an outdated SKSE version.");
+			ShowErrorBoxAndLog("[CRITICAL] Couldn't get SKSE VR interface. You probably have an outdated SKSE version.");
 			return false;
 		}
 		g_vrInterface->RegisterForControllerState(g_pluginHandle, 66, ControllerStateCB);
@@ -671,7 +714,7 @@ extern "C" {
 
 		g_papyrus = (SKSEPapyrusInterface *)skse->QueryInterface(kInterface_Papyrus);
 		if (!g_papyrus) {
-			ShowErrorBox("[CRITICAL] Couldn't get Papyrus interface");
+			ShowErrorBoxAndLog("[CRITICAL] Couldn't get Papyrus interface");
 			return false;
 		}
 		if (g_papyrus->Register(PapyrusAPI::RegisterPapyrusFuncs)) {
@@ -680,7 +723,7 @@ extern "C" {
 
 		g_taskInterface = (SKSETaskInterface *)skse->QueryInterface(kInterface_Task);
 		if (!g_taskInterface) {
-			ShowErrorBox("[CRITICAL] Could not get SKSE task interface");
+			ShowErrorBoxAndLog("[CRITICAL] Could not get SKSE task interface");
 			return false;
 		}
 
@@ -689,7 +732,7 @@ extern "C" {
 			_WARNING("Couldn't get trampoline interface");
 		}
 		if (!TryHook()) {
-			ShowErrorBox("[CRITICAL] Failed to perform hooks");
+			ShowErrorBoxAndLog("[CRITICAL] Failed to perform hooks");
 			return false;
 		}
 

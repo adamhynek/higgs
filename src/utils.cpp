@@ -77,20 +77,15 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
 	return (modInfo->modIndex << 24) | formLower;
 }
 
-bool IsMoveableRigidBody(hkpRigidBody *rigidBody)
+bool IsMoveableEntity(hkpEntity *entity)
 {
-	hkpMotion *motion = &rigidBody->m_motion;
-	return (
-		motion->m_type == hkpMotion::MotionType::MOTION_DYNAMIC ||
-		motion->m_type == hkpMotion::MotionType::MOTION_SPHERE_INERTIA ||
-		motion->m_type == hkpMotion::MotionType::MOTION_BOX_INERTIA ||
-		motion->m_type == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
-		);
+	hkpMotion *motion = &entity->m_motion;
+	return IsMotionTypeMoveable(motion->m_type);
 }
 
 bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref)
 {
-	if (IsMoveableRigidBody(rigidBody)) return true;
+	if (IsMoveableEntity(rigidBody)) return true;
 
 	TESForm *baseForm = ref->baseForm;
 	if (baseForm) {
@@ -338,7 +333,10 @@ std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
 	if (mainhandItem) {
 		TESObjectWEAP *weap = DYNAMIC_CAST(mainhandItem, TESForm, TESObjectWEAP);
 		if (weap) {
-			if (Config::options.allowGrabWithTwoHandedOffhand && IsTwoHanded(weap)) {
+			if (weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee || weap->gameData.type == TESObjectWEAP::GameData::kType_H2H) {
+				isMainValid = true; // fist
+			}
+			else if (Config::options.allowGrabWithTwoHandedOffhand && IsTwoHanded(weap)) {
 				return std::make_pair(false, true); // Main hand holds the weapon, offhand is 'free' in VR
 			}
 			else if (Config::options.allowGrabWithEmptyArrowHand && IsBow(weap)) {
@@ -354,7 +352,13 @@ std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
 		isMainValid = true; // fist
 	}
 
-	if (!offhandItem) {
+	if (offhandItem) {
+		TESObjectWEAP *weap = DYNAMIC_CAST(offhandItem, TESForm, TESObjectWEAP);
+		if (weap && (weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee || weap->gameData.type == TESObjectWEAP::GameData::kType_H2H)) {
+			isOffhandValid = true; // fist
+		}
+	}
+	else {
 		isOffhandValid = true; // fist
 	}
 	return std::make_pair(isMainValid, isOffhandValid);

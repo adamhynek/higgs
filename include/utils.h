@@ -30,7 +30,15 @@ NiPointer<NiAVObject> GetTorsoNode(Actor *actor);
 
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
-bool IsMoveableRigidBody(hkpRigidBody *rigidBody);
+inline bool IsMotionTypeMoveable(UInt8 motionType) {
+	return (
+		motionType == hkpMotion::MotionType::MOTION_DYNAMIC ||
+		motionType == hkpMotion::MotionType::MOTION_SPHERE_INERTIA ||
+		motionType == hkpMotion::MotionType::MOTION_BOX_INERTIA ||
+		motionType == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
+		);
+}
+bool IsMoveableEntity(hkpEntity *entity);
 bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref);
 
 bool HasGeometryChildren(NiAVObject *obj);

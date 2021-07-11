@@ -10,6 +10,7 @@
 
 #include "skse64/NiNodes.h"
 #include "skse64/gamethreads.h"
+#include "skse64/GameRTTI.h"
 
 
 CdPointCollector::CdPointCollector()
@@ -165,7 +166,6 @@ void IslandDeactivationListener::islandActivatedCallback(hkpSimulationIsland* is
 void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* island)
 {
 	int numEntities = island->m_entities.getSize();
-
 	if (numEntities <= 0) return;
 
 	if (g_shadowUpdateFrame == *g_currentFrameCounter) {
@@ -178,9 +178,11 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 			g_savedShadowUpdateFrameDelay = *g_iShadowUpdateFrameDelay;
 		}
 
+		// These are values within the game
 		*g_nextShadowUpdateFrameCount = *g_currentFrameCounter;
 		*g_iShadowUpdateFrameDelay = 1;
 
+		// These are mine, used to keep track of when we want to stop updating
 		g_shadowUpdateFrame = *g_currentFrameCounter;
 		g_numShadowUpdates = 1;
 	};
@@ -190,15 +192,18 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 		return;
 	}
 
-	bool isAllNPC = true;
+	bool anyToProcess = false;
 	for (hkpEntity *entity : island->m_entities) {
-		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(&entity->m_collidable);
-		if (!ref || ref->formType != kFormType_Character) {
-			isAllNPC = false;
+		if (IsMoveableEntity(entity) &&
+			((entity->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f) != 0x21) && // 0x21 == L_BIPED_NO_CC
+			(entity->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f) != 0x20 // 0x20 == L_DEADBIP
+			) {
+			anyToProcess = true;
+			break;
 		}
 	}
 
-	if (!isAllNPC) {
+	if (anyToProcess) {
 		PlayerCharacter *player = *g_thePlayer;
 		float havokWorldScale = *g_havokWorldScale;
 		NiPoint3 playerPos = player->pos * havokWorldScale;
