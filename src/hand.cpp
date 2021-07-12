@@ -720,8 +720,7 @@ void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
 		}
 	}
 
-
-	float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponVelocityDampTime;
+	float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponHitTime;
 	bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
 
 	bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;

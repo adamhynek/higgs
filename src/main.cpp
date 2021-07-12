@@ -430,11 +430,11 @@ public:
 				TESForm *leftWeapon = player->GetEquippedObject(!isLeftHanded);
 				if (weapon == rightWeapon) {
 					_MESSAGE("Right weapon hit");
-					g_rightHand->weaponVelocityDampTime = g_currentFrameTime;
+					g_rightHand->weaponHitTime = g_currentFrameTime;
 				}
 				else if (weapon == leftWeapon) {
 					_MESSAGE("Left weapon hit");
-					g_leftHand->weaponVelocityDampTime = g_currentFrameTime;
+					g_leftHand->weaponHitTime = g_currentFrameTime;
 				}
 		}
 		return kEvent_Continue;

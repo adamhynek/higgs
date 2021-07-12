@@ -138,6 +138,14 @@ namespace Config {
 		if (!ReadDouble("TryLeaveDampedTime", options.tryLeaveDampedTime)) return false;
 		if (!ReadDouble("PhysicsGrabInitTime", options.physicsGrabInitTime)) return false;
 
+		if (!ReadDouble("FingerAnimateEndTime", options.fingerAnimateEndTime)) return false;
+		if (!ReadDouble("FingerAnimateEndDoubleSpeedTime", options.fingerAnimateEndDoubleSpeedTime)) return false;
+		if (!ReadDouble("AfterDropFingerAnimateTime", options.afterDropFingerAnimateTime)) return false;
+		if (!ReadDouble("FingerAnimateStartDoubleSpeedTime", options.fingerAnimateStartDoubleSpeedTime)) return false;
+		if (!ReadDouble("FingerAnimateGrabDoubleSpeedTime", options.fingerAnimateGrabDoubleSpeedTime)) return false;
+		if (!ReadDouble("WeaponCollisionDisableOnHitTime", options.weaponCollisionDisableOnHitTime)) return false;
+		if (!ReadDouble("WeaponCollisionDisableOnHitDelay", options.weaponCollisionDisableOnHitDelay)) return false;
+
 		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
 		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
 
@@ -156,6 +164,14 @@ namespace Config {
 		if (!ReadFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) return false;
 		if (!ReadFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) return false;
 		if (!ReadFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) return false;
+
+		if (!ReadFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) return false;
+		if (!ReadFloat("FingerAnimateGrabLinearSpeed", options.fingerAnimateGrabLinearSpeed)) return false;
+		if (!ReadFloat("FingerAnimateGrabAngularSpeed", options.fingerAnimateGrabAngularSpeed)) return false;
+		if (!ReadFloat("FingerAnimateStartLinearSpeed", options.fingerAnimateStartLinearSpeed)) return false;
+		if (!ReadFloat("FingerAnimateStartAngularSpeed", options.fingerAnimateStartAngularSpeed)) return false;
+		if (!ReadFloat("FingerAnimateEndLinearSpeed", options.fingerAnimateEndLinearSpeed)) return false;
+		if (!ReadFloat("FingerAnimateEndAngularSpeed", options.fingerAnimateEndAngularSpeed)) return false;
 
 		if (!ReadFloat("SelectionLockedStartHapticStrength", options.selectionLockedStartHapticStrength)) return false;
 		if (!ReadFloat("SelectionLockedStartHapticDuration", options.selectionLockedStartHapticDuration)) return false;
