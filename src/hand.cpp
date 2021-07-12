@@ -69,8 +69,7 @@ void Hand::TriggerCollisionHaptics(float mass, float separatingVelocity)
 	float hapticStrength = Config::options.collisionBaseHapticStrength + speedComponent + massComponent;
 	hapticStrength = min(1.0f, hapticStrength);
 
-	if ((state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) ||
-		(g_currentFrameTime - weaponVelocityDampTime < Config::options.dampedWeaponCollisionHapticsReducedTime)) {
+	if (state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) {
 		hapticStrength *= Config::options.dampedCollisionHapticStrengthMultiplier;
 		hapticStrength = max(Config::options.collisionBaseHapticStrength, hapticStrength); // don't let it go below the base strength
 		hapticStrength = min(1.0f, hapticStrength);
@@ -721,8 +720,12 @@ void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
 		}
 	}
 
+
+	float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponVelocityDampTime;
+	bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
+
 	bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
-	bool shouldDisableCollision = isUnarmed || !player->actorState.IsWeaponDrawn() || g_interface001.IsWeaponCollisionDisabled(isLeft);
+	bool shouldDisableCollision = isUnarmed || !player->actorState.IsWeaponDrawn() || disableDueToHit || g_interface001.IsWeaponCollisionDisabled(isLeft);
 
 	if (shouldDisableCollision) {
 		// Do not enable weapon collision when unarmed or no weapon drawn
@@ -747,22 +750,6 @@ void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
 	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
-
-	// Damp velocity if we need to
-	NiPoint3 playerHkVelocity = playerVelocity * *g_havokWorldScale;
-
-	NiPoint3 currentVelocity = HkVectorToNiPoint(weaponBody->hkBody->m_motion.m_linearVelocity);
-	NiPoint3 currentVelocityPlayerspace = currentVelocity - playerHkVelocity;
-	NiPoint3 newVelocityPlayerspace = VectorNormalized(currentVelocityPlayerspace) * min(maxWeaponSpeed, VectorLength(currentVelocityPlayerspace));
-	weaponBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(newVelocityPlayerspace + playerHkVelocity);
-
-	NiPoint3 currentAngularVelocity = HkVectorToNiPoint(weaponBody->hkBody->m_motion.m_angularVelocity);
-	NiPoint3 newAngularVelocity = VectorNormalized(currentAngularVelocity) * min(maxWeaponAngularSpeed, VectorLength(currentAngularVelocity));
-	weaponBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(newAngularVelocity);
-
-	double elapsedTime = g_currentFrameTime - weaponVelocityDampTime;
-	maxWeaponSpeed = Config::options.dampedWeaponVelocityBase + elapsedTime * Config::options.dampedWeaponVelocityIncreasePerSecond;
-	maxWeaponAngularSpeed = Config::options.dampedWeaponAngularVelocityBase + elapsedTime * Config::options.dampedWeaponAngularVelocityIncreasePerSecond;
 
 	/*
 	// This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
