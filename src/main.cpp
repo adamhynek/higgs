@@ -424,18 +424,19 @@ public:
 	{
 		PlayerCharacter *player = *g_thePlayer;
 		if (evn->caster == player) {
+			bool isLeftHanded = *g_leftHandedMode;
+			TESForm *rightWeapon = player->GetEquippedObject(isLeftHanded);
+			TESForm *leftWeapon = player->GetEquippedObject(!isLeftHanded);
+
 			TESForm *weapon = LookupFormByID(evn->sourceFormID);
-				bool isLeftHanded = *g_leftHandedMode;
-				TESForm *rightWeapon = player->GetEquippedObject(isLeftHanded);
-				TESForm *leftWeapon = player->GetEquippedObject(!isLeftHanded);
-				if (weapon == rightWeapon) {
-					_MESSAGE("Right weapon hit");
-					g_rightHand->weaponHitTime = g_currentFrameTime;
-				}
-				else if (weapon == leftWeapon) {
-					_MESSAGE("Left weapon hit");
-					g_leftHand->weaponHitTime = g_currentFrameTime;
-				}
+			if (weapon == rightWeapon) {
+				_MESSAGE("Right weapon hit");
+				g_rightHand->weaponHitTime = g_currentFrameTime;
+			}
+			else if (weapon == leftWeapon) {
+				_MESSAGE("Left weapon hit");
+				g_leftHand->weaponHitTime = g_currentFrameTime;
+			}
 		}
 		return kEvent_Continue;
 	}
