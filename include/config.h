@@ -105,7 +105,7 @@ namespace Config {
 		double fingerAnimateStartDoubleSpeedTime = 0.1f;
 		double fingerAnimateGrabDoubleSpeedTime = 0.25f;
 		double weaponCollisionDisableOnHitTime = 0.5f;
-		double weaponCollisionDisableOnHitDelay = 0.015f;
+		double weaponCollisionDisableOnHitDelay = 0.017f;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
