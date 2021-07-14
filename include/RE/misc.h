@@ -68,7 +68,7 @@ struct VRMeleeData
 	float impactRumbleIntensity; // B0
 	float impactRumbleDuration; // B4
 	float meleeForceMultLinear; // B8
-	float unkBC; // default byte 0?
+	bool enableCollision; // BC - this value is read from and the collision node's collision is enabled/disabled
 	float unkC0; // default 0
 	float cooldown; // C4 - gets set to the cooldown, then ticks down, can (and will) get negative - default 0
 	UInt32 unkC8; // default 0
