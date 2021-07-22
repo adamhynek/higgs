@@ -50,8 +50,29 @@ struct bhkRefObject : NiObject
 	virtual void AddOrRemoveReference(void); // 26
 };
 
-struct bhkWorld : bhkRefObject
+struct bhkSerializable : bhkRefObject
 {
+	virtual hkpWorld* GetHavokWorld_1(); // 27
+	virtual hkpWorld* GetHavokWorld_2(); // 28
+	virtual void	  MoveToWorld(struct bhkWorld *world); // 29
+	virtual void	  RemoveFromCurrentWorld(); // 2A
+	virtual void	  Unk_2B(void); // 2B
+	virtual void	  Unk_2C(void); // 2C
+	virtual void	  Unk_2D(void); // 2D
+	virtual void	  InitHavokFromCinfo(void *cInfo) = 0; // 2E
+	virtual void	  GetSerializable(void) = 0; // 2F
+	virtual void	  Unk_30(void); // 30
+	virtual void	  Unk_31(void); // 31
+};
+
+struct bhkWorld : bhkSerializable
+{
+	virtual void Update(bool unk);  // 32
+	virtual void Unk_33(void);  // 33
+	virtual bool HasSimulationIslands();  // 34
+	virtual void Unk_35(void);  // 35
+	virtual void Unk_36(void);  // 36
+
 	ahkpWorld * world; // 10
 	UInt8 unk18[0xC598 - 0x18];
 	BSReadWriteLock worldLock; // C598
@@ -63,21 +84,6 @@ struct bhkWorld : bhkRefObject
 };
 static_assert(offsetof(bhkWorld, world) == 0x10);
 static_assert(offsetof(bhkWorld, worldLock) == 0xC598);
-
-struct bhkSerializable : bhkRefObject
-{
-	virtual hkpWorld* GetHavokWorld_1(); // 27
-	virtual hkpWorld* GetHavokWorld_2(); // 28
-	virtual void	  MoveToWorld(bhkWorld *world); // 29
-	virtual void	  RemoveFromCurrentWorld(); // 2A
-	virtual void	  Unk_2B(void); // 2B
-	virtual void	  Unk_2C(void); // 2C
-	virtual void	  Unk_2D(void); // 2D
-	virtual void	  Unk_2E(void) = 0; // 2E
-	virtual void	  GetSerializable(void) = 0; // 2F
-	virtual void	  Unk_30(void); // 30
-	virtual void	  Unk_31(void); // 31
-};
 
 struct bhkShape : bhkSerializable
 {
@@ -126,7 +132,7 @@ struct bhkRigidBody : bhkEntity
 	hkpRigidBody * hkBody; // 10
 	UInt64 unk18;
 	UInt64 unk20; // at least first byte are some flags? bit 2 is set -> has constraints?
-	tArray<bhkConstraint *> constraints; // 28
+	tArray<NiPointer<bhkConstraint>> constraints; // 28
 };
 static_assert(offsetof(bhkRigidBody, constraints) == 0x28);
 static_assert(sizeof(bhkRigidBody) == 0x40);
