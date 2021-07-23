@@ -10,7 +10,6 @@
 
 #include "common/IDebugLog.h"  // IDebugLog
 #include "skse64_common/skse_version.h"  // RUNTIME_VERSION
-#include "skse64/PluginAPI.h"  // SKSEInterface, PluginInfo
 #include "skse64/GameRTTI.h"
 #include "skse64/GameSettings.h"
 #include "skse64/NiNodes.h"
@@ -60,6 +59,7 @@ TESEffectShader *g_itemSelectedShaderOffLimits = nullptr;
 bool initComplete = false; // Whether hands have been initialized
 
 bool g_isVrikPresent = false;
+SInt32 g_controllerType = BSOpenVR::ControllerTypes::kControllerType_Oculus;
 
 Hand *g_rightHand = nullptr;
 Hand *g_leftHand = nullptr;
@@ -585,6 +585,9 @@ extern "C" {
 
 		g_leftHand->rolloverRotation = leftRolloverRotation;
 		g_leftHand->rolloverScale = Config::options.rolloverScale;
+
+		g_controllerType = (*g_openVR)->GetControllerType();
+		_MESSAGE("Controller type detected as %d", g_controllerType);
 
 		if (Config::options.disableRolloverRumble) {
 			_MESSAGE("Disabling rollover rumble");

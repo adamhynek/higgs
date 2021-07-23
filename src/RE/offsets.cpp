@@ -79,7 +79,7 @@ RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform(0xAA9060);
 RelocAddr<_hkpEntity_getNumConstraints> hkpEntity_getNumConstraints(0xAA73B0);
 RelocAddr<_hkpEntity_removeContactListener> hkpEntity_removeContactListener(0xAA7080);
 RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor(0xAA89C0);
-RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor(0xAC5FE0); // just sets all the fields to defaults
+RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor(0xAC5FE0);
 RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor(0xA93600);
 RelocAddr<_hkpTriggerVolume_ctor> hkpTriggerVolume_ctor(0xAFFCE0);
 RelocAddr<_hkpKeyFrameUtility_applyHardKeyFrame> hkpKeyFrameUtility_applyHardKeyFrame(0xAF6DD0);
@@ -144,6 +144,8 @@ RelocAddr<_UpdateClavicleToTransformHand> UpdateClavicleToTransformHand(0xC4C5A0
 RelocAddr<_NiSkinInstance_UpdateBoneMatrices> NiSkinInstance_UpdateBoneMatrices(0xDC7DC0);
 RelocAddr<_NiObject_Clone> NiObject_Clone(0xC978E0);
 RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex(0x6AF100);
+RelocAddr<_BSFixedString_Copy> BSFixedString_Copy(0xC6DD50);
+RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt(0x53EFE0);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);

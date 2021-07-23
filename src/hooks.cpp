@@ -6,6 +6,7 @@
 #include "skse64_common/BranchTrampoline.h"
 #include "skse64/NiGeometry.h"
 #include "skse64_common/SafeWrite.h"
+#include "skse64/gamethreads.h"
 
 #include "hooks.h"
 #include "effects.h"
@@ -58,6 +59,8 @@ auto updatePhysicsTimesHookLoc = RelocAddr<uintptr_t>(0x5BBAEF);
 auto updatePhysicsTimesHookedFunc = RelocAddr<uintptr_t>(0xDFB3C0);
 
 auto getActivateTextHookLoc = RelocAddr<uintptr_t>(0x6D3337);
+
+auto refreshActivateButtonArtHookLoc = RelocAddr<uintptr_t>(0x53F18E);
 
 auto pickRayCastHookLoc = RelocAddr<uintptr_t>(0x3BA787);
 
@@ -129,6 +132,23 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 	}
 }
 
+
+struct RefreshActivateButtonArtTask : TaskDelegate
+{
+	static RefreshActivateButtonArtTask * Create() {
+		return new RefreshActivateButtonArtTask;
+	}
+	virtual void Run() {
+		if (g_wsActivateRollover) {
+			// Unstable if called from random places
+			RefreshActivateButtonArt(g_wsActivateRollover);
+		}
+	}
+	virtual void Dispose() {
+		delete this;
+	}
+};
+
 bool wasRolloverSet = false;
 bool hasSavedRollover = false;
 NiTransform normalRolloverTransform;
@@ -141,11 +161,11 @@ void PostWandUpdateHook()
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player) return;
 
-	NiPointer<NiAVObject> playerWorldNode = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
 	static BSFixedString rolloverNodeStr("WSActivateRollover");
-	NiPointer<NiAVObject> rolloverNode = playerWorldNode ? playerWorldNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
+	NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+	NiPointer<NiAVObject> rolloverNode = roomNode ? roomNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
 
-	// This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its PoseUpdate
+	// This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its Update
 
 	Hand *rolloverHand = GetHandToShowRolloverFor();
 
@@ -159,7 +179,7 @@ void PostWandUpdateHook()
 			}
 		}
 
-		rolloverHand->SetupRollover();
+		rolloverHand->SetupRollover(rolloverNode);
 
 		Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
 		if (!hasSavedRumbleIntensity) {
@@ -170,6 +190,15 @@ void PostWandUpdateHook()
 
 		if (Config::options.overrideActivateText) {
 			g_overrideActivateText = rolloverHand->GetActivateText(g_overrideActivateTextStr);
+
+			bool overrideActivateButtonBefore = g_overrideActivateButton;
+			std::string activateButtonStrBefore = g_overrideActivateButtonStr;
+			g_overrideActivateButton = rolloverHand->GetActivateButton(g_overrideActivateButtonStr);
+
+			if (g_overrideActivateButton != overrideActivateButtonBefore || (g_overrideActivateButton && g_overrideActivateButtonStr != activateButtonStrBefore)) {
+				// Just starting/ending to override, or we're still overriding but the button changed
+				g_taskInterface->AddTask(RefreshActivateButtonArtTask::Create());
+			}
 		}
 	}
 	else {
@@ -185,6 +214,8 @@ void PostWandUpdateHook()
 			rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
 
 			g_overrideActivateText = false;
+			g_overrideActivateButton = false;
+			g_taskInterface->AddTask(RefreshActivateButtonArtTask::Create());
 		}
 
 		if (g_currentFrameTime - lastRolloverSetTime > Config::options.rolloverHideTime) {
@@ -261,6 +292,28 @@ void GetActivateTextHook()
 		if (text && *text) {
 			ReplaceBSString(*str, g_overrideActivateTextStr);
 		}
+	}
+}
+
+
+BSFixedString *g_activateButtonName = nullptr;
+const char **g_activateButtonNameArg = nullptr;
+void *g_wsActivateRollover = nullptr;
+bool g_overrideActivateButton = false;
+std::string g_overrideActivateButtonStr;
+
+void RefreshActivateButtonArtHook()
+{
+	if (!g_overrideActivateButton) {
+		return;
+	}
+
+	BSFixedString *buttonName = g_activateButtonName;
+	if (buttonName) {
+		BSFixedString newButtonName(g_overrideActivateButtonStr.c_str());
+		BSFixedString_Copy(buttonName, &newButtonName);
+		newButtonName.Release();
+		*g_activateButtonNameArg = buttonName->data;
 	}
 }
 
@@ -580,6 +633,84 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(getActivateTextHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("GetActivateText hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// rbp + 0x20 has the current BSFixedString
+				// rbp - 0x08 has the actual arg the refresh function uses, which just points to the char* owned by the BSFixedString
+
+				push(rax);
+				push(rbx);
+				mov(rbx, rbp);
+				add(rbx, 0x20);
+				mov(rax, (uintptr_t)&g_activateButtonName);
+				mov(ptr[rax], rbx);
+				mov(rbx, rbp);
+				sub(rbx, 0x8);
+				mov(rax, (uintptr_t)&g_activateButtonNameArg);
+				mov(ptr[rax], rbx);
+				mov(rax, (uintptr_t)&g_wsActivateRollover);
+				mov(ptr[rax], rdi);
+				pop(rbx);
+				pop(rax);
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
+				movsd(ptr[rsp], xmm0);
+				movsd(ptr[rsp + 0x10], xmm1);
+				movsd(ptr[rsp + 0x20], xmm2);
+				movsd(ptr[rsp + 0x30], xmm3);
+				movsd(ptr[rsp + 0x40], xmm4);
+				movsd(ptr[rsp + 0x50], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)RefreshActivateButtonArtHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp]);
+				movsd(xmm1, ptr[rsp + 0x10]);
+				movsd(xmm2, ptr[rsp + 0x20]);
+				movsd(xmm3, ptr[rsp + 0x30]);
+				movsd(xmm4, ptr[rsp + 0x40]);
+				movsd(xmm5, ptr[rsp + 0x50]);
+				add(rsp, 0x68);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Original code
+				call(ptr[rax + 0xB8]);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(refreshActivateButtonArtHookLoc.GetUIntPtr() + 6);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(refreshActivateButtonArtHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("RefreshActivateButtonArt hook complete");
 	}
 
 	{

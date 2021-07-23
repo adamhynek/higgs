@@ -56,7 +56,7 @@ struct Hand
 		HeldBody, // player is holding a body / other constrained object
 		GrabFromOtherHand, // wait after requesting the other hand to drop the object so that we can grab it
 		GrabExternal, // want to grab an object that we didn't have selected already
-		LootOtherHand // want to loot from what the other hand is holding
+		LootOtherHand, // want to loot from what the other hand is holding
 	};
 
 	enum class DampingState : UInt8
@@ -144,7 +144,8 @@ struct Hand
 	bool CanOtherGrab() const;
 	bool HasHeldKeyframed() const;
 	bool GetActivateText(std::string &str);
-	void SetupRollover();
+	bool GetActivateButton(std::string &str);
+	void SetupRollover(NiAVObject *rolloverNode);
 	void SetupSelectionBeam(NiNode *spellOrigin);
 	void Select(TESObjectREFR *obj);
 	void Deselect();

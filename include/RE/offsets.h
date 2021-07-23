@@ -326,3 +326,9 @@ extern RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor;
 
 typedef NiAVObject * (*_PlayerCharacter_GetOffsetNodeForWeaponIndex)(PlayerCharacter *_this, UInt32 isLeft, UInt32 weaponIndex);
 extern RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex;
+
+typedef void(*_BSFixedString_Copy)(BSFixedString *dst, BSFixedString *src);
+extern RelocAddr<_BSFixedString_Copy> BSFixedString_Copy;
+
+typedef void(*_RefreshActivateButtonArt)(void *wsActivateRollover);
+extern RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt;

@@ -2881,7 +2881,7 @@ bool Hand::HasHeldKeyframed() const
 
 bool Hand::ShouldDisplayRollover()
 {
-	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::Held && state != State::HeldInit && state != State::HeldBody && state != State::LootOtherHand)
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand && !HasHeldObject())
 		return false;
 
 	NiPointer<TESObjectREFR> selectedObj;
@@ -2900,9 +2900,60 @@ bool Hand::IsSafeToClearSavedCollision() const
 		);
 }
 
+const char *GetMotionButtonName()
+{
+	if (g_controllerType == BSOpenVR::ControllerTypes::kControllerType_Vive) {
+		return "VIVE MOTION";
+	}
+	else if (g_controllerType == BSOpenVR::ControllerTypes::kControllerType_WindowsMR) {
+		return "MR MOTION";
+	}
+	else { // Default to oculus
+		return "OCC MOTION";
+	}
+}
+
+bool Hand::GetActivateButton(std::string &strOut)
+{
+	if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+		strOut = "";
+		return true;
+	}
+
+	if (state == State::SelectedClose) {
+		if (Config::options.enableTrigger && Config::options.enableGrip) {
+			// Swap between trigger/grip button every second
+			float switchTime = Config::options.triggerGripIconSwitchTime;
+			if (fmodf(g_currentFrameTime - rolloverDisplayTime, switchTime * 2.0f) <= switchTime) {
+				strOut = "grip";
+			}
+			else {
+				strOut = "trigger";
+			}
+		}
+		else if (Config::options.enableTrigger) {
+			strOut = "trigger";
+		}
+		else if (Config::options.enableGrip) {
+			strOut = "grip";
+		}
+		else {
+			strOut = "UnknownKey";
+		}
+		return true;
+	}
+
+	if (state == State::SelectionLocked || state == State::LootOtherHand) {
+		strOut = GetMotionButtonName();
+		return true;
+	}
+
+	return false;
+}
+
 bool Hand::GetActivateText(std::string &strOut)
 {
-	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand) {
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand && !HasHeldObject()) {
 		return false;
 	}
 
@@ -2925,6 +2976,23 @@ bool Hand::GetActivateText(std::string &strOut)
 					}
 					else {
 						color = "#ffffff";
+					}
+
+					if (HasHeldObject()) {
+						if (*text) {
+							std::string currentStr(text);
+							std::regex e("^.*\\n");
+							std::string withoutVerb = std::regex_replace(currentStr, e, "", std::regex_constants::format_first_only);
+
+							std::stringstream ss;
+							ss << "\n<font color='" << color << "'>" << withoutVerb << "</font>";
+							strOut = ss.str();
+						}
+						else {
+							// Empty
+							strOut = "";
+						}
+						return true;
 					}
 
 					const char * itemNameReplaced = nullptr;
@@ -2993,7 +3061,7 @@ bool Hand::GetActivateText(std::string &strOut)
 	return true;
 }
 
-void Hand::SetupRollover()
+void Hand::SetupRollover(NiAVObject *rolloverNode)
 {
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
@@ -3002,36 +3070,30 @@ void Hand::SetupRollover()
 		PlayerCharacter *player = *g_thePlayer;
 		if (player) {
 			NiPointer<NiAVObject> wandNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
-			NiPointer<NiAVObject> roomObj = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
-			NiNode *roomNode = roomObj ? roomObj->GetAsNiNode() : nullptr;
-			if (roomNode && wandNode) {
-				static BSFixedString rolloverNodeStr("WSActivateRollover");
-				NiPointer<NiAVObject> rolloverNode = roomNode->GetObjectByName(&rolloverNodeStr.data);
-				if (rolloverNode) {
-					NiTransform desiredLocal;
-					desiredLocal.pos = rolloverOffset;
-					desiredLocal.rot = rolloverRotation;
-					desiredLocal.scale = rolloverScale;
+			if (wandNode && rolloverNode) {
+				NiTransform desiredLocal;
+				desiredLocal.pos = rolloverOffset;
+				desiredLocal.rot = rolloverRotation;
+				desiredLocal.scale = rolloverScale;
 
-					// World transform where we would like the rollover node to be
-					NiTransform desiredWorld;
+				// World transform where we would like the rollover node to be
+				NiTransform desiredWorld;
 
-					if (state == State::HeldBody) {
-						NiTransform inverseHand;
-						handTransform.Invert(inverseHand);
-						NiTransform handToWand = inverseHand * wandNode->m_worldTransform;
+				if (state == State::HeldBody) {
+					NiTransform inverseHand;
+					handTransform.Invert(inverseHand);
+					NiTransform handToWand = inverseHand * wandNode->m_worldTransform;
 
-						desiredWorld = adjustedHandTransform * handToWand * desiredLocal;
-					}
-					else {
-						desiredWorld = wandNode->m_worldTransform * desiredLocal;
-					}
-
-					UpdateNodeTransformLocal(rolloverNode, desiredWorld);
-
-					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+					desiredWorld = adjustedHandTransform * handToWand * desiredLocal;
 				}
+				else {
+					desiredWorld = wandNode->m_worldTransform * desiredLocal;
+				}
+
+				UpdateNodeTransformLocal(rolloverNode, desiredWorld);
+
+				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
 			}
 		}
 	}
