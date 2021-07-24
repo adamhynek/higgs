@@ -2979,7 +2979,10 @@ bool Hand::GetActivateText(std::string &strOut)
 					}
 
 					if (HasHeldObject()) {
-						if (*text) {
+						if (selectedObject.isActor) {
+							strOut = ""; // Printing the name of the body you're holding is kind of useless
+						}
+						else if (*text) {
 							std::string currentStr(text);
 							std::regex e("^.*\\n");
 							std::string withoutVerb = std::regex_replace(currentStr, e, "", std::regex_constants::format_first_only);

@@ -145,6 +145,7 @@ namespace Config {
 		if (!ReadDouble("FingerAnimateGrabDoubleSpeedTime", options.fingerAnimateGrabDoubleSpeedTime)) return false;
 		if (!ReadDouble("WeaponCollisionDisableOnHitTime", options.weaponCollisionDisableOnHitTime)) return false;
 		if (!ReadDouble("WeaponCollisionDisableOnHitDelay", options.weaponCollisionDisableOnHitDelay)) return false;
+		if (!ReadDouble("TriggerGripIconSwitchTime", options.triggerGripIconSwitchTime)) return false;
 
 		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
 		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
