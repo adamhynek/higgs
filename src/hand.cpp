@@ -2924,7 +2924,7 @@ bool Hand::GetActivateButton(std::string &strOut)
 		if (Config::options.enableTrigger && Config::options.enableGrip) {
 			// Swap between trigger/grip button every second
 			float switchTime = Config::options.triggerGripIconSwitchTime;
-			if (fmodf(g_currentFrameTime - rolloverDisplayTime, switchTime * 2.0f) <= switchTime) {
+			if (fmodf(g_currentFrameTime, switchTime * 2.0f) <= switchTime) {
 				strOut = "grip";
 			}
 			else {

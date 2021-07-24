@@ -304,16 +304,20 @@ std::string g_overrideActivateButtonStr;
 
 void RefreshActivateButtonArtHook()
 {
-	if (!g_overrideActivateButton) {
-		return;
-	}
-
 	BSFixedString *buttonName = g_activateButtonName;
 	if (buttonName) {
-		BSFixedString newButtonName(g_overrideActivateButtonStr.c_str());
-		BSFixedString_Copy(buttonName, &newButtonName);
-		newButtonName.Release();
-		*g_activateButtonNameArg = buttonName->data;
+		if (g_overrideActivateButton) {
+			BSFixedString newButtonName(g_overrideActivateButtonStr.c_str());
+			BSFixedString_Copy(buttonName, &newButtonName);
+			newButtonName.Release();
+			*g_activateButtonNameArg = buttonName->data;
+		}
+		else if (g_isActivateBoundToGrip) {
+			BSFixedString newButtonName("grip");
+			BSFixedString_Copy(buttonName, &newButtonName);
+			newButtonName.Release();
+			*g_activateButtonNameArg = buttonName->data;
+		}
 	}
 }
 

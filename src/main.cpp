@@ -60,6 +60,7 @@ bool initComplete = false; // Whether hands have been initialized
 
 bool g_isVrikPresent = false;
 SInt32 g_controllerType = BSOpenVR::ControllerTypes::kControllerType_Oculus;
+bool g_isActivateBoundToGrip = false;
 
 Hand *g_rightHand = nullptr;
 Hand *g_leftHand = nullptr;
@@ -588,6 +589,17 @@ extern "C" {
 
 		g_controllerType = (*g_openVR)->GetControllerType();
 		_MESSAGE("Controller type detected as %d", g_controllerType);
+
+		InputManager *inputManager = InputManager::GetSingleton();
+		InputStringHolder *inputStringHolder = InputStringHolder::GetSingleton();
+		if (inputManager && inputStringHolder) {
+			UInt32 activateKey = inputManager->GetMappedKey(inputStringHolder->activate, kDeviceType_OculusPrimary, InputManager::kContext_Gameplay);
+			_MESSAGE("Activate key detected as %d", activateKey);
+			if (activateKey == vr_src::EVRButtonId::k_EButton_Grip) {
+				_MESSAGE("Activate key is assigned to grip. The activate icon will be replaced with a grip icon");
+				g_isActivateBoundToGrip = true;
+			}
+		}
 
 		if (Config::options.disableRolloverRumble) {
 			_MESSAGE("Disabling rollover rumble");
