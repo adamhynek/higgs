@@ -131,6 +131,8 @@ struct Hand
 	NiPointer<NiAVObject> GetThirdPersonHandNode();
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
+	NiPoint3 GetPalmVectorWS(NiAVObject *handNode);
+	NiPoint3 GetPointingVectorWS(NiAVObject *handNode);
 	NiPoint3 GetHandVelocity();
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;

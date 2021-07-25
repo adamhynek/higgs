@@ -76,3 +76,4 @@ EquipData GetWornItem(Actor* thisActor, UInt32 mask);
 struct Hand * GetHandToShowRolloverFor();
 void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
 void ReplaceBSString(BSString &replacee, std::string &replacer);
+void SetGeometryAlphaDownstream(NiAVObject *root, float alpha);

@@ -71,8 +71,7 @@ void Hand::TriggerCollisionHaptics(float mass, float separatingVelocity)
 
 	if (state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) {
 		hapticStrength *= Config::options.dampedCollisionHapticStrengthMultiplier;
-		hapticStrength = max(Config::options.collisionBaseHapticStrength, hapticStrength); // don't let it go below the base strength
-		hapticStrength = min(1.0f, hapticStrength);
+		hapticStrength = std::clamp(hapticStrength, Config::options.collisionBaseHapticStrength, 1.0f); // don't let it go below the base strength
 	}
 
 	haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.collisionHapticDuration);
@@ -1484,6 +1483,21 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 }
 
 
+NiPoint3 Hand::GetPalmVectorWS(NiAVObject *handNode)
+{
+	NiPoint3 palmVectorHandspace = Config::options.palmVector;
+	if (isLeft) palmVectorHandspace.x *= -1;
+	return VectorNormalized(handNode->m_worldTransform.rot * palmVectorHandspace);
+}
+
+NiPoint3 Hand::GetPointingVectorWS(NiAVObject *handNode)
+{
+	NiPoint3 pointingVectorHandspace = Config::options.pointingVector;
+	if (isLeft) pointingVectorHandspace.x *= -1;
+	return VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);
+}
+
+
 void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
@@ -1503,13 +1517,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	NiPoint3 handPos = handNode->m_worldTransform.pos;
 	NiPoint3 hkHandPos = handPos * havokWorldScale;
 
-	NiPoint3 palmVectorHandspace = Config::options.palmVector;
-	if (isLeft) palmVectorHandspace.x *= -1;
-	NiPoint3 palmVector = VectorNormalized(handNode->m_worldTransform.rot * palmVectorHandspace);
-
-	NiPoint3 pointingVectorHandspace = Config::options.pointingVector;
-	if (isLeft) pointingVectorHandspace.x *= -1;
-	NiPoint3 pointingVector = VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);
+	NiPoint3 palmVector = GetPalmVectorWS(handNode);
+	NiPoint3 pointingVector = GetPointingVectorWS(handNode);
 
 	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
 	if (!hmdNode) return;
@@ -2915,7 +2924,7 @@ const char *GetMotionButtonName()
 
 bool Hand::GetActivateButton(std::string &strOut)
 {
-	if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
+	if (HasHeldObject()) {
 		strOut = "";
 		return true;
 	}
@@ -3064,6 +3073,7 @@ bool Hand::GetActivateText(std::string &strOut)
 	return true;
 }
 
+
 void Hand::SetupRollover(NiAVObject *rolloverNode)
 {
 	NiPointer<TESObjectREFR> selectedObj;
@@ -3071,33 +3081,56 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
 		// Set rotation/position/scale of the hud prompt
 
 		PlayerCharacter *player = *g_thePlayer;
-		if (player) {
-			NiPointer<NiAVObject> wandNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
-			if (wandNode && rolloverNode) {
-				NiTransform desiredLocal;
-				desiredLocal.pos = rolloverOffset;
-				desiredLocal.rot = rolloverRotation;
-				desiredLocal.scale = rolloverScale;
+		NiPointer<NiAVObject> wandNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
+		if (wandNode && rolloverNode) {
+			NiTransform desiredLocal;
+			desiredLocal.pos = rolloverOffset;
+			desiredLocal.rot = rolloverRotation;
+			desiredLocal.scale = rolloverScale;
 
-				// World transform where we would like the rollover node to be
-				NiTransform desiredWorld;
+			// World transform where we would like the rollover node to be
+			NiTransform desiredWorld;
 
-				if (state == State::HeldBody) {
-					NiTransform inverseHand;
-					handTransform.Invert(inverseHand);
-					NiTransform handToWand = inverseHand * wandNode->m_worldTransform;
+			if (state == State::HeldBody) {
+				NiTransform inverseHand;
+				handTransform.Invert(inverseHand);
+				NiTransform handToWand = inverseHand * wandNode->m_worldTransform;
 
-					desiredWorld = adjustedHandTransform * handToWand * desiredLocal;
-				}
-				else {
-					desiredWorld = wandNode->m_worldTransform * desiredLocal;
-				}
-
-				UpdateNodeTransformLocal(rolloverNode, desiredWorld);
-
-				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-				NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+				desiredWorld = adjustedHandTransform * handToWand * desiredLocal;
 			}
+			else {
+				desiredWorld = wandNode->m_worldTransform * desiredLocal;
+			}
+
+			UpdateNodeTransformLocal(rolloverNode, desiredWorld);
+
+			float alpha = 1.0f;
+			if (HasHeldObject()) {
+				NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+				if (handNode) {
+					NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
+					if (hmdNode) {
+						NiPoint3 rolloverForward = { desiredWorld.rot.data[0][1], desiredWorld.rot.data[1][1], desiredWorld.rot.data[2][1] };
+						NiPoint3 hmdToRollover = VectorNormalized(desiredWorld.pos - hmdNode->m_worldTransform.pos);
+
+						float x = max(0.0f, DotProduct(rolloverForward, hmdToRollover));
+
+						// Logistic function (sigmoid) mapping dot product -> alpha value for the rollover hud
+						float k = Config::options.rolloverAlphaLogisticK;
+						float midpoint = Config::options.rolloverAlphaLogisticMidpoint;
+						alpha = 1.0f / (1.0f + expf(-k * (x - midpoint)));
+
+						alpha = std::clamp(alpha, 0.0f, 1.0f);
+						if (alpha < Config::options.rolloverMinAlphaToShow) {
+							alpha = 0.0f;
+						}
+					}
+				}
+			}
+			SetGeometryAlphaDownstream(rolloverNode, alpha);
+
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
 		}
 	}
 }

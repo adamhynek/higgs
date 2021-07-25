@@ -891,3 +891,34 @@ void ReplaceBSString(BSString &replacee, std::string &replacer)
 	replacee.m_dataLen = len;
 	replacee.m_bufLen = len;
 }
+
+void SetGeometryAlphaDownstream(NiAVObject *root, float alpha)
+{
+	BSGeometry *geom = DYNAMIC_CAST(root, NiAVObject, BSGeometry);
+	if (geom) {
+		NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
+		if (geomProperty) {
+			BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
+			if (shaderProperty) {
+				BSShaderMaterial *material = shaderProperty->material;
+				if (material) {
+					BSEffectShaderMaterial *effectShaderMaterial = DYNAMIC_CAST(material, BSShaderMaterial, BSEffectShaderMaterial);
+					if (effectShaderMaterial) {
+						*(float *)((UInt64)effectShaderMaterial + 0x54) = alpha;
+						//*(float *)&shaderProperty->unk18 = alpha;
+					}
+				}
+			}
+		}
+	}
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				SetGeometryAlphaDownstream(child, alpha);
+			}
+		}
+	}
+}

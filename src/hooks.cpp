@@ -210,6 +210,8 @@ void PostWandUpdateHook()
 				activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
 			}
 
+			SetGeometryAlphaDownstream(rolloverNode, 1.0f); // Restore the alpha to 1 in case it was modified when showing on the hand
+
 			lastRolloverSetTime = g_currentFrameTime;
 			rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
 
@@ -259,20 +261,6 @@ void PostVRIKPCUpdateHook()
 
 	g_rightHand->fingerAnimator.Update();
 	g_leftHand->fingerAnimator.Update();
-
-	/*
-	PlayerCharacter *player = *g_thePlayer;
-	NiPointer<NiNode> tpNode = player->GetNiRootNode(0);
-	if (tpNode) {
-		static BSFixedString thumbFirstKnuckleName("NPC R Finger00 [RF00]");
-		NiAVObject *thumbFirstKnuckle = tpNode->GetObjectByName(&thumbFirstKnuckleName.data);
-		if (thumbFirstKnuckle) {
-			thumbFirstKnuckle->m_localTransform.pos.z += 20;
-			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(thumbFirstKnuckle, &ctx);
-		}
-	}
-	*/
 }
 
 

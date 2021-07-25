@@ -216,6 +216,10 @@ namespace Config {
 		if (!ReadFloat("DampedAngularVelocityMultiplier", options.dampedAngularVelocityMultiplier)) return false;
 		if (!ReadFloat("DampedCollisionHapticStrengthMultiplier", options.dampedCollisionHapticStrengthMultiplier)) return false;
 
+		if (!ReadFloat("RolloverMinAlphaToShow", options.rolloverMinAlphaToShow)) return false;
+		if (!ReadFloat("RolloverAlphaLogisticK", options.rolloverAlphaLogisticK)) return false;
+		if (!ReadFloat("RolloverAlphaLogisticMidpoint", options.rolloverAlphaLogisticMidpoint)) return false;
+
 		if (!ReadFloat("GrabLateralWeight", options.grabLateralWeight)) return false;
 		if (!ReadFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) return false;
 
