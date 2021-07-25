@@ -2888,10 +2888,15 @@ bool Hand::HasHeldKeyframed() const
 }
 
 
-bool Hand::ShouldDisplayRollover()
+bool Hand::ShouldDisplayRollover(Hand &other)
 {
-	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand && !HasHeldObject())
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand && state != State::GrabFromOtherHand && !HasHeldObject())
 		return false;
+
+	if (state == State::SelectedClose && other.HasHeldObject() && other.selectedObject.rigidBody == selectedObject.rigidBody) {
+		// Other hand holds the object we have our hand next to. It's somewhat ugly to move the rollover between the two hands in this case.
+		return false;
+	}
 
 	NiPointer<TESObjectREFR> selectedObj;
 	if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
@@ -2924,7 +2929,7 @@ const char *GetMotionButtonName()
 
 bool Hand::GetActivateButton(std::string &strOut)
 {
-	if (HasHeldObject()) {
+	if (HasHeldObject() || state == State::GrabFromOtherHand) {
 		strOut = "";
 		return true;
 	}
@@ -2962,7 +2967,7 @@ bool Hand::GetActivateButton(std::string &strOut)
 
 bool Hand::GetActivateText(std::string &strOut)
 {
-	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand && !HasHeldObject()) {
+	if (state != State::SelectedClose && state != State::SelectionLocked && state != State::LootOtherHand && state != State::GrabFromOtherHand && !HasHeldObject()) {
 		return false;
 	}
 
@@ -2987,7 +2992,7 @@ bool Hand::GetActivateText(std::string &strOut)
 						color = "#ffffff";
 					}
 
-					if (HasHeldObject()) {
+					if (HasHeldObject() || state == State::GrabFromOtherHand) {
 						if (selectedObject.isActor) {
 							strOut = ""; // Printing the name of the body you're holding is kind of useless
 						}
@@ -3105,7 +3110,7 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
 			UpdateNodeTransformLocal(rolloverNode, desiredWorld);
 
 			float alpha = 1.0f;
-			if (HasHeldObject()) {
+			if (HasHeldObject() || state == State::GrabFromOtherHand) {
 				NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 				if (handNode) {
 					NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];

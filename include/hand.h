@@ -137,7 +137,7 @@ struct Hand
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
-	bool ShouldDisplayRollover();
+	bool ShouldDisplayRollover(Hand &other);
 	bool IsSafeToClearSavedCollision() const;
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;

@@ -832,8 +832,8 @@ EquipData GetWornItem(Actor* thisActor, UInt32 mask)
 
 Hand * GetHandToShowRolloverFor()
 {
-	bool displayLeft = g_leftHand->ShouldDisplayRollover();
-	bool displayRight = g_rightHand->ShouldDisplayRollover();
+	bool displayLeft = g_leftHand->ShouldDisplayRollover(*g_rightHand);
+	bool displayRight = g_rightHand->ShouldDisplayRollover(*g_leftHand);
 
 	bool isRolloverSet = displayRight || displayLeft;
 	if (isRolloverSet) {
