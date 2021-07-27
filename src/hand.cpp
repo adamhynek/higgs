@@ -1543,9 +1543,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		return;
 	}
 
-	//float v = *g_currentFrameCounter % 300 / 300.0f;
-	//SetFingerValues(v, v, v, v, v);
-
 
 	//if (!isLeft) {
 	//	UpdateGenerateFingerCurve(handNodeName, fingerNodeNames);
@@ -3129,8 +3126,17 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
 						if (alpha < Config::options.rolloverMinAlphaToShow) {
 							alpha = 0.0f;
 						}
+
+						rolloverAlphaSetTime = g_currentFrameTime;
 					}
 				}
+			}
+			else if (g_currentFrameTime - pulledTime < pulledExpireTime) {
+				alpha = 0.0f; // Don't show the rollover while a pull is in progress
+			}
+
+			if (g_currentFrameTime != rolloverAlphaSetTime && g_currentFrameTime - rolloverAlphaSetTime < Config::options.rolloverAfterDropHideTime) {
+				alpha = 0.0f; // Hide the rollover for some time after letting go of the object, even if we still want to show it for e.g. SelectedClose
 			}
 			SetGeometryAlphaDownstream(rolloverNode, alpha);
 

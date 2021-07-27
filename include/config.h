@@ -107,6 +107,7 @@ namespace Config {
 		double weaponCollisionDisableOnHitTime = 0.5;
 		double weaponCollisionDisableOnHitDelay = 0.017;
 		double triggerGripIconSwitchTime = 0.8;
+		double rolloverAfterDropHideTime = 0.3;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;

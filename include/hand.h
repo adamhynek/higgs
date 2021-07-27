@@ -234,6 +234,7 @@ struct Hand
 	double preDampTime = 0;
 	double tryLeaveDampedTime = 0;
 	double weaponHitTime = 0;
+	double rolloverAlphaSetTime = 0;
 
 	float grabbedFingerValues[5];
 	bool useAlternateThumbCurve = false;

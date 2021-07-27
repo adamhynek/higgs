@@ -215,6 +215,9 @@ void PostWandUpdateHook()
 			lastRolloverSetTime = g_currentFrameTime;
 			rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
 
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+
 			g_overrideActivateText = false;
 			g_overrideActivateButton = false;
 			g_taskInterface->AddTask(RefreshActivateButtonArtTask::Create());
