@@ -384,25 +384,25 @@ bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, c
 }
 
 
-bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
+bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &start, const NiPoint3 &direction, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
-	NiPoint3 hkTargetPos = hkPalmPos + castDirection * Config::options.farCastDistance;
+	NiPoint3 hkTargetPos = start + direction * Config::options.farCastDistance;
 
 	NiPoint3 hitPosition = { hkTargetPos.x, hkTargetPos.y, hkTargetPos.z };
 
 	// First, raycast in the pointing direction
 	rayHitCollector.reset();
 	rayCastInput.m_filterInfo = ((UInt32)playerCollisionGroup << 16) | 0x28;
-	rayCastInput.m_from = NiPointToHkVector(hkPalmPos);
+	rayCastInput.m_from = NiPointToHkVector(start);
 	rayCastInput.m_to = NiPointToHkVector(hkTargetPos);
 	world->worldLock.LockForRead();
 	hkpWorld_CastRay(world->world, &rayCastInput, &rayHitCollector);
 	world->worldLock.UnlockRead();
 	if (rayHitCollector.m_doesHitExist) {
 		// If raycast hit, we want to linearcast only up to the ray hit location
-		NiPoint3 handToTarget = hkTargetPos - hkPalmPos;
-		hitPosition = hkPalmPos + (handToTarget * rayHitCollector.m_closestHitInfo.m_hitFraction);// -(VectorNormalized(handToTarget) * Config::options.castRadius);
+		NiPoint3 startToTarget = hkTargetPos - start;
+		hitPosition = start + (startToTarget * rayHitCollector.m_closestHitInfo.m_hitFraction);// -(VectorNormalized(handToTarget) * Config::options.castRadius);
 	}
 
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
@@ -414,7 +414,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkP
 
 	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
 	sphereShape->m_radius = Config::options.farCastRadius;
-	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmPos);
+	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(start);
 
 	// Now, linearcast up to the point the raycast hit, or up to the limit if it's empty space
 	// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
@@ -448,8 +448,8 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkP
 				}
 				// Get distance from the hit on the collidable to the ray
 				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
-				NiPoint3 handToHit = hit - hkPalmPos;
-				float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection)); // distance from hit location to closest point on the ray
+				NiPoint3 startToHit = hit - start;
+				float dist = VectorLength(ProjectVectorOntoPlane(startToHit, direction)); // distance from hit location to closest point on the ray
 				if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 					closestObj = ref;
 					closestRigidBody = bRigidBody;
@@ -1492,6 +1492,12 @@ NiPoint3 Hand::GetPalmVectorWS(NiAVObject *handNode)
 
 NiPoint3 Hand::GetPointingVectorWS(NiAVObject *handNode)
 {
+	/*
+	PlayerCharacter *player = *g_thePlayer;
+	NiPointer<NiAVObject> offsetNode = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_SecondaryMagicAimNode] : player->unk3F0[PlayerCharacter::Node::kNode_PrimaryMagicAimNode];
+	return { offsetNode->m_worldTransform.pos, { offsetNode->m_worldTransform.rot.data[0][1], offsetNode->m_worldTransform.rot.data[1][1], offsetNode->m_worldTransform.rot.data[2][1] } };
+	*/
+
 	NiPoint3 pointingVectorHandspace = Config::options.pointingVector;
 	if (isLeft) pointingVectorHandspace.x *= -1;
 	return VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);

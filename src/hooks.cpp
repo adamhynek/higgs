@@ -6,7 +6,7 @@
 #include "skse64_common/BranchTrampoline.h"
 #include "skse64/NiGeometry.h"
 #include "skse64_common/SafeWrite.h"
-#include "skse64/gamethreads.h"
+#include "skse64/Hooks_UI.h"
 
 #include "hooks.h"
 #include "effects.h"
@@ -133,11 +133,8 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 }
 
 
-struct RefreshActivateButtonArtTask : TaskDelegate
+struct RefreshActivateButtonArtTask : UIDelegate_v1
 {
-	static RefreshActivateButtonArtTask * Create() {
-		return new RefreshActivateButtonArtTask;
-	}
 	virtual void Run() {
 		if (g_wsActivateRollover) {
 			// Unstable if called from random places
@@ -197,7 +194,7 @@ void PostWandUpdateHook()
 
 			if (g_overrideActivateButton != overrideActivateButtonBefore || (g_overrideActivateButton && g_overrideActivateButtonStr != activateButtonStrBefore)) {
 				// Just starting/ending to override, or we're still overriding but the button changed
-				g_taskInterface->AddTask(RefreshActivateButtonArtTask::Create());
+				g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
 			}
 		}
 	}
@@ -220,7 +217,7 @@ void PostWandUpdateHook()
 
 			g_overrideActivateText = false;
 			g_overrideActivateButton = false;
-			g_taskInterface->AddTask(RefreshActivateButtonArtTask::Create());
+			g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
 		}
 
 		if (g_currentFrameTime - lastRolloverSetTime > Config::options.rolloverHideTime) {
