@@ -1942,6 +1942,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 									// Grabbing the object from the other hand - make the other hand drop it and wait
 									other.disableDropEvents = true;
 									other.idleDesired = true;
+									grabbedTime = g_currentFrameTime;
 									state = State::GrabFromOtherHand;
 								}
 							}
@@ -3124,14 +3125,12 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
 						float x = max(0.0f, DotProduct(rolloverForward, hmdToRollover));
 
 						// Logistic function (sigmoid) mapping dot product -> alpha value for the rollover hud
-						float k = Config::options.rolloverAlphaLogisticK;
-						float midpoint = Config::options.rolloverAlphaLogisticMidpoint;
-						alpha = 1.0f / (1.0f + expf(-k * (x - midpoint)));
+						alpha = logistic(x, Config::options.rolloverAlphaLogisticK, Config::options.rolloverAlphaLogisticMidpoint);
+						alpha = alpha < Config::options.rolloverMinAlphaToShow ? 0.0f : alpha;
 
-						alpha = std::clamp(alpha, 0.0f, 1.0f);
-						if (alpha < Config::options.rolloverMinAlphaToShow) {
-							alpha = 0.0f;
-						}
+						double elapsedFraction = min(1.0, (g_currentFrameTime - grabbedTime) / Config::options.rolloverAfterGrabAlphaFadeInTime);
+						float t = logistic(elapsedFraction, Config::options.rolloverAlphaFadeInLogisticK, Config::options.rolloverAlphaFadeInLogisticMidpoint);
+						alpha = std::clamp(lerp(0.0f, alpha, t), 0.0f, 1.0f);
 
 						rolloverAlphaSetTime = g_currentFrameTime;
 					}
@@ -3141,8 +3140,11 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
 				alpha = 0.0f; // Don't show the rollover while a pull is in progress
 			}
 
-			if (g_currentFrameTime != rolloverAlphaSetTime && g_currentFrameTime - rolloverAlphaSetTime < Config::options.rolloverAfterDropHideTime) {
-				alpha = 0.0f; // Hide the rollover for some time after letting go of the object, even if we still want to show it for e.g. SelectedClose
+			double elapsedFraction = min(1.0, (g_currentFrameTime - rolloverAlphaSetTime) / Config::options.rolloverAfterDropAlphaFadeInTime);
+			if (g_currentFrameTime != rolloverAlphaSetTime && elapsedFraction < 1.0) {
+				// Hide the rollover for some time after letting go of the object, even if we still want to show it for e.g. SelectedClose
+				float t = logistic(elapsedFraction, Config::options.rolloverAlphaFadeInLogisticK, Config::options.rolloverAlphaFadeInLogisticMidpoint);
+				alpha = std::clamp(lerp(0.0f, alpha, t), 0.0f, 1.0f);
 			}
 			SetGeometryAlphaDownstream(rolloverNode, alpha);
 

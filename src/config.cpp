@@ -147,6 +147,9 @@ namespace Config {
 		if (!ReadDouble("WeaponCollisionDisableOnHitDelay", options.weaponCollisionDisableOnHitDelay)) return false;
 		if (!ReadDouble("TriggerGripIconSwitchTime", options.triggerGripIconSwitchTime)) return false;
 
+		if (!ReadDouble("RolloverAfterGrabAlphaFadeInTime", options.rolloverAfterGrabAlphaFadeInTime)) return false;
+		if (!ReadDouble("RolloverAfterDropAlphaFadeInTime", options.rolloverAfterDropAlphaFadeInTime)) return false;
+
 		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
 		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
 
@@ -219,6 +222,8 @@ namespace Config {
 		if (!ReadFloat("RolloverMinAlphaToShow", options.rolloverMinAlphaToShow)) return false;
 		if (!ReadFloat("RolloverAlphaLogisticK", options.rolloverAlphaLogisticK)) return false;
 		if (!ReadFloat("RolloverAlphaLogisticMidpoint", options.rolloverAlphaLogisticMidpoint)) return false;
+		if (!ReadFloat("RolloverAlphaFadeInLogisticK", options.rolloverAlphaFadeInLogisticK)) return false;
+		if (!ReadFloat("RolloverAlphaFadeInLogisticMidpoint", options.rolloverAlphaFadeInLogisticMidpoint)) return false;
 
 		if (!ReadFloat("GrabLateralWeight", options.grabLateralWeight)) return false;
 		if (!ReadFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) return false;

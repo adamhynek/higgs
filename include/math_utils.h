@@ -131,6 +131,7 @@ inline float QuaternionAngle(const NiQuaternion &qa, const NiQuaternion &qb) { r
 NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t);
 inline NiPoint3 lerp(const NiPoint3 &a, const NiPoint3 &b, float t) { return a * (1.0f - t) + b * t; }
 inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
+inline float logistic(float x, float k, float midpoint) { return 1.0f / (1.0f + expf(-k * (x - midpoint))); };
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed);
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);

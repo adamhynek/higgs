@@ -79,8 +79,10 @@ namespace Config {
 		float dampedCollisionHapticStrengthMultiplier = 0.4f;
 
 		float rolloverMinAlphaToShow = 0.4f;
-		float rolloverAlphaLogisticK = 12.0f;
-		float rolloverAlphaLogisticMidpoint = 0.7f;
+		float rolloverAlphaLogisticK = 30.0f;
+		float rolloverAlphaLogisticMidpoint = 0.8f;
+		float rolloverAlphaFadeInLogisticK = 12.0f;
+		float rolloverAlphaFadeInLogisticMidpoint = 0.6f;
 
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
@@ -107,7 +109,8 @@ namespace Config {
 		double weaponCollisionDisableOnHitTime = 0.5;
 		double weaponCollisionDisableOnHitDelay = 0.017;
 		double triggerGripIconSwitchTime = 0.8;
-		double rolloverAfterDropHideTime = 0.3;
+		double rolloverAfterGrabAlphaFadeInTime = 1.0;
+		double rolloverAfterDropAlphaFadeInTime = 1.0;
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
