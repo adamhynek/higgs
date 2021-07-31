@@ -296,7 +296,7 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 }
 
 
-bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere,
+bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	if (!allowGrab) {
@@ -334,6 +334,7 @@ bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, c
 		if (!rigidBody || !rigidBody->m_userData) {
 			continue; // No rigidbody -> no movement :/
 		}
+		bhkRigidBody *rigidBodyWrapper = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(collidable);
 		if (ref && ref != *g_thePlayer) {
 			if (IsObjectSelectable(rigidBody, ref) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable)) {
@@ -350,10 +351,21 @@ bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, c
 				float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection)); // distance from hit location to closest point on the ray
 				if (dist < closestDistance) {
 					closestObj = ref;
-					closestRigidBody = (bhkRigidBody *)rigidBody->m_userData;
+					closestRigidBody = rigidBodyWrapper;
 					closestPoint = pair.second.getPosition();
 					closestDistance = dist;
 				}
+			}
+		}
+		else if (rigidBodyWrapper == other.weaponBody && isTwoHandedOffhand) {
+			NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
+			NiPoint3 handToHit = hit - hkPalmPos;
+			float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection));
+			if (dist < closestDistance) {
+				closestObj = nullptr;
+				closestRigidBody = rigidBodyWrapper;
+				closestPoint = pair.second.getPosition();
+				closestDistance = dist;
 			}
 		}
 	}
@@ -1221,6 +1233,149 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 }
 
 
+void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *root, bool playSound)
+{
+	if (root) {
+		NiPoint3 palmPos = hkPalmPos / havokWorldScale;
+
+		float mass = selectedObject.rigidBody->hkBody->getMassInv();
+		mass = mass > 0.0f ? 1.0f / mass : 9999999;
+		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+		haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.grabHapticFadeTime);
+
+		grabbedTime = g_currentFrameTime;
+		rolloverDisplayTime = g_currentFrameTime;
+
+		NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
+
+		if (playSound) {
+			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
+		}
+
+		std::vector<TriangleData> triangles; // tris are in worldspace
+		double t = GetTime();
+		GetSkinnedTriangles(root, triangles);
+		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
+
+		t = GetTime();
+		GetTriangles(root, triangles);
+		_MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
+
+		NiPoint3 triPos, triNormal;
+		float closestDist = (std::numeric_limits<float>::max)();
+		t = GetTime();
+		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, &triPos, &triNormal, &closestDist);
+
+		if (havePointOnGeometry) {
+			ptPos = triPos;
+
+			NiPoint3 palmToPoint = ptPos - palmPos;
+
+			float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
+
+			PlayerCharacter *player = *g_thePlayer;
+
+			NiPoint3 fingerNormalsWorldspace[6];
+			NiPoint3 fingerZeroAngleVecsWorldspace[6];
+			NiPoint3 fingerStartPositionsWorldspace[6];
+			for (int i = 0; i < 6; i++) {
+				NiPoint3 normalHandspace = g_fingerNormals[i];
+				NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+				NiPoint3 startPos = g_fingerStartPositions[i];
+				if (isLeft) {
+					// x axis is flipped for left hand
+					zeroAngleVecHandspace.x *= -1;
+					startPos.x *= -1;
+
+					// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+					normalHandspace.y *= -1;
+					normalHandspace.z *= -1;
+				}
+				fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+				fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+				fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
+			}
+
+			auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
+			(int fingerIndex) -> float
+			{
+				NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+				NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+				NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
+
+				startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+
+				_MESSAGE("finger %d", fingerIndex);
+
+				float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
+				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+					&curveValOrAngle);
+
+				if (intersects) {
+					return curveValOrAngle;
+				}
+
+				// No finger intersection, so just close it completely
+				return 0.0f; // 0 == closed
+			};
+
+			float fingerData[5];
+			for (int i = 0; i < std::size(fingerData); i++) {
+				fingerData[i] = FingerCheck(i);
+			}
+
+			// Doing a separate pass over all fingers here means we can print the final results all next to each other
+			useAlternateThumbCurve = false;
+			for (int i = 0; i < 5; i++) {
+				float curveVal = fingerData[i];
+
+				if (i == 0) {
+					// If standard sideways thumb misses or is negative, check the other thumb curve
+					if (curveVal <= 0.0f) {
+						// TODO: Still use the old curve for a small leeway for negative angles too?
+						float alternateCurveVal = FingerCheck(5); // 5 is the alternate thumb curve
+						if (alternateCurveVal > 0 || (alternateCurveVal == 0.0f && curveVal == 0.0f)) {
+							// Alternate curve intersected at a non-negative angle, or both curves missed completely
+							curveVal = alternateCurveVal;
+							useAlternateThumbCurve = true;
+						}
+					}
+				}
+
+				if (curveVal < 0) {
+					// It's a negative angle - just open the hand
+					_MESSAGE("%d angle: %.2f", i, curveVal);
+					grabbedFingerValues[i] = 1.0f;
+				}
+				else {
+					// Positive => it's a curve val
+					_MESSAGE("%d curve val: %.2f", i, curveVal);
+					grabbedFingerValues[i] = curveVal;
+				}
+
+				grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
+			}
+
+			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
+		}
+
+		NiTransform inverseHand;
+		handNode->m_worldTransform.Invert(inverseHand);
+
+		NiTransform desiredNodeTransform = root->m_worldTransform;
+		desiredNodeTransform.pos += palmPos - ptPos;
+		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
+
+		//HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
+
+		state = State::HeldTwoHanded;
+	}
+	else {
+		state = State::Idle;
+	}
+}
+
+
 void Hand::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
 {
 	StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
@@ -1574,6 +1729,15 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	NiPoint3 palmPos = handNode->m_worldTransform * palmPosHandspace;
 	NiPoint3 hkPalmPos = palmPos * havokWorldScale;
 
+	bool isTwoHandedOffhand = false;
+	TESForm *otherHandEquippedObject = player->GetEquippedObject(*g_leftHandedMode == isLeft);
+	if (otherHandEquippedObject) {
+		TESObjectWEAP *otherHandEquippedWeap = DYNAMIC_CAST(otherHandEquippedObject, TESForm, TESObjectWEAP);
+		if (otherHandEquippedWeap && IsTwoHanded(otherHandEquippedWeap) && other.weaponBody) {
+			isTwoHandedOffhand = true;
+		}
+	}
+
 	if (externalGrabRequested) {
 		TransitionGrabExternal(externalGrabRequestedObject);
 		externalGrabRequested = false;
@@ -1621,14 +1785,14 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		}
 	}
 
-	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar) {
+	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectedTwoHand) {
 
 		// See if there's something near the hand to pick up
 		NiPointer<TESObjectREFR> closestObj;
 		NiPointer<bhkRigidBody> closestRigidBody;
 		hkVector4 closestPoint;
 
-		bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere,
+		bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
 			closestObj, closestRigidBody, closestPoint);
 
 		if (!isSelectedNear) {
@@ -1891,6 +2055,35 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			isSelectedThisFrame = true;
 			lastSelectedTime = g_currentFrameTime;
 		}
+		else if (isTwoHandedOffhand && closestRigidBody == other.weaponBody && closestRigidBody != selectedObject.rigidBody) {
+			// TODO: We need to stop the shaders, etc. if we were in SelectedClose before
+
+			selectedObject.point = HkVectorToNiPoint(closestPoint);
+			selectedObject.rigidBody = closestRigidBody;
+			selectedObject.collidable = &closestRigidBody->hkBody->m_collidable;
+			rolloverDisplayTime = g_currentFrameTime;
+			state = State::SelectedTwoHand;
+		}
+
+		if (state == State::SelectedTwoHand) {
+			double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
+			float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
+			float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
+			fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
+
+			if (!isTwoHandedOffhand || closestRigidBody != other.weaponBody) {
+				Deselect();
+			}
+			else if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
+				// TODO: Handle VRIK
+				static BSFixedString weaponNodeName("WEAPON"); // No need to worry about if it should be the SHIELD node, as we're only dealing with two-handed weapons
+				NiPointer<NiAVObject> root = player->GetNiRootNode(1)->GetObjectByName(&weaponNodeName.data);
+				TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, root);
+
+				grabRequested = false;
+				wasObjectGrabbed = true;
+			}
+		}
 
 		if (state == State::SelectedClose || state == State::SelectedFar) {
 			NiPointer<TESObjectREFR> selectedObj;
@@ -1983,7 +2176,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		}
 	}
 
-	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::LootOtherHand) {
+	if (state == State::SelectionLocked || state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::LootOtherHand || state == State::HeldTwoHanded) {
 
 		grabRequested = false; // Consume grab event here as we cannot grab from any of these states and don't want to grab immediately upon exiting them
 
@@ -2162,6 +2355,16 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					}
 				}
 			}
+			else if (state == State::HeldTwoHanded) {
+				float mass = selectedObject.rigidBody->hkBody->getMassInv();
+				mass = mass > 0.0f ? 1.0f / mass : 9999999;
+				float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+				haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
+
+				PlayPhysicsSound(palmPos, Config::options.useLoudSoundDrop);
+
+				droppedTime = g_currentFrameTime;
+			}
 
 			if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
 				// Do all this stuff even if the refr has been deleted / 3d unloaded
@@ -2262,7 +2465,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				NiPointer<TESObjectREFR> closestObj;
 				NiPointer<bhkRigidBody> closestRigidBody;
 				hkVector4 closestPoint;
-				bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere,
+				bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
 					closestObj, closestRigidBody, closestPoint);
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer
@@ -2478,6 +2681,46 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		else {
 			state = State::Idle;
 		}
+	}
+
+	if (state == State::HeldTwoHanded) {
+		double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
+		float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
+		float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
+		fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+
+		// TODO: Handle VRIK
+		static BSFixedString weaponNodeName("WEAPON"); // No need to worry about if it should be the SHIELD node, as we're only dealing with two-handed weapons
+		NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(1)->GetObjectByName(&weaponNodeName.data);
+
+		NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
+		NiTransform inverseOtherHand;
+		otherHand->m_worldTransform.Invert(inverseOtherHand);
+		NiTransform otherHandToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
+
+		NiTransform otherHandToWeaponInverse;
+		otherHandToWeapon.Invert(otherHandToWeaponInverse);
+
+		NiTransform desiredTransformFromThisHand = handNode->m_worldTransform * desiredNodeTransformHandSpace; // where this hand wants the weapon to be
+		NiTransform desiredTransformFromOtherHand = weaponNode->m_worldTransform;
+
+		NiTransform desiredTransform = desiredTransformFromOtherHand;
+		desiredTransform.pos = lerp(desiredTransformFromThisHand.pos, desiredTransformFromOtherHand.pos, 0.5f);
+
+		NiQuaternion desiredRotThisHand, desiredRotOtherHand;
+		NiMatrixToNiQuaternion(desiredRotThisHand, desiredTransformFromThisHand.rot);
+		NiMatrixToNiQuaternion(desiredRotOtherHand, desiredTransformFromOtherHand.rot);
+		NiQuaternion desiredRot = slerp(desiredRotThisHand, desiredRotOtherHand, 0.5f); // TODO: There is a pole here where the rotation flips, when the two rotations are 180 degrees apart
+		desiredTransform.rot = QuaternionToMatrix(desiredRot);
+
+		NiTransform inverseDesired;
+		desiredNodeTransformHandSpace.Invert(inverseDesired);
+
+		NiTransform newHandTransform = desiredTransform * inverseDesired;
+		UpdateHandTransform(newHandTransform);
+
+		NiTransform newOtherHandTransform = desiredTransform * otherHandToWeaponInverse; // transform for the other hand in order to put the weapon where this hand wants it
+		other.UpdateHandTransform(newOtherHandTransform);
 	}
 
 	if (state == State::HeldInit || state == State::Held) {
