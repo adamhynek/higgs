@@ -44,6 +44,7 @@ bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref);
 bool HasGeometryChildren(NiAVObject *obj);
 
 bool IsTwoHanded(const TESObjectWEAP *weap);
+bool IsTwoHandable(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
 std::pair<bool, bool> AreEquippedItemsValid(Actor *actor);
 

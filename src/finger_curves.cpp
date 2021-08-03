@@ -245,8 +245,7 @@ void DumpFingerPoses(FingerCurveData *fingerCurve)
 		file << "{\n";
 		for (int j = 0; j < 3; j++) {
 			NiMatrix33 &rot = fingerCurve->openFingerTransforms[i][j].rot;
-			NiQuaternion quat;
-			NiMatrixToNiQuaternion(quat, rot);
+			NiQuaternion quat = MatrixToQuaternion(rot);
 			file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
 		}
 		file << "},\n";
@@ -259,8 +258,7 @@ void DumpFingerPoses(FingerCurveData *fingerCurve)
 		file << "{\n";
 		for (int j = 0; j < 3; j++) {
 			NiMatrix33 &rot = fingerCurve->closedFingerTransforms[i][j].rot;
-			NiQuaternion quat;
-			NiMatrixToNiQuaternion(quat, rot);
+			NiQuaternion quat = MatrixToQuaternion(rot);
 			file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
 		}
 		file << "},\n";

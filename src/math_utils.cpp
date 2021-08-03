@@ -13,7 +13,7 @@
 NiPoint3 VectorNormalized(const NiPoint3 &vec)
 {
 	float length = VectorLength(vec);
-	return length ? vec / length : NiPoint3();
+	return length > 0.0f ? vec / length : NiPoint3();
 }
 
 NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2)
@@ -53,10 +53,10 @@ float RotationAngle(const NiMatrix33 &rot)
 	return acosf((trace - 1.0f) / 2.0f);
 }
 
-std::tuple<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q)
+std::pair<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q)
 {
 	float angle = 2.0f * acosf(q.m_fW);
-	double s = sqrtf(1.0f - q.m_fW * q.m_fW);
+	float s = sqrtf(1.0f - q.m_fW * q.m_fW);
 
 	NiPoint3 axis;
 	if (s < 0.001f) {
@@ -143,6 +143,34 @@ NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal)
 	return vector - vectorAlongNormal;
 }
 
+NiTransform RotateTransformAboutPoint(NiTransform &transform, NiPoint3 &point, NiMatrix33 &rotation)
+{
+	NiTransform newTransform;
+	newTransform.pos = point + rotation * (transform.pos - point);
+	newTransform.rot = rotation * transform.rot;
+	newTransform.scale = transform.scale;
+	return newTransform;
+}
+
+std::pair<NiQuaternion, NiQuaternion> SwingTwistDecomposition(NiQuaternion &rotation, NiPoint3 &direction) {
+	NiPoint3 rotationAxis = { rotation.m_fX, rotation.m_fY, rotation.m_fZ };
+	float dot = DotProduct(direction, rotationAxis);
+	NiPoint3 projection = direction * dot;
+	NiQuaternion twist = { rotation.m_fW, projection.x, projection.y, projection.z };
+	if (dot < 0.0f) {
+		// Ensure twist points towards direction
+		twist.m_fX *= -1;
+		twist.m_fY *= -1;
+		twist.m_fZ *= -1;
+		twist.m_fW *= -1;
+		// Rotation angle twist.angle() is now reliable
+	}
+
+	twist = QuaternionNormalized(twist);
+	NiQuaternion swing = QuaternionMultiply(rotation, QuaternionInverse(twist));
+	return { swing, twist };
+}
+
 void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat)
 {
 	hkMat.setCols({ niMat.data[0][0], niMat.data[1][0], niMat.data[2][0], 0 },
@@ -208,7 +236,7 @@ NiQuaternion QuaternionIdentity()
 NiQuaternion QuaternionNormalized(const NiQuaternion &q)
 {
 	float length = QuaternionLength(q);
-	if (length) {
+	if (length > 0.0f) {
 		return QuaternionMultiply(q, 1.0f / length);
 	}
 	return QuaternionIdentity();
@@ -299,11 +327,8 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed)
 {
-	NiQuaternion currentQuat;
-	NiMatrixToNiQuaternion(currentQuat, currentTransform.rot);
-
-	NiQuaternion desiredQuat;
-	NiMatrixToNiQuaternion(desiredQuat, targetTransform.rot);
+	NiQuaternion currentQuat = MatrixToQuaternion(currentTransform.rot);
+	NiQuaternion desiredQuat = MatrixToQuaternion(targetTransform.rot);
 
 	float deltaAngle = rotSpeed * 0.0174533f * *g_deltaTime;
 	float quatAngle = QuaternionAngle(currentQuat, desiredQuat);

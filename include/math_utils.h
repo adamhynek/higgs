@@ -1,11 +1,14 @@
 #pragma once
 
-#include <optional>
+#define _USE_MATH_DEFINES
+#include <math.h>
 
+#include <optional>
 #include <vector>
 #include <unordered_set>
 
 #include "RE/havok.h"
+#include "RE/offsets.h"
 
 #include "skse64/NiObjects.h"
 
@@ -110,14 +113,17 @@ NiPoint3 VectorNormalized(const NiPoint3 &vec);
 NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2);
 NiMatrix33 MatrixFromAxisAngle(const NiPoint3 &axis, float theta);
 float RotationAngle(const NiMatrix33 &rot);
-std::tuple<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q);
+std::pair<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q);
 NiPoint3 MatrixToEuler(const NiMatrix33 &mat);
 NiMatrix33 EulerToMatrix(const NiPoint3 &euler);
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle);
 NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal);
+NiTransform RotateTransformAboutPoint(NiTransform &transform, NiPoint3 &point, NiMatrix33 &rotation);
+std::pair<NiQuaternion, NiQuaternion> SwingTwistDecomposition(NiQuaternion &rotation, NiPoint3 &direction);
 void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat);
 void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat);
 NiMatrix33 QuaternionToMatrix(const NiQuaternion &q);
+inline NiQuaternion MatrixToQuaternion(const NiMatrix33 &m) { NiQuaternion q; NiMatrixToNiQuaternion(q, m); return q; }
 inline NiQuaternion HkQuatToNiQuat(const hkQuaternion &quat) { return { quat.m_vec(3), quat.m_vec(0), quat.m_vec(1), quat.m_vec(2) }; }
 inline hkQuaternion NiQuatToHkQuat(const NiQuaternion &quat) { return hkQuaternion(quat.m_fX, quat.m_fY, quat.m_fZ, quat.m_fW); }
 inline NiPoint3 HkVectorToNiPoint(const hkVector4 &vec) { return { vec.getQuad().m128_f32[0], vec.getQuad().m128_f32[1], vec.getQuad().m128_f32[2] }; }
@@ -135,6 +141,10 @@ inline float logistic(float x, float k, float midpoint) { return 1.0f / (1.0f + 
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed);
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
+inline float ConstrainAngle180(float x) { x = fmodf(x + M_PI, 2*M_PI); if (x < 0) x += 2*M_PI; return x - M_PI; }
+inline float ConstrainAngle360(float x) { x = fmod(x, 2*M_PI); if (x < 0) x += 2*M_PI; return x; }
+inline float ConstrainAngleNegative360(float x) { return -ConstrainAngle360(-x); }
+inline float BisectAngle(float a, float b) { return ConstrainAngle180(a + ConstrainAngle180(b - a) * 0.5f); }
 
 void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);

@@ -134,6 +134,7 @@ struct Hand
 	NiPointer<NiAVObject> GetThirdPersonHandNode();
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
+	inline NiPoint3 GetPalmPositionWS(NiAVObject *handNode) { return handNode->m_worldTransform * palmPosHandspace; }
 	NiPoint3 GetPalmVectorWS(NiAVObject *handNode);
 	NiPoint3 GetPointingVectorWS(NiAVObject *handNode);
 	NiPoint3 GetHandVelocity();
@@ -241,6 +242,10 @@ struct Hand
 
 	float grabbedFingerValues[5];
 	bool useAlternateThumbCurve = false;
+
+	float prevFrameTwistAngle360 = 0;
+	bool crossesPi = false;
+	bool crossesNegativePi = false;
 
 	State state = State::Idle;
 	State prevState = State::Idle;

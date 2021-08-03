@@ -259,8 +259,7 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 			NiTransform rigidBodyTransform = transform * rigidBodyLocalTransform;
 
 			NiPoint3 pos = rigidBodyTransform.pos;
-			NiQuaternion rot;
-			NiMatrixToNiQuaternion(rot, rigidBodyTransform.rot);
+			NiQuaternion rot = MatrixToQuaternion(rigidBodyTransform.rot);
 
 			//bhkRigidBody_MoveToPositionAndRotation(rigidBody, pos, rot); // This doesn't work because this function does stuff like read the collision object's center of mass without compensating for bhkRigidBodyT transformations...
 			hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(pos * *g_havokWorldScale), NiQuatToHkQuat(rot), 1.0f / *g_deltaTime, rigidBody->hkBody);
@@ -301,9 +300,6 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 bool IsTwoHanded(const TESObjectWEAP *weap)
 {
 	switch (weap->gameData.type) {
-	case TESObjectWEAP::GameData::kType_2HA:
-	case TESObjectWEAP::GameData::kType_2HS:
-	case TESObjectWEAP::GameData::kType_CBow:
 	case TESObjectWEAP::GameData::kType_CrossBow:
 	case TESObjectWEAP::GameData::kType_TwoHandAxe:
 	case TESObjectWEAP::GameData::kType_TwoHandSword:
@@ -313,10 +309,27 @@ bool IsTwoHanded(const TESObjectWEAP *weap)
 	}
 }
 
+bool IsTwoHandable(const TESObjectWEAP *weap)
+{
+	// Basically, not unarmed, dagger, or bow
+	switch (weap->gameData.type) {
+	case TESObjectWEAP::GameData::kType_OneHandSword:
+	case TESObjectWEAP::GameData::kType_OneHandAxe:
+	case TESObjectWEAP::GameData::kType_OneHandMace:
+	case TESObjectWEAP::GameData::kType_CrossBow:
+	case TESObjectWEAP::GameData::kType_TwoHandAxe:
+	case TESObjectWEAP::GameData::kType_TwoHandSword:
+	case TESObjectWEAP::GameData::kType_Staff:
+		return true;
+	default:
+		return false;
+	}
+}
+
 bool IsBow(const TESObjectWEAP *weap)
 {
 	UInt8 type = weap->gameData.type;
-	return (type == TESObjectWEAP::GameData::kType_Bow || type == TESObjectWEAP::GameData::kType_Bow2);
+	return (type == TESObjectWEAP::GameData::kType_Bow);
 }
 
 std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
