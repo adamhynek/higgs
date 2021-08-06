@@ -7,6 +7,7 @@
 #include "skse64/NiGeometry.h"
 #include "skse64_common/SafeWrite.h"
 #include "skse64/Hooks_UI.h"
+#include "skse64/GameRTTI.h"
 
 #include "hooks.h"
 #include "effects.h"
@@ -16,6 +17,7 @@
 #include "config.h"
 #include "main.h"
 #include "finger_curves.h"
+#include "menu_checker.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -156,7 +158,6 @@ double lastRolloverSetTime = 0;
 void PostWandUpdateHook()
 {
 	PlayerCharacter *player = *g_thePlayer;
-	if (!player) return;
 
 	static BSFixedString rolloverNodeStr("WSActivateRollover");
 	NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
@@ -242,6 +243,24 @@ void PostWandUpdateHook()
 			}
 			else {
 				spellOriginNode->m_flags |= 1; // hide spell origin
+			}
+		}
+	}
+
+	if (!g_isVrikPresent) {
+		NiPointer<NiAVObject> offhandNode = player->unk3F0[*g_leftHandedMode ? PlayerCharacter::Node::kNode_RightControllerNode : PlayerCharacter::Node::kNode_LeftControllerNode];
+		if (offhandNode) {
+			if (MenuChecker::isGameStopped()) { // A menu is open
+				offhandNode->m_localTransform.scale = 1.0f;
+			}
+			else {
+				TESForm *mainHandEquippedObject = player->GetEquippedObject(false);
+				if (mainHandEquippedObject) {
+					TESObjectWEAP *mainHandEquippedWeap = DYNAMIC_CAST(mainHandEquippedObject, TESForm, TESObjectWEAP);
+					if (mainHandEquippedWeap && IsTwoHanded(mainHandEquippedWeap)) {
+						offhandNode->m_localTransform.scale = 0.0001f; // effectively hide the offhand controller node
+					}
+				}
 			}
 		}
 	}
