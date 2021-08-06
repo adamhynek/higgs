@@ -449,12 +449,12 @@ extern "C" {
 	{
 		const ModInfo *modInfo = DataHandler::GetSingleton()->LookupModByName("higgs_vr.esp");
 		if (!modInfo) {
-			ShowErrorBoxAndTerminate("[CRITICAL] Could not get modinfo. Most likely the higgs .esp doesn't exist.");
+			ShowErrorBoxAndTerminate("[CRITICAL] Could not get modinfo. Most likely the higgs esp doesn't exist.");
 			return;
 		}
 
 		if (!modInfo->IsActive()) {
-			ShowErrorBoxAndTerminate("[CRITICAL] The higgs .esp exists, but is not active. Make sure the esp is enabled in your mod manager.");
+			ShowErrorBoxAndTerminate("[CRITICAL] The higgs esp exists, but is not active. Make sure the esp is enabled in your mod manager.");
 			return;
 		}
 
@@ -643,7 +643,7 @@ extern "C" {
 					_MESSAGE("Successfully got VRIK api");
 				}
 				else {
-					_MESSAGE("Did not get VRIK api");
+					_MESSAGE("Did not get VRIK api. This is okay.");
 				}
 			}
 		}
