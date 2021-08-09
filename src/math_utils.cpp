@@ -10,12 +10,6 @@
 #include <unordered_set>
 
 
-NiPoint3 VectorNormalized(const NiPoint3 &vec)
-{
-	float length = VectorLength(vec);
-	return length > 0.0f ? vec / length : NiPoint3();
-}
-
 NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2)
 {
 	NiPoint3 result;
@@ -280,9 +274,9 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 	// quaternion to return
 	NiQuaternion qm;
 	// Calculate angle between them.
-	double cosHalfTheta = DotProduct(qa, qb);
+	float cosHalfTheta = DotProduct(qa, qb);
 	// if qa=qb or qa=-qb then theta = 0 and we can return qb
-	if (abs(cosHalfTheta) >= 0.99999) { // I actually experimentally determined this value. The value where I got this code was 0.9995 which is way too low for small angles
+	if (fabs(cosHalfTheta) >= 0.99999) { // I actually experimentally determined this value. The value where I got this code was 0.9995 which is way too low for small angles
 		qm.m_fW = qb.m_fW;
 		qm.m_fX = qb.m_fX;
 		qm.m_fY = qb.m_fY;
@@ -304,8 +298,8 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 	}
 
 	// Calculate temporary values.
-	double halfTheta = acos(cosHalfTheta);
-	double sinHalfTheta = sqrt(1.0 - cosHalfTheta * cosHalfTheta);
+	float halfTheta = acosf(cosHalfTheta);
+	float sinHalfTheta = sqrtf(1.0 - cosHalfTheta * cosHalfTheta);
 	// if theta = 180 degrees then result is not fully defined
 	// we could rotate around any axis normal to qa or qb
 	if (fabs(sinHalfTheta) < 0.001) { // fabs is floating point absolute
@@ -315,8 +309,8 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 		qm.m_fZ = (qa.m_fZ * 0.5 + q2.m_fZ * 0.5);
 		return qm;
 	}
-	double ratioA = sin((1 - t) * halfTheta) / sinHalfTheta;
-	double ratioB = sin(t * halfTheta) / sinHalfTheta;
+	float ratioA = sinf((1 - t) * halfTheta) / sinHalfTheta;
+	float ratioB = sinf(t * halfTheta) / sinHalfTheta;
 	// calculate Quaternion
 	qm.m_fW = (qa.m_fW * ratioA + q2.m_fW * ratioB);
 	qm.m_fX = (qa.m_fX * ratioA + q2.m_fX * ratioB);
@@ -1808,8 +1802,7 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 		if ((vertexFlags & VertexFlags::VF_VERTEX) && verts && numVerts > 0 && tris && numTris > 0) {
 			UInt32 posOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_POSITION);
 
-			NiTransform inverseTransform;
-			geom->m_worldTransform.Invert(inverseTransform);
+			NiTransform inverseTransform = InverseTransform(geom->m_worldTransform);
 			NiPoint3 pointInNodeSpace = inverseTransform * point;
 
 			int closestTri = -1;

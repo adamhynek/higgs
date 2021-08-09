@@ -254,12 +254,9 @@ void PostWandUpdateHook()
 				offhandNode->m_localTransform.scale = 1.0f;
 			}
 			else {
-				TESForm *mainHandEquippedObject = player->GetEquippedObject(false);
-				if (mainHandEquippedObject) {
-					TESObjectWEAP *mainHandEquippedWeap = DYNAMIC_CAST(mainHandEquippedObject, TESForm, TESObjectWEAP);
-					if (mainHandEquippedWeap && IsTwoHanded(mainHandEquippedWeap)) {
-						offhandNode->m_localTransform.scale = 0.0001f; // effectively hide the offhand controller node
-					}
+				TESObjectWEAP *mainHandEquippedWeapon = GetEquippedWeapon(player, false);
+				if (mainHandEquippedWeapon && IsTwoHanded(mainHandEquippedWeapon)) {
+					offhandNode->m_localTransform.scale = 0.0001f; // effectively hide the offhand controller node
 				}
 			}
 		}

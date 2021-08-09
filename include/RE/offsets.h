@@ -180,6 +180,15 @@ extern RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRota
 typedef void(*_bhkWorldObject_UpdateCollisionFilter)(bhkWorldObject *_this);
 extern RelocAddr<_bhkWorldObject_UpdateCollisionFilter> bhkWorldObject_UpdateCollisionFilter;
 
+typedef void(*_bhkRigidBodyCinfo_ctor)(bhkRigidBodyCinfo *_this);
+extern RelocAddr<_bhkRigidBodyCinfo_ctor> bhkRigidBodyCinfo_ctor;
+
+typedef void(*_bhkRigidBody_ctor)(bhkRigidBody *_this, bhkRigidBodyCinfo *cInfo);
+extern RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor;
+
+typedef void(*_bhkBoxShape_ctor)(bhkBoxShape *_this, hkVector4 *halfExtents);
+extern RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor;
+
 typedef void(*_hkReferencedObject_addReference)(hkReferencedObject *_this);
 extern RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReference;
 
@@ -314,15 +323,6 @@ extern RelocAddr<_NiSkinInstance_UpdateBoneMatrices> NiSkinInstance_UpdateBoneMa
 
 typedef NiObject * (*_NiObject_Clone)(NiObject *_this, NiCloningProcess *cloningProcess);
 extern RelocAddr<_NiObject_Clone> NiObject_Clone;
-
-typedef void(*_bhkRigidBodyCinfo_ctor)(bhkRigidBodyCinfo *_this);
-extern RelocAddr<_bhkRigidBodyCinfo_ctor> bhkRigidBodyCinfo_ctor;
-
-typedef void(*_bhkRigidBody_ctor)(bhkRigidBody *_this, bhkRigidBodyCinfo *cInfo);
-extern RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor;
-
-typedef void(*_bhkBoxShape_ctor)(bhkBoxShape *_this, hkVector4 *halfExtents);
-extern RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor;
 
 typedef NiAVObject * (*_PlayerCharacter_GetOffsetNodeForWeaponIndex)(PlayerCharacter *_this, UInt32 isLeft, UInt32 weaponIndex);
 extern RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex;

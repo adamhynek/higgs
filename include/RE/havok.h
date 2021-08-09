@@ -147,9 +147,10 @@ static_assert(offsetof(bhkRigidBodyT, translation) == 0x50);
 
 struct NiCollisionObject : NiObject
 {
-	virtual void Unk_25(void); // 25
+	virtual void SetNode(NiAVObject* node); // 25
 	virtual void Update(NiAVObject::ControllerUpdateContext *ctx); // 26
-	virtual void Unk_27(void); // 27
+	// These next 3 all return immediately
+	virtual void Unk_27(void); // 27 - { return; }
 	virtual void Unk_28(void); // 28 - { return; }
 	virtual void Unk_29(void); // 29 - { return; }
 

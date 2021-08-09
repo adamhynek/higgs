@@ -288,8 +288,7 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 				else {
 					// Extract zero angle vector from whatever the vector is at this point
 
-					NiTransform inverseHandNode3rd;
-					handNode3rd->m_oldWorldTransform.Invert(inverseHandNode3rd);
+					NiTransform inverseHandNode3rd = InverseTransform(handNode3rd->m_oldWorldTransform);
 
 					for (int i = 0; i < 5; i++) {
 						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);

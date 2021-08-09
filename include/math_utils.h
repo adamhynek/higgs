@@ -109,7 +109,7 @@ inline float DotProduct(const NiPoint3 &vec1, const NiPoint3 &vec2) { return vec
 inline float DotProduct(const Point2 &vec1, const Point2 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y; }
 inline float DotProduct(const NiQuaternion &q1, const NiQuaternion &q2) { return q1.m_fW*q2.m_fW + q1.m_fX*q2.m_fX + q1.m_fY*q2.m_fY + q1.m_fZ*q2.m_fZ; }
 inline float QuaternionLength(const NiQuaternion &q) { return sqrtf(DotProduct(q, q)); }
-NiPoint3 VectorNormalized(const NiPoint3 &vec);
+inline NiPoint3 VectorNormalized(const NiPoint3 &vec) { float length = VectorLength(vec); return length > 0.0f ? vec / length : NiPoint3(); }
 NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2);
 NiMatrix33 MatrixFromAxisAngle(const NiPoint3 &axis, float theta);
 float RotationAngle(const NiMatrix33 &rot);
@@ -128,6 +128,10 @@ inline NiQuaternion HkQuatToNiQuat(const hkQuaternion &quat) { return { quat.m_v
 inline hkQuaternion NiQuatToHkQuat(const NiQuaternion &quat) { return hkQuaternion(quat.m_fX, quat.m_fY, quat.m_fZ, quat.m_fW); }
 inline NiPoint3 HkVectorToNiPoint(const hkVector4 &vec) { return { vec.getQuad().m128_f32[0], vec.getQuad().m128_f32[1], vec.getQuad().m128_f32[2] }; }
 inline hkVector4 NiPointToHkVector(const NiPoint3 &pt) { return { pt.x, pt.y, pt.z, 0 }; };
+inline NiTransform InverseTransform(const NiTransform &t) { NiTransform inverse; t.Invert(inverse); return inverse; }
+inline NiPoint3 RightVector(const NiMatrix33 &r) { return { r.data[0][0], r.data[1][0], r.data[2][0] }; }
+inline NiPoint3 ForwardVector(const NiMatrix33 &r) { return { r.data[0][1], r.data[1][1], r.data[2][1] }; }
+inline NiPoint3 UpVector(const NiMatrix33 &r) { return { r.data[0][2], r.data[1][2], r.data[2][2] }; }
 NiQuaternion QuaternionIdentity();
 NiQuaternion QuaternionNormalized(const NiQuaternion &q);
 NiQuaternion QuaternionMultiply(const NiQuaternion &qa, const NiQuaternion &qb);
@@ -144,7 +148,6 @@ NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoi
 inline float ConstrainAngle180(float x) { x = fmodf(x + M_PI, 2*M_PI); if (x < 0) x += 2*M_PI; return x - M_PI; }
 inline float ConstrainAngle360(float x) { x = fmod(x, 2*M_PI); if (x < 0) x += 2*M_PI; return x; }
 inline float ConstrainAngleNegative360(float x) { return -ConstrainAngle360(-x); }
-inline float BisectAngle(float a, float b) { return ConstrainAngle180(a + ConstrainAngle180(b - a) * 0.5f); }
 
 void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);

@@ -42,6 +42,13 @@ struct Hand
 		hkHalf savedAngularDamping;
 	};
 
+	struct TwoHandedState
+	{
+		NiTransform weaponOffsetNodeLocalTransform;
+		NiTransform collisionOffsetNodeLocalTransform;
+		NiTransform handToWeapon;
+	};
+
 	enum class State : UInt8
 	{
 		Idle, // not pointing at anything meaningful
@@ -132,6 +139,9 @@ struct Hand
 	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
 	NiPointer<NiAVObject> GetFirstPersonHandNode();
 	NiPointer<NiAVObject> GetThirdPersonHandNode();
+	NiPointer<NiAVObject> GetWeaponOffsetNode();
+	NiPointer<NiAVObject> GetWeaponCollisionOffsetNode();
+	NiPointer<NiAVObject> GetWeaponNode();
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
 	inline NiPoint3 GetPalmPositionWS(NiAVObject *handNode) { return handNode->m_worldTransform * palmPosHandspace; }
@@ -201,6 +211,7 @@ struct Hand
 
 	SelectedObject selectedObject;
 	PulledObject pulledObject;
+	TwoHandedState twoHandedState;
 
 	NiPoint3 pulledPointOffset; // Offset from the center of mass of the point we're pulling on the pulled object
 	NiPoint3 pullTarget;
