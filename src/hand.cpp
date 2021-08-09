@@ -1224,7 +1224,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 }
 
 
-void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *root, bool playSound)
+void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
+	float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *root, TESObjectWEAP *otherHandWeapon, bool playSound)
 {
 	if (root) {
 		NiPoint3 palmPos = hkPalmPos / havokWorldScale;
@@ -1365,9 +1366,10 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 		NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
 		NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
 
+		twoHandedState.weapon = otherHandWeapon;
 		NiPointer<NiAVObject> weaponNode = other.GetWeaponNode();
-		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
-		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode();
+		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
+		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
 		if (weaponNode && offsetNode && collisionOffsetNode) {
 			twoHandedState.weaponOffsetNodeLocalTransform = offsetNode->m_localTransform;
 			twoHandedState.collisionOffsetNodeLocalTransform = collisionOffsetNode->m_localTransform;
@@ -1586,16 +1588,12 @@ NiPointer<NiAVObject> Hand::GetThirdPersonHandNode()
 }
 
 
-NiPointer<NiAVObject> Hand::GetWeaponOffsetNode()
+NiPointer<NiAVObject> Hand::GetWeaponOffsetNode(TESObjectWEAP *weapon)
 {
-	PlayerCharacter *player = *g_thePlayer;
-	bool isLeftHanded = *g_leftHandedMode;
-	UInt8 weaponType = TESObjectWEAP::GameData::kType_OneHandSword; // Some default
-	TESObjectWEAP *equippedWeap = GetEquippedWeapon(player, isLeftHanded != isLeft);
-	if (equippedWeap) {
-		weaponType = equippedWeap->gameData.type;
-	}
+	if (!weapon) return nullptr;
 
+	PlayerCharacter *player = *g_thePlayer;
+	UInt8 weaponType = weapon->gameData.type;
 	if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
 		return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftCrossbowOffsetNode : PlayerCharacter::Node::kNode_RightCrossbowOffsetNode];
 	}
@@ -1607,16 +1605,12 @@ NiPointer<NiAVObject> Hand::GetWeaponOffsetNode()
 }
 
 
-NiPointer<NiAVObject> Hand::GetWeaponCollisionOffsetNode()
+NiPointer<NiAVObject> Hand::GetWeaponCollisionOffsetNode(TESObjectWEAP *weapon)
 {
-	PlayerCharacter *player = *g_thePlayer;
-	bool isLeftHanded = *g_leftHandedMode;
-	UInt8 weaponType = TESObjectWEAP::GameData::kType_OneHandSword; // Some default
-	TESObjectWEAP *equippedWeap = GetEquippedWeapon(player, isLeftHanded != isLeft);
-	if (equippedWeap) {
-		weaponType = equippedWeap->gameData.type;
-	}
+	if (!weapon) return nullptr;
 
+	PlayerCharacter *player = *g_thePlayer;
+	UInt8 weaponType = weapon->gameData.type;
 	if (weaponType == TESObjectWEAP::GameData::kType_Bow) {
 		return player->unk538[PlayerCharacter::BowNode::kBowNode_BowRotationNode];
 	}
@@ -2140,7 +2134,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				BSFixedString &handWeaponNodeName = useLeft ? shieldNodeName : weaponNodeName;
 				NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(1)->GetObjectByName(&handWeaponNodeName.data);
 
-				TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, weaponNode);
+				TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, weaponNode, otherHandEquippedWeap);
 
 				grabRequested = false;
 				wasObjectGrabbed = true;
@@ -2427,13 +2421,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 				droppedTime = g_currentFrameTime;
 
-				// TODO: What if the other hand has switched weapons or something after we two-handed
-				NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
+				NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
 				if (offsetNode) {
 					offsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
 				}
 
-				NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode();
+				NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
 				if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
 					collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
 				}
@@ -2757,123 +2750,140 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	}
 
 	if (state == State::HeldTwoHanded) {
-		double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
-		float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
-		float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
-		fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+		if (otherHandEquippedWeap == twoHandedState.weapon && player->actorState.IsWeaponDrawn()) {
+			double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
+			float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
+			float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
+			fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
 
-		NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
-		NiPointer<NiAVObject> weaponNode = other.GetWeaponNode();
+			NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
+			NiPointer<NiAVObject> weaponNode = other.GetWeaponNode();
 
-		//NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
-		//NiTransform otherHandToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
+			//NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
+			//NiTransform otherHandToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
 
-		// Start us off where the main hand wants the weapon
-		NiTransform desiredTransform = otherHand->m_worldTransform * twoHandedState.handToWeapon;
+			// Start us off where the main hand wants the weapon
+			NiTransform desiredTransform = otherHand->m_worldTransform * twoHandedState.handToWeapon;
 
-		NiTransform thisHandToWeaponDesired = desiredNodeTransformHandSpace;
-		NiTransform otherHandToWeaponDesired = twoHandedState.handToWeapon;
+			NiTransform thisHandToWeaponDesired = desiredNodeTransformHandSpace;
+			NiTransform otherHandToWeaponDesired = twoHandedState.handToWeapon;
 
-		NiTransform weaponToThisHand = InverseTransform(thisHandToWeaponDesired);
-		NiTransform weaponToOtherHand = InverseTransform(otherHandToWeaponDesired);
+			NiTransform weaponToThisHand = InverseTransform(thisHandToWeaponDesired);
+			NiTransform weaponToOtherHand = InverseTransform(otherHandToWeaponDesired);
 
-		// Rotate the weapon such that the two hands lie on the same line as they do in real life
-		NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand);
-		NiTransform thisHandFromWeapon = desiredTransform * weaponToThisHand;
-		NiPoint3 palmPosOnWeapon = thisHandFromWeapon * palmPosHandspace;
+			// Rotate the weapon such that the two hands lie on the same line as they do in real life
+			NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand);
+			NiTransform thisHandFromWeapon = desiredTransform * weaponToThisHand;
+			NiPoint3 palmPosOnWeapon = thisHandFromWeapon * palmPosHandspace;
 
-		NiPoint3 otherPalmToThisPalm = palmPos - otherPalmPos;
-		NiPoint3 otherPalmToThisPalmNormalized = VectorNormalized(otherPalmToThisPalm);
-		NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeapon = palmPosOnWeapon - otherPalmPos;
-		NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized = VectorNormalized(otherPalmToWhereThisPalmWouldBeOnTheWeapon);
+			NiPoint3 otherPalmToThisPalm = palmPos - otherPalmPos;
+			NiPoint3 otherPalmToThisPalmNormalized = VectorNormalized(otherPalmToThisPalm);
+			NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeapon = palmPosOnWeapon - otherPalmPos;
+			NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized = VectorNormalized(otherPalmToWhereThisPalmWouldBeOnTheWeapon);
 
-		float angle = acosf(DotProduct(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
-		NiPoint3 axis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
-		NiMatrix33 rotation = MatrixFromAxisAngle(axis, angle);
-		desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, rotation);
+			float angle = acosf(DotProduct(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
+			NiPoint3 axis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
+			NiMatrix33 rotation = MatrixFromAxisAngle(axis, angle);
+			desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, rotation);
 
-		// Now move the weapon along the palm->palm axis such that each hand on the weapon is equidistant from where it is in real life
-		thisHandFromWeapon = desiredTransform * weaponToThisHand;
-		palmPosOnWeapon = thisHandFromWeapon * palmPosHandspace;
-		desiredTransform.pos += (palmPos - palmPosOnWeapon) * 0.5f;
+			// Now move the weapon along the palm->palm axis such that each hand on the weapon is equidistant from where it is in real life
+			thisHandFromWeapon = desiredTransform * weaponToThisHand;
+			palmPosOnWeapon = thisHandFromWeapon * palmPosHandspace;
+			desiredTransform.pos += (palmPos - palmPosOnWeapon) * 0.5f;
 
-		// Compute the angle this hand wants to rotate the weapon about the palm->palm axis
-		NiQuaternion thisHandRot = MatrixToQuaternion(handNode->m_worldTransform.rot);
-		NiQuaternion thisHandTwist = SwingTwistDecomposition(thisHandRot, otherPalmToThisPalmNormalized).second;
+			// Compute the angle this hand wants to rotate the weapon about the palm->palm axis
+			NiQuaternion thisHandRot = MatrixToQuaternion(handNode->m_worldTransform.rot);
+			NiQuaternion thisHandTwist = SwingTwistDecomposition(thisHandRot, otherPalmToThisPalmNormalized).second;
 
-		thisHandFromWeapon = desiredTransform * weaponToThisHand;
-		NiQuaternion thisHandFromWeaponRot = MatrixToQuaternion(thisHandFromWeapon.rot);
-		NiQuaternion thisHandFromWeaponTwist = SwingTwistDecomposition(thisHandFromWeaponRot, otherPalmToThisPalmNormalized).second;
+			thisHandFromWeapon = desiredTransform * weaponToThisHand;
+			NiQuaternion thisHandFromWeaponRot = MatrixToQuaternion(thisHandFromWeapon.rot);
+			NiQuaternion thisHandFromWeaponTwist = SwingTwistDecomposition(thisHandFromWeaponRot, otherPalmToThisPalmNormalized).second;
 
-		float thisHandTwistAngle = QuaternionToAxisAngle(thisHandTwist).second;
-		float thisHandFromWeaponTwistAngle = QuaternionToAxisAngle(thisHandFromWeaponTwist).second;
+			float thisHandTwistAngle = QuaternionToAxisAngle(thisHandTwist).second;
+			float thisHandFromWeaponTwistAngle = QuaternionToAxisAngle(thisHandFromWeaponTwist).second;
 
-		// Rotate the weapon half-way to match this hand's rotation about the palm-palm axis. This effectively rotates it in between where each hand wants it.
-		float twistAngle180 = ConstrainAngle180(thisHandTwistAngle - thisHandFromWeaponTwistAngle);
-		float twistAngle360 = ConstrainAngle360(twistAngle180);
+			// Rotate the weapon half-way to match this hand's rotation about the palm-palm axis. This effectively rotates it in between where each hand wants it.
+			float twistAngle180 = ConstrainAngle180(thisHandTwistAngle - thisHandFromWeaponTwistAngle);
+			float twistAngle360 = ConstrainAngle360(twistAngle180);
 
-		// Check if we cross pi clockwise / counterclockwise. In both of those cases, we want to continue the same halved rotation.
-		// This is necessary because we are cutting the angle in half, which has a discontinuity otherwise at pi.
-		bool wantCrossPi = false, wantCrossNegativePi = false;
-		if (prevFrameTwistAngle360 >= 0.5*M_PI && prevFrameTwistAngle360 < M_PI && twistAngle360 >= M_PI && twistAngle360 < 1.5*M_PI) {
-			wantCrossPi = true;
-		}
-		else if (prevFrameTwistAngle360 >= M_PI && prevFrameTwistAngle360 < 1.5*M_PI && twistAngle360 >= 0.5*M_PI && twistAngle360 < M_PI) {
-			wantCrossNegativePi = true;
-		}
-
-		if (!crossesPi && !crossesNegativePi) {
-			// Only go into either of these if we aren't in one already
-			if (wantCrossPi) crossesPi = true;
-			if (wantCrossNegativePi) crossesNegativePi = true;
-		}
-
-		float twistAngle = twistAngle180 * 0.5f;
-		if (crossesPi) {
-			if (twistAngle360 < M_PI) {
-				crossesPi = false; // no longer crossing pi counterclockwise
+			// Check if we cross pi clockwise / counterclockwise. In both of those cases, we want to continue the same halved rotation.
+			// This is necessary because we are cutting the angle in half, which has a discontinuity otherwise at pi.
+			bool wantCrossPi = false, wantCrossNegativePi = false;
+			if (prevFrameTwistAngle360 >= 0.5*M_PI && prevFrameTwistAngle360 < M_PI && twistAngle360 >= M_PI && twistAngle360 < 1.5*M_PI) {
+				wantCrossPi = true;
 			}
-			else {
-				twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
+			else if (prevFrameTwistAngle360 >= M_PI && prevFrameTwistAngle360 < 1.5*M_PI && twistAngle360 >= 0.5*M_PI && twistAngle360 < M_PI) {
+				wantCrossNegativePi = true;
 			}
-		}
-		else if (crossesNegativePi) {
-			if (twistAngle360 > M_PI) {
-				crossesNegativePi = false; // no longer crossing pi clockwise
+
+			if (!crossesPi && !crossesNegativePi) {
+				// Only go into either of these if we aren't in one already
+				if (wantCrossPi) crossesPi = true;
+				if (wantCrossNegativePi) crossesNegativePi = true;
 			}
-			else {
-				twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
+
+			float twistAngle = twistAngle180 * 0.5f;
+			if (crossesPi) {
+				if (twistAngle360 < M_PI) {
+					crossesPi = false; // no longer crossing pi counterclockwise
+				}
+				else {
+					twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
+				}
 			}
-		}
+			else if (crossesNegativePi) {
+				if (twistAngle360 > M_PI) {
+					crossesNegativePi = false; // no longer crossing pi clockwise
+				}
+				else {
+					twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
+				}
+			}
 
-		prevFrameTwistAngle360 = twistAngle360;
+			prevFrameTwistAngle360 = twistAngle360;
 
-		NiMatrix33 weaponTwistRotation = MatrixFromAxisAngle(otherPalmToThisPalmNormalized, twistAngle);
-		desiredTransform = RotateTransformAboutPoint(desiredTransform, palmPos, weaponTwistRotation);
+			NiMatrix33 weaponTwistRotation = MatrixFromAxisAngle(otherPalmToThisPalmNormalized, twistAngle);
+			desiredTransform = RotateTransformAboutPoint(desiredTransform, palmPos, weaponTwistRotation);
 
-		// Set hand transforms
-		NiTransform newHandTransform = desiredTransform * weaponToThisHand;
-		UpdateHandTransform(newHandTransform);
+			// Set hand transforms
+			NiTransform newHandTransform = desiredTransform * weaponToThisHand;
+			UpdateHandTransform(newHandTransform);
 
-		NiTransform newOtherHandTransform = desiredTransform * weaponToOtherHand; // transform for the other hand in order to put the weapon where this hand wants it
-		other.UpdateHandTransform(newOtherHandTransform);
+			NiTransform newOtherHandTransform = desiredTransform * weaponToOtherHand; // transform for the other hand in order to put the weapon where this hand wants it
+			other.UpdateHandTransform(newOtherHandTransform);
 
-		UpdateNodeTransformLocal(weaponNode, desiredTransform);
-		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
-
-		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
-		if (offsetNode) {
-			UpdateNodeTransformLocal(offsetNode, desiredTransform);
+			UpdateNodeTransformLocal(weaponNode, desiredTransform);
 			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(offsetNode, &ctx);
-		}
+			NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
 
-		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode();
-		if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
-			UpdateNodeTransformLocal(collisionOffsetNode, desiredTransform);
-			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(collisionOffsetNode, &ctx);
+			NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
+			if (offsetNode) {
+				UpdateNodeTransformLocal(offsetNode, desiredTransform);
+				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+				NiAVObject_UpdateObjectUpwards(offsetNode, &ctx);
+			}
+
+			NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
+			if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
+				UpdateNodeTransformLocal(collisionOffsetNode, desiredTransform);
+				NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+				NiAVObject_UpdateObjectUpwards(collisionOffsetNode, &ctx);
+			}
+		}
+		else {
+			// Other hand has switched weapons / sheathed after we grabbed its weapon with this hand
+			NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
+			if (offsetNode) {
+				offsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
+			}
+
+			NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
+			if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
+				collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
+			}
+
+			Deselect();
+			state = State::Idle;
 		}
 	}
 
