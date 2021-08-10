@@ -134,7 +134,7 @@ struct Hand
 	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj,
 		NiTransform *initialTransform = nullptr, bool playSound = true);
 	void TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
-		float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *root, TESObjectWEAP *otherHandWeapon, bool playSound = true);
+		float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon, bool playSound = true);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
 	bool TransitionGrabExternal(TESObjectREFR *refr);
 	void GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, float handSize, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmNodePos, const NiPoint3 &palmVector, float havokWorldScale);
@@ -143,7 +143,7 @@ struct Hand
 	NiPointer<NiAVObject> GetThirdPersonHandNode();
 	NiPointer<NiAVObject> GetWeaponOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponCollisionOffsetNode(TESObjectWEAP *weapon);
-	NiPointer<NiAVObject> GetWeaponNode();
+	NiPointer<NiAVObject> GetWeaponNode(bool thirdPerson);
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
 	inline NiPoint3 GetPalmPositionWS(NiAVObject *handNode) { return handNode->m_worldTransform * palmPosHandspace; }
