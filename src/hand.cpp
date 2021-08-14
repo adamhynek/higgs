@@ -2777,9 +2777,6 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 			NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
 
-			//NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
-			//NiTransform otherHandToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
-
 			// Start us off where the main hand wants the weapon
 			NiTransform desiredTransform = otherHand->m_worldTransform * twoHandedState.handToWeapon;
 
@@ -3314,6 +3311,11 @@ bool Hand::CanOtherGrab() const
 bool Hand::HasHeldKeyframed() const
 {
 	return state == State::Held || state == State::HeldInit;
+}
+
+bool Hand::IsTwoHanding() const
+{
+	return state == State::HeldTwoHanded;
 }
 
 

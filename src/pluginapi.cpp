@@ -215,3 +215,8 @@ bool HiggsInterface001::IsWeaponCollisionDisabled(bool isLeft)
 		return rightWeaponDisableCount > 0;
 	}
 }
+
+bool HiggsInterface001::IsTwoHanding()
+{
+	return g_rightHand->IsTwoHanding() || g_leftHand->IsTwoHanding();
+}

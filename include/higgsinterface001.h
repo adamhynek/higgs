@@ -52,6 +52,15 @@ namespace HiggsPluginAPI {
 		virtual void DisableHand(bool isLeft) = 0;
 		virtual void EnableHand(bool isLeft) = 0;
 		virtual bool IsDisabled(bool isLeft) = 0;
+
+		// Disable and enable collision for the weapon held in each hand.
+		// Multiple mods can disable at once, and the collision is only re-enabled once all mods have have called enable.
+		virtual void DisableWeaponCollision(bool isLeft) = 0;
+		virtual void EnableWeaponCollision(bool isLeft) = 0;
+		virtual bool IsWeaponCollisionDisabled(bool isLeft) = 0;
+
+		// Whether both hands are holding a weapon
+		virtual bool IsTwoHanding() = 0;
 	};
 }
 

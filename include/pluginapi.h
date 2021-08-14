@@ -17,7 +17,6 @@ namespace HiggsPluginAPI {
 	// This object provides access to HIGGS's mod support API version 1
 	struct HiggsInterface001 : IHiggsInterface001
 	{
-		// Gets the HIGGS build number
 		virtual unsigned int GetBuildNumber();
 
 		virtual void AddPulledCallback(PulledCallback Callback);
@@ -38,6 +37,8 @@ namespace HiggsPluginAPI {
 		virtual void DisableWeaponCollision(bool isLeft);
 		virtual void EnableWeaponCollision(bool isLeft);
 		virtual bool IsWeaponCollisionDisabled(bool isLeft);
+
+		virtual bool IsTwoHanding();
 
 
 		std::mutex addCallbackLock;

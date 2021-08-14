@@ -40,6 +40,10 @@ namespace PapyrusAPI
 		return g_interface001.IsWeaponCollisionDisabled(isLeft);
 	}
 
+	bool PapyrusIsTwoHanding(StaticFunctionTag *base) {
+		return g_interface001.IsTwoHanding();
+	}
+
 	RegistrationSetHolder<TESForm*> g_pullEventRegs;
 	void RegisterForPullEvent(StaticFunctionTag *base, TESForm* object) {
 		if (!object) {
@@ -212,6 +216,8 @@ namespace PapyrusAPI
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("DisableWeaponCollision", "HiggsVR", PapyrusDisableWeaponCollision, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("EnableWeaponCollision", "HiggsVR", PapyrusEnableWeaponCollision, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("IsWeaponCollisionDisabled", "HiggsVR", PapyrusIsWeaponCollisionDisabled, registry));
+
+		registry->RegisterFunction(new NativeFunction0 <StaticFunctionTag, bool>("IsTwoHanding", "HiggsVR", PapyrusIsTwoHanding, registry));
 
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("RegisterForPullEvent", "HiggsVR", RegisterForPullEvent, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("UnregisterForPullEvent", "HiggsVR", UnregisterForPullEvent, registry));

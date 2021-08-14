@@ -152,6 +152,7 @@ struct Hand
 	NiPoint3 GetHandVelocity();
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
+	bool IsTwoHanding() const;
 	UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
 	bool ShouldDisplayRollover(Hand &other);
 	bool IsSafeToClearSavedCollision() const;
