@@ -1359,9 +1359,8 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 		//HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
-		prevFrameTwistAngle360 = 0;
-		crossesPi = false;
-		crossesNegativePi = false;
+		twoHandedState.prevFrameTwistAngle360 = 0;
+		twoHandedState.angleState = TwoHandedState::AngleState::None;
 
 		NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
 		NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
@@ -2824,39 +2823,101 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 			// Check if we cross pi clockwise / counterclockwise. In both of those cases, we want to continue the same halved rotation.
 			// This is necessary because we are cutting the angle in half, which has a discontinuity otherwise at pi.
-			bool wantCrossPi = false, wantCrossNegativePi = false;
+			float prevFrameTwistAngle360 = twoHandedState.prevFrameTwistAngle360;
+			bool crosses23 = false, crosses32 = false, crosses14 = false, crosses41 = false; // which quadrants we're crossing from/to, if any
 			if (prevFrameTwistAngle360 >= pi_2_f && prevFrameTwistAngle360 < pi_f && twistAngle360 >= pi_f && twistAngle360 < pi_3_2_f) { // pi/2 <= prev < pi && pi <= current < 3pi/2
-				wantCrossPi = true;
+				crosses23 = true;
 			}
 			else if (prevFrameTwistAngle360 >= pi_f && prevFrameTwistAngle360 < pi_3_2_f && twistAngle360 >= pi_2_f && twistAngle360 < pi_f) { // pi <= prev < 3pi/2 && pi/2 <= current < pi
-				wantCrossNegativePi = true;
+				crosses32 = true;
+			}
+			else if (prevFrameTwistAngle360 < pi_2_f && twistAngle360 >= pi_3_2_f) { // prev < pi/2 && current >= 3pi/2
+				crosses14 = true;
+			}
+			else if (prevFrameTwistAngle360 >= pi_3_2_f && twistAngle360 < pi_2_f) { // prev >= 3pi/2 && current < pi/2
+				crosses41 = true;
 			}
 
-			if (!crossesPi && !crossesNegativePi) {
-				// Only go into either of these if we aren't in one already
-				if (wantCrossPi) crossesPi = true;
-				if (wantCrossNegativePi) crossesNegativePi = true;
+			if (twoHandedState.angleState == TwoHandedState::AngleState::None) {
+				if (crosses23) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossPi;
+				}
+				else if (crosses32) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossNegativePi;
+				}
+			}
+
+			if (twoHandedState.angleState == TwoHandedState::AngleState::CrossPi) {
+				if (crosses32) {
+					twoHandedState.angleState = TwoHandedState::AngleState::None;
+				}
+				else if (crosses41) {
+					twoHandedState.angleState = TwoHandedState::AngleState::Cross2Pi;
+				}
+			}
+
+			if (twoHandedState.angleState == TwoHandedState::AngleState::Cross2Pi) {
+				if (crosses14) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossPi;
+				}
+				else if (crosses23) {
+					twoHandedState.angleState = TwoHandedState::AngleState::Cross3Pi;
+				}
+			}
+
+			if (twoHandedState.angleState == TwoHandedState::AngleState::Cross3Pi) {
+				if (crosses32) {
+					twoHandedState.angleState = TwoHandedState::AngleState::Cross2Pi;
+				}
+				else if (crosses41) {
+					twoHandedState.angleState = TwoHandedState::AngleState::None;
+				}
+			}
+
+			if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegativePi) {
+				if (crosses23) {
+					twoHandedState.angleState = TwoHandedState::AngleState::None;
+				}
+				else if (crosses14) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossNegative2Pi;
+				}
+			}
+
+			if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative2Pi) {
+				if (crosses41) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossNegativePi;
+				}
+				else if (crosses32) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossNegative3Pi;
+				}
+			}
+
+			if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative3Pi) {
+				if (crosses23) {
+					twoHandedState.angleState = TwoHandedState::AngleState::CrossNegative2Pi;
+				}
+				else if (crosses14) {
+					twoHandedState.angleState = TwoHandedState::AngleState::None;
+				}
 			}
 
 			float twistAngle = twistAngle180 * 0.5f;
-			if (crossesPi) {
-				if (twistAngle360 < pi_f) {
-					crossesPi = false; // no longer crossing pi counterclockwise
-				}
-				else {
-					twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
-				}
+			if (twoHandedState.angleState == TwoHandedState::AngleState::CrossPi) {
+				twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
 			}
-			else if (crossesNegativePi) {
-				if (twistAngle360 > pi_f) {
-					crossesNegativePi = false; // no longer crossing pi clockwise
-				}
-				else {
-					twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
-				}
+			else if (twoHandedState.angleState == TwoHandedState::AngleState::Cross2Pi ||
+				twoHandedState.angleState == TwoHandedState::AngleState::Cross3Pi) {
+				twistAngle = pi_f + twistAngle360 * 0.5f;
+			}
+			else if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegativePi) {
+				twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
+			}
+			else if(twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative2Pi ||
+				twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative3Pi) {
+				twistAngle = -pi_f + ConstrainAngleNegative360(twistAngle180) * 0.5f;
 			}
 
-			prevFrameTwistAngle360 = twistAngle360;
+			twoHandedState.prevFrameTwistAngle360 = twistAngle360;
 
 			NiMatrix33 weaponTwistRotation = MatrixFromAxisAngle(otherPalmToThisPalmNormalized, twistAngle);
 			desiredTransform = RotateTransformAboutPoint(desiredTransform, palmPos, weaponTwistRotation);

@@ -44,10 +44,22 @@ struct Hand
 
 	struct TwoHandedState
 	{
+		enum class AngleState : UInt8 {
+			None,
+			CrossPi,
+			Cross2Pi,
+			Cross3Pi,
+			CrossNegativePi,
+			CrossNegative2Pi,
+			CrossNegative3Pi
+		};
+
 		NiTransform weaponOffsetNodeLocalTransform;
 		NiTransform collisionOffsetNodeLocalTransform;
 		NiTransform handToWeapon;
 		TESObjectWEAP *weapon;
+		float prevFrameTwistAngle360 = 0;
+		AngleState angleState = AngleState::None;
 	};
 
 	enum class State : UInt8
@@ -256,10 +268,6 @@ struct Hand
 
 	float grabbedFingerValues[5];
 	bool useAlternateThumbCurve = false;
-
-	float prevFrameTwistAngle360 = 0;
-	bool crossesPi = false;
-	bool crossesNegativePi = false;
 
 	State state = State::Idle;
 	State prevState = State::Idle;
