@@ -13,6 +13,10 @@
 #include "skse64/NiObjects.h"
 
 
+static constexpr float pi_f = M_PI;
+static constexpr float pi_2_f = M_PI_2;
+static constexpr float pi_3_2_f = 1.5 * M_PI;
+
 static const float g_minAllowedFingerAngle = 0;// 5 * 0.0174533; // 5 degrees
 
 struct Triangle

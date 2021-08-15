@@ -2813,9 +2813,9 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 			float twistAngle180 = ConstrainAngle180(acosf(DotProduct(thisPalmDirection, thisPalmFromWeaponDirection)));
 			float absAngle = fabs(twistAngle180);
-			if (absAngle > 0.01f && absAngle < (M_PI - 0.01f)) { // avoid cross product singularities
-				if (DotProduct(otherPalmToThisPalmNormalized, CrossProduct(thisPalmFromWeaponDirection, thisPalmDirection)) < 0) {
-					twistAngle180 *= -1;
+			if (absAngle > 0.01f && absAngle < (pi_f - 0.01f)) { // avoid cross product singularities
+				if (DotProduct(otherPalmToThisPalmNormalized, CrossProduct(thisPalmFromWeaponDirection, thisPalmDirection)) < 0.f) {
+					twistAngle180 *= -1.f;
 				}
 			}
 
@@ -2825,10 +2825,10 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			// Check if we cross pi clockwise / counterclockwise. In both of those cases, we want to continue the same halved rotation.
 			// This is necessary because we are cutting the angle in half, which has a discontinuity otherwise at pi.
 			bool wantCrossPi = false, wantCrossNegativePi = false;
-			if (prevFrameTwistAngle360 >= 0.5*M_PI && prevFrameTwistAngle360 < M_PI && twistAngle360 >= M_PI && twistAngle360 < 1.5*M_PI) {
+			if (prevFrameTwistAngle360 >= pi_2_f && prevFrameTwistAngle360 < pi_f && twistAngle360 >= pi_f && twistAngle360 < pi_3_2_f) { // pi/2 <= prev < pi && pi <= current < 3pi/2
 				wantCrossPi = true;
 			}
-			else if (prevFrameTwistAngle360 >= M_PI && prevFrameTwistAngle360 < 1.5*M_PI && twistAngle360 >= 0.5*M_PI && twistAngle360 < M_PI) {
+			else if (prevFrameTwistAngle360 >= pi_f && prevFrameTwistAngle360 < pi_3_2_f && twistAngle360 >= pi_2_f && twistAngle360 < pi_f) { // pi <= prev < 3pi/2 && pi/2 <= current < pi
 				wantCrossNegativePi = true;
 			}
 
@@ -2840,7 +2840,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 			float twistAngle = twistAngle180 * 0.5f;
 			if (crossesPi) {
-				if (twistAngle360 < M_PI) {
+				if (twistAngle360 < pi_f) {
 					crossesPi = false; // no longer crossing pi counterclockwise
 				}
 				else {
@@ -2848,7 +2848,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 			}
 			else if (crossesNegativePi) {
-				if (twistAngle360 > M_PI) {
+				if (twistAngle360 > pi_f) {
 					crossesNegativePi = false; // no longer crossing pi clockwise
 				}
 				else {
