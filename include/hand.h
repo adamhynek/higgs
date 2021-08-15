@@ -146,9 +146,9 @@ struct Hand
 	NiPointer<NiAVObject> GetWeaponNode(bool thirdPerson);
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
-	inline NiPoint3 GetPalmPositionWS(NiAVObject *handNode) { return handNode->m_worldTransform * palmPosHandspace; }
-	NiPoint3 GetPalmVectorWS(NiAVObject *handNode);
-	NiPoint3 GetPointingVectorWS(NiAVObject *handNode);
+	inline NiPoint3 GetPalmPositionWS(NiTransform &handTransform) { return handTransform * palmPosHandspace; }
+	NiPoint3 GetPalmVectorWS(NiMatrix33 &handRotation);
+	NiPoint3 GetPointingVectorWS(NiMatrix33 &handRotation);
 	NiPoint3 GetHandVelocity();
 	bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
 	bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;

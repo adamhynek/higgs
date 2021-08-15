@@ -1693,14 +1693,14 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 }
 
 
-NiPoint3 Hand::GetPalmVectorWS(NiAVObject *handNode)
+NiPoint3 Hand::GetPalmVectorWS(NiMatrix33 &handRotation)
 {
 	NiPoint3 palmVectorHandspace = Config::options.palmVector;
 	if (isLeft) palmVectorHandspace.x *= -1;
-	return VectorNormalized(handNode->m_worldTransform.rot * palmVectorHandspace);
+	return VectorNormalized(handRotation * palmVectorHandspace);
 }
 
-NiPoint3 Hand::GetPointingVectorWS(NiAVObject *handNode)
+NiPoint3 Hand::GetPointingVectorWS(NiMatrix33 &handRotation)
 {
 	/*
 	PlayerCharacter *player = *g_thePlayer;
@@ -1710,7 +1710,7 @@ NiPoint3 Hand::GetPointingVectorWS(NiAVObject *handNode)
 
 	NiPoint3 pointingVectorHandspace = Config::options.pointingVector;
 	if (isLeft) pointingVectorHandspace.x *= -1;
-	return VectorNormalized(handNode->m_worldTransform.rot * pointingVectorHandspace);
+	return VectorNormalized(handRotation * pointingVectorHandspace);
 }
 
 
@@ -1733,8 +1733,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	NiPoint3 handPos = handNode->m_worldTransform.pos;
 	NiPoint3 hkHandPos = handPos * havokWorldScale;
 
-	NiPoint3 palmVector = GetPalmVectorWS(handNode);
-	NiPoint3 pointingVector = GetPointingVectorWS(handNode);
+	NiPoint3 palmVector = GetPalmVectorWS(handNode->m_worldTransform.rot);
+	NiPoint3 pointingVector = GetPointingVectorWS(handNode->m_worldTransform.rot);
 
 	NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
 	if (!hmdNode) return;
@@ -1781,7 +1781,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	bhkSimpleShapePhantom *sphere = *g_pickSphere;
 	if (!sphere) return;
 
-	NiPoint3 palmPos = GetPalmPositionWS(handNode);
+	NiPoint3 palmPos = GetPalmPositionWS(handNode->m_worldTransform);
 	NiPoint3 hkPalmPos = palmPos * havokWorldScale;
 
 	TESObjectWEAP *otherHandEquippedWeap = GetEquippedWeapon(player, *g_leftHandedMode == isLeft);
@@ -2787,38 +2787,39 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			NiTransform weaponToOtherHand = InverseTransform(otherHandToWeaponDesired);
 
 			// Rotate the weapon such that the two hands lie on the same line as they do in real life
-			NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand);
+			NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand->m_worldTransform);
 			NiTransform thisHandFromWeapon = desiredTransform * weaponToThisHand;
-			NiPoint3 palmPosOnWeapon = thisHandFromWeapon * palmPosHandspace;
+			NiPoint3 palmPosOnWeapon = GetPalmPositionWS(thisHandFromWeapon);
 
 			NiPoint3 otherPalmToThisPalm = palmPos - otherPalmPos;
 			NiPoint3 otherPalmToThisPalmNormalized = VectorNormalized(otherPalmToThisPalm);
 			NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeapon = palmPosOnWeapon - otherPalmPos;
 			NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized = VectorNormalized(otherPalmToWhereThisPalmWouldBeOnTheWeapon);
 
-			float angle = acosf(DotProduct(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
-			NiPoint3 axis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
-			NiMatrix33 rotation = MatrixFromAxisAngle(axis, angle);
-			desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, rotation);
+			float snapAngle = acosf(DotProduct(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
+			NiPoint3 snapAxis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
+			NiMatrix33 snapRotation = MatrixFromAxisAngle(snapAxis, snapAngle);
+			desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, snapRotation);
 
 			// Now move the weapon along the palm->palm axis such that each hand on the weapon is equidistant from where it is in real life
 			thisHandFromWeapon = desiredTransform * weaponToThisHand;
-			palmPosOnWeapon = thisHandFromWeapon * palmPosHandspace;
+			palmPosOnWeapon = GetPalmPositionWS(thisHandFromWeapon);
 			desiredTransform.pos += (palmPos - palmPosOnWeapon) * 0.5f;
 
-			// Compute the angle this hand wants to rotate the weapon about the palm->palm axis
-			NiQuaternion thisHandRot = MatrixToQuaternion(handNode->m_worldTransform.rot);
-			NiQuaternion thisHandTwist = SwingTwistDecomposition(thisHandRot, otherPalmToThisPalmNormalized).second;
-
+			// Compute the angle in the palm-palm plane of the offhand's palm vector
 			thisHandFromWeapon = desiredTransform * weaponToThisHand;
-			NiQuaternion thisHandFromWeaponRot = MatrixToQuaternion(thisHandFromWeapon.rot);
-			NiQuaternion thisHandFromWeaponTwist = SwingTwistDecomposition(thisHandFromWeaponRot, otherPalmToThisPalmNormalized).second;
+			NiPoint3 thisPalmDirection = VectorNormalized(ProjectVectorOntoPlane(GetPalmVectorWS(handNode->m_worldTransform.rot), otherPalmToThisPalmNormalized));
+			NiPoint3 thisPalmFromWeaponDirection = VectorNormalized(ProjectVectorOntoPlane(GetPalmVectorWS(thisHandFromWeapon.rot), otherPalmToThisPalmNormalized));
 
-			float thisHandTwistAngle = QuaternionToAxisAngle(thisHandTwist).second;
-			float thisHandFromWeaponTwistAngle = QuaternionToAxisAngle(thisHandFromWeaponTwist).second;
+			float twistAngle180 = ConstrainAngle180(acosf(DotProduct(thisPalmDirection, thisPalmFromWeaponDirection)));
+			float absAngle = fabs(twistAngle180);
+			if (absAngle > 0.01f && absAngle < (M_PI - 0.01f)) { // avoid cross product singularities
+				if (DotProduct(otherPalmToThisPalmNormalized, CrossProduct(thisPalmFromWeaponDirection, thisPalmDirection)) < 0) {
+					twistAngle180 *= -1;
+				}
+			}
 
 			// Rotate the weapon half-way to match this hand's rotation about the palm-palm axis. This effectively rotates it in between where each hand wants it.
-			float twistAngle180 = ConstrainAngle180(thisHandTwistAngle - thisHandFromWeaponTwistAngle);
 			float twistAngle360 = ConstrainAngle360(twistAngle180);
 
 			// Check if we cross pi clockwise / counterclockwise. In both of those cases, we want to continue the same halved rotation.
@@ -3589,7 +3590,7 @@ void Hand::SetupSelectionBeam(NiNode *spellOrigin)
 		NiAVObject *arcNodeShow = isOffLimits ? spellOrigin->m_children.m_data[1] : spellOrigin->m_children.m_data[0];
 		NiAVObject *arcNodeHide = isOffLimits ? spellOrigin->m_children.m_data[0] : spellOrigin->m_children.m_data[1];
 
-		NiPoint3 palmPos = GetPalmPositionWS(handNode);
+		NiPoint3 palmPos = GetPalmPositionWS(handNode->m_worldTransform);
 
 		float havokWorldScale = *g_havokWorldScale;
 
