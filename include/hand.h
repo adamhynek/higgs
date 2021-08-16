@@ -56,6 +56,8 @@ struct Hand
 
 		NiTransform weaponOffsetNodeLocalTransform;
 		NiTransform collisionOffsetNodeLocalTransform;
+		NiTransform wandNodeLocalTransform;
+		NiTransform handToWand;
 		NiTransform handToWeapon;
 		TESObjectWEAP *weapon;
 		float prevFrameTwistAngle360 = 0;
@@ -153,6 +155,7 @@ struct Hand
 	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
 	NiPointer<NiAVObject> GetFirstPersonHandNode();
 	NiPointer<NiAVObject> GetThirdPersonHandNode();
+	NiPointer<NiAVObject> GetWandNode() { return isLeft ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_RightWandNode]; }
 	NiPointer<NiAVObject> GetWeaponOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponCollisionOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponNode(bool thirdPerson);

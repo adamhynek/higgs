@@ -1369,9 +1369,12 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 		twoHandedState.handToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
 		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
 		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
-		if (offsetNode && collisionOffsetNode) {
+		NiPointer<NiAVObject> wandNode = other.GetWandNode();
+		if (offsetNode && collisionOffsetNode && wandNode) {
 			twoHandedState.weaponOffsetNodeLocalTransform = offsetNode->m_localTransform;
 			twoHandedState.collisionOffsetNodeLocalTransform = collisionOffsetNode->m_localTransform;
+			twoHandedState.wandNodeLocalTransform = wandNode->m_localTransform;
+			twoHandedState.handToWand = inverseOtherHand * wandNode->m_worldTransform;
 		}
 
 		state = State::HeldTwoHanded;
@@ -2448,6 +2451,11 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
 					collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
 				}
+
+				NiPointer<NiAVObject> wandNode = other.GetWandNode();
+				if (wandNode) {
+					wandNode->m_localTransform = twoHandedState.wandNodeLocalTransform;
+				}
 			}
 
 			if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
@@ -2939,16 +2947,25 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			UpdateNodeTransformLocal(weaponNode, desiredTransform);
 			NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
 
+			// This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
 			NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
 			if (collisionOffsetNode) {
 				UpdateNodeTransformLocal(collisionOffsetNode, desiredTransform);
 				NiAVObject_UpdateObjectUpwards(collisionOffsetNode, &ctx);
 			}
 
+			// This makes the actual weapon move with our transform. We need this as well as setting the weapon node's transform above.
 			NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
 			if (offsetNode && offsetNode != collisionOffsetNode) {
 				UpdateNodeTransformLocal(offsetNode, desiredTransform);
 				NiAVObject_UpdateObjectUpwards(offsetNode, &ctx);
+			}
+
+			// This makes the vanilla blocking detection move with our transform, as it reads the wand node transforms.
+			NiPointer<NiAVObject> wandNode = other.GetWandNode();
+			if (wandNode) {
+				UpdateNodeTransformLocal(wandNode, newOtherHandTransform * twoHandedState.handToWand);
+				NiAVObject_UpdateObjectUpwards(wandNode, &ctx);
 			}
 		}
 		else {
@@ -2961,6 +2978,11 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
 			if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
 				collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
+			}
+
+			NiPointer<NiAVObject> wandNode = other.GetWandNode();
+			if (wandNode) {
+				wandNode->m_localTransform = twoHandedState.wandNodeLocalTransform;
 			}
 
 			Deselect();

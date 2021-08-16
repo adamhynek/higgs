@@ -43,8 +43,8 @@ auto preVRIKMainThreadHookLoc = RelocAddr<uintptr_t>(0x5BABB5); // A call on the
 auto preVRIKMainThreadHookedFunc = RelocAddr<uintptr_t>(0xDFE470); // Some bhkWorld func
 
 uintptr_t preVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
-auto preVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCCA); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
-auto preVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x6AE8C0);
+auto preVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCBF); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
+auto preVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x6AA060); // PlayerCharacter::UpdateVRBlocking
 
 uintptr_t postVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
 auto postVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCFC); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
@@ -788,10 +788,6 @@ void PerformHooks(void)
 			{
 				Xbyak::Label jumpBack;
 
-				// Original code
-				mov(rax, preVRIKPlayerCharacterUpdateHookedFuncAddr);
-				call(rax);
-
 				push(rax);
 				push(rcx);
 				push(rdx);
@@ -825,6 +821,10 @@ void PerformHooks(void)
 				pop(rdx);
 				pop(rcx);
 				pop(rax);
+
+				// Original code
+				mov(rax, preVRIKPlayerCharacterUpdateHookedFuncAddr);
+				call(rax);
 
 				// Jump back to whence we came (+ the size of the initial branch instruction)
 				jmp(ptr[rip + jumpBack]);

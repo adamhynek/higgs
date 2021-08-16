@@ -55,7 +55,7 @@ struct VRMeleeData
 	NiPointer<NiAVObject> offsetNode; // 20
 	UInt64 unk28; // default == 3?
 	NiPoint3 position; // 30
-	tArray<NiPoint3> unk40;
+	tArray<NiPoint3> linearVelocities; // 40
 	tArray<NiPoint3> unk58;
 	tArray<NiPoint3> unk70;
 	UInt64 unk88;
@@ -71,7 +71,7 @@ struct VRMeleeData
 	bool enableCollision; // BC - this value is read from and the collision node's collision is enabled/disabled
 	float unkC0; // default 0
 	float cooldown; // C4 - gets set to the cooldown, then ticks down, can (and will) get negative - default 0
-	UInt32 unkC8; // default 0
+	UInt32 unkC8; // default 0 - a different cooldown
 	UInt32 unkCC;
 };
 static_assert(offsetof(VRMeleeData, collisionNode) == 0x18);
