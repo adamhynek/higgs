@@ -725,8 +725,7 @@ void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
 		}
 	}
 
-	TESObjectWEAP *equippedWeapon = GetEquippedWeapon(player, *g_leftHandedMode != isLeft);
-	bool isUnarmed = !equippedWeapon || equippedWeapon->type() == TESObjectWEAP::GameData::kType_HandToHandMelee;
+	bool isUnarmed = IsUnarmed(player->GetEquippedObject(*g_leftHandedMode != isLeft));
 
 	float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponHitTime;
 	bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
