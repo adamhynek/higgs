@@ -53,15 +53,16 @@ struct VRMeleeData
 	NiPointer<bhkWorld> world; // 10
 	NiPointer<NiNode> collisionNode; // 18
 	NiPointer<NiAVObject> offsetNode; // 20
-	UInt64 unk28; // default == 3?
+	UInt32 unk28; // default == 3? - could be an isLeft sort of thing
+	UInt32 currentArrayOffset; // 2C - this is the offset in the arrays of the value for the current frame
 	NiPoint3 position; // 30
-	tArray<NiPoint3> linearVelocities; // 40
-	tArray<NiPoint3> unk58;
-	tArray<NiPoint3> unk70;
+	tArray<float> wandPositionDiffLengths; // 40 - lengths of values in subsequent array
+	tArray<NiPoint3> wandPositionDiffs; // 58 - diffs of currentframe - lastframe of wandPositionsRoomspace
+	tArray<NiPoint3> wandPositionsRoomspace; // 70
 	UInt64 unk88;
 	UInt64 unk80;
 	UInt64 unk98;
-	float unkA0; // linearVelocityThreshold when right, 0 when right?
+	float unkA0; // linearVelocityThreshold when main hand, 0 when offhand
 	float linearVelocityThreshold; // A4
 	float impactConfirmRumbleIntensity; // A8
 	float impactConfirmRumbleDuration; // AC
