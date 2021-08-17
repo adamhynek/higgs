@@ -293,14 +293,24 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 
 	auto TriggerCollisionHaptics = [separatingVelocity](float inverseMass, bool isLeft) {
 		float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
-		if (isLeft) {
+
+		if (g_rightHand->IsTwoHanding() || g_leftHand->IsTwoHanding()) {
+			// Both hands are holding an equipped weapon - play haptics for both
 			g_leftHand->TriggerCollisionHaptics(mass, separatingVelocity);
+			g_rightHand->TriggerCollisionHaptics(mass, separatingVelocity);
+			HiggsPluginAPI::TriggerCollisionCallbacks(true, mass, separatingVelocity);
+			HiggsPluginAPI::TriggerCollisionCallbacks(false, mass, separatingVelocity);
 		}
 		else {
-			g_rightHand->TriggerCollisionHaptics(mass, separatingVelocity);
-		}
+			if (isLeft) {
+				g_leftHand->TriggerCollisionHaptics(mass, separatingVelocity);
+			}
+			else {
+				g_rightHand->TriggerCollisionHaptics(mass, separatingVelocity);
+			}
 
-		HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, separatingVelocity);
+		}
 	};
 
 	bool isA = isARightHand || isALeftHand || isAHeldRight || isAHeldLeft || isAWeapLeft || isAWeapRight;
