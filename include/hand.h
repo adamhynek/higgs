@@ -47,11 +47,7 @@ struct Hand
 		enum class AngleState : UInt8 {
 			None,
 			CrossPi,
-			Cross2Pi,
-			Cross3Pi,
-			CrossNegativePi,
-			CrossNegative2Pi,
-			CrossNegative3Pi
+			CrossNegativePi
 		};
 
 		NiTransform weaponOffsetNodeLocalTransform;
@@ -59,6 +55,7 @@ struct Hand
 		NiTransform wandNodeLocalTransform;
 		NiTransform handToWand;
 		NiTransform handToWeapon;
+		NiTransform prevWeaponTransform;
 		TESObjectWEAP *weapon;
 		float prevFrameTwistAngle360 = 0;
 		AngleState angleState = AngleState::None;

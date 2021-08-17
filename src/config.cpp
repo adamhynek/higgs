@@ -168,6 +168,7 @@ namespace Config {
 		if (!ReadFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) return false;
 		if (!ReadFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) return false;
 		if (!ReadFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) return false;
+		if (!ReadFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) return false;
 
 		if (!ReadFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) return false;
 		if (!ReadFloat("FingerAnimateGrabLinearSpeed", options.fingerAnimateGrabLinearSpeed)) return false;

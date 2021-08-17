@@ -28,6 +28,7 @@ namespace Config {
 		float pulledGrabHandAdjustDistance = 0.15f; // in meters, amount to move the hand back when grabbing a pulled object
 		float angularVelocityMultiplier = 0.6f;
 		float tangentialVelocityLimit = 5.0f;
+		float twoHandedRotationSnapSpeed = 1200.0f;
 
 		float selectedCloseFingerAnimValue = 0.9f;
 		float fingerAnimateGrabLinearSpeed = 4.0f;

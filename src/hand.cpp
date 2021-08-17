@@ -1366,6 +1366,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 		twoHandedState.weapon = otherHandWeapon;
 		twoHandedState.handToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
+		twoHandedState.prevWeaponTransform = weaponNode->m_worldTransform;
 		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
 		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
 		NiPointer<NiAVObject> wandNode = other.GetWandNode();
@@ -2815,21 +2816,27 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			if (Config::options.offhandAffectsTwoHandedRotation) {
 				// Compute the angle in the palm-palm plane of the offhand's palm vector
 				thisHandFromWeapon = desiredTransform * weaponToThisHand;
-				NiPoint3 thisPalmDirection = VectorNormalized(ProjectVectorOntoPlane(GetPalmVectorWS(handNode->m_worldTransform.rot), otherPalmToThisPalmNormalized));
-				NiPoint3 thisPalmFromWeaponDirection = VectorNormalized(ProjectVectorOntoPlane(GetPalmVectorWS(thisHandFromWeapon.rot), otherPalmToThisPalmNormalized));
 
-				float twistAngle180 = ConstrainAngle180(acosf(DotProduct(thisPalmDirection, thisPalmFromWeaponDirection)));
-				float absAngle = fabs(twistAngle180);
-				if (absAngle > 0.01f && absAngle < (pi_f - 0.01f)) { // avoid cross product singularities
-					if (DotProduct(otherPalmToThisPalmNormalized, CrossProduct(thisPalmFromWeaponDirection, thisPalmDirection)) < 0.f) {
-						twistAngle180 *= -1.f;
-					}
+				NiPoint3 thisPalmDirection = GetPalmVectorWS(handNode->m_worldTransform.rot);
+				NiPoint3 thisPalmDirectionFromWeapon = GetPalmVectorWS(thisHandFromWeapon.rot);
+
+				// Projecting onto the palm-palm axis gives very "noisy" results from directions parallel to it, so scale the final rotation by how orthogonal the palm direction is
+				float palmDirectionOnWeaponOrthogonality = std::clamp(1.f - fabs(DotProduct(thisPalmDirectionFromWeapon, otherPalmToThisPalmNormalized)), 0.f, 1.f);
+
+				thisPalmDirection = VectorNormalized(ProjectVectorOntoPlane(thisPalmDirection, otherPalmToThisPalmNormalized));
+				thisPalmDirectionFromWeapon = VectorNormalized(ProjectVectorOntoPlane(thisPalmDirectionFromWeapon, otherPalmToThisPalmNormalized));
+
+				float palmDirDiffAngle = acosf(DotProduct(thisPalmDirection, thisPalmDirectionFromWeapon));
+				NiPoint3 palmDirDiffAxis = VectorNormalized(CrossProduct(thisPalmDirectionFromWeapon, thisPalmDirection));
+				if (DotProduct(palmDirDiffAxis, otherPalmToThisPalmNormalized) < 0.f) {
+					palmDirDiffAngle *= -1.f;
 				}
 
 				// Rotate the weapon half-way to match this hand's rotation about the palm-palm axis. This effectively rotates it in between where each hand wants it.
+				float twistAngle180 = ConstrainAngle180(palmDirDiffAngle);
 				float twistAngle360 = ConstrainAngle360(twistAngle180);
 
-				// Check if we cross pi clockwise / counterclockwise. In both of those cases, we want to continue the same halved rotation.
+				// Check if we cross between the upper two / lower two quadrants of a circle where the 0 angle is at the top (pi at the bottom). In both of those cases, we want to continue the same halved rotation.
 				// This is necessary because we are cutting the angle in half, which has a discontinuity otherwise at pi.
 				float prevFrameTwistAngle360 = twoHandedState.prevFrameTwistAngle360;
 				bool crosses23 = false, crosses32 = false, crosses14 = false, crosses41 = false; // which quadrants we're crossing from/to, if any
@@ -2846,6 +2853,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					crosses41 = true;
 				}
 
+				float twistAngle = twistAngle180 * 0.5f;
 				if (twoHandedState.angleState == TwoHandedState::AngleState::None) {
 					if (crosses23) {
 						twoHandedState.angleState = TwoHandedState::AngleState::CrossPi;
@@ -2854,82 +2862,32 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 						twoHandedState.angleState = TwoHandedState::AngleState::CrossNegativePi;
 					}
 				}
-
 				if (twoHandedState.angleState == TwoHandedState::AngleState::CrossPi) {
-					if (crosses32) {
+					if (crosses32 || crosses41) {
 						twoHandedState.angleState = TwoHandedState::AngleState::None;
 					}
-					else if (crosses41) {
-						twoHandedState.angleState = TwoHandedState::AngleState::Cross2Pi;
+					else {
+						twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
 					}
 				}
-
-				if (twoHandedState.angleState == TwoHandedState::AngleState::Cross2Pi) {
-					if (crosses14) {
-						twoHandedState.angleState = TwoHandedState::AngleState::CrossPi;
-					}
-					else if (crosses23) {
-						twoHandedState.angleState = TwoHandedState::AngleState::Cross3Pi;
-					}
-				}
-
-				if (twoHandedState.angleState == TwoHandedState::AngleState::Cross3Pi) {
-					if (crosses32) {
-						twoHandedState.angleState = TwoHandedState::AngleState::Cross2Pi;
-					}
-					else if (crosses41) {
-						twoHandedState.angleState = TwoHandedState::AngleState::None;
-					}
-				}
-
 				if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegativePi) {
-					if (crosses23) {
+					if (crosses23 || crosses14) {
 						twoHandedState.angleState = TwoHandedState::AngleState::None;
 					}
-					else if (crosses14) {
-						twoHandedState.angleState = TwoHandedState::AngleState::CrossNegative2Pi;
+					else {
+						twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
 					}
 				}
-
-				if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative2Pi) {
-					if (crosses41) {
-						twoHandedState.angleState = TwoHandedState::AngleState::CrossNegativePi;
-					}
-					else if (crosses32) {
-						twoHandedState.angleState = TwoHandedState::AngleState::CrossNegative3Pi;
-					}
-				}
-
-				if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative3Pi) {
-					if (crosses23) {
-						twoHandedState.angleState = TwoHandedState::AngleState::CrossNegative2Pi;
-					}
-					else if (crosses14) {
-						twoHandedState.angleState = TwoHandedState::AngleState::None;
-					}
-				}
-
-				float twistAngle = twistAngle180 * 0.5f;
-				if (twoHandedState.angleState == TwoHandedState::AngleState::CrossPi) {
-					twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
-				}
-				else if (twoHandedState.angleState == TwoHandedState::AngleState::Cross2Pi ||
-					twoHandedState.angleState == TwoHandedState::AngleState::Cross3Pi) {
-					twistAngle = pi_f + twistAngle360 * 0.5f;
-				}
-				else if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegativePi) {
-					twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
-				}
-				else if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative2Pi ||
-					twoHandedState.angleState == TwoHandedState::AngleState::CrossNegative3Pi) {
-					twistAngle = -pi_f + ConstrainAngleNegative360(twistAngle180) * 0.5f;
-				}
+				twistAngle *= palmDirectionOnWeaponOrthogonality;
 
 				twoHandedState.prevFrameTwistAngle360 = twistAngle360;
 
 				NiMatrix33 weaponTwistRotation = MatrixFromAxisAngle(otherPalmToThisPalmNormalized, twistAngle);
 				desiredTransform = RotateTransformAboutPoint(desiredTransform, palmPos, weaponTwistRotation);
 			}
+
+			std::optional<NiTransform> advancedTransform = AdvanceTransform(twoHandedState.prevWeaponTransform, desiredTransform, 9999.f, Config::options.twoHandedRotationSnapSpeed);
+			desiredTransform = advancedTransform ? *advancedTransform : desiredTransform;
 
 			// Set hand transforms
 			NiTransform newHandTransform = desiredTransform * weaponToThisHand;
@@ -2961,11 +2919,21 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			}
 
 			// This makes the vanilla blocking detection move with our transform, as it reads the wand node transforms.
-			NiPointer<NiAVObject> wandNode = other.GetWandNode();
-			if (wandNode) {
-				UpdateNodeTransformLocal(wandNode, newOtherHandTransform * twoHandedState.handToWand);
-				NiAVObject_UpdateObjectUpwards(wandNode, &ctx);
+			if (twoHandedState.weapon->type() != TESObjectWEAP::GameData::kType_CrossBow && twoHandedState.weapon->type() != TESObjectWEAP::GameData::kType_Staff) {
+				NiPointer<NiAVObject> wandNode = other.GetWandNode();
+				if (wandNode) {
+					UpdateNodeTransformLocal(wandNode, newOtherHandTransform * twoHandedState.handToWand);
+					NiAVObject_UpdateObjectUpwards(wandNode, &ctx);
+				}
 			}
+
+			// To affect the velocity thresholds, we could:
+			// - Subtract 1 from the vrMeleeData.currentArrayOffset
+			// - Call VRMeleeData_UpdateArrays with whatever position we want to overwrite with
+			// Since UpdateWeaponSwing is called before AlignClaviclesToHands (which calls VRMeleeData_UpdateArrays), I believe it uses the last frame's data,
+			// meaning since we hook after AlignClaviclesToHands, hopefully UpdateWeaponSwing will use the values we overwrite with.
+
+			twoHandedState.prevWeaponTransform = desiredTransform;
 		}
 		else {
 			// Other hand has switched weapons / sheathed after we grabbed its weapon with this hand
@@ -3340,9 +3308,24 @@ void Hand::RestoreHandTransform()
 		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 		if (!handNode) return;
 
-		NiTransform newHandTransform = handTransform;
-		UpdateNodeTransformLocal(handNode, newHandTransform);
+		UpdateNodeTransformLocal(handNode, handTransform);
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+	}
+	else if (state == State::HeldTwoHanded) {
+		// Restore both this hand and the other hand
+		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+		if (!handNode) return;
+
+		UpdateNodeTransformLocal(handNode, handTransform);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+
+		Hand *other = isLeft ? g_rightHand : g_leftHand;
+		handNode = other->GetFirstPersonHandNode();
+		if (!handNode) return;
+
+		UpdateNodeTransformLocal(handNode, other->handTransform);
 		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
 	}
 }
