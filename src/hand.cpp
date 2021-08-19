@@ -2131,8 +2131,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					// This hook is before vrik, so vrik's transforms are out of date.
 					// We compute where the vrik transform will be this frame, update the node, then compute hand/finger positioning and restore the old transforms.
 
-					NiPointer<NiAVObject> fpHandNode = GetFirstPersonHandNode();
-					NiPointer<NiAVObject> tpHandNode = GetThirdPersonHandNode();
+					NiPointer<NiAVObject> fpHandNode = other.GetFirstPersonHandNode();
+					NiPointer<NiAVObject> tpHandNode = other.GetThirdPersonHandNode();
 					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true);
 
 					NiTransform vrikHandToWeapon = InverseTransform(tpHandNode->m_oldWorldTransform) * weaponNode->m_oldWorldTransform;
@@ -3302,8 +3302,6 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
 void Hand::RestoreHandTransform()
 {
-	if (!g_isVrikPresent) return;
-
 	if (state == State::HeldBody) {
 		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 		if (!handNode) return;
@@ -3327,6 +3325,25 @@ void Hand::RestoreHandTransform()
 
 		UpdateNodeTransformLocal(handNode, other->handTransform);
 		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+	}
+}
+
+
+void Hand::ApplyPostVrikTransforms()
+{
+	if (state == State::HeldTwoHanded) {
+		// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
+		Hand *other = isLeft ? g_rightHand : g_leftHand;
+		NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
+		NiPointer<NiAVObject> fpHandNode = other->GetFirstPersonHandNode();
+		NiPointer<NiAVObject> tpHandNode = other->GetThirdPersonHandNode();
+
+		NiTransform localWeaponDesired = InverseTransform(fpHandNode->m_worldTransform) * twoHandedState.prevWeaponTransform;
+		NiTransform weaponDesired = tpHandNode->m_worldTransform * localWeaponDesired;
+
+		UpdateNodeTransformLocal(weaponNode, weaponDesired);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
 	}
 }
 

@@ -272,8 +272,13 @@ void PlayerCharacterUpdateHook()
 
 void PostVRIKPCUpdateHook()
 {
-	g_rightHand->RestoreHandTransform();
-	g_leftHand->RestoreHandTransform();
+	if (g_isVrikPresent) {
+		g_rightHand->ApplyPostVrikTransforms();
+		g_rightHand->RestoreHandTransform();
+
+		g_leftHand->ApplyPostVrikTransforms();
+		g_leftHand->RestoreHandTransform();
+	}
 
 	g_rightHand->fingerAnimator.Update();
 	g_leftHand->fingerAnimator.Update();

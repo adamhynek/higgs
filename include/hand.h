@@ -181,6 +181,7 @@ struct Hand
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void RestoreHandTransform();
+	void ApplyPostVrikTransforms();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 	void TriggerCollisionHaptics(float mass, float separatingVelocity);
