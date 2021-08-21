@@ -306,6 +306,9 @@ extern RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData;
 typedef bool(*_TESObjectBOOK_LearnSpell)(TESObjectBOOK *book, Actor *reader);
 extern RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell;
 
+typedef BGSSoundDescriptorForm * (*_Actor_GetPickupPutdownSound)(Actor *_this, TESBoundObject *object, bool pickup, bool use);
+extern RelocAddr<_Actor_GetPickupPutdownSound> Actor_GetPickupPutdownSound;
+
 typedef void(*_NiMatrixToNiQuaternion)(NiQuaternion &quatOut, const NiMatrix33 &matIn);
 extern RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion;
 

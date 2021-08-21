@@ -1224,9 +1224,12 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 
 void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
-	float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon, bool playSound)
+	float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon)
 {
+	// Copypasta
 	if (weaponNode) {
+		PlayerCharacter *player = *g_thePlayer;
+
 		NiPoint3 palmPos = hkPalmPos / havokWorldScale;
 
 		float mass = selectedObject.rigidBody->hkBody->getMassInv();
@@ -1239,9 +1242,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 		NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
 
-		if (playSound) {
-			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
-		}
+		PlayPhysicsSound(palmPos, false);
 
 		std::vector<TriangleData> triangles; // tris are in worldspace
 		double t = GetTime();
@@ -1263,8 +1264,6 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 			NiPoint3 palmToPoint = ptPos - palmPos;
 
 			float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
-
-			PlayerCharacter *player = *g_thePlayer;
 
 			NiPoint3 fingerNormalsWorldspace[6];
 			NiPoint3 fingerZeroAngleVecsWorldspace[6];
