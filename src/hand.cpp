@@ -3331,17 +3331,14 @@ void Hand::RestoreHandTransform()
 void Hand::ApplyPostVrikTransforms()
 {
 	if (state == State::HeldTwoHanded) {
+		// Update the player 3rd person node world transforms first, as vrik only sets locals
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateObjectUpwards((*g_thePlayer)->GetNiRootNode(0), &ctx);
+
 		// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
 		Hand *other = isLeft ? g_rightHand : g_leftHand;
 		NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
-		NiPointer<NiAVObject> fpHandNode = other->GetFirstPersonHandNode();
-		NiPointer<NiAVObject> tpHandNode = other->GetThirdPersonHandNode();
-
-		NiTransform localWeaponDesired = InverseTransform(fpHandNode->m_worldTransform) * twoHandedState.prevWeaponTransform;
-		NiTransform weaponDesired = tpHandNode->m_worldTransform * localWeaponDesired;
-
-		UpdateNodeTransformLocal(weaponNode, weaponDesired);
-		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
 		NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
 	}
 }
