@@ -1244,6 +1244,11 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 		PlayPhysicsSound(palmPos, false);
 
+		if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
+			savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
+			g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
+		}
+
 		std::vector<TriangleData> triangles; // tris are in worldspace
 		double t = GetTime();
 		GetSkinnedTriangles(weaponNode, triangles);
@@ -2457,11 +2462,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				}
 			}
 
+			// Do all this stuff even if the refr has been deleted / 3d unloaded
 			if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
-				// Do all this stuff even if the refr has been deleted / 3d unloaded
-
 				ResetNearbyDamping();
+			}
 
+			if (state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::HeldTwoHanded) {
 				if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 					g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 				}
@@ -2949,6 +2955,10 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			NiPointer<NiAVObject> wandNode = other.GetWandNode();
 			if (wandNode) {
 				wandNode->m_localTransform = twoHandedState.wandNodeLocalTransform;
+			}
+
+			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
+				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 			}
 
 			Deselect();
