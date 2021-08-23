@@ -3,6 +3,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+#include <algorithm>
 #include <optional>
 #include <vector>
 #include <unordered_set>
@@ -110,6 +111,7 @@ inline float VectorLength(const NiPoint3 &vec) { return sqrtf(VectorLengthSquare
 inline float VectorLength(const Point2 &vec) { return sqrtf(VectorLengthSquared(vec)); }
 inline NiPoint3 VectorAbs(const NiPoint3 &vec) { return { fabs(vec.x), fabs(vec.y), fabs(vec.z) }; }
 inline float DotProduct(const NiPoint3 &vec1, const NiPoint3 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y + vec1.z*vec2.z; }
+inline float DotProductSafe(const NiPoint3 &vec1, const NiPoint3 &vec2) { return std::clamp(DotProduct(vec1, vec2), -1.f, 1.f); }
 inline float DotProduct(const Point2 &vec1, const Point2 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y; }
 inline float DotProduct(const NiQuaternion &q1, const NiQuaternion &q2) { return q1.m_fW*q2.m_fW + q1.m_fX*q2.m_fX + q1.m_fY*q2.m_fY + q1.m_fZ*q2.m_fZ; }
 inline float QuaternionLength(const NiQuaternion &q) { return sqrtf(DotProduct(q, q)); }

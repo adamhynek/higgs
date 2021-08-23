@@ -1224,7 +1224,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 
 void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
-	float havokWorldScale, const NiAVObject *handNode, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon)
+	float havokWorldScale, const NiTransform &handTransform, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon)
 {
 	// Copypasta
 	if (weaponNode) {
@@ -1286,9 +1286,9 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 					normalHandspace.y *= -1;
 					normalHandspace.z *= -1;
 				}
-				fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-				fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
-				fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
+				fingerNormalsWorldspace[i] = VectorNormalized(handTransform.rot * normalHandspace);
+				fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handTransform.rot * zeroAngleVecHandspace);
+				fingerStartPositionsWorldspace[i] = handTransform * startPos;
 			}
 
 			auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &triangles, &palmToPoint]
@@ -1354,7 +1354,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
 		}
 
-		NiTransform inverseHand = InverseTransform(handNode->m_worldTransform);
+		NiTransform inverseHand = InverseTransform(handTransform);
 
 		NiTransform desiredNodeTransform = weaponNode->m_worldTransform;
 		desiredNodeTransform.pos += palmPos - ptPos;
@@ -1682,19 +1682,12 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (!handNode) return;
 
-	if (g_isVrikPresent) {
-		UpdateNodeTransformLocal(handNode, worldTransform);
-		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
-	}
-	else {
-		// When not using vrik, we need to update the clavicle to move the hand just as beth does, otherwise only part of the "hand" moves and we get stretched verts
-		PlayerCharacter *player = *g_thePlayer;
-		NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
-		if (clavicle) {
-			NiTransform identity;
-			UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
-		}
+	// When not using vrik, we need to update the clavicle to move the hand just as beth does, otherwise only part of the "hand" moves and we get stretched verts
+	PlayerCharacter *player = *g_thePlayer;
+	NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+	if (clavicle) {
+		NiTransform identity;
+		UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
 	}
 }
 
@@ -2151,14 +2144,14 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 					NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
 
-					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, weaponNode, otherHandEquippedWeap);
+					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
 
 					weaponNode->m_localTransform = currentWeaponLocalTransform;
 					NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
 				}
 				else {
 					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
-					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, weaponNode, otherHandEquippedWeap);
+					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
 				}
 
 				grabRequested = false;
@@ -2808,7 +2801,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeapon = palmPosOnWeapon - otherPalmPos;
 			NiPoint3 otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized = VectorNormalized(otherPalmToWhereThisPalmWouldBeOnTheWeapon);
 
-			float snapAngle = acosf(DotProduct(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
+			float snapAngle = acosf(DotProductSafe(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
 			NiPoint3 snapAxis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
 			NiMatrix33 snapRotation = MatrixFromAxisAngle(snapAxis, snapAngle);
 			desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, snapRotation);
@@ -2831,10 +2824,15 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				thisPalmDirection = VectorNormalized(ProjectVectorOntoPlane(thisPalmDirection, otherPalmToThisPalmNormalized));
 				thisPalmDirectionFromWeapon = VectorNormalized(ProjectVectorOntoPlane(thisPalmDirectionFromWeapon, otherPalmToThisPalmNormalized));
 
-				float palmDirDiffAngle = acosf(DotProduct(thisPalmDirection, thisPalmDirectionFromWeapon));
+				float palmDirDiffAngle = acosf(DotProductSafe(thisPalmDirection, thisPalmDirectionFromWeapon));
 				NiPoint3 palmDirDiffAxis = VectorNormalized(CrossProduct(thisPalmDirectionFromWeapon, thisPalmDirection));
 				if (DotProduct(palmDirDiffAxis, otherPalmToThisPalmNormalized) < 0.f) {
 					palmDirDiffAngle *= -1.f;
+				}
+
+				if (std::isnan(palmDirDiffAngle)) {
+					_WARNING("[WARNING] Two-handed Palm direction difference angle is nan. Setting it to 0.");
+					palmDirDiffAngle = 0.f;
 				}
 
 				// Rotate the weapon half-way to match this hand's rotation about the palm-palm axis. This effectively rotates it in between where each hand wants it.
@@ -2889,6 +2887,11 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 				NiMatrix33 weaponTwistRotation = MatrixFromAxisAngle(otherPalmToThisPalmNormalized, twistAngle);
 				desiredTransform = RotateTransformAboutPoint(desiredTransform, palmPos, weaponTwistRotation);
+			}
+
+			if (std::isnan(desiredTransform.pos.x) || std::isnan(desiredTransform.pos.y) || std::isnan(desiredTransform.pos.z)) {
+				_WARNING("[WARNING] Computed two-handed weapon transform is nan. Using the previous frame's transform.");
+				desiredTransform = twoHandedState.prevWeaponTransform;
 			}
 
 			std::optional<NiTransform> advancedTransform = AdvanceTransform(twoHandedState.prevWeaponTransform, desiredTransform, 9999.f, Config::options.twoHandedRotationSnapSpeed);
