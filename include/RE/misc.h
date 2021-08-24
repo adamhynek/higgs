@@ -48,6 +48,14 @@ public:
 
 struct VRMeleeData
 {
+	enum class SwingDirection : UInt32 {
+		kNone = 0,
+		kDown = 1,
+		kLeft = 3,
+		kRight = 4,
+		kUp = 6
+	};
+
 	UInt64 unk00;
 	UInt64 unk08;
 	NiPointer<bhkWorld> world; // 10
@@ -59,9 +67,7 @@ struct VRMeleeData
 	tArray<float> wandPositionDiffLengths; // 40 - lengths of values in subsequent array
 	tArray<NiPoint3> wandPositionDiffs; // 58 - diffs of currentframe - lastframe of wandPositionsRoomspace
 	tArray<NiPoint3> wandPositionsRoomspace; // 70
-	UInt64 unk88;
-	UInt64 unk80;
-	UInt64 unk98;
+	tArray<Actor *> sweepActors; // 88 - which actors has the current swing hit. Only applies if the player has the 'Sweep' perk.
 	float unkA0; // linearVelocityThreshold when main hand, 0 when offhand
 	float linearVelocityThreshold; // A4
 	float impactConfirmRumbleIntensity; // A8
@@ -70,9 +76,9 @@ struct VRMeleeData
 	float impactRumbleDuration; // B4
 	float meleeForceMultLinear; // B8
 	bool enableCollision; // BC - this value is read from and the collision node's collision is enabled/disabled
-	float unkC0; // default 0
+	SwingDirection swingDirection; // C0 - default 0
 	float cooldown; // C4 - gets set to the cooldown, then ticks down, can (and will) get negative - default 0
-	UInt32 unkC8; // default 0 - a different cooldown
+	float powerAttackCooldown; // C8 - default 0
 	UInt32 unkCC;
 };
 static_assert(offsetof(VRMeleeData, collisionNode) == 0x18);
