@@ -68,7 +68,7 @@ struct bhkSerializable : bhkRefObject
 struct bhkWorld : bhkSerializable
 {
 	virtual void Update(bool unk);  // 32
-	virtual void Unk_33(void);  // 33
+	virtual bool CastRay(hkpWorldRayCastInput& input); // 33 - actually takes in an extended hkpWorldRayCastInput that has the raycast output and stuff shoved at the end
 	virtual bool HasSimulationIslands();  // 34
 	virtual void Unk_35(void);  // 35
 	virtual void Unk_36(void);  // 36
@@ -131,7 +131,7 @@ struct bhkRigidBody : bhkEntity
 
 	hkpRigidBody * hkBody; // 10
 	UInt64 unk18;
-	UInt64 unk20; // at least first byte are some flags? bit 2 is set -> has constraints?
+	UInt8 flags; // at least first byte are some flags? bit 2 is set -> has constraints?
 	tArray<NiPointer<bhkConstraint>> constraints; // 28
 };
 static_assert(offsetof(bhkRigidBody, constraints) == 0x28);
@@ -176,6 +176,16 @@ static_assert(offsetof(bhkNiCollisionObject, body) == 0x20);
 struct bhkCollisionObject : bhkNiCollisionObject
 {
 };
+
+struct bhkBlendCollisionObject : bhkCollisionObject
+{
+	float unk28;
+	float unk2C;
+	UInt32 unk30;
+	UInt64 unk38;
+	UInt32 unk40;
+};
+static_assert(sizeof(bhkBlendCollisionObject) == 0x48);
 
 struct bhkSimpleShapePhantom : NiRefObject
 {

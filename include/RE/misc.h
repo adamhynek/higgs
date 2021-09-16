@@ -56,7 +56,7 @@ struct VRMeleeData
 		kUp = 6
 	};
 
-	UInt64 unk00;
+	UInt64 unk00; // something to do with cooldown multipliers
 	UInt64 unk08;
 	NiPointer<bhkWorld> world; // 10
 	NiPointer<NiNode> collisionNode; // 18
@@ -128,4 +128,4 @@ typedef void(*Actor_DropObject)(Actor *_this, UInt32 *outHandle, const TESBoundO
 typedef void(*Actor_GetLinearVelocity)(Actor *_this, NiPoint3 &velocity);
 typedef bool(*TESBoundObject_GetActivateText)(TESBoundObject *_this, TESObjectREFR* activator, BSString& text);
 
-typedef void(*_Update3DPosition)(TESObjectREFR *_this, bool warp);
+typedef void(*TESObjectREFR_Update3DPosition)(TESObjectREFR *_this, bool warp);

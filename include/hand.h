@@ -29,6 +29,7 @@ struct Hand
 		UInt32 handle = 0;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
+		UInt8 savedRigidBodyFlags;
 		bool isActor = false;
 		bool isBook = false;
 		bool isDisconnected = false;

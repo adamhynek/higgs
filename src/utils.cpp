@@ -237,6 +237,21 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 	ctx.delta = 0;
 	NiAVObject_UpdateObjectUpwards(node, &ctx); // This will set the collision object's velocity as well
 
+	bhkCollisionObject *collisionObject = GetCollisionObject(node);
+	if (collisionObject) {
+		bhkBlendCollisionObject *blendCollisionObject = DYNAMIC_CAST(collisionObject, bhkCollisionObject, bhkBlendCollisionObject);
+		if (blendCollisionObject) {
+			// The bhkBlendCollisionObject update function does not have a case where it checks if it's keyframed (and thus would do a node->collision update instead of a collision->node update) like the bhkCollisionObject update does.
+			// So, I need to do it myself.
+			NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
+			if (rigidBody) {
+				rigidBody->flags |= (1 << 6); // I'm not 100% sure what the true purpose of this flag is, but the bhkBlendCollisionObject update function skips updating the node from the collision if it's set, which is handy for me.
+				UpdateNodeTransformLocal(node, transform);
+				blendCollisionObject->UpdateCollisionFromNodeTransform();
+			}
+		}
+	}
+
 	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
 	if (rigidBody) {
 		bhkRigidBody_setActivated(rigidBody, 1);
