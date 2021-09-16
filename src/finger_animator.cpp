@@ -110,7 +110,7 @@ void FingerAnimator::Update()
 		if (!g_isVrikPresent) {
 			// First-person root update happens before our hook, so need to update world transforms
 			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(fingerNodes[finger][0], &ctx);
+			NiAVObject_UpdateNode(fingerNodes[finger][0], &ctx);
 		}
 	};
 

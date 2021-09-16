@@ -127,7 +127,7 @@ RelocAddr<_NiAVObject_GetMass> NiAVObject_GetMass(0x3B5B50);
 RelocAddr<_StartGrabObject> StartGrabObject(0x006CC000);
 RelocAddr<_TESObjectREFR_SetPosition> TESObjectREFR_SetPosition(0x2A8010);
 RelocAddr<_TESObjectREFR_SetRotation> TESObjectREFR_SetRotation(0x2A7C50);
-RelocAddr<_NiAVObject_UpdateObjectUpwards> NiAVObject_UpdateObjectUpwards(0xC9BC10);
+RelocAddr<_NiAVObject_UpdateNode> NiAVObject_UpdateNode(0xC9BC10);
 RelocAddr<_GetMaterialType> GetMaterialType(0x2D8B60);
 RelocAddr<_BGSImpactDataSet_GetImpactData> BGSImpactDataSet_GetImpactData(0x2D4C00);
 RelocAddr<_BSAudioManager_InitSoundData> BSAudioManager_InitSoundData(0xC29D20);

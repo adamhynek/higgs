@@ -2143,12 +2143,12 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 					UpdateNodeTransformLocal(weaponNode, thisFrameWeaponTransform);
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
+					NiAVObject_UpdateNode(weaponNode, &ctx);
 
 					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
 
 					weaponNode->m_localTransform = currentWeaponLocalTransform;
-					NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
+					NiAVObject_UpdateNode(weaponNode, &ctx);
 				}
 				else {
 					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
@@ -2912,20 +2912,20 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 
 			NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
 			UpdateNodeTransformLocal(weaponNode, desiredTransform);
-			NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
+			NiAVObject_UpdateNode(weaponNode, &ctx);
 
 			// This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
 			NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
 			if (collisionOffsetNode) {
 				UpdateNodeTransformLocal(collisionOffsetNode, desiredTransform);
-				NiAVObject_UpdateObjectUpwards(collisionOffsetNode, &ctx);
+				NiAVObject_UpdateNode(collisionOffsetNode, &ctx);
 			}
 
 			// This makes the actual weapon move with our transform. We need this as well as setting the weapon node's transform above.
 			NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
 			if (offsetNode && offsetNode != collisionOffsetNode) {
 				UpdateNodeTransformLocal(offsetNode, desiredTransform);
-				NiAVObject_UpdateObjectUpwards(offsetNode, &ctx);
+				NiAVObject_UpdateNode(offsetNode, &ctx);
 			}
 
 			// This makes the vanilla blocking detection move with our transform, as it reads the wand node transforms.
@@ -2933,7 +2933,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				NiPointer<NiAVObject> wandNode = other.GetWandNode();
 				if (wandNode) {
 					UpdateNodeTransformLocal(wandNode, newOtherHandTransform * twoHandedState.handToWand);
-					NiAVObject_UpdateObjectUpwards(wandNode, &ctx);
+					NiAVObject_UpdateNode(wandNode, &ctx);
 				}
 			}
 
@@ -3322,7 +3322,7 @@ void Hand::RestoreHandTransform()
 
 		UpdateNodeTransformLocal(handNode, handTransform);
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+		NiAVObject_UpdateNode(handNode, &ctx);
 	}
 	else if (state == State::HeldTwoHanded) {
 		// Restore both this hand and the other hand
@@ -3331,14 +3331,14 @@ void Hand::RestoreHandTransform()
 
 		UpdateNodeTransformLocal(handNode, handTransform);
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+		NiAVObject_UpdateNode(handNode, &ctx);
 
 		Hand *other = isLeft ? g_rightHand : g_leftHand;
 		handNode = other->GetFirstPersonHandNode();
 		if (!handNode) return;
 
 		UpdateNodeTransformLocal(handNode, other->handTransform);
-		NiAVObject_UpdateObjectUpwards(handNode, &ctx);
+		NiAVObject_UpdateNode(handNode, &ctx);
 	}
 }
 
@@ -3348,13 +3348,13 @@ void Hand::ApplyPostVrikTransforms()
 	if (state == State::HeldTwoHanded) {
 		// Update the player 3rd person node world transforms first, as vrik only sets locals
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateObjectUpwards((*g_thePlayer)->GetNiRootNode(0), &ctx);
+		NiAVObject_UpdateNode((*g_thePlayer)->GetNiRootNode(0), &ctx);
 
 		// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
 		Hand *other = isLeft ? g_rightHand : g_leftHand;
 		NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
 		UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
-		NiAVObject_UpdateObjectUpwards(weaponNode, &ctx);
+		NiAVObject_UpdateNode(weaponNode, &ctx);
 	}
 }
 
@@ -3669,7 +3669,7 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
 			SetGeometryAlphaDownstream(rolloverNode, alpha);
 
 			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+			NiAVObject_UpdateNode(rolloverNode, &ctx);
 		}
 	}
 }
@@ -3721,6 +3721,6 @@ void Hand::SetupSelectionBeam(NiNode *spellOrigin)
 		arcNodeHide->m_flags |= 1; // hide noGoArc
 
 		NiAVObject::ControllerUpdateContext ctx{ 0.0f, 0 };
-		NiAVObject_UpdateObjectUpwards(spellOrigin, &ctx);
+		NiAVObject_UpdateNode(spellOrigin, &ctx);
 	}
 }

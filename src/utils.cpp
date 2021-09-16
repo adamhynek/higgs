@@ -235,7 +235,7 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 	NiAVObject::ControllerUpdateContext ctx;
 	ctx.flags = 0x2000; // Use velocity for moving the collision object - this won't actually move it until the next sim
 	ctx.delta = 0;
-	NiAVObject_UpdateObjectUpwards(node, &ctx); // This will set the collision object's velocity as well
+	NiAVObject_UpdateNode(node, &ctx); // This will set the collision object's velocity as well
 
 	bhkCollisionObject *collisionObject = GetCollisionObject(node);
 	if (collisionObject) {

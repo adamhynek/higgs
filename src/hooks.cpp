@@ -214,7 +214,7 @@ void PostWandUpdateHook()
 			rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
 
 			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateObjectUpwards(rolloverNode, &ctx);
+			NiAVObject_UpdateNode(rolloverNode, &ctx);
 
 			g_overrideActivateText = false;
 			g_overrideActivateButton = false;

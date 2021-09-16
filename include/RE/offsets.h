@@ -276,8 +276,8 @@ extern RelocAddr<_TESObjectREFR_SetPosition> TESObjectREFR_SetPosition;
 typedef void(*_TESObjectREFR_SetRotation)(TESObjectREFR *_this, NiPoint3 &newRot);
 extern RelocAddr<_TESObjectREFR_SetRotation> TESObjectREFR_SetRotation;
 
-typedef void(*_NiAVObject_UpdateObjectUpwards)(NiAVObject *_this, NiAVObject::ControllerUpdateContext *ctx);
-extern RelocAddr<_NiAVObject_UpdateObjectUpwards> NiAVObject_UpdateObjectUpwards;
+typedef void(*_NiAVObject_UpdateNode)(NiAVObject *_this, NiAVObject::ControllerUpdateContext *ctx);
+extern RelocAddr<_NiAVObject_UpdateNode> NiAVObject_UpdateNode;
 
 typedef BGSMaterialType * (*_GetMaterialType)(UInt32 materialId); // materialId is gotten from the bhkShape at offset 0x20
 extern RelocAddr<_GetMaterialType> GetMaterialType;
