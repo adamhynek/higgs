@@ -157,6 +157,7 @@ struct Hand
 	NiPointer<NiAVObject> GetWeaponOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponCollisionOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponNode(bool thirdPerson);
+	NiPointer<NiAVObject> GetMagicNode(bool thirdPerson);
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
 	inline NiPoint3 GetPalmPositionWS(NiTransform &handTransform) { return handTransform * palmPosHandspace; }

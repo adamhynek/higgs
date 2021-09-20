@@ -1642,6 +1642,17 @@ NiPointer<NiAVObject> Hand::GetWeaponNode(bool thirdPerson)
 }
 
 
+NiPointer<NiAVObject> Hand::GetMagicNode(bool thirdPerson)
+{
+	static BSFixedString rightMagicNodeName("NPC R MagicNode [RMag]");
+	static BSFixedString leftMagicNodeName("NPC L MagicNode [LMag]");
+	// TODO: Not actually sure if we need to swap here for left handed mode
+	bool useLeft = *g_leftHandedMode != isLeft;
+	BSFixedString &magicNodeName = useLeft ? leftMagicNodeName : rightMagicNodeName;
+	return (*g_thePlayer)->GetNiRootNode(!thirdPerson)->GetObjectByName(&magicNodeName.data);
+}
+
+
 float Hand::GetHandSize()
 {
 	NiPointer<NiAVObject> handNode = g_isVrikPresent ? GetThirdPersonHandNode() : GetFirstPersonHandNode();
@@ -2144,11 +2155,13 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 					UpdateNodeTransformLocal(weaponNode, thisFrameWeaponTransform);
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 					NiAVObject_UpdateNode(weaponNode, &ctx);
+					UpdateBoneMatrices(weaponNode);
 
 					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
 
 					weaponNode->m_localTransform = currentWeaponLocalTransform;
 					NiAVObject_UpdateNode(weaponNode, &ctx);
+					UpdateBoneMatrices(weaponNode);
 				}
 				else {
 					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
