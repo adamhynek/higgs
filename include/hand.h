@@ -121,14 +121,14 @@ struct Hand
 
 	~Hand() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
-	void Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world);
-	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab);
+	void Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world);
+	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
 	void ResetNearbyDamping();
 	void StartNearbyDamping(bhkWorld &world);
-	bool FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
+	bool FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
 	bool FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
@@ -172,6 +172,8 @@ struct Hand
 	bool IsSafeToClearSavedCollision() const;
 	bool IsObjectPullable();
 	bool HasExclusiveObject() const;
+	bool IsInGrabbableState() const;
+	bool CanHoldObject() const;
 	bool CanGrabObject() const;
 	bool HasHeldObject() const;
 	bool CanOtherGrab() const;
@@ -187,6 +189,7 @@ struct Hand
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 	void TriggerCollisionHaptics(float mass, float separatingVelocity);
+	bool CanHoldBasedOnWeapon() const;
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
 

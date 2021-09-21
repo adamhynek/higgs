@@ -299,13 +299,9 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 }
 
 
-bool Hand::FindCloseObject(bhkWorld *world, bool allowGrab, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
+bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
-	if (!allowGrab) {
-		return false;
-	}
-
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
 	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
@@ -1725,7 +1721,7 @@ NiPoint3 Hand::GetPointingVectorWS(NiMatrix33 &handRotation)
 }
 
 
-void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld *world)
+void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
 
@@ -1792,6 +1788,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 	bhkSimpleShapePhantom *sphere = *g_pickSphere;
 	if (!sphere) return;
 
+	bool isAllowedToHold = CanHoldObject();
+
 	NiPoint3 palmPos = GetPalmPositionWS(handNode->m_worldTransform);
 	NiPoint3 hkPalmPos = palmPos * havokWorldScale;
 
@@ -1852,12 +1850,13 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 		NiPointer<bhkRigidBody> closestRigidBody;
 		hkVector4 closestPoint;
 
-		bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
-			closestObj, closestRigidBody, closestPoint);
+		bool isSelectedNear = false;
+		if (isAllowedToHold) {
+			isSelectedNear = FindCloseObject(world, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
+				closestObj, closestRigidBody, closestPoint);
 
-		if (!isSelectedNear) {
-			// Nothing close by the hand. Check for stuff pointing from the palm
-			if (allowGrab) {
+			if (!isSelectedNear) {
+				// Nothing close by the hand. Check for stuff farther away
 				FindFarObject(world, other, hkPalmPos, pointingVector, hmdPos * havokWorldScale, hmdForward, sphere,
 					closestObj, closestRigidBody, closestPoint);
 			}
@@ -2275,7 +2274,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 			idleDesired = true;
 		}
 
-		if (!allowGrab) {
+		if (!isAllowedToHold) {
 			idleDesired = true;
 		}
 
@@ -2570,7 +2569,8 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 				NiPointer<TESObjectREFR> closestObj;
 				NiPointer<bhkRigidBody> closestRigidBody;
 				hkVector4 closestPoint;
-				bool isSelectedNear = FindCloseObject(world, allowGrab, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
+
+				bool isSelectedNear = isAllowedToHold && FindCloseObject(world, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
 					closestObj, closestRigidBody, closestPoint);
 
 				// Allow us to go to held if we had the thing selected from a distance and it came closer
@@ -3185,7 +3185,7 @@ void Hand::Update(Hand &other, bool allowGrab, NiNode *playerWorldNode, bhkWorld
 }
 
 
-void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState, bool allowGrab)
+void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState)
 {
 	bool wasTriggerDisabledLastFrame = isTriggerDisabled;
 	isTriggerDisabled = false;
@@ -3218,9 +3218,11 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 		releaseRequested = true;
 	}
 
+	bool isAllowedToHold = CanHoldObject();
+
 	// Only advance states if no menus are open
 	if (inputState == InputState::Idle) {
-		if ((triggerRisingEdge || gripRisingEdge) && allowGrab) {
+		if ((triggerRisingEdge || gripRisingEdge) && isAllowedToHold) {
 			grabRequestedTime = g_currentFrameTime;
 			grabRequested = true;
 
@@ -3326,6 +3328,56 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 	}
 }
 
+bool Hand::CanHoldBasedOnWeapon() const
+{
+	PlayerCharacter *player = *g_thePlayer;
+
+	if (!player->actorState.IsWeaponDrawn()) {
+		return true;
+	}
+
+	bool isLeftHanded = *g_leftHandedMode;
+	bool isMainHand = isLeft == isLeftHanded;
+
+	TESForm *mainhandItem = player->GetEquippedObject(false);
+	TESForm *offhandItem = player->GetEquippedObject(true);
+
+	bool isMainValid = false, isOffhandValid = false;
+
+	if (mainhandItem) {
+		TESObjectWEAP *weap = DYNAMIC_CAST(mainhandItem, TESForm, TESObjectWEAP);
+		if (weap) {
+			if (weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) {
+				isMainValid = true; // fist
+			}
+			else if (Config::options.allowGrabWithTwoHandedOffhand && IsTwoHanded(weap)) {
+				return !isMainHand; // Main hand holds the weapon, offhand is 'free' in VR
+			}
+			else if (Config::options.allowGrabWithEmptyArrowHand && IsBow(weap)) {
+				// For bows, the main hand holds the arrow, offhand holds the bow
+				// vfunc 0x9F is GetCurrentAmmo
+				UInt64 *vtbl = *((UInt64 **)player);
+				TESAmmo *currentAmmo = ((Actor_GetCurrentAmmo)(vtbl[0x9F]))(player);
+				return isMainHand ? currentAmmo == nullptr : false; // Let the main hand grab stuff if no arrows are equipped
+			}
+		}
+	}
+	else {
+		isMainValid = true; // fist
+	}
+
+	if (offhandItem) {
+		TESObjectWEAP *weap = DYNAMIC_CAST(offhandItem, TESForm, TESObjectWEAP);
+		if (weap && weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) {
+			isOffhandValid = true; // fist
+		}
+	}
+	else {
+		isOffhandValid = true; // fist
+	}
+	return isMainHand ? isMainValid : isOffhandValid;
+}
+
 
 void Hand::RestoreHandTransform()
 {
@@ -3402,9 +3454,19 @@ bool Hand::HasExclusiveObject() const
 	return state == State::Pulled || state == State::SelectionLocked || state == State::Held || state == State::HeldInit || state == State::HeldBody;
 }
 
-bool Hand::CanGrabObject() const
+bool Hand::IsInGrabbableState() const
 {
 	return state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectionLocked;
+}
+
+bool Hand::CanHoldObject() const
+{
+	return CanHoldBasedOnWeapon() && !g_interface001.IsDisabled(isLeft);
+}
+
+bool Hand::CanGrabObject() const
+{
+	return IsInGrabbableState() && CanHoldObject();
 }
 
 bool Hand::HasHeldObject() const

@@ -48,7 +48,6 @@ bool IsTwoHandable(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
 TESObjectWEAP * GetEquippedWeapon(Actor *actor, bool isOffhand);
 bool IsUnarmed(TESForm *equippedObject);
-std::pair<bool, bool> AreEquippedItemsValid(Actor *actor);
 
 bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
 

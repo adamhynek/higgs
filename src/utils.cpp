@@ -364,51 +364,6 @@ bool IsUnarmed(TESForm *equippedObject)
 	return false;
 }
 
-std::pair<bool, bool> AreEquippedItemsValid(Actor *actor)
-{
-	if (!actor->actorState.IsWeaponDrawn()) {
-		return { true, true };
-	}
-
-	TESForm *mainhandItem = actor->GetEquippedObject(false);
-	TESForm *offhandItem = actor->GetEquippedObject(true);
-
-	bool isMainValid = false, isOffhandValid = false;
-
-	if (mainhandItem) {
-		TESObjectWEAP *weap = DYNAMIC_CAST(mainhandItem, TESForm, TESObjectWEAP);
-		if (weap) {
-			if (weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) {
-				isMainValid = true; // fist
-			}
-			else if (Config::options.allowGrabWithTwoHandedOffhand && IsTwoHanded(weap)) {
-				return std::make_pair(false, true); // Main hand holds the weapon, offhand is 'free' in VR
-			}
-			else if (Config::options.allowGrabWithEmptyArrowHand && IsBow(weap)) {
-				// For bows, the main hand holds the arrow, offhand holds the bow
-				// vfunc 0x9F is GetCurrentAmmo
-				UInt64 *vtbl = *((UInt64 **)actor);
-				TESAmmo *currentAmmo = ((Actor_GetCurrentAmmo)(vtbl[0x9F]))(actor);
-				return std::make_pair(currentAmmo == nullptr, false); // Let the main hand grab stuff if no arrows are equipped
-			}
-		}
-	}
-	else {
-		isMainValid = true; // fist
-	}
-
-	if (offhandItem) {
-		TESObjectWEAP *weap = DYNAMIC_CAST(offhandItem, TESForm, TESObjectWEAP);
-		if (weap && weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) {
-			isOffhandValid = true; // fist
-		}
-	}
-	else {
-		isOffhandValid = true; // fist
-	}
-	return std::make_pair(isMainValid, isOffhandValid);
-}
-
 void PrintVector(const NiPoint3 &p)
 {
 	_MESSAGE("%.2f, %.2f, %.2f", p.x, p.y, p.z);

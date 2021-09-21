@@ -297,22 +297,11 @@ void Update()
 		contactListener->world = world;
 	}
 
-	bool isLeftHanded = *g_leftHandedMode;
-
-	std::pair<bool, bool> validItems = AreEquippedItemsValid(player);
-	bool isRightValid = isLeftHanded ? validItems.second : validItems.first;
-	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
-
-	isRightValid &= !g_interface001.IsDisabled(false);
-	isLeftValid &= !g_interface001.IsDisabled(true);
-
 	bool isRightHeld = g_rightHand->HasHeldKeyframed();
 	bool isLeftHeld = g_leftHand->HasHeldKeyframed();
 
 	Hand *firstHandToUpdate = g_rightHand;
 	Hand *lastHandToUpdate = g_leftHand;
-	bool isFirstValid = isRightValid;
-	bool isLastValid = isLeftValid;
 	if (isRightHeld && isLeftHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
 		// Both hands are holding something using the transform method, and they belong to the same object reference.
 		// We need to see if one of the held nodes is a child of the other, and make sure to do the update for the child node last.
@@ -325,23 +314,19 @@ void Update()
 				if (DoesNodeHaveNode(leftNode, rightNode)) {
 					// Right is the child
 					firstHandToUpdate = g_leftHand;
-					isFirstValid = isLeftValid;
 					lastHandToUpdate = g_rightHand;
-					isLastValid = isRightValid;
 				}
 				else if (DoesNodeHaveNode(rightNode, leftNode)) {
 					// Left is the child
 					firstHandToUpdate = g_rightHand;
-					isFirstValid = isRightValid;
 					lastHandToUpdate = g_leftHand;
-					isLastValid = isLeftValid;
 				}
 			}
 		}
 	}
 
-	firstHandToUpdate->Update(*lastHandToUpdate, isFirstValid, playerWorldNode, world);
-	lastHandToUpdate->Update(*firstHandToUpdate, isLastValid, playerWorldNode, world);
+	firstHandToUpdate->Update(*lastHandToUpdate, playerWorldNode, world);
+	lastHandToUpdate->Update(*firstHandToUpdate, playerWorldNode, world);
 
 	if (g_rightHand->IsSafeToClearSavedCollision() && g_leftHand->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
@@ -359,8 +344,6 @@ bool WaitPosesCB(vr_src::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRende
 	if (!hmdNode) return true;
 
 	FillControllerVelocities(hmdNode, pGamePoseArray, unGamePoseArrayCount);
-
-	//Update();
 
 	return true;
 }
@@ -380,17 +363,11 @@ void ControllerStateCB(uint32_t unControllerDeviceIndex, vr_src::VRControllerSta
 	vr_src::ETrackedControllerRole leftControllerRole = vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand;
 	vr_src::TrackedDeviceIndex_t leftController = (*g_openVR)->vrSystem->GetTrackedDeviceIndexForControllerRole(leftControllerRole);
 
-	bool isLeftHanded = *g_leftHandedMode;
-
-	std::pair<bool, bool> validItems = AreEquippedItemsValid(player);
-	bool isRightValid = isLeftHanded ? validItems.second : validItems.first;
-	bool isLeftValid = isLeftHanded ? validItems.first : validItems.second;
-
 	if (unControllerDeviceIndex == rightController) {
-		g_rightHand->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isRightValid);
+		g_rightHand->ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
 	}
 	else if (unControllerDeviceIndex == leftController) {
-		g_leftHand->ControllerStateUpdate(unControllerDeviceIndex, pControllerState, isLeftValid);
+		g_leftHand->ControllerStateUpdate(unControllerDeviceIndex, pControllerState);
 	}
 }
 
