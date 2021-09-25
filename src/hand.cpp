@@ -40,6 +40,7 @@ std::unordered_set<UInt32> softSoundIds { 0x5a284, 0x624ab, 0x3f355 };
 
 // Gets callbacks from havok linear cast
 CdPointCollector cdPointCollector;
+SpecificPointCollector specificPointCollector;
 hkpLinearCastInput linearCastInput;
 RayHitCollector rayHitCollector;
 AllRayHitCollector allRayHitCollector;
@@ -299,7 +300,51 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 }
 
 
-bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
+bool Hand::FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &startPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, hkVector4 &hitPoint)
+{
+	NiPointer<bhkRigidBody> otherWeaponBody = other.weaponBody;
+	if (!otherWeaponBody) return false;
+
+	hkpCollidable *otherWeaponCollidable = &otherWeaponBody->hkBody->m_collidable;
+	if (otherWeaponCollidable->m_broadPhaseHandle.m_collisionFilterInfo & (1 << 14)) {
+		return false; // Collision is disabled, i.e. weapon is not out
+	}
+
+	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+	// Save sphere properties so we can change them and restore them later
+	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
+	float radiusBefore = sphereShape->getRadius();
+	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
+
+	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
+	sphereShape->m_radius = Config::options.nearCastRadius;
+	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(startPos);
+
+	NiPoint3 targetPos = startPos + castDirection * Config::options.nearCastDistance;
+	linearCastInput.m_to = NiPointToHkVector(targetPos);
+	specificPointCollector.reset();
+	specificPointCollector.m_target = otherWeaponCollidable;
+
+	world->worldLock.LockForRead();
+	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &specificPointCollector, nullptr);
+
+	bool found = false;
+	if (specificPointCollector.m_foundTarget) {
+		hitPoint = specificPointCollector.m_contactPoint.getPosition();
+		found = true;
+	}
+
+	world->worldLock.UnlockRead();
+
+	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = filterInfoBefore;
+	sphereShape->m_radius = radiusBefore;
+	sphere->phantom->m_motionState.m_transform.m_translation = translationBefore;
+
+	return found;
+}
+
+
+bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &startPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
@@ -310,9 +355,9 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &h
 
 	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
 	sphereShape->m_radius = Config::options.nearCastRadius;
-	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(hkPalmPos);
+	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(startPos);
 
-	NiPoint3 targetPos = hkPalmPos + castDirection * Config::options.nearCastDistance;
+	NiPoint3 targetPos = startPos + castDirection * Config::options.nearCastDistance;
 	linearCastInput.m_to = NiPointToHkVector(targetPos);
 	cdPointCollector.reset();
 
@@ -346,8 +391,8 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &h
 				}
 				// Get distance from the hit on the collidable to the ray
 				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
-				NiPoint3 handToHit = hit - hkPalmPos;
-				float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection)); // distance from hit location to closest point on the ray
+				NiPoint3 startToHit = hit - startPos;
+				float dist = VectorLength(ProjectVectorOntoPlane(startToHit, castDirection)); // distance from hit location to closest point on the ray
 				if (dist < closestDistance) {
 					closestObj = ref;
 					closestRigidBody = rigidBodyWrapper;
@@ -361,8 +406,8 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &h
 				continue; // Collision is disabled, i.e. weapon is not out
 			}
 			NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
-			NiPoint3 handToHit = hit - hkPalmPos;
-			float dist = VectorLength(ProjectVectorOntoPlane(handToHit, castDirection));
+			NiPoint3 startToHit = hit - startPos;
+			float dist = VectorLength(ProjectVectorOntoPlane(startToHit, castDirection));
 			if (dist < closestDistance) {
 				closestObj = nullptr;
 				closestRigidBody = rigidBodyWrapper;
@@ -1789,6 +1834,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 	if (!sphere) return;
 
 	bool isAllowedToHold = CanHoldObject();
+	bool canTwoHand = CanTwoHand();
 
 	NiPoint3 palmPos = GetPalmPositionWS(handNode->m_worldTransform);
 	NiPoint3 hkPalmPos = palmPos * havokWorldScale;
@@ -1846,8 +1892,8 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectedTwoHand) {
 
 		// See if there's something near the hand to pick up
-		NiPointer<TESObjectREFR> closestObj;
-		NiPointer<bhkRigidBody> closestRigidBody;
+		NiPointer<TESObjectREFR> closestObj = nullptr;
+		NiPointer<bhkRigidBody> closestRigidBody = nullptr;
 		hkVector4 closestPoint;
 
 		bool isSelectedNear = false;
@@ -1859,6 +1905,12 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 				// Nothing close by the hand. Check for stuff farther away
 				FindFarObject(world, other, hkPalmPos, pointingVector, hmdPos * havokWorldScale, hmdForward, sphere,
 					closestObj, closestRigidBody, closestPoint);
+			}
+		}
+		else if (canTwoHand) {
+			if (FindOtherWeapon(world, other, hkPalmPos, palmVector, sphere, closestPoint)) {
+				closestRigidBody = other.weaponBody;
+				closestObj = nullptr;
 			}
 		}
 
@@ -2274,7 +2326,9 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 			idleDesired = true;
 		}
 
-		if (!isAllowedToHold) {
+		bool shouldStopTwoHanding = IsTwoHanding() && !canTwoHand;
+		bool shouldStopHolding = !IsTwoHanding() && !isAllowedToHold;
+		if (shouldStopTwoHanding || shouldStopHolding) {
 			idleDesired = true;
 		}
 
@@ -2950,6 +3004,29 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 				}
 			}
 
+			// Since you can grab a one-handed weapon with two hands if the offhand has a spell, we want to hide the in-hand spell fx while holding it.
+			// The game will set the position on its own, so we're cool to override it here and it will be back to normal once we stop.
+			if (GetEquippedSpell(player, *g_leftHandedMode != isLeft)) {
+				// Move the magic nodes way below us to hide them
+				NiPointer<NiAVObject> magicOffsetNode = GetMagicOffsetNode();
+				if (magicOffsetNode) {
+					NiTransform transform = magicOffsetNode->m_worldTransform;
+					transform.pos += NiPoint3(0, 0, -10000);
+					UpdateNodeTransformLocal(magicOffsetNode, transform);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					CALL_MEMBER_FN(magicOffsetNode, UpdateNode)(&ctx);
+				}
+
+				NiPointer<NiAVObject> magicAimNode = GetMagicAimNode();
+				if (magicAimNode) {
+					NiTransform transform = magicAimNode->m_worldTransform;
+					transform.pos += NiPoint3(0, 0, -10000);
+					UpdateNodeTransformLocal(magicAimNode, transform);
+					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+					CALL_MEMBER_FN(magicAimNode, UpdateNode)(&ctx);
+				}
+			}
+
 			// To affect the velocity thresholds, we could:
 			// - Subtract 1 from the vrMeleeData.currentArrayOffset
 			// - Call VRMeleeData_UpdateArrays with whatever position we want to overwrite with
@@ -3209,7 +3286,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
 	if (MenuChecker::isGameStopped()) return;
 
-	PlayerCharacter *pc = *g_thePlayer;
+	PlayerCharacter *player = *g_thePlayer;
 
 	bool isFallingEdge = (triggerFallingEdge || gripFallingEdge) && !triggerDown && !gripDown;
 
@@ -3218,11 +3295,11 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 		releaseRequested = true;
 	}
 
-	bool isAllowedToHold = CanHoldObject();
+	bool canGrab = CanHoldObject() || CanTwoHand();
 
 	// Only advance states if no menus are open
 	if (inputState == InputState::Idle) {
-		if ((triggerRisingEdge || gripRisingEdge) && isAllowedToHold) {
+		if ((triggerRisingEdge || gripRisingEdge) && canGrab) {
 			grabRequestedTime = g_currentFrameTime;
 			grabRequested = true;
 
@@ -3230,7 +3307,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 			inputGrip = false;
 
 			if (triggerRisingEdge) {
-				if (pc && !pc->actorState.IsWeaponDrawn()) {
+				if (!player->actorState.IsWeaponDrawn()) {
 					inputTrigger = true;
 				}
 			}
@@ -3261,7 +3338,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 				double currentTime = g_currentFrameTime;
 				if (currentTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
 					if (triggerRisingEdge) {
-						if (pc && !pc->actorState.IsWeaponDrawn()) {
+						if (!player->actorState.IsWeaponDrawn()) {
 							inputTrigger = true;
 						}
 					}
@@ -3322,7 +3399,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 		}
 	}
 
-	if (Config::options.disableTriggerWhenWeaponsSheathed && pc && !pc->actorState.IsWeaponDrawn() && (wasTriggerDisabledLastFrame || triggerRisingEdge)) {
+	if (Config::options.disableTriggerWhenWeaponsSheathed && !player->actorState.IsWeaponDrawn() && (wasTriggerDisabledLastFrame || triggerRisingEdge)) {
 		pControllerState->ulButtonPressed &= ~triggerMask;
 		isTriggerDisabled = true;
 	}
@@ -3376,6 +3453,58 @@ bool Hand::CanHoldBasedOnWeapon() const
 		isOffhandValid = true; // fist
 	}
 	return isMainHand ? isMainValid : isOffhandValid;
+}
+
+bool Hand::CanTwoHand() const
+{
+	PlayerCharacter *player = *g_thePlayer;
+
+	if (!player->actorState.IsWeaponDrawn()) return false; // Can't two-hand a weapon if the weapon isn't drawn
+
+	bool isLeftHanded = *g_leftHandedMode;
+	bool isMainHand = isLeft == isLeftHanded;
+
+	TESForm *mainhandItem = player->GetEquippedObject(false);
+	TESForm *offhandItem = player->GetEquippedObject(true);
+
+	if (isMainHand) {
+		if (!offhandItem) return false;
+
+		TESObjectWEAP *weap = DYNAMIC_CAST(offhandItem, TESForm, TESObjectWEAP);
+		if (!weap) return false;
+
+		if (IsTwoHanded(weap)) return false; // Just in case the offhand weapon points to the main hand weapon while holding a two-hander
+
+		if (IsTwoHandable(weap)) {
+			if (!mainhandItem) return true; // fist
+
+			TESObjectWEAP *weap = DYNAMIC_CAST(mainhandItem, TESForm, TESObjectWEAP);
+			if ((weap && weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) ||
+				(Config::options.allowTwoHandingWithSpellInOffhand && DYNAMIC_CAST(mainhandItem, TESForm, SpellItem))) {
+				return true;
+			}
+		}
+	}
+	else { // Offhand
+		if (!mainhandItem) return false; // Can't two-hand a main hand weapon if none exists
+
+		TESObjectWEAP *weap = DYNAMIC_CAST(mainhandItem, TESForm, TESObjectWEAP);
+		if (!weap) return false; // No weapon in the main hand, so nothing to two-hand
+
+		if (IsTwoHanded(weap)) return true; // Two-handed weapon in the main hand -> we can two-hand it no matter what
+
+		if (IsTwoHandable(weap)) {
+			if (!offhandItem) return true; // fist
+
+			TESObjectWEAP *weap = DYNAMIC_CAST(offhandItem, TESForm, TESObjectWEAP);
+			if ((weap && weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) ||
+				(Config::options.allowTwoHandingWithSpellInOffhand && DYNAMIC_CAST(offhandItem, TESForm, SpellItem))) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 

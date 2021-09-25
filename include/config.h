@@ -139,6 +139,7 @@ namespace Config {
 
 		bool allowGrabWithEmptyArrowHand = false;
 		bool allowGrabWithTwoHandedOffhand = false;
+		bool allowTwoHandingWithSpellInOffhand = true;
 
 		bool useLoudSoundGrab = false;
 		bool useLoudSoundDrop = false;

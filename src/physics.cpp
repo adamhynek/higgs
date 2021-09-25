@@ -42,6 +42,32 @@ void CdPointCollector::addCdPoint(const hkpCdPoint& point)
 	//m_earlyOutDistance = point.m_contact.getDistance(); // Only accept closer hits after this
 }
 
+SpecificPointCollector::SpecificPointCollector()
+{
+	reset();
+}
+
+void SpecificPointCollector::reset()
+{
+	m_earlyOutDistance = 1.0f;
+	m_foundTarget = false;
+	m_target = nullptr;
+}
+
+void SpecificPointCollector::addCdPoint(const hkpCdPoint& point)
+{
+	hkpCdBody *cdBody = const_cast<hkpCdBody *>(&point.m_cdBodyB);
+	while (cdBody->m_parent) {
+		cdBody = const_cast<hkpCdBody *>(cdBody->m_parent);
+	}
+
+	if (cdBody == m_target) {
+		m_foundTarget = true;
+		m_contactPoint = point.getContact();
+		m_earlyOutDistance = 0.f;
+	}
+}
+
 CdBodyPairCollector::CdBodyPairCollector()
 {
 	reset();

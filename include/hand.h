@@ -132,6 +132,7 @@ struct Hand
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
 	bool FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
 		NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
+	bool FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &startPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, hkVector4 &hitPoint);
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
 	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);
@@ -153,10 +154,12 @@ struct Hand
 	void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
 	NiPointer<NiAVObject> GetFirstPersonHandNode();
 	NiPointer<NiAVObject> GetThirdPersonHandNode();
-	NiPointer<NiAVObject> GetWandNode() { return isLeft ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_RightWandNode]; }
 	NiPointer<NiAVObject> GetWeaponOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponCollisionOffsetNode(TESObjectWEAP *weapon);
 	NiPointer<NiAVObject> GetWeaponNode(bool thirdPerson);
+	inline NiPointer<NiAVObject> GetWandNode() { return isLeft ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_RightWandNode]; }
+	inline NiPointer<NiAVObject> GetMagicOffsetNode() { return (*g_leftHandedMode != isLeft) ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_SecondaryMagicOffsetNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_PrimaryMagicOffsetNode]; }
+	inline NiPointer<NiAVObject> GetMagicAimNode() { return (*g_leftHandedMode != isLeft) ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_SecondaryMagicAimNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_PrimaryMagicAimNode]; }
 	NiPointer<NiAVObject> GetMagicNode(bool thirdPerson);
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
@@ -174,6 +177,7 @@ struct Hand
 	bool HasExclusiveObject() const;
 	bool IsInGrabbableState() const;
 	bool CanHoldObject() const;
+	bool CanTwoHand() const;
 	bool CanGrabObject() const;
 	bool HasHeldObject() const;
 	bool CanOtherGrab() const;

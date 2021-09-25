@@ -45,7 +45,7 @@ namespace HiggsPluginAPI {
 
 		// Returns whether the given hand is in a state that can grab an object
 		// (no currently held object, not pulling anything or have an object locked in for pulling (i.e. trigger/grip held on a selected object)
-		virtual bool CanGrabObject(bool isLeft) = 0;
+		virtual bool IsHandInGrabbableState(bool isLeft) = 0;
 
 		// Disable and enable grabbing, selecting, pulling, etc. for each hand. Every disable should be accompanied by a later enable.
 		// Multiple mods can disable at once, and the hand is only re-enabled once all mods have have called enable.
@@ -61,6 +61,10 @@ namespace HiggsPluginAPI {
 
 		// Whether both hands are holding a weapon
 		virtual bool IsTwoHanding() = 0;
+
+		// Returns whether the given hand can actually grab an object right now.
+		// This includes whether it is in a grabbable state, but also whether it is holding a blocking weapon or disabled through the api.
+		virtual bool CanGrabObject(bool isLeft) = 0;
 	};
 }
 

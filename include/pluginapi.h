@@ -28,7 +28,7 @@ namespace HiggsPluginAPI {
 
 		virtual void GrabObject(TESObjectREFR *object, bool isLeft);
 		virtual TESObjectREFR * GetGrabbedObject(bool isLeft);
-		virtual bool CanGrabObject(bool isLeft);
+		virtual bool IsHandInGrabbableState(bool isLeft);
 
 		virtual void DisableHand(bool isLeft);
 		virtual void EnableHand(bool isLeft);
@@ -39,6 +39,8 @@ namespace HiggsPluginAPI {
 		virtual bool IsWeaponCollisionDisabled(bool isLeft);
 
 		virtual bool IsTwoHanding();
+
+		virtual bool CanGrabObject(bool isLeft);
 
 
 		std::mutex addCallbackLock;

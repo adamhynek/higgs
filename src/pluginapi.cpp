@@ -150,10 +150,10 @@ TESObjectREFR * HiggsInterface001::GetGrabbedObject(bool isLeft)
 	return nullptr;
 }
 
-bool HiggsInterface001::CanGrabObject(bool isLeft)
+bool HiggsInterface001::IsHandInGrabbableState(bool isLeft)
 {
 	Hand *hand = isLeft ? g_leftHand : g_rightHand;
-	return hand->CanGrabObject();
+	return hand->IsInGrabbableState();
 }
 
 void HiggsInterface001::DisableHand(bool isLeft)
@@ -219,4 +219,10 @@ bool HiggsInterface001::IsWeaponCollisionDisabled(bool isLeft)
 bool HiggsInterface001::IsTwoHanding()
 {
 	return g_rightHand->IsTwoHanding() || g_leftHand->IsTwoHanding();
+}
+
+bool HiggsInterface001::CanGrabObject(bool isLeft)
+{
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	return hand->CanGrabObject();
 }

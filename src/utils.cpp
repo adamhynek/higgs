@@ -319,9 +319,10 @@ bool IsTwoHanded(const TESObjectWEAP *weap)
 
 bool IsTwoHandable(const TESObjectWEAP *weap)
 {
-	// Basically, not unarmed, dagger, or bow
+	// Basically, not unarmed or bow
 	switch (weap->gameData.type) {
 	case TESObjectWEAP::GameData::kType_OneHandSword:
+	case TESObjectWEAP::GameData::kType_OneHandDagger:
 	case TESObjectWEAP::GameData::kType_OneHandAxe:
 	case TESObjectWEAP::GameData::kType_OneHandMace:
 	case TESObjectWEAP::GameData::kType_CrossBow:
@@ -344,10 +345,16 @@ TESObjectWEAP * GetEquippedWeapon(Actor *actor, bool isOffhand)
 {
 	TESForm *equippedObject = actor->GetEquippedObject(isOffhand);
 	if (equippedObject) {
-		TESObjectWEAP *equippedWeapon = DYNAMIC_CAST(equippedObject, TESForm, TESObjectWEAP);
-		if (equippedWeapon) {
-			return equippedWeapon;
-		}
+		return DYNAMIC_CAST(equippedObject, TESForm, TESObjectWEAP);
+	}
+	return nullptr;
+}
+
+SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand)
+{
+	TESForm *form = actor->GetEquippedObject(isOffhand);
+	if (form) {
+		return DYNAMIC_CAST(form, TESForm, SpellItem);
 	}
 	return nullptr;
 }

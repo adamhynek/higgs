@@ -45,6 +45,17 @@ struct CdPointCollector : public hkpCdPointCollector
 	std::vector<std::pair<hkpCdBody *, hkContactPoint>> m_hits;
 };
 
+struct SpecificPointCollector : public hkpCdPointCollector
+{
+	SpecificPointCollector();
+	void addCdPoint(const hkpCdPoint& point) override;
+	void reset() override;
+
+	hkpCdBody *m_target = nullptr;
+	hkContactPoint m_contactPoint;
+	bool m_foundTarget = false;
+};
+
 struct CdBodyPairCollector : public hkpCdBodyPairCollector
 {
 	CdBodyPairCollector();

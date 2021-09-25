@@ -47,6 +47,7 @@ bool IsTwoHanded(const TESObjectWEAP *weap);
 bool IsTwoHandable(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
 TESObjectWEAP * GetEquippedWeapon(Actor *actor, bool isOffhand);
+SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand);
 bool IsUnarmed(TESForm *equippedObject);
 
 bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
