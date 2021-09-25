@@ -264,7 +264,6 @@ namespace Config {
 		if (!ReadBool("EnableTrigger", options.enableTrigger)) return false;
 		if (!ReadBool("EnableGrip", options.enableGrip)) return false;
 
-		if (!ReadBool("DisableTriggerWhenWeaponsSheathed", options.disableTriggerWhenWeaponsSheathed)) return false;
 		if (!ReadBool("EnableDrinkPoison", options.enableDrinkPoison)) return false;
 		if (!ReadBool("OverrideActivateText", options.overrideActivateText)) return false;
 		if (!ReadBool("OverrideBodyCollision", options.overrideBodyCollision)) return false;

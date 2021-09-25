@@ -289,7 +289,6 @@ struct Hand
 	bool inputGrip = false;
 
 	bool triggerDown = false; // Whether the trigger was down last frame
-	bool isTriggerDisabled = false;
 	bool gripDown = false;
 	bool grabRequested = false; // True on rising edge of trigger press
 	bool releaseRequested = false; // True on falling edge of trigger press

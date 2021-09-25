@@ -150,7 +150,6 @@ namespace Config {
 		bool delayRightGripInput = true;
 		bool delayLeftGripInput = false;
 
-		bool disableTriggerWhenWeaponsSheathed = false;
 		bool enableDrinkPoison = false;
 		bool overrideActivateText = true;
 		bool overrideBodyCollision = false;
