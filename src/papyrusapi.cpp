@@ -154,12 +154,56 @@ namespace PapyrusAPI
 			_MESSAGE("%d unregistered for consume event", object->formID);
 	}
 
+	RegistrationSetHolder<TESForm*> g_startTwoHandingEventRegs;
+	void RegisterForStartTwoHandingEvent(StaticFunctionTag *base, TESForm* object) {
+		if (!object) {
+			_WARNING("[WARNING] Attempt to register for start two handing event with null parameter");
+			return;
+		}
+		g_startTwoHandingEventRegs.Register(object->GetFormType(), object);
+
+		if (object && object->formID)
+			_MESSAGE("%d registered for start two handing event", object->formID);
+	}
+	void UnregisterForStartTwoHandingEvent(StaticFunctionTag *base, TESForm* object) {
+		if (!object) {
+			_WARNING("[WARNING] Attempt to unregister for start two handing event with null parameter");
+			return;
+		}
+		g_startTwoHandingEventRegs.Unregister(object->GetFormType(), object);
+
+		if (object && object->formID)
+			_MESSAGE("%d unregistered for start two handing event", object->formID);
+	}
+
+	RegistrationSetHolder<TESForm*> g_stopTwoHandingEventRegs;
+	void RegisterForStopTwoHandingEvent(StaticFunctionTag *base, TESForm* object) {
+		if (!object) {
+			_WARNING("[WARNING] Attempt to register for stop two handing event with null parameter");
+			return;
+		}
+		g_stopTwoHandingEventRegs.Register(object->GetFormType(), object);
+
+		if (object && object->formID)
+			_MESSAGE("%d registered for stop two handing event", object->formID);
+	}
+	void UnregisterForStopTwoHandingEvent(StaticFunctionTag *base, TESForm* object) {
+		if (!object) {
+			_WARNING("[WARNING] Attempt to unregister for stop two handing event with null parameter");
+			return;
+		}
+		g_stopTwoHandingEventRegs.Unregister(object->GetFormType(), object);
+
+		if (object && object->formID)
+			_MESSAGE("%d unregistered for stop two handing event", object->formID);
+	}
+
 	void OnPullEvent(TESObjectREFR *refr, bool isLeft) {
 		if (g_pullEventRegs.m_data.size() > 0) {
 			_MESSAGE("Papyrus pull event");
-			static BSFixedString pullEventName("OnObjectPulled");
+			static BSFixedString eventName("OnObjectPulled");
 			g_pullEventRegs.ForEach(
-				EventFunctor2<TESObjectREFR *, bool>(pullEventName, refr, isLeft)
+				EventFunctor2<TESObjectREFR *, bool>(eventName, refr, isLeft)
 			);
 		}
 	}
@@ -167,9 +211,9 @@ namespace PapyrusAPI
 	void OnGrabEvent(TESObjectREFR *refr, bool isLeft) {
 		if (g_grabEventRegs.m_data.size() > 0) {
 			_MESSAGE("Papyrus grab event");
-			static BSFixedString grabEventName("OnObjectGrabbed");
+			static BSFixedString eventName("OnObjectGrabbed");
 			g_grabEventRegs.ForEach(
-				EventFunctor2<TESObjectREFR *, bool>(grabEventName, refr, isLeft)
+				EventFunctor2<TESObjectREFR *, bool>(eventName, refr, isLeft)
 			);
 		}
 	}
@@ -177,9 +221,9 @@ namespace PapyrusAPI
 	void OnDropEvent(TESObjectREFR *refr, bool isLeft) {
 		if (g_dropEventRegs.m_data.size() > 0) {
 			_MESSAGE("Papyrus drop event");
-			static BSFixedString dropEventName("OnObjectDropped");
+			static BSFixedString eventName("OnObjectDropped");
 			g_dropEventRegs.ForEach(
-				EventFunctor2<TESObjectREFR *, bool>(dropEventName, refr, isLeft)
+				EventFunctor2<TESObjectREFR *, bool>(eventName, refr, isLeft)
 			);
 		}
 	}
@@ -187,9 +231,9 @@ namespace PapyrusAPI
 	void OnStashEvent(TESForm *form, bool isLeft) {
 		if (g_stashEventRegs.m_data.size() > 0) {
 			_MESSAGE("Papyrus stash event");
-			static BSFixedString stashEventName("OnObjectStashed");
+			static BSFixedString eventName("OnObjectStashed");
 			g_stashEventRegs.ForEach(
-				EventFunctor2<TESForm *, bool>(stashEventName, form, isLeft)
+				EventFunctor2<TESForm *, bool>(eventName, form, isLeft)
 			);
 		}
 	}
@@ -197,9 +241,29 @@ namespace PapyrusAPI
 	void OnConsumeEvent(TESForm *form, bool isLeft) {
 		if (g_consumeEventRegs.m_data.size() > 0) {
 			_MESSAGE("Papyrus consume event");
-			static BSFixedString consumeEventName("OnObjectConsumed");
+			static BSFixedString eventName("OnObjectConsumed");
 			g_consumeEventRegs.ForEach(
-				EventFunctor2<TESForm *, bool>(consumeEventName, form, isLeft)
+				EventFunctor2<TESForm *, bool>(eventName, form, isLeft)
+			);
+		}
+	}
+
+	void OnStartTwoHandingEvent() {
+		if (g_startTwoHandingEventRegs.m_data.size() > 0) {
+			_MESSAGE("Papyrus start two handing event");
+			static BSFixedString eventName("OnStartTwoHanding");
+			g_startTwoHandingEventRegs.ForEach(
+				EventFunctor0(eventName)
+			);
+		}
+	}
+
+	void OnStopTwoHandingEvent() {
+		if (g_stopTwoHandingEventRegs.m_data.size() > 0) {
+			_MESSAGE("Papyrus stop two handing event");
+			static BSFixedString eventName("OnStopTwoHanding");
+			g_stopTwoHandingEventRegs.ForEach(
+				EventFunctor0(eventName)
 			);
 		}
 	}
@@ -233,6 +297,12 @@ namespace PapyrusAPI
 
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("RegisterForConsumeEvent", "HiggsVR", RegisterForConsumeEvent, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("UnregisterForConsumeEvent", "HiggsVR", UnregisterForConsumeEvent, registry));
+
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("RegisterForStartTwoHandingEvent", "HiggsVR", RegisterForStartTwoHandingEvent, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("UnregisterForStartTwoHandingEvent", "HiggsVR", UnregisterForStartTwoHandingEvent, registry));
+
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("RegisterForStopTwoHandingEvent", "HiggsVR", RegisterForStopTwoHandingEvent, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, TESForm*>("UnregisterForStopTwoHandingEvent", "HiggsVR", UnregisterForStopTwoHandingEvent, registry));
 
 		return true;
 	}

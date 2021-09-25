@@ -77,6 +77,18 @@ void HiggsInterface001::AddCollisionCallback(CollisionCallback callback) {
 	collisionCallbacks.push_back(callback);
 }
 
+void HiggsInterface001::AddStartTwoHandingCallback(StartTwoHandingCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	startTwoHandingCallbacks.push_back(callback);
+}
+
+void HiggsInterface001::AddStopTwoHandingCallback(StopTwoHandingCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	stopTwoHandingCallbacks.push_back(callback);
+}
+
 
 void HiggsPluginAPI::TriggerPulledCallbacks(bool isLeft, TESObjectREFR *pulledRefr) {
 	for (auto callback : g_interface001.pulledCallbacks) {
@@ -122,6 +134,22 @@ void HiggsPluginAPI::TriggerCollisionCallbacks(bool isLeft, float mass, float se
 	for (auto callback : g_interface001.collisionCallbacks) {
 		callback(isLeft, mass, separatingVelocity);
 	}
+}
+
+void HiggsPluginAPI::TriggerStartTwoHandingCallbacks() {
+	for (auto callback : g_interface001.startTwoHandingCallbacks) {
+		callback();
+	}
+
+	PapyrusAPI::OnStartTwoHandingEvent();
+}
+
+void HiggsPluginAPI::TriggerStopTwoHandingCallbacks() {
+	for (auto callback : g_interface001.stopTwoHandingCallbacks) {
+		callback();
+	}
+
+	PapyrusAPI::OnStopTwoHandingEvent();
 }
 
 void HiggsInterface001::GrabObject(TESObjectREFR *object, bool isLeft)

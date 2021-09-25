@@ -1402,8 +1402,6 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 		desiredNodeTransform.pos += palmPos - ptPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
-		//HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
-
 		twoHandedState.prevFrameTwistAngle360 = 0;
 		twoHandedState.angleState = TwoHandedState::AngleState::None;
 
@@ -1422,6 +1420,8 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 			twoHandedState.wandNodeLocalTransform = wandNode->m_localTransform;
 			twoHandedState.handToWand = inverseOtherHand * wandNode->m_worldTransform;
 		}
+
+		HiggsPluginAPI::TriggerStartTwoHandingCallbacks();
 
 		state = State::HeldTwoHanded;
 	}
@@ -2521,6 +2521,8 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 				if (wandNode) {
 					wandNode->m_localTransform = twoHandedState.wandNodeLocalTransform;
 				}
+
+				HiggsPluginAPI::TriggerStopTwoHandingCallbacks();
 			}
 
 			// Do all this stuff even if the refr has been deleted / 3d unloaded
@@ -3055,6 +3057,8 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 			if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
 				g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
 			}
+
+			HiggsPluginAPI::TriggerStopTwoHandingCallbacks();
 
 			Deselect();
 			state = State::Idle;

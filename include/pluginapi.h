@@ -25,6 +25,8 @@ namespace HiggsPluginAPI {
 		virtual void AddStashedCallback(StashedCallback callback);
 		virtual void AddConsumedCallback(ConsumedCallback callback);
 		virtual void AddCollisionCallback(CollisionCallback callback);
+		virtual void AddStartTwoHandingCallback(StartTwoHandingCallback callback);
+		virtual void AddStopTwoHandingCallback(StopTwoHandingCallback callback);
 
 		virtual void GrabObject(TESObjectREFR *object, bool isLeft);
 		virtual TESObjectREFR * GetGrabbedObject(bool isLeft);
@@ -50,6 +52,8 @@ namespace HiggsPluginAPI {
 		std::vector<StashedCallback> stashedCallbacks;
 		std::vector<ConsumedCallback> consumedCallbacks;
 		std::vector<CollisionCallback> collisionCallbacks;
+		std::vector<StartTwoHandingCallback> startTwoHandingCallbacks;
+		std::vector<StopTwoHandingCallback> stopTwoHandingCallbacks;
 
 		std::atomic<int> rightDisableCount = 0;
 		std::atomic<int> leftDisableCount = 0;
@@ -64,6 +68,8 @@ namespace HiggsPluginAPI {
 	void TriggerStashedCallbacks(bool isLeft, TESForm *stashedForm);
 	void TriggerConsumedCallbacks(bool isLeft, TESForm *consumedForm);
 	void TriggerCollisionCallbacks(bool isLeft, float mass, float separatingVelocity);
+	void TriggerStartTwoHandingCallbacks();
+	void TriggerStopTwoHandingCallbacks();
 }
 
 extern HiggsPluginAPI::HiggsInterface001 g_interface001;

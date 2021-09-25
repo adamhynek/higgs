@@ -62,6 +62,13 @@ namespace HiggsPluginAPI {
 		// Whether both hands are holding a weapon
 		virtual bool IsTwoHanding() = 0;
 
+		// Callbacks for starting / stopping two-handing
+		typedef void(*StartTwoHandingCallback)();
+		virtual void AddStartTwoHandingCallback(StartTwoHandingCallback callback) = 0;
+
+		typedef void(*StopTwoHandingCallback)();
+		virtual void AddStopTwoHandingCallback(StopTwoHandingCallback callback) = 0;
+
 		// Returns whether the given hand can actually grab an object right now.
 		// This includes whether it is in a grabbable state, but also whether it is holding a blocking weapon or disabled through the api.
 		virtual bool CanGrabObject(bool isLeft) = 0;

@@ -41,6 +41,27 @@ namespace PapyrusAPI
 		T2				arg2;
 	};
 
+	class EventFunctor0 : public IFunctionArguments
+	{
+	public:
+		EventFunctor0(BSFixedString & a_eventName)
+			: eventName(a_eventName.data) {}
+
+		virtual bool Copy(Output * dst)
+		{
+			return true;
+		}
+
+		void operator() (const EventRegistration<TESForm*> & reg)
+		{
+			VMClassRegistry * registry = (*g_skyrimVM)->GetClassRegistry();
+			registry->QueueEvent(reg.handle, &eventName, this);
+		}
+
+	private:
+		BSFixedString	eventName;
+	};
+
 	bool RegisterPapyrusFuncs(VMClassRegistry* registry);
 
 	void OnPullEvent(TESObjectREFR *refr, bool isLeft);
@@ -48,4 +69,6 @@ namespace PapyrusAPI
 	void OnDropEvent(TESObjectREFR *refr, bool isLeft);
 	void OnStashEvent(TESForm *form, bool isLeft);
 	void OnConsumeEvent(TESForm *form, bool isLeft);
+	void OnStartTwoHandingEvent();
+	void OnStopTwoHandingEvent();
 }
