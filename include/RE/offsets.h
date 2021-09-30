@@ -161,7 +161,7 @@ extern RelocAddr<_hkpMotion_approxTransformAt> hkpMotion_approxTransformAt;
 typedef bool(*_bhkCollisionFilter_CompareFilterInfos)(bhkCollisionFilter *filter, UInt32 filterInfoA, UInt32 filterInfoB);
 extern RelocAddr<_bhkCollisionFilter_CompareFilterInfos> bhkCollisionFilter_CompareFilterInfos;
 
-// MotionType HAS to be a UInt64, NOT a hkpMotion::MotionType, as hkpMotion::MotionType is a UInt8 but the actual function in the binary expects a UInt64. Fuck.
+// newState HAS to be a UInt64, NOT a hkpMotion::MotionType, as hkpMotion::MotionType is a UInt8 but the actual function in the binary expects a UInt64. Fuck.
 typedef void (*_hkpRigidBody_setMotionType)(hkpRigidBody *_this, UInt64 newState, hkpEntityActivation preferredActivationState, hkpUpdateCollisionFilterOnEntityMode collisionFilterUpdateMode);
 extern RelocAddr<_hkpRigidBody_setMotionType> hkpRigidBody_setMotionType;
 
@@ -174,7 +174,7 @@ extern RelocAddr<_bhkRigidBody_MoveToPositionAndRotation> bhkRigidBody_MoveToPos
 typedef void(*_bhkCollisionObject_SetNodeTransformsFromWorldTransform)(bhkCollisionObject *_this, NiTransform &worldTransform);
 extern RelocAddr<_bhkCollisionObject_SetNodeTransformsFromWorldTransform> bhkCollisionObject_SetNodeTransformsFromWorldTransform;
 
-typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkVector4& rotation); // rotation is hkQuaternion
+typedef void(*_bhkEntity_setPositionAndRotation)(bhkEntity *_this, const hkVector4& position, const hkQuaternion& rotation);
 extern RelocAddr<_bhkEntity_setPositionAndRotation> bhkEntity_setPositionAndRotation;
 
 typedef void(*_bhkWorldObject_UpdateCollisionFilter)(bhkWorldObject *_this);
