@@ -159,6 +159,9 @@ void PostWandUpdateHook()
 {
 	PlayerCharacter *player = *g_thePlayer;
 
+	g_rightHand->LateMainThreadUpdate();
+	g_leftHand->LateMainThreadUpdate();
+
 	static BSFixedString rolloverNodeStr("WSActivateRollover");
 	NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
 	NiPointer<NiAVObject> rolloverNode = roomNode ? roomNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;

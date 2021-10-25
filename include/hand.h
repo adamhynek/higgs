@@ -140,7 +140,7 @@ struct Hand
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
-	void UpdateWeaponCollision(NiPoint3 &playerVelocity);
+	void UpdateWeaponCollision();
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
@@ -190,6 +190,7 @@ struct Hand
 	void Deselect();
 	void RestoreHandTransform();
 	void ApplyPostVrikTransforms();
+	void LateMainThreadUpdate();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 	void TriggerCollisionHaptics(float mass, float separatingVelocity);
@@ -247,6 +248,7 @@ struct Hand
 
 	NiTransform handTransform;
 	NiTransform adjustedHandTransform;
+	NiTransform thirdPersonHandToWeaponTransform;
 
 	NiPoint3 prevPlayerPosWorldspace;
 

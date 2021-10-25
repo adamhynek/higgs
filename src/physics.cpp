@@ -728,9 +728,11 @@ void AddCustomCollisionLayer(bhkWorld *world)
 	UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
 
 	bitfield |= ((UInt64)1 << 56); // collide with ourselves
+	//bitfield |= ((UInt64)1 << 0x08); // add collision with l_biped (ragdoll of live characters)
+	//bitfield |= ((UInt64)1 << 0x21); // add collision with l_biped_no_cc (ragdoll of live characters)
 	bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
 	worldFilter->layerBitfields[56] = bitfield;
-	worldFilter->layerNames[56] = BSFixedString("L_HANDCOLLISION");
+	worldFilter->layerNames[56] = BSFixedString("L_HIGGSCOLLISION");
 	// Set whether other layers should collide with our new layer
 	for (int i = 0; i < 56; i++) {
 		if ((bitfield >> i) & 1) {

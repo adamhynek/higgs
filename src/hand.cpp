@@ -325,6 +325,7 @@ bool Hand::FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &s
 	specificPointCollector.reset();
 	specificPointCollector.m_target = otherWeaponCollidable;
 
+	// TODO: Would be better (faster) to cast against the weapon shape directly
 	world->worldLock.LockForRead();
 	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &specificPointCollector, nullptr);
 
@@ -505,6 +506,10 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 						continue;
 					}
 				}
+				else {
+					Actor *actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
+					if (actor && !Actor_IsInRagdollState(actor)) continue;
+				}
 				// Get distance from the hit on the collidable to the ray
 				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
 				NiPoint3 startToHit = hit - start;
@@ -592,7 +597,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
 	cInfo.hkCinfo.m_enableDeactivation = false;
 	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
-	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
+	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks with statics such as walls
 
 	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (handNode) {
@@ -709,7 +714,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_motionType = hkpMotion::MotionType::MOTION_KEYFRAMED;
 	cInfo.hkCinfo.m_enableDeactivation = false;
 	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
-	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks?
+	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks with statics such as walls
 
 	hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
 	cInfo.hkCinfo.m_position = transform.m_translation;
@@ -741,7 +746,7 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
 }
 
 
-void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
+void Hand::UpdateWeaponCollision()
 {
 	if (!Config::options.enableWeaponCollision) return;
 
@@ -760,7 +765,7 @@ void Hand::UpdateWeaponCollision(NiPoint3 &playerVelocity)
 	if (rigidBody != clonedFromBody) {
 		NiPointer<bhkWorld> world = meleeData->world;
 		if (world) {
-			BSWriteLocker(&world->worldLock);
+			BSWriteLocker lock(&world->worldLock);
 			RemoveWeaponCollision(world);
 			CreateWeaponCollision(world);
 		}
@@ -1822,7 +1827,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 	NiPoint3 avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
 
 	UpdateHandCollision(handNode, world);
-	UpdateWeaponCollision(avgPlayerVelocityWorldspace);
+	UpdateWeaponCollision();
 
 	if (g_currentFrameTime - pulledTime > pulledExpireTime) {
 		EndPull();
@@ -2193,24 +2198,19 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 					NiPointer<NiAVObject> tpHandNode = other.GetThirdPersonHandNode();
 					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true);
 
-					NiTransform vrikHandToWeapon = InverseTransform(tpHandNode->m_oldWorldTransform) * weaponNode->m_oldWorldTransform;
-
 					NiTransform thisFrameVrikHandTransform = fpHandNode->m_worldTransform;
 					thisFrameVrikHandTransform.scale = tpHandNode->m_worldTransform.scale;
 
-					NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * vrikHandToWeapon;
+					NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * other.thirdPersonHandToWeaponTransform;
 					NiTransform currentWeaponLocalTransform = weaponNode->m_localTransform;
 
 					UpdateNodeTransformLocal(weaponNode, thisFrameWeaponTransform);
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 					NiAVObject_UpdateNode(weaponNode, &ctx);
-					UpdateBoneMatrices(weaponNode);
 
 					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
-
 					weaponNode->m_localTransform = currentWeaponLocalTransform;
 					NiAVObject_UpdateNode(weaponNode, &ctx);
-					UpdateBoneMatrices(weaponNode);
 				}
 				else {
 					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
@@ -3543,6 +3543,16 @@ void Hand::ApplyPostVrikTransforms()
 		NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
 		UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
 		NiAVObject_UpdateNode(weaponNode, &ctx);
+	}
+}
+
+
+void Hand::LateMainThreadUpdate()
+{
+	NiPointer<NiAVObject> tpHandNode = GetThirdPersonHandNode();
+	NiPointer<NiAVObject> tpWeaponNode = GetWeaponNode(true);
+	if (tpHandNode && tpWeaponNode) {
+		thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
 	}
 }
 

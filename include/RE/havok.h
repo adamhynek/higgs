@@ -76,6 +76,7 @@ struct bhkWorld : bhkSerializable
 	ahkpWorld * world; // 10
 	UInt8 unk18[0xC598 - 0x18];
 	BSReadWriteLock worldLock; // C598
+	// C530 is tArray<GraphPhysicsStepListener>
 	// C570 is bhkConstraintProjector
 	// C5C0 is TESTrapListener
 	// C5C8 is BGSAcousticSpaceListener

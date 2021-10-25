@@ -147,6 +147,7 @@ RelocAddr<_NiObject_Clone> NiObject_Clone(0xC978E0);
 RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffsetNodeForWeaponIndex(0x6AF100);
 RelocAddr<_BSFixedString_Copy> BSFixedString_Copy(0xC6DD50);
 RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt(0x53EFE0);
+RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState(0x5EBA50);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);

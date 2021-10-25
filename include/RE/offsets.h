@@ -335,3 +335,6 @@ extern RelocAddr<_BSFixedString_Copy> BSFixedString_Copy;
 
 typedef void(*_RefreshActivateButtonArt)(void *wsActivateRollover);
 extern RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt;
+
+typedef bool(*_Actor_IsInRagdollState)(Actor *_this);
+extern RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState;
