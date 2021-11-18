@@ -68,6 +68,8 @@ auto pickRayCastHookLoc = RelocAddr<uintptr_t>(0x3BA787);
 
 auto worldUpdateHookLoc = RelocAddr<uintptr_t>(0x271EF9);
 
+auto physicsUpdateHookLoc = RelocAddr<uintptr_t>(0xDFB554);
+
 auto shaderSetEffectDataHookLoc = RelocAddr<uintptr_t>(0x2292AE);
 auto shaderSetEffectDataHookedFunc = RelocAddr<uintptr_t>(0x22A280); // BSLightingShaderProperty::SetEffectShaderData
 
@@ -369,25 +371,25 @@ void PerformHooks(void)
 				push(r9);
 				push(r10);
 				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
+				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
+				movsd(ptr[rsp + 0x30], xmm1);
+				movsd(ptr[rsp + 0x40], xmm2);
+				movsd(ptr[rsp + 0x50], xmm3);
+				movsd(ptr[rsp + 0x60], xmm4);
+				movsd(ptr[rsp + 0x70], xmm5);
 
 				// Call our hook
 				mov(rax, (uintptr_t)HookedShaderReferenceEffectCtor);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
+				movsd(xmm0, ptr[rsp + 0x20]);
+				movsd(xmm1, ptr[rsp + 0x30]);
+				movsd(xmm2, ptr[rsp + 0x40]);
+				movsd(xmm3, ptr[rsp + 0x50]);
+				movsd(xmm4, ptr[rsp + 0x60]);
+				movsd(xmm5, ptr[rsp + 0x70]);
+				add(rsp, 0x88);
 				pop(r11);
 				pop(r10);
 				pop(r9);
@@ -423,45 +425,13 @@ void PerformHooks(void)
 			{
 				Xbyak::Label jumpBack;
 
-				push(rax);
-				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
-
 				// Save r14, as it has a value that determines if we should read the selected handles or not
-				push(rax);
 				mov(rax, (uintptr_t)&g_pickValue);
 				mov(ptr[rax], r14);
-				pop(rax);
 
 				// Call our hook
 				mov(rax, (uintptr_t)PickLinearCastHook);
 				call(rax);
-
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
-				pop(rcx);
-				pop(rax);
 
 				// Jump back to whence we came (+ the size of the initial branch instruction)
 				jmp(ptr[rip + jumpBack]);
@@ -589,50 +559,24 @@ void PerformHooks(void)
 				// Original code
 				call(ptr[rax + 0x260]);
 
-				push(rax);
-				push(rbx);
-				mov(rbx, rbp);
-				sub(rbx, 0x28);
-				mov(rax, (uintptr_t)&g_activateText);
-				mov(ptr[rax], rbx);
-				pop(rbx);
-				pop(rax);
+				mov(rdx, rbp);
+				sub(rdx, 0x28);
+				mov(rcx, (uintptr_t)&g_activateText);
+				mov(ptr[rcx], rdx);
 
 				push(rax);
-				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
+				sub(rsp, 0x38); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
 
 				// Call our hook
 				mov(rax, (uintptr_t)GetActivateTextHook);
 				call(rax);
 
-				// TODO: GetActivateText returns a bool, if that bool is false the rollover menu is not set
-
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
-				pop(rcx);
+				movsd(xmm0, ptr[rsp + 0x20]);
+				add(rsp, 0x38);
 				pop(rax);
+
+				// TODO: GetActivateText returns a bool, if that bool is false the rollover menu is not set
 
 				// Jump back to whence we came (+ the size of the initial branch instruction)
 				jmp(ptr[rip + jumpBack]);
@@ -682,25 +626,25 @@ void PerformHooks(void)
 				push(r9);
 				push(r10);
 				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
+				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
+				movsd(ptr[rsp + 0x30], xmm1);
+				movsd(ptr[rsp + 0x40], xmm2);
+				movsd(ptr[rsp + 0x50], xmm3);
+				movsd(ptr[rsp + 0x60], xmm4);
+				movsd(ptr[rsp + 0x70], xmm5);
 
 				// Call our hook
 				mov(rax, (uintptr_t)RefreshActivateButtonArtHook);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
+				movsd(xmm0, ptr[rsp + 0x20]);
+				movsd(xmm1, ptr[rsp + 0x30]);
+				movsd(xmm2, ptr[rsp + 0x40]);
+				movsd(xmm3, ptr[rsp + 0x50]);
+				movsd(xmm4, ptr[rsp + 0x60]);
+				movsd(xmm5, ptr[rsp + 0x70]);
+				add(rsp, 0x88);
 				pop(r11);
 				pop(r10);
 				pop(r9);
@@ -740,37 +684,15 @@ void PerformHooks(void)
 				call(rax);
 
 				push(rax);
-				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
+				sub(rsp, 0x38); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
 
 				// Call our hook
 				mov(rax, (uintptr_t)PostWandUpdateHook);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
-				pop(rcx);
+				movsd(xmm0, ptr[rsp + 0x20]);
+				add(rsp, 0x38);
 				pop(rax);
 
 				// Jump back to whence we came (+ the size of the initial branch instruction)
@@ -803,25 +725,25 @@ void PerformHooks(void)
 				push(r9);
 				push(r10);
 				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
+				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
+				movsd(ptr[rsp + 0x30], xmm1);
+				movsd(ptr[rsp + 0x40], xmm2);
+				movsd(ptr[rsp + 0x50], xmm3);
+				movsd(ptr[rsp + 0x60], xmm4);
+				movsd(ptr[rsp + 0x70], xmm5);
 
 				// Call our hook
 				mov(rax, (uintptr_t)PlayerCharacterUpdateHook);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
+				movsd(xmm0, ptr[rsp + 0x20]);
+				movsd(xmm1, ptr[rsp + 0x30]);
+				movsd(xmm2, ptr[rsp + 0x40]);
+				movsd(xmm3, ptr[rsp + 0x50]);
+				movsd(xmm4, ptr[rsp + 0x60]);
+				movsd(xmm5, ptr[rsp + 0x70]);
+				add(rsp, 0x88);
 				pop(r11);
 				pop(r10);
 				pop(r9);
@@ -862,37 +784,15 @@ void PerformHooks(void)
 				call(rax);
 
 				push(rax);
-				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x68); // Need to keep the stack SIXTEEN BYTE ALIGNED
-				movsd(ptr[rsp], xmm0);
-				movsd(ptr[rsp + 0x10], xmm1);
-				movsd(ptr[rsp + 0x20], xmm2);
-				movsd(ptr[rsp + 0x30], xmm3);
-				movsd(ptr[rsp + 0x40], xmm4);
-				movsd(ptr[rsp + 0x50], xmm5);
+				sub(rsp, 0x38); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
 
 				// Call our hook
 				mov(rax, (uintptr_t)PostVRIKPCUpdateHook);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp]);
-				movsd(xmm1, ptr[rsp + 0x10]);
-				movsd(xmm2, ptr[rsp + 0x20]);
-				movsd(xmm3, ptr[rsp + 0x30]);
-				movsd(xmm4, ptr[rsp + 0x40]);
-				movsd(xmm5, ptr[rsp + 0x50]);
-				add(rsp, 0x68);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
-				pop(rcx);
+				movsd(xmm0, ptr[rsp + 0x20]);
+				add(rsp, 0x38);
 				pop(rax);
 
 				// Jump back to whence we came (+ the size of the initial branch instruction)
