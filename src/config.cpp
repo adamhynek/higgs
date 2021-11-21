@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "math_utils.h"
+#include "utils.h"
 
 
 static inline double vlibGetSetting(const char * name) {
@@ -68,7 +69,7 @@ namespace Config {
 			return false;
 		}
 
-		val = data;
+		val = std::move(data);
 		return true;
 	}
 
@@ -78,6 +79,18 @@ namespace Config {
 		if (!ReadFloat(name + "Y", vec.y)) return false;
 		if (!ReadFloat(name + "Z", vec.z)) return false;
 
+		return true;
+	}
+
+	bool ReadStringSet(const std::string &name, std::unordered_set<std::string> &val)
+	{
+		std::string	data = GetConfigOption("Settings", name.c_str());
+		if (data.empty()) {
+			_WARNING("Failed to read StringSet config option: %s", name.c_str());
+			return false;
+		}
+
+		val = SplitStringToSet(data, ',');
 		return true;
 	}
 
@@ -226,6 +239,8 @@ namespace Config {
 		if (!ReadFloat("RolloverAlphaFadeInLogisticK", options.rolloverAlphaFadeInLogisticK)) return false;
 		if (!ReadFloat("RolloverAlphaFadeInLogisticMidpoint", options.rolloverAlphaFadeInLogisticMidpoint)) return false;
 
+		if (!ReadFloat("GeometryVertexAlphaThreshold", options.geometryVertexAlphaThreshold)) return false;
+
 		if (!ReadFloat("GrabLateralWeight", options.grabLateralWeight)) return false;
 		if (!ReadFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) return false;
 
@@ -238,6 +253,7 @@ namespace Config {
 		if (!ReadBool("DisableGrabDamping", options.disableDampedGrab)) return false;
 		if (!ReadBool("DisableGrabDampingForBodies", options.disableDampedGrabForBodies)) return false;
 		if (!ReadBool("DisableGrabHairGeometry", options.disableGrabHair)) return false;
+		if (!ReadBool("DisableGrabGeometryWithVertexAlpha", options.disableGrabGeometryWithVertexAlpha)) return false;
 		if (!ReadBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) return false;
 		if (!ReadBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) return false;
 
@@ -275,6 +291,8 @@ namespace Config {
 		if (!ReadString("GrabString", Config::options.grabString)) return false;
 		if (!ReadString("PullString", Config::options.pullString)) return false;
 		if (!ReadString("LootString", Config::options.lootString)) return false;
+
+		if (!ReadStringSet("GrabNodeNameBlacklist", Config::options.grabNodeNameBlacklist)) return false;
 
 		return true;
 	}

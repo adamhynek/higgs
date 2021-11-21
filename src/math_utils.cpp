@@ -1351,9 +1351,52 @@ bool IsBloodOrDecal(BSGeometry *geom)
 	return false;
 }
 
+bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom)
+{
+	NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
+	if (!geomProperty) return false;
+
+	BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
+	if (!shaderProperty) return false;
+
+	if (!(shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Vertex_Alpha)) return false;
+
+	BSGeometryData *geomData = geom->geometryData;
+	if (!geomData) return false;
+
+	UInt64 vertexDesc = geom->vertexDesc;
+	VertexFlags vertexFlags = NiSkinPartition::GetVertexFlags(vertexDesc);
+	if (!(vertexFlags & VertexFlags::VF_COLORS)) return false;
+
+	uintptr_t verts = (uintptr_t)(geomData->vertices);
+	UInt16 numVerts = geom->numVertices;
+	UInt8 vertexSize = (vertexDesc & 0xF) * 4;
+	UInt32 colorOffset = NiSkinPartition::GetVertexAttributeOffset(vertexDesc, VertexAttribute::VA_COLOR);
+
+	if (verts && numVerts > 0) {
+		float totalAlpha = 0.f;
+		for (int i = 0; i < numVerts; i++) {
+			uintptr_t vert = (verts + i * vertexSize);
+			UInt32 color = *(UInt32 *)(vert + colorOffset);
+			UInt8 alpha0to255 = (color >> 24) & 0xff;
+			float alpha = float(alpha0to255) / 255.f;
+			totalAlpha += alpha;
+		}
+		float avgAlpha = totalAlpha / numVerts;
+		_MESSAGE("%s: %.3f avg alpha", geom->m_name, avgAlpha);
+		if (avgAlpha < Config::options.geometryVertexAlphaThreshold) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // Add triangles to the given list for each skinned partition in geom
 void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
+	if (Config::options.grabNodeNameBlacklist.count(geom->m_name)) return;
+
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 	if (!skinInstance) return;
 
@@ -1519,6 +1562,8 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
 
 void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 {
+	if (Config::options.grabNodeNameBlacklist.count(geom->m_name)) return;
+
 	UInt16 numTris = geom->unk198;
 	UInt16 numVerts = geom->numVertices;
 	BSGeometryData *geomData = geom->geometryData;
@@ -1529,7 +1574,9 @@ void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 
 	if (IsBloodOrDecal(geom)) return;
 
-	_MESSAGE("%d tris", numTris);
+	if (Config::options.disableGrabGeometryWithVertexAlpha && ShouldIgnoreBasedOnVertexAlpha(geom)) return;
+
+	_MESSAGE("%s: %d tris", geom->m_name, numTris);
 
 	auto tris = (Triangle *)geomData->triangles;
 	uintptr_t verts = (uintptr_t)(geomData->vertices);

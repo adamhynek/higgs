@@ -54,6 +54,13 @@ bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
 
 double GetTime();
 
+bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth = 0);
+
+inline void ltrim(std::string &s) { s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !::isspace(ch); })); }
+inline void rtrim(std::string &s) { s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !::isspace(ch); }).base(), s.end()); }
+inline void trim(std::string &s) { ltrim(s); rtrim(s); }
+std::unordered_set<std::string> SplitStringToSet(const std::string &s, char delim);
+
 void PrintVector(const NiPoint3 &p);
 void PrintQuat(const NiQuaternion &q);
 void PrintSceneGraph(NiAVObject *node);

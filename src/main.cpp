@@ -408,11 +408,9 @@ public:
 
 			TESForm *weapon = LookupFormByID(evn->sourceFormID);
 			if (weapon == rightWeapon) {
-				_MESSAGE("Right weapon hit");
 				g_rightHand->weaponHitTime = g_currentFrameTime;
 			}
 			else if (weapon == leftWeapon) {
-				_MESSAGE("Left weapon hit");
 				g_leftHand->weaponHitTime = g_currentFrameTime;
 			}
 		}

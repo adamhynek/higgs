@@ -381,7 +381,21 @@ void PrintQuat(const NiQuaternion &q)
 	_MESSAGE("%f, %f, %f, %f", q.m_fW, q.m_fX, q.m_fY, q.m_fZ);
 }
 
-bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth = 0)
+std::unordered_set<std::string> SplitStringToSet(const std::string &s, char delim)
+{
+	std::unordered_set<std::string> result;
+	std::stringstream ss(s);
+	std::string item;
+
+	while (getline(ss, item, delim)) {
+		trim(item);
+		result.insert(item);
+	}
+
+	return result;
+}
+
+bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth)
 {
 	if (!parent) return false;
 	NiNode * node = parent->GetAsNiNode();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_set>
+
 #include "skse64/NiNodes.h"
 #include "skse64/GameData.h"
 
@@ -85,6 +87,8 @@ namespace Config {
 		float rolloverAlphaFadeInLogisticK = 12.0f;
 		float rolloverAlphaFadeInLogisticMidpoint = 0.6f;
 
+		float geometryVertexAlphaThreshold = 0.45f;
+
 		double selectedLeewayTime = 0.25; // in s, time to keep something selected after not pointing at it anymore
 		double triggerPressedLeewayTime = 0.3; // in s, time after pressing the trigger after which the trigger is considered not pressed anymore
 		double inputLeewayTime = 0.3; // in s, time after pressing the trigger on a selected object, within which if you let go, input is retriggered
@@ -118,6 +122,7 @@ namespace Config {
 		bool disableDampedGrab = false;
 		bool disableDampedGrabForBodies = true;
 		bool disableGrabHair = true;
+		bool disableGrabGeometryWithVertexAlpha = true;
 		bool inheritTangentialVelocity = true;
 		bool offhandAffectsTwoHandedRotation = true;
 
@@ -180,6 +185,8 @@ namespace Config {
 		std::string grabString = "Grab";
 		std::string pullString = "Pull";
 		std::string lootString = "Loot";
+
+		std::unordered_set<std::string> grabNodeNameBlacklist;
 	};
 	extern Options options; // global object containing options
 

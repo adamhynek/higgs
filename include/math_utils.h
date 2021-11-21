@@ -155,6 +155,8 @@ inline float ConstrainAngle180(float x) { x = fmodf(x + M_PI, 2*M_PI); if (x < 0
 inline float ConstrainAngle360(float x) { x = fmod(x, 2*M_PI); if (x < 0) x += 2*M_PI; return x; }
 inline float ConstrainAngleNegative360(float x) { return -ConstrainAngle360(-x); }
 
+bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom);
+
 void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
 
