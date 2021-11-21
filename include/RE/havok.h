@@ -76,6 +76,7 @@ struct bhkWorld : bhkSerializable
 	ahkpWorld * world; // 10
 	UInt8 unk18[0xC598 - 0x18];
 	BSReadWriteLock worldLock; // C598
+	BSReadWriteLock graphLock; // C5A0
 	// C530 is tArray<GraphPhysicsStepListener>
 	// C570 is bhkConstraintProjector
 	// C5C0 is TESTrapListener
@@ -168,7 +169,7 @@ struct bhkNiCollisionObject : NiCollisionObject
 	virtual void IsFixedOrKeyframed(void); // 2F
 	virtual void Unk_30(void); // 30 - { return 1; }
 
-	UInt32 flags; // 18
+	UInt32 flags; // 18 - flag 8 -> use blended pos (for bhkBlendCollisionObject) instead of node pos
 	UInt32 pad1C; // 1C
 	NiPointer<bhkWorldObject> body; // 20
 };
@@ -180,10 +181,10 @@ struct bhkCollisionObject : bhkNiCollisionObject
 
 struct bhkBlendCollisionObject : bhkCollisionObject
 {
-	float unk28;
+	float blendStrength; // 28 - this affects how intensely to go from rigidBody position to node position. 0 means strictly follow rigidbody, 1 means strictly follow node.
 	float unk2C;
-	UInt32 unk30;
-	UInt64 unk38;
+	UInt32 motionType; // 30
+	bhkWorld *world; // 38
 	UInt32 unk40;
 };
 static_assert(sizeof(bhkBlendCollisionObject) == 0x48);
