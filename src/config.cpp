@@ -82,7 +82,7 @@ namespace Config {
 		return true;
 	}
 
-	bool ReadStringSet(const std::string &name, std::unordered_set<std::string> &val)
+	bool ReadStringSet(const std::string &name, std::set<std::string, std::less<>> &val)
 	{
 		std::string	data = GetConfigOption("Settings", name.c_str());
 		if (data.empty()) {

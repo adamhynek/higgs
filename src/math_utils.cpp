@@ -1395,7 +1395,7 @@ bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom)
 // Add triangles to the given list for each skinned partition in geom
 void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
-	if (Config::options.grabNodeNameBlacklist.count(geom->m_name)) return;
+	if (geom->m_name && Config::options.grabNodeNameBlacklist.find(std::string_view(geom->m_name)) != Config::options.grabNodeNameBlacklist.end()) return;
 
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
 	if (!skinInstance) return;
@@ -1562,7 +1562,7 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
 
 void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 {
-	if (Config::options.grabNodeNameBlacklist.count(geom->m_name)) return;
+	if (geom->m_name && Config::options.grabNodeNameBlacklist.find(std::string_view(geom->m_name)) != Config::options.grabNodeNameBlacklist.end()) return;
 
 	UInt16 numTris = geom->unk198;
 	UInt16 numVerts = geom->numVertices;

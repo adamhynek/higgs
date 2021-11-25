@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_set>
+#include <set>
 
 #include "skse64/NiNodes.h"
 #include "skse64/GameData.h"
@@ -187,7 +187,7 @@ namespace Config {
 		std::string pullString = "Pull";
 		std::string lootString = "Loot";
 
-		std::unordered_set<std::string> grabNodeNameBlacklist;
+		std::set<std::string, std::less<>> grabNodeNameBlacklist;
 	};
 	extern Options options; // global object containing options
 
