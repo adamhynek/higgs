@@ -141,6 +141,7 @@ namespace Config {
 		bool skipActivateBooks = true;
 		bool disableRolloverRumble = true;
 		bool alwaysShowHands = true;
+		bool disableVanillaGrab = true;
 
 		bool allowGrabWithEmptyArrowHand = false;
 		bool allowGrabWithTwoHandedOffhand = false;

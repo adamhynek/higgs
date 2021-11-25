@@ -56,6 +56,8 @@ auto playerCharacterHookedFunc = RelocAddr<uintptr_t>(0x6C6910); // PlayerCharac
 
 auto hideSpellOriginLoc = RelocAddr<uintptr_t>(0x6AC012); // write 7 bytes of nops here
 
+auto startGrabObjectLoc = RelocAddr<uintptr_t>(0x6CC000);
+
 uintptr_t updatePhysicsTimesHookedFuncAddr = 0;
 auto updatePhysicsTimesHookLoc = RelocAddr<uintptr_t>(0x5BBAEF);
 auto updatePhysicsTimesHookedFunc = RelocAddr<uintptr_t>(0xDFB3C0);
@@ -855,5 +857,11 @@ void PerformHooks(void)
 		UInt64 nops = 0x9090909090909090;
 		SafeWriteBuf(hideSpellOriginLoc.GetUIntPtr(), &nops, 7);
 		_MESSAGE("NOP'd out SpellOrigin hide");
+	}
+
+	if (Config::options.disableVanillaGrab) {
+		UInt8 ret = 0xC3;
+		SafeWrite8(startGrabObjectLoc.GetUIntPtr(), ret);
+		_MESSAGE("ret'd out PlayerCharacter::StartGrabObject");
 	}
 }

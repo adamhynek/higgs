@@ -271,6 +271,7 @@ namespace Config {
 		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
 		if (!ReadBool("DisableRolloverRumble", options.disableRolloverRumble)) return false;
 		if (!ReadBool("AlwaysShowHands", options.alwaysShowHands)) return false;
+		if (!ReadBool("DisableVanillaGrab", options.disableVanillaGrab)) return false;
 		if (!ReadBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) return false;
 
 		if (!ReadBool("AllowGrabWithEmptyArrowHand", options.allowGrabWithEmptyArrowHand)) return false;
