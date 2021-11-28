@@ -327,7 +327,7 @@ bool Hand::FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &s
 
 	// TODO: Would be better (faster) to cast against the weapon shape directly
 	world->worldLock.LockForRead();
-	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &specificPointCollector, nullptr);
+	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &specificPointCollector, &specificPointCollector);
 
 	bool found = false;
 	if (specificPointCollector.m_foundTarget) {
@@ -369,7 +369,7 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &s
 	LookupREFRByHandle(pulledHandle, pulledObj);
 
 	world->worldLock.LockForRead();
-	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
+	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, &cdPointCollector);
 
 	// Process result of cast
 	float closestDistance = (std::numeric_limits<float>::max)();
@@ -482,7 +482,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 	cdPointCollector.reset();
 
 	world->worldLock.LockForRead();
-	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, nullptr);
+	hkpWorld_LinearCast(world->world, &sphere->phantom->m_collidable, &linearCastInput, &cdPointCollector, &cdPointCollector);
 
 	// Process result of cast
 	float closestDistance = (std::numeric_limits<float>::max)();
