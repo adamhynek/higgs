@@ -1733,7 +1733,7 @@ NiPoint3 Hand::GetHandVelocity()
 }
 
 
-void Hand::UpdateHandTransform(NiTransform &worldTransform)
+void Hand::UpdateHandTransform(NiTransform &worldTransform, NiTransform *modifier)
 {
 	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (!handNode) return;
@@ -1743,7 +1743,7 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 	NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
 	if (clavicle) {
 		NiTransform identity;
-		UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
+		UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, modifier ? modifier : &identity);
 	}
 }
 
@@ -3553,6 +3553,83 @@ void Hand::LateMainThreadUpdate()
 	NiPointer<NiAVObject> tpWeaponNode = GetWeaponNode(true);
 	if (tpHandNode && tpWeaponNode) {
 		thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+	}
+}
+
+
+void Hand::PrePhysicsUpdate()
+{
+	/*
+	The current order of events is:
+
+	Start of frame
+
+	Physics
+	FollowNode pos update from player pos
+	Hands update from openvr / follow node
+	PlayerCharacter pos update (from physics capsule?)
+
+	End of frame
+
+	TODO: Am I SURE about this? I'm actually pretty sure the physics update can interleave with a whole bunch of things.
+
+
+	I'm trying to make it:
+
+	Start of frame
+
+	FollowNode pos update from player pos
+	Hands update from openvr / follow node
+
+	Physics
+	FollowNode pos update from player pos
+	Hands update from openvr / follow node
+	PlayerCharacter pos update (from physics capsule?)
+
+	End of frame
+	*/
+
+	if (state == State::HeldBody) {
+
+		// TODO: I think what must be causing the object flickering is that the hands end up inconsistent from frame to frame.
+		// i.e. they're 1 frame behind one frame, then they're 0 frames behind the next, etc. somehow.
+		// That's the only thing I can think of that would make it so that the actual held object flickers (as its desired pos and hence velocity is computed from the hand transform)
+
+		PlayerCharacter_UpdateVRFollow(*g_thePlayer, *g_secondsSinceLastFrame_WorldTime, *dword_1430C3A0C); // updates the follownode pos from the player->pos
+		PlayerCharacter_UpdateWandFromOpenVR(*g_thePlayer, haptics.hand, false, true); // TODO: Use bWorkWhileWaitGetPoses instead of true for the last arg
+
+		NiTransform wandToHand;
+
+		wandToHand.pos = { *g_fMagicHandTranslateX, *g_fMagicHandTranslateY, *g_fMagicHandTranslateZ };
+		wandToHand.scale = *g_fMagicHandScale;
+
+		NiPoint3 euler{ *g_fMagicHandRotateX, *g_fMagicHandRotateY, *g_fMagicHandRotateZ };
+		euler *= 0.017453292f;
+
+		if (!isLeft) {
+			wandToHand.pos.x *= -1;
+
+			euler.y *= -1;
+			euler.z *= -1;
+		}
+
+		EulerToNiMatrix(wandToHand.rot, euler.x, euler.y, euler.z);
+		UpdateHandTransform(GetWandNode()->m_worldTransform, &wandToHand);
+
+		// Update object velocity to go where we want it
+		float havokWorldScale = *g_havokWorldScale;
+		bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+		NiTransform newTransform = GetFirstPersonHandNode()->m_worldTransform * (selectedObject.isActor ? desiredNodeTransformHandSpace : desiredHavokTransformHandSpace);
+		NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+		//NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
+		//desiredPos += playerHkVelocity * *g_deltaTime;
+		hkRotation desiredRot;
+		NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+		hkQuaternion desiredQuat;
+		desiredQuat.setFromRotationSimd(desiredRot);
+		hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+
+		// TODO: Set hand transform from the held object AFTER the physics update
 	}
 }
 

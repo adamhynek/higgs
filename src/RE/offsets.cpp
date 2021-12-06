@@ -23,6 +23,7 @@ RelocPtr<float> fMaxTimeComplex(0x1EC8448);
 RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused(0x2FEB794); // like the one below, but is 0 if in menu mode (paused)
 RelocPtr<float> g_secondsSinceLastFrame_WorldTime(0x30C3A08); // is multiplied by timeMultiplier
 RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied(0x30C3A0C); // is not multiplied by timeMultiplier
+RelocPtr<float> dword_1430C3A0C(0x30C3A0C);
 
 RelocPtr<int> g_currentFrameCounter(0x3186C5C);
 RelocPtr<int> g_sceneComplexCounter(0x2FEB76C);
@@ -148,6 +149,8 @@ RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffse
 RelocAddr<_BSFixedString_Copy> BSFixedString_Copy(0xC6DD50);
 RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt(0x53EFE0);
 RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState(0x5EBA50);
+RelocAddr<_PlayerCharacter_UpdateWandFromOpenVR> PlayerCharacter_UpdateWandFromOpenVR(0x6ADC80);
+RelocAddr<_PlayerCharacter_UpdateVRFollow> PlayerCharacter_UpdateVRFollow(0x6AD080);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);

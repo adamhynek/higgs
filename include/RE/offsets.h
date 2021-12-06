@@ -36,6 +36,7 @@ extern RelocPtr<float> fMaxTimeComplex;
 extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused;
 extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime;
 extern RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied;
+extern RelocPtr<float> dword_1430C3A0C;
 
 extern RelocPtr<int> g_currentFrameCounter;
 extern RelocPtr<int> g_sceneComplexCounter;
@@ -338,3 +339,9 @@ extern RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt;
 
 typedef bool(*_Actor_IsInRagdollState)(Actor *_this);
 extern RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState;
+
+typedef bool(*_PlayerCharacter_UpdateWandFromOpenVR)(PlayerCharacter *_this, UInt32 hand, bool a3, bool a4);
+extern RelocAddr<_PlayerCharacter_UpdateWandFromOpenVR> PlayerCharacter_UpdateWandFromOpenVR;
+
+typedef bool(*_PlayerCharacter_UpdateVRFollow)(PlayerCharacter *_this, float a1, float a2);
+extern RelocAddr<_PlayerCharacter_UpdateVRFollow> PlayerCharacter_UpdateVRFollow;

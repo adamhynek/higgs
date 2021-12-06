@@ -162,7 +162,7 @@ struct Hand
 	inline NiPointer<NiAVObject> GetMagicAimNode() { return (*g_leftHandedMode != isLeft) ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_SecondaryMagicAimNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_PrimaryMagicAimNode]; }
 	NiPointer<NiAVObject> GetMagicNode(bool thirdPerson);
 	float GetHandSize();
-	void UpdateHandTransform(NiTransform &worldTransform);
+	void UpdateHandTransform(NiTransform &worldTransform, NiTransform *modifier = nullptr);
 	inline NiPoint3 GetPalmPositionWS(NiTransform &handTransform) { return handTransform * palmPosHandspace; }
 	NiPoint3 GetPalmVectorWS(NiMatrix33 &handRotation);
 	NiPoint3 GetPointingVectorWS(NiMatrix33 &handRotation);
@@ -191,6 +191,7 @@ struct Hand
 	void RestoreHandTransform();
 	void ApplyPostVrikTransforms();
 	void LateMainThreadUpdate();
+	void PrePhysicsUpdate();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
 	void TriggerCollisionHaptics(float mass, float separatingVelocity);

@@ -338,6 +338,13 @@ void RefreshActivateButtonArtHook()
 }
 
 
+void PrePhysicsUpdateHook()
+{
+	g_leftHand->PrePhysicsUpdate();
+	g_rightHand->PrePhysicsUpdate();
+}
+
+
 void UpdatePhysicsTimesHook()
 {
 	float deltaTime = min(*g_secondsSinceLastFrame_Unmultiplied, Config::options.havokMaxMaxTime);
@@ -812,6 +819,66 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(postVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("PlayerCharacter::Update post-vrik hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				push(rax);
+				push(rcx);
+				push(rdx);
+				push(r8);
+				push(r9);
+				push(r10);
+				push(r11);
+				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
+				movsd(ptr[rsp + 0x30], xmm1);
+				movsd(ptr[rsp + 0x40], xmm2);
+				movsd(ptr[rsp + 0x50], xmm3);
+				movsd(ptr[rsp + 0x60], xmm4);
+				movsd(ptr[rsp + 0x70], xmm5);
+
+				// Call our hook
+				mov(rax, (uintptr_t)PrePhysicsUpdateHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp + 0x20]);
+				movsd(xmm1, ptr[rsp + 0x30]);
+				movsd(xmm2, ptr[rsp + 0x40]);
+				movsd(xmm3, ptr[rsp + 0x50]);
+				movsd(xmm4, ptr[rsp + 0x60]);
+				movsd(xmm5, ptr[rsp + 0x70]);
+				add(rsp, 0x88);
+				pop(r11);
+				pop(r10);
+				pop(r9);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+				pop(rax);
+
+				// Original code
+				call(ptr[rax + 0x140]);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(physicsUpdateHookLoc.GetUIntPtr() + 6);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(physicsUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Pre physics update hook complete");
 	}
 
 	if (Config::options.enableHavokFix) {
