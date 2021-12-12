@@ -146,6 +146,7 @@ struct bhkRigidBodyT : bhkRigidBody
 };
 static_assert(offsetof(bhkRigidBodyT, rotation) == 0x40);
 static_assert(offsetof(bhkRigidBodyT, translation) == 0x50);
+static_assert(sizeof(bhkRigidBodyT) == 0x60);
 
 struct NiCollisionObject : NiObject
 {

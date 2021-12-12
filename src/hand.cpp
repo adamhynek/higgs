@@ -551,6 +551,7 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 {
 	PlayerCharacter *player = *g_thePlayer;
 	hkTransform transform = existingWeaponCollision->hkBody->getTransform();
+
 	/* This is broken for some people. I have no idea why.
 	if (g_isVrikPresent) {
 		// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
@@ -691,7 +692,8 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 	cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
 
 	if (g_isVrikPresent) {
-		cloningProcess.scale *= GetHandSize(); // Scale by the vrik hand size
+		cloningProcess.scale *= handSize; // Scale by the vrik hand size
+		weaponBodyHandSize = handSize;
 	}
 
 	bhkShape *clonedShape = (bhkShape *)NiObject_Clone(bShape, &cloningProcess);
@@ -762,7 +764,7 @@ void Hand::UpdateWeaponCollision()
 	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
 	if (!rigidBody) return;
 
-	if (rigidBody != clonedFromBody) {
+	if (rigidBody != clonedFromBody || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
 		NiPointer<bhkWorld> world = meleeData->world;
 		if (world) {
 			BSWriteLocker lock(&world->worldLock);
@@ -799,6 +801,7 @@ void Hand::UpdateWeaponCollision()
 	weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
 	hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
+
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
 	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
@@ -1778,8 +1781,6 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 
 	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (!handNode) return;
-
-	float handSize = GetHandSize();
 
 	handTransform = handNode->m_worldTransform; // Save the old hand transform - we restore it later
 
@@ -3531,19 +3532,23 @@ void Hand::RestoreHandTransform()
 }
 
 
-void Hand::ApplyPostVrikTransforms()
+void Hand::PostVrikUpdate()
 {
-	if (state == State::HeldTwoHanded) {
-		// Update the player 3rd person node world transforms first, as vrik only sets locals
-		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-		NiAVObject_UpdateNode((*g_thePlayer)->GetNiRootNode(0), &ctx);
+	if (g_isVrikPresent) {
+		if (state == State::HeldTwoHanded) {
+			// Update the player 3rd person node world transforms first, as vrik only sets locals
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateNode((*g_thePlayer)->GetNiRootNode(0), &ctx);
 
-		// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
-		Hand *other = isLeft ? g_rightHand : g_leftHand;
-		NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
-		UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
-		NiAVObject_UpdateNode(weaponNode, &ctx);
+			// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
+			Hand *other = isLeft ? g_rightHand : g_leftHand;
+			NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
+			UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
+			NiAVObject_UpdateNode(weaponNode, &ctx);
+		}
 	}
+
+	handSize = GetHandSize();
 }
 
 

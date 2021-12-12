@@ -189,7 +189,7 @@ struct Hand
 	void Select(TESObjectREFR *obj);
 	void Deselect();
 	void RestoreHandTransform();
-	void ApplyPostVrikTransforms();
+	void PostVrikUpdate();
 	void LateMainThreadUpdate();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
@@ -205,8 +205,7 @@ struct Hand
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
 	bhkRigidBody *clonedFromBody = nullptr; // the collision we cloned to create ours
-	float maxWeaponSpeed = 100.0f; // m/s
-	float maxWeaponAngularSpeed = 100.0f; // rad/s
+	float weaponBodyHandSize = 1.f;
 
 	const bool isLeft = false;
 	const bool delayGripInput = false;
@@ -277,6 +276,8 @@ struct Hand
 	double tryLeaveDampedTime = 0;
 	double weaponHitTime = 0;
 	double rolloverAlphaSetTime = 0;
+
+	float handSize = 1.f;
 
 	float grabbedFingerValues[5];
 	bool useAlternateThumbCurve = false;

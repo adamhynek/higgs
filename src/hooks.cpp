@@ -54,9 +54,15 @@ uintptr_t playerCharacterUpdateHookedFuncAddr = 0;
 auto playerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x649FD3); // In Job_Non_render_safe_AI(), calls PlayerCharacter::Update()
 auto playerCharacterHookedFunc = RelocAddr<uintptr_t>(0x6C6910); // PlayerCharacter::Update()
 
+uintptr_t updateVRMeleeDataRigidBodyCtorHookedFuncAddr = 0;
+auto updateVRMeleeDataRigidBodyCtorHookLoc = RelocAddr<uintptr_t>(0x6B0843); // In PlayerCharacter::UpdateVRMeleeData()
+auto updateVRMeleeDataRigidBodyCtorHookedFunc = RelocAddr<uintptr_t>(0x2AEC80); // bhkRigidBody_ctor()
+
 auto hideSpellOriginLoc = RelocAddr<uintptr_t>(0x6AC012); // write 7 bytes of nops here
 
 auto startGrabObjectLoc = RelocAddr<uintptr_t>(0x6CC000);
+
+auto allocMeleeRigidBodySizeLoc = RelocAddr<uintptr_t>(0x6B0828);
 
 uintptr_t updatePhysicsTimesHookedFuncAddr = 0;
 auto updatePhysicsTimesHookLoc = RelocAddr<uintptr_t>(0x5BBAEF);
@@ -279,11 +285,11 @@ void PlayerCharacterUpdateHook()
 
 void PostVRIKPCUpdateHook()
 {
-	if (g_isVrikPresent) {
-		g_rightHand->ApplyPostVrikTransforms();
-		g_rightHand->RestoreHandTransform();
+	g_rightHand->PostVrikUpdate();
+	g_leftHand->PostVrikUpdate();
 
-		g_leftHand->ApplyPostVrikTransforms();
+	if (g_isVrikPresent) {
+		g_rightHand->RestoreHandTransform();
 		g_leftHand->RestoreHandTransform();
 	}
 
@@ -346,6 +352,20 @@ void UpdatePhysicsTimesHook()
 }
 
 
+auto bhkRigidBodyT_vtbl = RelocAddr<void *>(0x182BA80);
+void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *root)
+{
+	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root);
+	bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT);
+	if (rigidBodyT) {
+		*((void **)newRigidBody) = ((void *)(bhkRigidBodyT_vtbl)); // set vtbl
+		bhkRigidBodyT *newRigidBodyT = DYNAMIC_CAST(newRigidBody, bhkRigidBody, bhkRigidBodyT);
+		newRigidBodyT->rotation = rigidBodyT->rotation;
+		newRigidBodyT->translation = rigidBodyT->translation;
+	}
+}
+
+
 void PerformHooks(void)
 {
 	// First, set our addresses
@@ -359,6 +379,7 @@ void PerformHooks(void)
 	postVRIKPlayerCharacterUpdateHookedFuncAddr = postVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
 	playerCharacterUpdateHookedFuncAddr = playerCharacterHookedFunc.GetUIntPtr();
 	updatePhysicsTimesHookedFuncAddr = updatePhysicsTimesHookedFunc.GetUIntPtr();
+	updateVRMeleeDataRigidBodyCtorHookedFuncAddr = updateVRMeleeDataRigidBodyCtorHookedFunc.GetUIntPtr();
 
 	{
 		struct Code : Xbyak::CodeGenerator {
@@ -814,6 +835,48 @@ void PerformHooks(void)
 		_MESSAGE("PlayerCharacter::Update post-vrik hook complete");
 	}
 
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				// Original code
+				mov(rax, updateVRMeleeDataRigidBodyCtorHookedFuncAddr);
+				call(rax);
+
+				push(rax);
+				sub(rsp, 0x38); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
+				movsd(ptr[rsp + 0x20], xmm0);
+
+				mov(rcx, rax);
+				mov(rdx, ptr[rsp + 0x70]); // root node of cloned model
+
+				// Call our hook
+				mov(rax, (uintptr_t)UpdateVRMeleeDataRigidBodyCtorHook);
+				call(rax);
+
+				movsd(xmm0, ptr[rsp + 0x20]);
+				add(rsp, 0x38);
+				pop(rax);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(updateVRMeleeDataRigidBodyCtorHookLoc.GetUIntPtr() + 5);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write5Branch(updateVRMeleeDataRigidBodyCtorHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("PlayerCharacter::UpdateVRMeleeData bhkRigidBody_ctor hook complete");
+	}
+
 	if (Config::options.enableHavokFix) {
 		struct Code : Xbyak::CodeGenerator {
 			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
@@ -863,5 +926,11 @@ void PerformHooks(void)
 		UInt8 ret = 0xC3;
 		SafeWrite8(startGrabObjectLoc.GetUIntPtr(), ret);
 		_MESSAGE("ret'd out PlayerCharacter::StartGrabObject");
+	}
+
+	{
+		UInt64 bytes = 0x00000060B9; // mov ecx, 0x60
+		SafeWriteBuf(allocMeleeRigidBodySizeLoc.GetUIntPtr(), &bytes, 5);
+		_MESSAGE("Patched allocation for melee rigidbody to allocate 0x60 bytes instead of 0x40");
 	}
 }
