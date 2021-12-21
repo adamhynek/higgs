@@ -135,6 +135,7 @@ RelocAddr<_SoundData_SetPosition> SoundData_SetPosition(0xC287D0);
 RelocAddr<_SoundData_SetNode> SoundData_SetNode(0xC289C0);
 RelocAddr<_SoundData_Play> SoundData_Play(0xC283E0);
 RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount(0x123D90);
+RelocAddr<_ContainerChanges_GetCount> ContainerChanges_GetCount(0x1F7ED0);
 RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData(0x641720);
 RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell(0x23B240);
 RelocAddr<_Actor_GetPickupPutdownSound> Actor_GetPickupPutdownSound(0x5D7F90);

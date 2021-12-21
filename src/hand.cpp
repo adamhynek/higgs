@@ -1548,17 +1548,22 @@ UInt32 Hand::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffs
 				// DropObject is vfunc 0xCD
 				// Actor::RemoveItem is at 0x607F60
 
+				SInt32 count = 1;
+				if (item->formType == kFormType_Ammo) {
+					count = selectedObject.hitFormCount; // Drop the whole quiver
+				}
+
 				UInt64 *vtbl = *((UInt64 **)actor);
 				if (selectedObject.isDisconnected) {
 					// For dropped weapons/shields, make the drop pos / rot equal to where it was before
 					NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
 					NiPoint3 dropRot = MatrixToEuler(selectedObject.hitNode->m_worldTransform.rot);
-					((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, &dropRot);
+					((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, count, 3, wornExtraData, nullptr, &dropLoc, &dropRot);
 					//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, &dropRot);
 				}
 				else {
 					NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos + NiPoint3(0, 0, zOffsetWhenNotDisconnected); // move it up a bit to not collide with the ragdoll too much
-					((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, 1, 3, wornExtraData, nullptr, &dropLoc, nullptr);
+					((Actor_RemoveItem)(vtbl[0x56]))(actor, &droppedObjHandle, item, count, 3, wornExtraData, nullptr, &dropLoc, nullptr);
 					//((Actor_DropObject)(vtbl[0xCD]))(actor, &droppedObjHandle, item, wornExtraData, 1, &dropLoc, nullptr);
 				}
 			}
@@ -2047,6 +2052,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 											nodeOnWhichToPlayShader = hitBipedData->object;
 											selectedObject.hitForm = hitForm;
 											selectedObject.hitExtraList = equipData.pExtraData;
+											selectedObject.hitFormCount = ContainerChanges_GetCount(containerChanges->data, equipData.pForm);
 											selectedObject.hitNode = hitNode;
 											selectedObject.isDisconnected = isDisconnected;
 										}

@@ -114,6 +114,7 @@ inline float DotProduct(const NiPoint3 &vec1, const NiPoint3 &vec2) { return vec
 inline float DotProductSafe(const NiPoint3 &vec1, const NiPoint3 &vec2) { return std::clamp(DotProduct(vec1, vec2), -1.f, 1.f); }
 inline float DotProduct(const Point2 &vec1, const Point2 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y; }
 inline float DotProduct(const NiQuaternion &q1, const NiQuaternion &q2) { return q1.m_fW*q2.m_fW + q1.m_fX*q2.m_fX + q1.m_fY*q2.m_fY + q1.m_fZ*q2.m_fZ; }
+inline float DotProductSafe(const NiQuaternion &q1, const NiQuaternion &q2) { return std::clamp(DotProduct(q1, q2), -1.f, 1.f); }
 inline float QuaternionLength(const NiQuaternion &q) { return sqrtf(DotProduct(q, q)); }
 inline NiPoint3 VectorNormalized(const NiPoint3 &vec) { float length = VectorLength(vec); return length > 0.0f ? vec / length : NiPoint3(); }
 NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2);
@@ -143,7 +144,7 @@ NiQuaternion QuaternionNormalized(const NiQuaternion &q);
 NiQuaternion QuaternionMultiply(const NiQuaternion &qa, const NiQuaternion &qb);
 NiQuaternion QuaternionMultiply(const NiQuaternion &q, float multiplier);
 NiQuaternion QuaternionInverse(const NiQuaternion &q);
-inline float QuaternionAngle(const NiQuaternion &qa, const NiQuaternion &qb) { return 2.0f * acosf(abs(DotProduct(qa, qb))); }
+inline float QuaternionAngle(const NiQuaternion &qa, const NiQuaternion &qb) { return 2.0f * acosf(abs(DotProductSafe(qa, qb))); }
 NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t);
 inline NiPoint3 lerp(const NiPoint3 &a, const NiPoint3 &b, float t) { return a * (1.0f - t) + b * t; }
 inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }

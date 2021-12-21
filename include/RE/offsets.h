@@ -6,6 +6,7 @@
 
 #include "skse64_common/Relocation.h"
 #include "skse64/PapyrusVM.h"
+#include "skse64/GameExtraData.h"
 #include "skse64/GameReferences.h"
 #include "skse64/NiNodes.h"
 #include "skse64/GameVR.h"
@@ -299,6 +300,9 @@ extern RelocAddr<_SoundData_Play> SoundData_Play;
 
 typedef UInt32(*_BSExtraList_GetCount)(BaseExtraList *extraList);
 extern RelocAddr<_BSExtraList_GetCount> BSExtraList_GetCount;
+
+typedef UInt32(*_ContainerChanges_GetCount)(ExtraContainerChanges::Data *_this, TESForm *form);
+extern RelocAddr<_ContainerChanges_GetCount> ContainerChanges_GetCount;
 
 typedef void(*_EquipManager_EquipEntryData)(EquipManager *equipManager, Actor *actor, InventoryEntryData *entry, BGSEquipSlot *equipSlot); // equipSlot is null for books
 extern RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData;

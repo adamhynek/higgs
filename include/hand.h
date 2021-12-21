@@ -23,6 +23,7 @@ struct Hand
 		hkpCollidable *collidable = nullptr; // ptr to collidable owned by rigidBody
 		TESForm *hitForm;
 		BaseExtraList *hitExtraList;
+		UInt32 hitFormCount;
 		NiPointer<NiAVObject> shaderNode;
 		NiPointer<NiAVObject> hitNode;
 		NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
