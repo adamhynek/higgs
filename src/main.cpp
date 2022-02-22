@@ -123,9 +123,9 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 		BSOpenVR *openVR = *g_openVR;
 		vr_src::IVRSystem *vrSystem = openVR->vrSystem;
 		if (vrSystem) {
-			vr_src::TrackedDeviceIndex_t rightIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand);
-			vr_src::TrackedDeviceIndex_t leftIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand);
-			vr_src::TrackedDeviceIndex_t hmdIndex = vr_src::k_unTrackedDeviceIndex_Hmd;
+			const vr_src::TrackedDeviceIndex_t rightIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(vr_src::ETrackedControllerRole::TrackedControllerRole_RightHand);
+			const vr_src::TrackedDeviceIndex_t leftIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(vr_src::ETrackedControllerRole::TrackedControllerRole_LeftHand);
+			const vr_src::TrackedDeviceIndex_t hmdIndex = vr_src::k_unTrackedDeviceIndex_Hmd;
 
 			if (unGamePoseArrayCount > hmdIndex && vrSystem->IsTrackedDeviceConnected(hmdIndex) && hmdNode) {
 				vr_src::TrackedDevicePose_t &hmdPose = pGamePoseArray[hmdIndex];
@@ -280,7 +280,7 @@ void Update()
 		{
 			BSWriteLocker lock(&world->worldLock);
 
-			AddCustomCollisionLayer(world);
+			AddHiggsCollisionLayer(world);
 
 			hkpWorld_addContactListener(world->world, contactListener);
 			if (Config::options.enableShadowUpdateFix) {

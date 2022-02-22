@@ -18,6 +18,7 @@
 #include "main.h"
 #include "finger_curves.h"
 #include "menu_checker.h"
+#include "pluginapi.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -67,6 +68,8 @@ auto allocMeleeRigidBodySizeLoc = RelocAddr<uintptr_t>(0x6B0828);
 uintptr_t updatePhysicsTimesHookedFuncAddr = 0;
 auto updatePhysicsTimesHookLoc = RelocAddr<uintptr_t>(0x5BBAEF);
 auto updatePhysicsTimesHookedFunc = RelocAddr<uintptr_t>(0xDFB3C0);
+
+auto bhkCollisionFilter_CompareFilterInfo_HookLoc = RelocAddr<uintptr_t>(0xE2BA10);
 
 auto getActivateTextHookLoc = RelocAddr<uintptr_t>(0x6D3337);
 
@@ -363,6 +366,17 @@ void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *
 		newRigidBodyT->rotation = rigidBodyT->rotation;
 		newRigidBodyT->translation = rigidBodyT->translation;
 	}
+}
+
+using CollisionFilterComparisonResult = HiggsPluginAPI::IHiggsInterface001::CollisionFilterComparisonResult;
+CollisionFilterComparisonResult bhkCollisionFilter_CompareFilterInfo_Hook(bhkCollisionFilter *filter, UInt32 filterInfoA, UInt32 filterInfoB)
+{
+	CollisionFilterComparisonResult result = HiggsPluginAPI::TriggerCollisionFilterComparisonCallbacks(filter, filterInfoA, filterInfoB);
+	if (result == CollisionFilterComparisonResult::Collide || result == CollisionFilterComparisonResult::Ignore) {
+		return result;
+	}
+
+	return CollisionFilterComparisonResult::Continue;
 }
 
 
@@ -914,6 +928,61 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Branch(updatePhysicsTimesHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("Update Physics Times hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack, ret0, ret1;
+
+				push(rcx);
+				push(rdx);
+				push(r8);
+				sub(rsp, 0x8); // need to align the stack
+
+				// Call our hook
+				mov(rax, (uintptr_t)bhkCollisionFilter_CompareFilterInfo_Hook);
+				call(rax);
+
+				add(rsp, 0x8);
+				pop(r8);
+				pop(rdx);
+				pop(rcx);
+
+				// Original code
+				mov(r10d, edx);
+				mov(r11, rcx);
+
+				cmp(al, UInt8(CollisionFilterComparisonResult::Collide));
+				je(ret1); // force collision
+
+				cmp(al, UInt8(CollisionFilterComparisonResult::Ignore));
+				je(ret0); // ignore collision
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(ret0);
+				xor(al, al);
+				ret();
+
+				L(ret1);
+				mov(al, 1);
+				ret();
+
+				L(jumpBack);
+				dq(bhkCollisionFilter_CompareFilterInfo_HookLoc.GetUIntPtr() + 6);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write6Branch(bhkCollisionFilter_CompareFilterInfo_HookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("bhkCollisionFilter::CompareFilterInfo hook complete");
 	}
 
 	if (!Config::options.disableSelectionBeam) {

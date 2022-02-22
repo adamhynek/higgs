@@ -141,6 +141,7 @@ struct Hand
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
+	void RemoveWeaponCollisionFromCurrentWorld();
 	void UpdateWeaponCollision();
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
@@ -205,7 +206,7 @@ struct Hand
 	NiPointer<bhkRigidBody> handBody = nullptr;
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
-	bhkRigidBody *clonedFromBody = nullptr; // the collision we cloned to create ours
+	hkpRigidBody *clonedFromBody = nullptr; // the hkpRigidBody of the collision we cloned to create ours
 	float weaponBodyHandSize = 1.f;
 
 	const bool isLeft = false;

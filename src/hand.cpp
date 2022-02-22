@@ -472,12 +472,12 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 	float radiusBefore = sphereShape->getRadius();
 	hkVector4 translationBefore = sphere->phantom->m_motionState.getTransform().getTranslation();
 
+	// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
 	sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo = 0x2C;
 	sphereShape->m_radius = Config::options.farCastRadius;
 	sphere->phantom->m_motionState.m_transform.m_translation = NiPointToHkVector(start);
 
 	// Now, linearcast up to the point the raycast hit, or up to the limit if it's empty space
-	// 'CustomPick2' layer, to pick up projectiles, because ONLY THIS GODDAMN LAYER can collide with projectiles. This filterinfo will collide with everything.
 	linearCastInput.m_to = NiPointToHkVector(hitPosition);
 	cdPointCollector.reset();
 
@@ -729,7 +729,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 		bhkRigidBody_setActivated(clonedBody, true);
 		hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
-		clonedFromBody = rigidBody;
+		clonedFromBody = hkBody;
 		weaponBody = clonedBody;
 	}
 }
@@ -748,6 +748,20 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
 }
 
 
+void Hand::RemoveWeaponCollisionFromCurrentWorld()
+{
+	if (weaponBody) {
+		if (ahkpWorld *world = weaponBody->GetHavokWorld_1()) {
+			if (NiPointer<bhkWorld> worldWrapper = world->m_userData) {
+				BSWriteLocker lock(&worldWrapper->worldLock);
+				RemoveWeaponCollision(worldWrapper);
+			}
+		}
+		weaponBody = nullptr;
+	}
+}
+
+
 void Hand::UpdateWeaponCollision()
 {
 	if (!Config::options.enableWeaponCollision) return;
@@ -759,30 +773,45 @@ void Hand::UpdateWeaponCollision()
 	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
 
 	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
-	if (!collisionNode) return;
+	if (!collisionNode) {
+		RemoveWeaponCollisionFromCurrentWorld();
+		return;
+	}
 
 	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode);
-	if (!rigidBody) return;
-
-	if (rigidBody != clonedFromBody || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
-		NiPointer<bhkWorld> world = meleeData->world;
-		if (world) {
-			BSWriteLocker lock(&world->worldLock);
-			RemoveWeaponCollision(world);
-			CreateWeaponCollision(world);
-		}
+	if (!rigidBody || !rigidBody->hkBody) {
+		RemoveWeaponCollisionFromCurrentWorld();
+		return;
 	}
 
 	bool isUnarmed = IsUnarmed(player->GetEquippedObject(*g_leftHandedMode != isLeft));
 
-	float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponHitTime;
-	bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
+	if (rigidBody->hkBody != clonedFromBody || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
+		RemoveWeaponCollisionFromCurrentWorld();
+		if (!isUnarmed) {
+			if (NiPointer<bhkWorld> world = meleeData->world) {
+				BSWriteLocker lock(&world->worldLock);
+				CreateWeaponCollision(world);
+			}
+		}
+	}
+
+	if (isUnarmed) {
+		RemoveWeaponCollisionFromCurrentWorld();
+		return;
+	}
+
+	bool shouldDisableCollision = !player->actorState.IsWeaponDrawn() || g_interface001.IsWeaponCollisionDisabled(isLeft);
+	if (!g_interface001.forceEnableWeaponCollision[isLeft]) {
+		float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponHitTime;
+		bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
+		shouldDisableCollision |= disableDueToHit;
+	}
 
 	bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
-	bool shouldDisableCollision = isUnarmed || !player->actorState.IsWeaponDrawn() || disableDueToHit || g_interface001.IsWeaponCollisionDisabled(isLeft);
 
 	if (shouldDisableCollision) {
-		// Do not enable weapon collision when unarmed or no weapon drawn
+		// Do not enable weapon collision when no weapon drawn
 		// We DO still want to move it though, since once we enable it again we don't want a huge jump
 		if (!wasCollisionDisabled) {
 			weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
@@ -1959,7 +1988,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 			Actor *actor = DYNAMIC_CAST(closestObj, TESObjectREFR, Actor);
 			bool breakStickiness = false;
 
-			if (actor) {
+			if (actor && Actor_IsInRagdollState(actor)) {
 				NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
 				if (hitNode) {
 					BipedModel *biped = actor->GetBipedSmall();

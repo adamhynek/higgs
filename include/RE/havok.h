@@ -47,13 +47,13 @@ static_assert(offsetof(ahkpWorld, m_userData) == 0x430);
 struct bhkRefObject : NiObject
 {
 	virtual void SetHavokObject(void); // 25
-	virtual void AddOrRemoveReference(void); // 26
+	virtual void AddOrRemoveReference(bool add); // 26
 };
 
 struct bhkSerializable : bhkRefObject
 {
-	virtual hkpWorld* GetHavokWorld_1(); // 27
-	virtual hkpWorld* GetHavokWorld_2(); // 28
+	virtual ahkpWorld* GetHavokWorld_1(); // 27
+	virtual ahkpWorld* GetHavokWorld_2(); // 28
 	virtual void	  MoveToWorld(struct bhkWorld *world); // 29
 	virtual void	  RemoveFromCurrentWorld(); // 2A
 	virtual void	  Unk_2B(void); // 2B

@@ -89,6 +89,12 @@ void HiggsInterface001::AddStopTwoHandingCallback(StopTwoHandingCallback callbac
 	stopTwoHandingCallbacks.push_back(callback);
 }
 
+void HiggsInterface001::AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	collisionFilterComparisonCallbacks.push_back(callback);
+}
+
 
 void HiggsPluginAPI::TriggerPulledCallbacks(bool isLeft, TESObjectREFR *pulledRefr) {
 	for (auto callback : g_interface001.pulledCallbacks) {
@@ -150,6 +156,18 @@ void HiggsPluginAPI::TriggerStopTwoHandingCallbacks() {
 	}
 
 	PapyrusAPI::OnStopTwoHandingEvent();
+}
+
+CollisionFilterComparisonResult HiggsPluginAPI::TriggerCollisionFilterComparisonCallbacks(void *filter, UInt32 filterInfoA, UInt32 filterInfoB) {
+	for (auto callback : g_interface001.collisionFilterComparisonCallbacks) {
+		CollisionFilterComparisonResult result = callback(filter, filterInfoA, filterInfoB);
+		if (result == CollisionFilterComparisonResult::Collide || result == CollisionFilterComparisonResult::Ignore) {
+			return result;
+		}
+		// result is CollisionFilterComparisonResult::Continue, i.e. don't do anything
+	}
+
+	return CollisionFilterComparisonResult::Continue;
 }
 
 void HiggsInterface001::GrabObject(TESObjectREFR *object, bool isLeft)
@@ -244,6 +262,11 @@ bool HiggsInterface001::IsWeaponCollisionDisabled(bool isLeft)
 	}
 }
 
+void HiggsInterface001::ForceWeaponCollisionEnabled(bool isLeft)
+{
+	forceEnableWeaponCollision[isLeft] = true;
+}
+
 bool HiggsInterface001::IsTwoHanding()
 {
 	return g_rightHand->IsTwoHanding() || g_leftHand->IsTwoHanding();
@@ -253,4 +276,35 @@ bool HiggsInterface001::CanGrabObject(bool isLeft)
 {
 	Hand *hand = isLeft ? g_leftHand : g_rightHand;
 	return hand->CanGrabObject();
+}
+
+NiObject * HiggsInterface001::GetHandRigidBody(bool isLeft)
+{
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	return hand->handBody;
+}
+
+NiObject * HiggsInterface001::GetWeaponRigidBody(bool isLeft)
+{
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	return hand->weaponBody;
+}
+
+NiObject * HiggsInterface001::GetGrabbedRigidBody(bool isLeft)
+{
+	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	if (hand->HasHeldObject()) {
+		return hand->selectedObject.rigidBody;
+	}
+	return nullptr;
+}
+
+UInt64 HiggsInterface001::GetHiggsLayerBitfield()
+{
+	return higgsLayerBitfield;
+}
+
+void HiggsInterface001::SetHiggsLayerBitfield(UInt64 bitfield)
+{
+	higgsLayerBitfield = bitfield;
 }

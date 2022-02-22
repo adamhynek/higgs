@@ -199,7 +199,7 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 	}
 
 	auto SetShadowsToUpdateThisFrame = []() {
-		_MESSAGE("Island deactived on frame %d", *g_currentFrameCounter);
+		//_MESSAGE("Island deactived on frame %d", *g_currentFrameCounter);
 		if (g_savedShadowUpdateFrameDelay == -1) {
 			g_savedShadowUpdateFrameDelay = *g_iShadowUpdateFrameDelay;
 		}
@@ -281,7 +281,7 @@ struct CreateDetectionEventTask : TaskDelegate
 
 void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 {
-	if (evnt.m_contactPointProperties && (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED)) {
+	if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
 		// Early out
 		return;
 	}
@@ -721,26 +721,28 @@ namespace CollisionInfo
 }
 
 
-void AddCustomCollisionLayer(bhkWorld *world)
+void AddHiggsCollisionLayer(bhkWorld *world)
 {
-	// Create our own layer in the first ununsed vanilla layer (56)
+	// Create our own layer in the first unused vanilla layer (56)
 	bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
-	UInt64 bitfield = worldFilter->layerBitfields[5]; // copy of L_WEAPON layer bitfield
-
-	bitfield |= ((UInt64)1 << 56); // collide with ourselves
-	//bitfield |= ((UInt64)1 << 0x08); // add collision with l_biped (ragdoll of live characters)
-	//bitfield |= ((UInt64)1 << 0x21); // add collision with l_biped_no_cc (ragdoll of live characters)
-	bitfield &= ~((UInt64)1 << 0x1e); // remove collision with character controllers
-	worldFilter->layerBitfields[56] = bitfield;
+	worldFilter->layerBitfields[56] = g_interface001.higgsLayerBitfield;
 	worldFilter->layerNames[56] = BSFixedString("L_HIGGSCOLLISION");
 	// Set whether other layers should collide with our new layer
-	for (int i = 0; i < 56; i++) {
+	ReSyncLayerBitfields(worldFilter, 56);
+}
+
+void ReSyncLayerBitfields(bhkCollisionFilter *filter, UInt8 layer)
+{
+	UInt64 bitfield = filter->layerBitfields[layer];
+	for (int i = 0; i < 64; i++) { // 56 layers in vanilla
 		if ((bitfield >> i) & 1) {
-			worldFilter->layerBitfields[i] |= ((UInt64)1 << 56);
+			filter->layerBitfields[i] |= ((UInt64)1 << layer);
+		}
+		else {
+			filter->layerBitfields[i] &= ~((UInt64)1 << layer);
 		}
 	}
 }
-
 
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
 {

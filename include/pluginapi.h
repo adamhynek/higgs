@@ -27,6 +27,15 @@ namespace HiggsPluginAPI {
 		virtual void AddCollisionCallback(CollisionCallback callback);
 		virtual void AddStartTwoHandingCallback(StartTwoHandingCallback callback);
 		virtual void AddStopTwoHandingCallback(StopTwoHandingCallback callback);
+		virtual void AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback callback);
+
+		virtual UInt64 GetHiggsLayerBitfield();
+		virtual void SetHiggsLayerBitfield(UInt64 bitfield);
+
+		virtual NiObject * GetHandRigidBody(bool isLeft);
+		virtual NiObject * GetWeaponRigidBody(bool isLeft);
+
+		virtual NiObject * GetGrabbedRigidBody(bool isLeft);
 
 		virtual void GrabObject(TESObjectREFR *object, bool isLeft);
 		virtual TESObjectREFR * GetGrabbedObject(bool isLeft);
@@ -39,6 +48,8 @@ namespace HiggsPluginAPI {
 		virtual void DisableWeaponCollision(bool isLeft);
 		virtual void EnableWeaponCollision(bool isLeft);
 		virtual bool IsWeaponCollisionDisabled(bool isLeft);
+
+		virtual void ForceWeaponCollisionEnabled(bool isLeft);
 
 		virtual bool IsTwoHanding();
 
@@ -54,12 +65,18 @@ namespace HiggsPluginAPI {
 		std::vector<CollisionCallback> collisionCallbacks;
 		std::vector<StartTwoHandingCallback> startTwoHandingCallbacks;
 		std::vector<StopTwoHandingCallback> stopTwoHandingCallbacks;
+		std::vector<CollisionFilterComparisonCallback> collisionFilterComparisonCallbacks;
 
 		std::atomic<int> rightDisableCount = 0;
 		std::atomic<int> leftDisableCount = 0;
 
 		std::atomic<int> rightWeaponDisableCount = 0;
 		std::atomic<int> leftWeaponDisableCount = 0;
+
+		// Same as L_WEAPON layer, but + self-collision (layer 56) and - charcontroller collision
+		UInt64 higgsLayerBitfield = 0x01053343161b7fff;
+
+		bool forceEnableWeaponCollision[2]{ false, false };
 	};
 
 	void TriggerPulledCallbacks(bool isLeft, TESObjectREFR *pulledRefr);
@@ -70,6 +87,9 @@ namespace HiggsPluginAPI {
 	void TriggerCollisionCallbacks(bool isLeft, float mass, float separatingVelocity);
 	void TriggerStartTwoHandingCallbacks();
 	void TriggerStopTwoHandingCallbacks();
+
+	using CollisionFilterComparisonResult = HiggsInterface001::CollisionFilterComparisonResult;
+	CollisionFilterComparisonResult TriggerCollisionFilterComparisonCallbacks(void *filter, UInt32 filterInfoA, UInt32 filterInfoB);
 }
 
 extern HiggsPluginAPI::HiggsInterface001 g_interface001;

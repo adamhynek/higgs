@@ -72,6 +72,30 @@ namespace HiggsPluginAPI {
 		// Returns whether the given hand can actually grab an object right now.
 		// This includes whether it is in a grabbable state, but also whether it is holding a blocking weapon or disabled through the api.
 		virtual bool CanGrabObject(bool isLeft) = 0;
+
+		enum class CollisionFilterComparisonResult : UInt8 {
+			Continue, // Do not affect whether the two objects should collide
+			Collide, // Force the two objects to collide
+			Ignore, // Force the two objects to not collide
+		};
+		// Add a callback for when havok compares collision filter info to determine if two objects should collide. This can be called hundreds of times per frame, so be brief.
+		// collisionFilter is really of type bhkCollisionFilter
+		typedef CollisionFilterComparisonResult (*CollisionFilterComparisonCallback)(void *collisionFilter, UInt32 filterInfoA, UInt32 filterInfoB);
+		virtual void AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback callback) = 0;
+
+		// Get/set the collision layer bitfield for the higgs collision layer (used for hands, weapons, and held objects).
+		virtual UInt64 GetHiggsLayerBitfield() = 0;
+		virtual void SetHiggsLayerBitfield(UInt64 bitfield) = 0;
+
+		// Get the hand and weapon rigidbodies that higgs creates. Both return types are really bhkRigidBody.
+		virtual NiObject * GetHandRigidBody(bool isLeft) = 0;
+		virtual NiObject * GetWeaponRigidBody(bool isLeft) = 0;
+
+		// Get the currently held rigid body. Return type is actually bhkRigidBody.
+		virtual NiObject * GetGrabbedRigidBody(bool isLeft) = 0;
+
+		// Forces the weapon collision to stay enabled, unless sheathed or disabled through the API.
+		virtual void ForceWeaponCollisionEnabled(bool isLeft) = 0;
 	};
 }
 

@@ -123,7 +123,8 @@ namespace CollisionInfo
 	void ResetCollisionInfoKeyframed(bhkRigidBody *entity, hkpMotion::MotionType motionType, hkInt8 quality, State reason, bool collideAll = true, bool collideNone = false);
 }
 
-void AddCustomCollisionLayer(bhkWorld *world);
+void AddHiggsCollisionLayer(bhkWorld *world);
+void ReSyncLayerBitfields(bhkCollisionFilter *filter, UInt8 layer);
 
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void SetAngularVelocityDownstream(NiAVObject *obj, hkVector4 velocity);

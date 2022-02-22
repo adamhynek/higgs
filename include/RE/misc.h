@@ -76,6 +76,7 @@ struct VRMeleeData
 	float impactRumbleDuration; // B4
 	float meleeForceMultLinear; // B8
 	bool enableCollision; // BC - this value is read from and the collision node's collision is enabled/disabled
+	bool applyImpulseOnHit; // BD - default true
 	SwingDirection swingDirection; // C0 - default 0
 	float cooldown; // C4 - gets set to the cooldown, then ticks down, can (and will) get negative - default 0
 	float powerAttackCooldown; // C8 - default 0
