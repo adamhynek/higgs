@@ -1637,10 +1637,11 @@ void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
 }
 
 void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
-	const std::vector<TriangleData> &tris,
+	const std::vector<TriangleData> &triangles,
 	int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector)
 {
-	for (TriangleData triangle : tris) {
+	for (int i = 0; i < triangles.size(); i++) {
+		const TriangleData &triangle = triangles[i];
 
 		// get closest point on triangle to given point
 		float tipAngle, outerAngle, innerAngle;
@@ -1648,18 +1649,18 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 			tipAngle, outerAngle, innerAngle);
 
 		if (tipIntersects) {
-			tipIntersections.push_back({ tipAngle });
+			tipIntersections.push_back({ tipAngle, i });
 		}
 		if (outerIntersects) {
-			outerIntersections.push_back({ outerAngle });
+			outerIntersections.push_back({ outerAngle, i });
 		}
 		if (innerIntersects) {
-			innerIntersections.push_back({ innerAngle });
+			innerIntersections.push_back({ innerAngle, i });
 		}
 	}
 }
 
-NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const _OldIntersection &intersection)
+NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const OldIntersection &intersection)
 {
 	BSTriShape *geom = intersection.node;
 	Triangle tri = intersection.tri;
@@ -1681,7 +1682,7 @@ NiPoint3 GetClosestPointOnIntersection(const NiPoint3 &point, const _OldIntersec
 	return nodeTransform * result.closest;
 }
 
-std::array<NiPoint3, 3> GetVertices(const _OldIntersection &intersection)
+std::array<NiPoint3, 3> GetVertices(const OldIntersection &intersection)
 {
 	BSTriShape *geom = intersection.node;
 	Triangle tri = intersection.tri;
@@ -1722,105 +1723,98 @@ bool DoesAnyVertexMatch(const std::array<NiPoint3, 3> &verts1, const std::array<
 
 
 bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
-	float *outAngle)
+	Intersection &outIntersection)
 {
 	std::vector<Intersection> tipIntersections, outerIntersections, innerIntersections;
 
 	// Populate intersections
 	GetFingerIntersectionOnGraphicsGeometry(tipIntersections, outerIntersections, innerIntersections, triangles, fingerIndex, handScale, center, normal, zeroAngleVector);
 
-	/*
-	if (innerIntersections.size() == 0 && anyUnderInner) {
-		return false;
-	}
-
-	if (outerIntersections.size() == 0 && anyUnderOuter) {
-		return false;
-	}
-	*/
-
-	/*
-	// If inner and outer finger didn't intersect, we don't care if the tip did
-	if (innerIntersections.size() == 0 && outerIntersections.size() == 0) {
-		return false;
-	}
-
-	if (innerIntersections.size() > 0 && outerIntersections.size() == 0 && tipIntersections.size() > 0) {
-		// Inner and tip - no outer, so who cares
-		return false;
-	}
-	*/
-
-	auto visit = [](Intersection *intersection, float &smallestAngle)
+	auto visit = [](const Intersection &intersection, Intersection &smallestIntersection)
 	{
-		float angle = intersection->angle;
+		float angle = intersection.angle;
 		float degrees = angle * 57.2958f;
 
 		_MESSAGE("angle: %.2f", degrees);
 
-		if (angle >= 0 && angle < smallestAngle) {
-			smallestAngle = angle;
+		if (angle >= 0 && angle < smallestIntersection.angle) {
+			smallestIntersection = { angle, intersection.triangleIndex };
 		}
 	};
 
-	auto CheckNegativeWithinAngle = [](const std::vector<Intersection> &intersections, float angle) -> bool
+	auto CheckNegativeWithinAngle = [](const std::vector<Intersection> &intersections, float angle) -> SInt32
 	{
-		// Return true if there is a negative intersection angle whose magnitude is within the given angle
+		// Return the triangle index of an intersection with a negative intersection angle whose magnitude is within the given angle, or -1.
 
 		for (auto &intersection : intersections) {
 			float intersectionAngle = intersection.angle;
 			if (intersectionAngle < 0 && abs(intersectionAngle) < angle) {
-				return true;
+				return intersection.triangleIndex;
 			}
 		}
-		return false;
+		return -1;
 	};
 
-	float innerAngle = (std::numeric_limits<float>::max)();
-	for (auto &intersection : innerIntersections) {
-		visit(&intersection, innerAngle);
+	// Get best intersection angles for each curve
+	Intersection innerIntersection{ (std::numeric_limits<float>::max)(), 0 };
+	for (Intersection &intersection : innerIntersections) {
+		visit(intersection, innerIntersection);
 	}
-	bool isInnerNegative = CheckNegativeWithinAngle(innerIntersections, innerAngle);
-
-	float outerAngle = (std::numeric_limits<float>::max)();
-	for (auto &intersection : outerIntersections) {
-		visit(&intersection, outerAngle);
-	}
-	bool isOuterNegative = CheckNegativeWithinAngle(outerIntersections, outerAngle);
-
-	float tipAngle = (std::numeric_limits<float>::max)();
-	for (auto &intersection : tipIntersections) {
-		visit(&intersection, tipAngle);
-	}
-	bool isTipNegative = CheckNegativeWithinAngle(tipIntersections, tipAngle);
-
-	if (isInnerNegative || isOuterNegative || isTipNegative) {
-		*outAngle = -1;
+	if (SInt32 innerNegativeIndex = CheckNegativeWithinAngle(innerIntersections, innerIntersection.angle); innerNegativeIndex >= 0) {
+		outIntersection = { -1.f, innerNegativeIndex };
 		return true;
 	}
 
+	Intersection outerIntersection{ (std::numeric_limits<float>::max)(), 0 };
+	for (Intersection &intersection : outerIntersections) {
+		visit(intersection, outerIntersection);
+	}
+	if (SInt32 outerNegativeIndex = CheckNegativeWithinAngle(outerIntersections, outerIntersection.angle); outerNegativeIndex >= 0) {
+		outIntersection = { -1.f, outerNegativeIndex };
+		return true;
+	}
 
+	Intersection tipIntersection{ (std::numeric_limits<float>::max)(), 0 };
+	for (Intersection &intersection : tipIntersections) {
+		visit(intersection, tipIntersection);
+	}
+	if (SInt32 tipNegativeIndex = CheckNegativeWithinAngle(tipIntersections, tipIntersection.angle);  tipNegativeIndex >= 0) {
+		outIntersection = { -1.f, tipNegativeIndex };
+		return true;
+	}
+
+	// Lookup curve vals from angles for each curve
 	float innerVal = -1, outerVal = -1, tipVal = -1;
 	SavedFingerData fingerData;
-	if (innerAngle != (std::numeric_limits<float>::max)()) {
-		LookupFingerByAngle(g_fingerInnerVals[fingerIndex], innerAngle, &fingerData);
+	if (innerIntersection.angle != (std::numeric_limits<float>::max)()) {
+		LookupFingerByAngle(g_fingerInnerVals[fingerIndex], innerIntersection.angle, &fingerData);
 		innerVal = fingerData.curveVal;
 	}
-	if (outerAngle != (std::numeric_limits<float>::max)()) {
-		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], outerAngle, &fingerData);
+	if (outerIntersection.angle != (std::numeric_limits<float>::max)()) {
+		LookupFingerByAngle(g_fingerOuterVals[fingerIndex], outerIntersection.angle, &fingerData);
 		outerVal = fingerData.curveVal;
 	}
-	if (tipAngle != (std::numeric_limits<float>::max)()) {
-		LookupFingerByAngle(g_fingerTipVals[fingerIndex], tipAngle, &fingerData);
+	if (tipIntersection.angle != (std::numeric_limits<float>::max)()) {
+		LookupFingerByAngle(g_fingerTipVals[fingerIndex], tipIntersection.angle, &fingerData);
 		tipVal = fingerData.curveVal;
 	}
 
+	// Pick the largest curve value (the one which curls the finger the least)
 	float curveVal = max(innerVal, max(outerVal, tipVal));
 	if (curveVal == -1) {
 		return false;
 	}
 
-	*outAngle = curveVal;
+	if (curveVal == tipVal) {
+		outIntersection = { curveVal, tipIntersection.triangleIndex };
+	}
+	else if (curveVal == outerVal) {
+		outIntersection = { curveVal, outerIntersection.triangleIndex };
+	}
+	else { // curveVal == innerVal
+		outIntersection = { curveVal, innerIntersection.triangleIndex };
+	}
+
 	return true;
 }
 
@@ -1916,16 +1910,17 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 }
 
 bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &tris, const NiPoint3 &point, const NiPoint3 &direction,
-	NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar)
+	NiPoint3 &closestPos, NiPoint3 &closestNormal, int &closestIndex, float &closestDistanceSoFar)
 {
-	TriangleData *closestTri = nullptr;
+	int closestTri = -1;
 	NiPoint3 closestTriPos;
-	float closestDistance = *closestDistanceSoFar;
+	float closestDistance = closestDistanceSoFar;
 
 	float lateralWeight = Config::options.grabLateralWeight;
 	float directionalWeight = Config::options.grabDirectionalWeight;
 
-	for (TriangleData triangle : tris) {
+	for (int i = 0; i < tris.size(); i++) {
+		const TriangleData &triangle = tris[i];
 		// get closest point on the triangle to given ray starting at point in direction
 		NiPoint3 closestPoint;
 		float closestDistSquared;
@@ -1945,18 +1940,18 @@ bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &tr
 				// Front face of the triangle faces the line
 				closestDistance = distance;
 				closestTriPos = closestPoint;
-				closestTri = &triangle;
+				closestTri = i;
 			}
 		}
 	}
 
 	if (closestTri) {
-		*closestDistanceSoFar = closestDistance;
-		*closestPos = closestTriPos;
+		closestIndex = closestTri;
+		closestDistanceSoFar = closestDistance;
+		closestPos = closestTriPos;
 
-		TriangleData triData = *closestTri;
-
-		*closestNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
+		const TriangleData &triData = tris[closestTri];
+		closestNormal = VectorNormalized(CrossProduct(triData.v1 - triData.v0, triData.v2 - triData.v1));
 
 		return true;
 	}

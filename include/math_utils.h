@@ -59,9 +59,10 @@ struct TriangleData
 struct Intersection
 {
 	float angle; // angle of the fingertip at intersection pt
+	SInt32 triangleIndex; // the index within the array of triangles that was intersected
 };
 
-struct _OldIntersection
+struct OldIntersection
 {
 	BSTriShape *node; // the trishape where the intersected triangle resides
 	Triangle tri; // triangle that was intersected
@@ -162,9 +163,10 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
 
 bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
-	float *outAngle);
+	Intersection &outIntersection);
 void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
 	const std::vector<TriangleData> &triangles,
 	int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
-bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &triangles, const NiPoint3 &point, const NiPoint3 &direction, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
+bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &triangles, const NiPoint3 &point, const NiPoint3 &direction,
+	NiPoint3 &closestPos, NiPoint3 &closestNormal, int &closestIndex, float &closestDistanceSoFar);

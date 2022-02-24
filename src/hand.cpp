@@ -1158,8 +1158,9 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 		NiPoint3 triPos, triNormal;
 		float closestDist = (std::numeric_limits<float>::max)();
+		int closestTriIndex = -1;
 		t = GetTime();
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, &triPos, &triNormal, &closestDist);
+		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
 
 		if (havePointOnGeometry) {
 			ptPos = triPos;
@@ -1202,12 +1203,12 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 
 				_MESSAGE("finger %d", fingerIndex);
 
-				float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
+				Intersection intersection;
 				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-					&curveValOrAngle);
+					intersection);
 
 				if (intersects) {
-					return curveValOrAngle;
+					return intersection.angle;
 				}
 
 				// No finger intersection, so just close it completely
@@ -1329,8 +1330,9 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 		NiPoint3 triPos, triNormal;
 		float closestDist = (std::numeric_limits<float>::max)();
+		int closestTriIndex = -1;
 		t = GetTime();
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, &triPos, &triNormal, &closestDist);
+		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
 
 		if (havePointOnGeometry) {
 			ptPos = triPos;
@@ -1371,12 +1373,12 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 				_MESSAGE("finger %d", fingerIndex);
 
-				float curveValOrAngle; // If negative, it's an angle. Otherwise curveVal
+				Intersection intersection;
 				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-					&curveValOrAngle);
+					intersection);
 
 				if (intersects) {
-					return curveValOrAngle;
+					return intersection.angle;
 				}
 
 				// No finger intersection, so just close it completely
