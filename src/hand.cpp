@@ -1263,15 +1263,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPo
 			hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
 			hkQuat.normalize();
 			selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
-
-			// Use havok object pos / rot since we set that while holding it, and it can be slightly off from the ninode pos
-			hkTransform &hkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform;
-			NiTransform desiredHavokTransform = adjustedTransform;
-			desiredHavokTransform.pos = HkVectorToNiPoint(hkTransform.m_translation) / havokWorldScale;
-			HkMatrixToNiMatrix(hkTransform.m_rotation, desiredHavokTransform.rot);
-
-			desiredHavokTransform.pos += palmPos - ptPos;
-			desiredHavokTransformHandSpace = inverseHand * desiredHavokTransform;
 		}
 		else {
 			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -1779,6 +1770,11 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 	PlayerCharacter *player = *g_thePlayer;
 	NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
 	if (clavicle) {
+		if (std::isnan(worldTransform.pos.x) || std::isnan(worldTransform.pos.y) || std::isnan(worldTransform.pos.z)) {
+			_WARNING("[WARNING] Attempted hand transform contains nans!");
+			return;
+		}
+
 		NiTransform identity;
 		UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
 	}
@@ -3172,13 +3168,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
 
-				if (!selectedObject.isActor) {
-					hkTransform &heldHkTransform = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform; // try approxTransformAt() instead?
-					heldTransform.pos = HkVectorToNiPoint(heldHkTransform.m_translation) / *g_havokWorldScale;
-					HkMatrixToNiMatrix(heldHkTransform.m_rotation, heldTransform.rot);
-				}
-
-				NiTransform inverseDesired = InverseTransform(desiredHavokTransformHandSpace);
+				NiTransform inverseDesired = InverseTransform(desiredNodeTransformHandSpace);
 				adjustedHandTransform = heldTransform * inverseDesired;
 
 				float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
@@ -3193,14 +3183,24 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 
 					// Update object velocity to go where we want it
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					NiTransform newTransform = handTransform * (selectedObject.isActor ? desiredNodeTransformHandSpace : desiredHavokTransformHandSpace);
+					NiTransform newTransform = handTransform * desiredNodeTransformHandSpace;
+
+					if (bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(selectedObject.rigidBody.m_pObject, bhkRigidBody, bhkRigidBodyT)) {
+						NiTransform rigidBodyLocalTransform{};
+						rigidBodyLocalTransform.pos = HkVectorToNiPoint(rigidBodyT->translation) * *g_inverseHavokWorldScale;
+						rigidBodyLocalTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(rigidBodyT->rotation));
+
+						newTransform = newTransform * rigidBodyLocalTransform;
+					}
+
 					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+
 					NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
 					desiredPos += playerHkVelocity * *g_deltaTime;
-					hkRotation desiredRot;
-					NiMatrixToHkMatrix(newTransform.rot, desiredRot);
-					hkQuaternion desiredQuat;
-					desiredQuat.setFromRotationSimd(desiredRot);
+
+					hkRotation desiredRot; NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+					hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(desiredRot);
+
 					hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
 
 					// Now, check if in general, the object has been moving as we want it to be. If it isn't, then it's likely blocked by something and so we need to damp its velocities.

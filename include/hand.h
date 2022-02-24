@@ -245,7 +245,6 @@ struct Hand
 	NiPoint3 initialGrabbedObjRelativePosition;
 
 	NiTransform desiredNodeTransformHandSpace;
-	NiTransform desiredHavokTransformHandSpace;
 
 	NiTransform handTransform;
 	NiTransform adjustedHandTransform;
