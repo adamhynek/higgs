@@ -939,13 +939,13 @@ void PerformHooks(void)
 				push(rcx);
 				push(rdx);
 				push(r8);
-				sub(rsp, 0x8); // need to align the stack
+				sub(rsp, 0x28); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
 
 				// Call our hook
 				mov(rax, (uintptr_t)bhkCollisionFilter_CompareFilterInfo_Hook);
 				call(rax);
 
-				add(rsp, 0x8);
+				add(rsp, 0x28);
 				pop(r8);
 				pop(rdx);
 				pop(rcx);
