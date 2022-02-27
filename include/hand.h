@@ -146,8 +146,9 @@ struct Hand
 	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
+	NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, NiTransform *initialTransform);
 	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj,
-		NiTransform *initialTransform = nullptr, bool playSound = true);
+		NiTransform *initialTransform = nullptr, bool reuseTriangles = false, bool playSound = true);
 	void TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
 		float havokWorldScale, const NiTransform &handTransform, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
@@ -254,6 +255,8 @@ struct Hand
 
 	NiPoint3 prevHeldObjPosPlayerspace;
 	NiPoint3 prevHeldObjVelocityPlayerspace;
+
+	std::vector<TriangleData> triangles; // tris are in worldspace
 
 	bool idleDesired = false;
 

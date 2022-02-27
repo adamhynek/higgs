@@ -56,6 +56,23 @@ struct TriangleData
 	NiPoint3 v2;
 };
 
+struct PartitionData
+{
+	PartitionData() {};
+	PartitionData(NiSkinInstance *skinInstance, uintptr_t vertexData) : skinInstance(skinInstance), vertexData(vertexData) {}
+
+	std::vector<NiPoint3> verticesWS{};
+	std::vector<UInt16> globalVertToPartVertMap{};
+	uintptr_t vertexData = 0;
+	NiSkinInstance *skinInstance = nullptr;
+};
+
+struct TrianglePartitionData
+{
+	NiSkinPartition::Partition &partition;
+	Triangle indices;
+};
+
 struct Intersection
 {
 	float angle; // angle of the fingertip at intersection pt
@@ -159,8 +176,8 @@ inline float ConstrainAngleNegative360(float x) { return -ConstrainAngle360(-x);
 
 bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom);
 
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
-void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles);
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
+void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<NiAVObject *> &triangleNodes);
 
 bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
 	Intersection &outIntersection);

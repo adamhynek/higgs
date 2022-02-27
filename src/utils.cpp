@@ -609,23 +609,26 @@ void DumpVertices(std::vector<TriangleData> &triangles)
 	_file.close();
 }
 
-bhkCollisionObject * GetCollisionObject(NiAVObject *obj)
+NiPointer<bhkCollisionObject> GetCollisionObject(NiAVObject *obj)
 {
 	if (!obj->unk040) return nullptr;
 
-	auto niCollObj = ((NiCollisionObject *)obj->unk040);
-	auto collObj = DYNAMIC_CAST(niCollObj, NiCollisionObject, bhkCollisionObject);
-	return collObj;
+	if (NiPointer<NiCollisionObject> niCollObj = (NiCollisionObject *)obj->unk040) {
+		if (NiPointer<bhkCollisionObject> collObj = DYNAMIC_CAST(niCollObj, NiCollisionObject, bhkCollisionObject)) {
+			return collObj;
+		}
+	}
+
+	return nullptr;
 }
 
 NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj)
 {
-	auto collObj = GetCollisionObject(obj);
-	if (collObj) {
-		NiPointer<bhkWorldObject> worldObj = collObj->body;
-		auto rigidBody = DYNAMIC_CAST(worldObj, bhkWorldObject, bhkRigidBody);
-		if (rigidBody) {
-			return rigidBody;
+	if (NiPointer<bhkCollisionObject> collObj = GetCollisionObject(obj)) {
+		if (NiPointer<bhkWorldObject> worldObj = collObj->body) {
+			if (NiPointer<bhkRigidBody> rigidBody = DYNAMIC_CAST(worldObj, bhkWorldObject, bhkRigidBody)) {
+				return rigidBody;
+			}
 		}
 	}
 
@@ -942,4 +945,16 @@ void SetGeometryAlphaDownstream(NiAVObject *root, float alpha)
 			}
 		}
 	}
+}
+
+NiAVObject * GetClosestParentWithCollision(NiAVObject *node)
+{
+	NiAVObject *nodeWithCollision = node;
+	while (nodeWithCollision) {
+		if (nodeWithCollision->unk040) {
+			return nodeWithCollision;
+		}
+		nodeWithCollision = nodeWithCollision->m_parent;
+	}
+	return nullptr;
 }

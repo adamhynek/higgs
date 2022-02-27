@@ -661,6 +661,9 @@ extern "C" {
 			_WARNING("[WARNING] Failed to read config options. Using defaults instead.");
 		}
 
+		gLog.SetPrintLevel((IDebugLog::LogLevel)Config::options.logLevel);
+		gLog.SetLogLevel((IDebugLog::LogLevel)Config::options.logLevel);
+
 		_MESSAGE("Registering for SKSE messages");
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
 		g_messaging->RegisterListener(g_pluginHandle, "SKSE", OnSKSEMessage);

@@ -163,6 +163,8 @@ namespace Config {
 		if (!ReadDouble("RolloverAfterGrabAlphaFadeInTime", options.rolloverAfterGrabAlphaFadeInTime)) return false;
 		if (!ReadDouble("RolloverAfterDropAlphaFadeInTime", options.rolloverAfterDropAlphaFadeInTime)) return false;
 
+		if (!ReadInt("LogLevel", options.logLevel)) return false;
+
 		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
 		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
 

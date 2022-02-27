@@ -117,6 +117,8 @@ namespace Config {
 		double rolloverAfterGrabAlphaFadeInTime = 1.0;
 		double rolloverAfterDropAlphaFadeInTime = 1.0;
 
+		int logLevel = IDebugLog::kLevel_Message;
+
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
 		bool disableDampedGrab = false;

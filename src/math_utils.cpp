@@ -1181,13 +1181,13 @@ namespace MathUtils
 								return false;
 							}
 
-							_MESSAGE("pt: %.2f", angle);
+							_DMESSAGE("pt: %.2f", angle);
 							outAngle = angle;
 							return true;
 						}
 						else if (DotProduct(triNormal, largerAngleTangent) <= 0) {
 							float angle = -largerAngle;
-							_MESSAGE("pt: %.2f", angle);
+							_DMESSAGE("pt: %.2f", angle);
 							outAngle = angle;
 							return true;
 						}
@@ -1209,7 +1209,7 @@ namespace MathUtils
 								return false;
 							}
 
-							_MESSAGE("pt: %.2f", angle);
+							_DMESSAGE("pt: %.2f", angle);
 							outAngle = angle; // Something negative
 							return true;
 						}
@@ -1283,7 +1283,7 @@ namespace MathUtils
 						if (DotProduct(triNormal, tangent) <= 0) {
 							// Front face of the triangle was intersected CCW around the circle
 							// TODO: Use precise intersection point instead of the current angle / length
-							_MESSAGE("pt: %.2f", angle);
+							_DMESSAGE("pt: %.2f", angle);
 							outAngle = angle;
 							return true;
 						}
@@ -1308,7 +1308,7 @@ namespace MathUtils
 		bool innerIntersects = CurveCheck(g_fingerInnerVals[fingerIndex], startAngle, endAngle, innerAngle);
 
 		if (tipIntersects || outerIntersects || innerIntersects) {
-			_MESSAGE("inner outer tip: %d %d %d", innerIntersects, outerIntersects, tipIntersects);
+			_DMESSAGE("inner outer tip: %d %d %d", innerIntersects, outerIntersects, tipIntersects);
 		}
 
 		outTipAngle = tipAngle;
@@ -1393,12 +1393,12 @@ bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom)
 }
 
 // Add triangles to the given list for each skinned partition in geom
-void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
+void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
 	if (geom->m_name && Config::options.grabNodeNameBlacklist.find(std::string_view(geom->m_name)) != Config::options.grabNodeNameBlacklist.end()) return;
 
 	NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
-	if (!skinInstance) return;
+	if (!geom->m_spSkinInstance) return;
 
 	NiAVObject *skeletonRoot = skinInstance->m_pkRootParent;
 	if (!skeletonRoot) return;
@@ -1480,6 +1480,19 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 
 			std::vector<NiPoint3> transVerts(numTotalVerts); // Allocate space for _all vertices for all partitions_ but only fill in the ones mapped to by the individual partition
 
+			if (!partitionData.count(&partition)) {
+				partitionData.insert({ &partition, PartitionData(skinInstance, verts) });
+				std::vector<UInt16> &inverseVertMap = partitionData[&partition].globalVertToPartVertMap;
+				inverseVertMap.assign(numTotalVerts, -1);
+				for (int v = 0; v < numPartVerts; v++) {
+					// Reverse the mapping to map partition.shapeData->m_RawVertexData vertex to partition vertex
+					UInt16 vindex = partition.m_pusVertexMap[v];
+					if (vindex >= numTotalVerts) break;
+					inverseVertMap[vindex] = v;
+				}
+				partitionData[&partition].verticesWS.resize(numPartVerts);
+			}
+
 			std::unordered_set<UInt16> includeVerts;
 
 			for (int v = 0; v < numPartVerts; v++) {
@@ -1494,24 +1507,27 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 					int offset = v * numWeightsPerVertex + w;
 					float weight = partition.m_pfWeights[offset];
 
-					if (weight != 0.0f) {
-						UInt16 boneIndex = partition.m_pucBonePalette[offset];
+					if (weight > 0.0f) {
+						UInt16 partBoneIndex = partition.m_pucBonePalette[offset];
 
 						if (!nodesToSkinTo) {
 							includeVerts.insert(vindex);
 						}
 						else {
-							NiAVObject *bone = skinInstance->m_ppkBones[boneIndex];
+							UInt16 skinBoneIndex = partBones[partBoneIndex];
+							NiAVObject *bone = skinInstance->m_ppkBones[skinBoneIndex];
 							if (bone && nodesToSkinTo->count(bone) != 0) {
 								includeVerts.insert(vindex);
 							}
 						}
 
-						NiTransform boneTransform = boneTrans[boneIndex];
+						NiTransform boneTransform = boneTrans[partBoneIndex];
 
 						transVerts[vindex] += boneTransform * vertPos * weight;
 					}
 				}
+
+				partitionData[&partition].verticesWS[v] = transVerts[vindex];
 			}
 
 			for (int t = 0; t < numTris; t++) {
@@ -1520,6 +1536,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 				if (includeVerts.count(tri.vertexIndices[0]) != 0 || includeVerts.count(tri.vertexIndices[1]) != 0 || includeVerts.count(tri.vertexIndices[2]) != 0) {
 					TriangleData triData(tri, transVerts);
 					triangles.push_back(triData);
+					trianglePartitions.push_back({ partition, tri });
 				}
 			}
 
@@ -1529,11 +1546,11 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 }
 
 // Get skinned triangles for all geometry rooted at root
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::unordered_set<NiAVObject *> *nodesToSkinTo)
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
-		UpdateSkinnedTriangles(geom, triangles, nodesToSkinTo);
+		UpdateSkinnedTriangles(geom, triangles, trianglePartitions, partitionData, nodesToSkinTo);
 		return;
 	}
 
@@ -1544,7 +1561,7 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetSkinnedTriangles(child, triangles, nodesToSkinTo);
+					GetSkinnedTriangles(child, triangles, trianglePartitions, partitionData, nodesToSkinTo);
 					return;
 				}
 			}
@@ -1553,14 +1570,14 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetSkinnedTriangles(child, triangles, nodesToSkinTo);
+					GetSkinnedTriangles(child, triangles, trianglePartitions, partitionData, nodesToSkinTo);
 				}
 			}
 		}
 	}
 }
 
-void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
+void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::vector<NiAVObject *> &triangleNodes)
 {
 	if (geom->m_name && Config::options.grabNodeNameBlacklist.find(std::string_view(geom->m_name)) != Config::options.grabNodeNameBlacklist.end()) return;
 
@@ -1601,15 +1618,16 @@ void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles)
 			TriangleData triData(tri, verts, posOffset, vertexSize);
 			triData.ApplyTransform(nodeTransform);
 			triangles.push_back(triData);
+			triangleNodes.push_back(geom);
 		}
 	}
 }
 
-void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
+void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<NiAVObject *> &triangleNodes)
 {
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
-		UpdateTriangles(geom, triangles);
+		UpdateTriangles(geom, triangles, triangleNodes);
 		return;
 	}
 
@@ -1620,7 +1638,7 @@ void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetTriangles(child, triangles);
+					GetTriangles(child, triangles, triangleNodes);
 					return;
 				}
 			}
@@ -1629,7 +1647,7 @@ void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles)
 			for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
 				auto child = node->m_children.m_data[i];
 				if (child) {
-					GetTriangles(child, triangles);
+					GetTriangles(child, triangles, triangleNodes);
 				}
 			}
 		}
@@ -1735,7 +1753,7 @@ bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerInde
 		float angle = intersection.angle;
 		float degrees = angle * 57.2958f;
 
-		_MESSAGE("angle: %.2f", degrees);
+		_DMESSAGE("angle: %.2f", degrees);
 
 		if (angle >= 0 && angle < smallestIntersection.angle) {
 			smallestIntersection = { angle, intersection.triangleIndex };

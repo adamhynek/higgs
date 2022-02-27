@@ -70,7 +70,7 @@ void DumpVertices(std::vector<TriangleData> &triangles);
 //float hkHalfToFloat(hkHalf half);
 //hkHalf floatToHkHalf(float half);
 
-bhkCollisionObject * GetCollisionObject(NiAVObject *obj);
+NiPointer<bhkCollisionObject> GetCollisionObject(NiAVObject *obj);
 NiPointer<bhkRigidBody> GetRigidBody(NiAVObject *obj);
 bool DoesNodeHaveConstraint(NiNode *rootNode, NiAVObject *node);
 bool DoesNodeHaveNode(NiAVObject *haystack, NiAVObject *target);
@@ -87,3 +87,4 @@ struct Hand * GetHandToShowRolloverFor();
 void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
 void ReplaceBSString(BSString &replacee, std::string &replacer);
 void SetGeometryAlphaDownstream(NiAVObject *root, float alpha);
+NiAVObject * GetClosestParentWithCollision(NiAVObject *node);
