@@ -947,12 +947,14 @@ void SetGeometryAlphaDownstream(NiAVObject *root, float alpha)
 	}
 }
 
-NiAVObject * GetClosestParentWithCollision(NiAVObject *node)
+NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node)
 {
-	NiAVObject *nodeWithCollision = node;
+	NiPointer<NiAVObject> nodeWithCollision = node;
 	while (nodeWithCollision) {
-		if (nodeWithCollision->unk040) {
-			return nodeWithCollision;
+		if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
+			if (rigidBody->hkBody->m_world) {
+				return nodeWithCollision;
+			}
 		}
 		nodeWithCollision = nodeWithCollision->m_parent;
 	}

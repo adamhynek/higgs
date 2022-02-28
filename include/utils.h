@@ -87,4 +87,4 @@ struct Hand * GetHandToShowRolloverFor();
 void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
 void ReplaceBSString(BSString &replacee, std::string &replacer);
 void SetGeometryAlphaDownstream(NiAVObject *root, float alpha);
-NiAVObject * GetClosestParentWithCollision(NiAVObject *node);
+NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node);
