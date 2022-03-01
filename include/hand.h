@@ -207,7 +207,7 @@ struct Hand
 	NiPointer<bhkRigidBody> handBody = nullptr;
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
-	hkpRigidBody *clonedFromBody = nullptr; // the hkpRigidBody of the collision we cloned to create ours
+	const hkpShape *clonedFromWeaponShape = nullptr; // the shape of the collision object we cloned to create ours
 	float weaponBodyHandSize = 1.f;
 
 	const bool isLeft = false;

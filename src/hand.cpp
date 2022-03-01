@@ -729,7 +729,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 		bhkRigidBody_setActivated(clonedBody, true);
 		hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
-		clonedFromBody = hkBody;
+		clonedFromWeaponShape = hkBody->getCollidable()->getShape();
 		weaponBody = clonedBody;
 	}
 }
@@ -744,7 +744,7 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
 	hkBool ret;
 	hkpWorld_RemoveEntity(world->world, &ret, weaponBody->hkBody);
 	weaponBody = nullptr;
-	clonedFromBody = nullptr;
+	clonedFromWeaponShape = nullptr;
 }
 
 
@@ -786,7 +786,7 @@ void Hand::UpdateWeaponCollision()
 
 	bool isUnarmed = IsUnarmed(player->GetEquippedObject(*g_leftHandedMode != isLeft));
 
-	if (rigidBody->hkBody != clonedFromBody || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
+	if (rigidBody->hkBody->getCollidable()->getShape() != clonedFromWeaponShape || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
 		RemoveWeaponCollisionFromCurrentWorld();
 		if (!isUnarmed) {
 			if (NiPointer<bhkWorld> world = meleeData->world) {
