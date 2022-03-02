@@ -88,3 +88,6 @@ void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
 void ReplaceBSString(BSString &replacee, std::string &replacer);
 void SetGeometryAlphaDownstream(NiAVObject *root, float alpha);
 NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node);
+NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root);
+NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr);
+NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform);

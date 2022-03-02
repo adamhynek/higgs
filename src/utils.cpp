@@ -960,3 +960,45 @@ NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node)
 	}
 	return nullptr;
 }
+
+NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root)
+{
+	if (!root) return nullptr;
+
+	BSFlattenedBoneTree *boneTree = DYNAMIC_CAST(root, NiAVObject, BSFlattenedBoneTree);
+	if (boneTree) return boneTree;
+
+	NiNode *node = root->GetAsNiNode();
+	if (node) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			auto child = node->m_children.m_data[i];
+			if (child) {
+				return GetFlattenedBoneTree(child);
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr)
+{
+	return GetFlattenedBoneTree(refr->GetNiNode());
+}
+
+NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform)
+{
+	for (int b = 0; b < tree->numBones; b++) {
+		BSFlattenedBoneTree::BoneEntry &entry = tree->boneEntries[b];
+		if (&entry.world == worldTransform) {
+			if (NiAVObject *node = entry.node) {
+				return node;
+			}
+			else if (BSFixedString nodeName = entry.nodeName) {
+				return tree->GetObjectByName(&nodeName.data);
+			}
+		}
+	}
+
+	return nullptr;
+}

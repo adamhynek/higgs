@@ -3,6 +3,7 @@
 #include "skse64_common/Relocation.h"
 #include "skse64/NiTypes.h"
 #include "skse64/GameTypes.h"
+#include "skse64/NiNodes.h"
 
 #include "RE/havok.h"
 
@@ -121,6 +122,25 @@ struct BGSImpactManager
 	// sound event passes in ptr to skyrimhavokmaterial id in rdx (actually it's the 2 material ids, then at 0x14 (I think?) is the magnitude of the impact or something - it's used to determine which sound to play, high or low)
 };
 
+struct BSFlattenedBoneTree : NiNode
+{
+	struct BoneEntry
+	{
+		NiTransform local; // 00
+		NiTransform world; // 34
+		UInt16 unk68;
+		UInt16 unk6A;
+		UInt16 unk6C;
+		UInt16 unk6E;
+		NiAVObject *node; // 70
+		BSFixedString nodeName; // 78
+	};
+	static_assert(sizeof(BoneEntry) == 0x80);
+
+	UInt32 numBones; // 150
+	UInt32 unk154; // 154
+	BoneEntry * boneEntries; // 158
+};
 
 typedef void(*Actor_RemoveItem)(TESObjectREFR *_this, UInt32 *outHandle, TESBoundObject* a_item, SInt32 a_count, UInt32 a_reason, BaseExtraList* a_extraList, TESObjectREFR* a_moveToRef, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 typedef TESAmmo * (*Actor_GetCurrentAmmo)(Actor *_this);

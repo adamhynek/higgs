@@ -1124,7 +1124,9 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
 
 					// scale the contribution of each vertex by its distance to the actual grabbed position. This way far-away verts will have less influence than closer ones.
 					NiPoint3 vertPos = partitionData.verticesWS[v];
-					float distanceWeight = 1.f / VectorLength(vertPos - triPos);
+					float distance = VectorLength(vertPos - triPos);
+					if (distance < 0.001f) distance = 0.001f;
+					float distanceWeight = 1.f / distance;
 
 					for (int w = 0; w < numWeightsPerVertex; w++) {
 						int offset = v * numWeightsPerVertex + w;
@@ -1133,7 +1135,19 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
 						if (weight > 0.f) {
 							UInt16 partBoneIndex = partition.m_pucBonePalette[offset];
 							UInt16 skinBoneIndex = partition.m_pusBones[partBoneIndex];
-							if (NiAVObject *bone = skinInstance->m_ppkBones[skinBoneIndex]) {
+
+							NiAVObject *bone = skinInstance->m_ppkBones[skinBoneIndex];
+							if (!bone) {
+								if (NiTransform *boneTransform = skinInstance->m_worldTransforms[skinBoneIndex]) {
+									if (NiPointer<BSFlattenedBoneTree> tree = GetFlattenedBoneTree(selectedObj)) {
+										if (NiAVObject *matchingBone = GetNodeMatchingBoneTreeTransform(tree, boneTransform)) {
+											bone = matchingBone;
+										}
+									}
+								}
+							}
+
+							if (bone) {
 								float weightedWeight = distanceWeight * weight;
 								accumulatedBoneWeights[bone] += weightedWeight;
 							}
