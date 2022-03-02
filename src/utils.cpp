@@ -988,8 +988,8 @@ NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr)
 
 NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform)
 {
-	for (int b = 0; b < tree->numBones; b++) {
-		BSFlattenedBoneTree::BoneEntry &entry = tree->boneEntries[b];
+	for (int i = 0; i < tree->numBones; i++) {
+		BSFlattenedBoneTree::BoneEntry &entry = tree->boneEntries[i];
 		if (&entry.world == worldTransform) {
 			if (NiAVObject *node = entry.node) {
 				return node;

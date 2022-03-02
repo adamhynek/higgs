@@ -685,8 +685,8 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 	const hkpShape *shape = hkBody->m_collidable.m_shape;
 	if (!shape) return;
 
-	bhkShape *bShape = (bhkShape *)shape->m_userData;
-	if (!bShape) return;
+	bhkShape *shapeWrapper = (bhkShape *)shape->m_userData;
+	if (!shapeWrapper) return;
 
 	NiCloningProcess cloningProcess = NiCloningProcess();
 	cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
@@ -696,7 +696,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 		weaponBodyHandSize = handSize;
 	}
 
-	bhkShape *clonedShape = (bhkShape *)NiObject_Clone(bShape, &cloningProcess);
+	bhkShape *clonedShape = (bhkShape *)NiObject_Clone(shapeWrapper, &cloningProcess);
 
 	bhkRigidBodyCinfo cInfo;
 	bhkRigidBodyCinfo_ctor(&cInfo);
@@ -729,7 +729,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 		bhkRigidBody_setActivated(clonedBody, true);
 		hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
-		clonedFromWeaponShape = hkBody->getCollidable()->getShape();
+		clonedFromWeaponShape = shapeWrapper;
 		weaponBody = clonedBody;
 	}
 }
@@ -786,7 +786,7 @@ void Hand::UpdateWeaponCollision()
 
 	bool isUnarmed = IsUnarmed(player->GetEquippedObject(*g_leftHandedMode != isLeft));
 
-	if (rigidBody->hkBody->getCollidable()->getShape() != clonedFromWeaponShape || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
+	if (clonedFromWeaponShape != (bhkShape *)rigidBody->hkBody->getCollidable()->getShape()->m_userData || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
 		RemoveWeaponCollisionFromCurrentWorld();
 		if (!isUnarmed) {
 			if (NiPointer<bhkWorld> world = meleeData->world) {
