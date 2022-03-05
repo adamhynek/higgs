@@ -95,6 +95,12 @@ void HiggsInterface001::AddCollisionFilterComparisonCallback(CollisionFilterComp
 	collisionFilterComparisonCallbacks.push_back(callback);
 }
 
+void HiggsInterface001::AddPrePhysicsStepCallback(PrePhysicsStepCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	prePhysicsStepCallbacks.push_back(callback);
+}
+
 
 void HiggsPluginAPI::TriggerPulledCallbacks(bool isLeft, TESObjectREFR *pulledRefr) {
 	for (auto callback : g_interface001.pulledCallbacks) {
@@ -168,6 +174,12 @@ CollisionFilterComparisonResult HiggsPluginAPI::TriggerCollisionFilterComparison
 	}
 
 	return CollisionFilterComparisonResult::Continue;
+}
+
+void HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(void *world) {
+	for (auto callback : g_interface001.prePhysicsStepCallbacks) {
+		callback(world);
+	}
 }
 
 void HiggsInterface001::GrabObject(TESObjectREFR *object, bool isLeft)

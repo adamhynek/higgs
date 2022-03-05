@@ -90,6 +90,8 @@ auto shaderSetEffectDataInitHookedFunc = RelocAddr<uintptr_t>(0x2291F0); // TESE
 
 auto shaderCheckFlagsHookLoc = RelocAddr<uintptr_t>(0x229243);
 
+auto prePhysicsStepHookLoc = RelocAddr<uintptr_t>(0xDFB709);
+
 
 ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
 void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
@@ -377,6 +379,11 @@ CollisionFilterComparisonResult bhkCollisionFilter_CompareFilterInfo_Hook(bhkCol
 	}
 
 	return CollisionFilterComparisonResult::Continue;
+}
+
+void PrePhysicsStepHook(bhkWorld *world)
+{
+	HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(world);
 }
 
 
@@ -917,6 +924,43 @@ void PerformHooks(void)
 		g_branchTrampoline.Write6Branch(bhkCollisionFilter_CompareFilterInfo_HookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
 		_MESSAGE("bhkCollisionFilter::CompareFilterInfo hook complete");
+	}
+
+	{
+		struct Code : Xbyak::CodeGenerator {
+			Code(void * buf) : Xbyak::CodeGenerator(256, buf)
+			{
+				Xbyak::Label jumpBack;
+
+				sub(rsp, 0x20); // Need an additional 0x20 bytes for scratch space
+
+				mov(rcx, r12); // the bhkWorld is at r12
+
+				// Call our hook
+				mov(rax, (uintptr_t)PrePhysicsStepHook);
+				call(rax);
+
+				add(rsp, 0x20);
+
+				// Original code
+				mov(rcx, r13);
+				test(r14b, r14b);
+
+				// Jump back to whence we came (+ the size of the initial branch instruction)
+				jmp(ptr[rip + jumpBack]);
+
+				L(jumpBack);
+				dq(prePhysicsStepHookLoc.GetUIntPtr() + 6);
+			}
+		};
+
+		void * codeBuf = g_localTrampoline.StartAlloc();
+		Code code(codeBuf);
+		g_localTrampoline.EndAlloc(code.getCurr());
+
+		g_branchTrampoline.Write6Branch(prePhysicsStepHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
+
+		_MESSAGE("Pre-physics-step hook complete");
 	}
 
 	if (!Config::options.disableSelectionBeam) {

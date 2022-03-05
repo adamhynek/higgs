@@ -28,6 +28,7 @@ namespace HiggsPluginAPI {
 		virtual void AddStartTwoHandingCallback(StartTwoHandingCallback callback);
 		virtual void AddStopTwoHandingCallback(StopTwoHandingCallback callback);
 		virtual void AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback callback);
+		virtual void AddPrePhysicsStepCallback(PrePhysicsStepCallback callback);
 
 		virtual UInt64 GetHiggsLayerBitfield();
 		virtual void SetHiggsLayerBitfield(UInt64 bitfield);
@@ -66,6 +67,7 @@ namespace HiggsPluginAPI {
 		std::vector<StartTwoHandingCallback> startTwoHandingCallbacks;
 		std::vector<StopTwoHandingCallback> stopTwoHandingCallbacks;
 		std::vector<CollisionFilterComparisonCallback> collisionFilterComparisonCallbacks;
+		std::vector<PrePhysicsStepCallback> prePhysicsStepCallbacks;
 
 		std::atomic<int> rightDisableCount = 0;
 		std::atomic<int> leftDisableCount = 0;
@@ -90,6 +92,7 @@ namespace HiggsPluginAPI {
 
 	using CollisionFilterComparisonResult = HiggsInterface001::CollisionFilterComparisonResult;
 	CollisionFilterComparisonResult TriggerCollisionFilterComparisonCallbacks(void *filter, UInt32 filterInfoA, UInt32 filterInfoB);
+	void TriggerPrePhysicsStepCallbacks(void *world);
 }
 
 extern HiggsPluginAPI::HiggsInterface001 g_interface001;
