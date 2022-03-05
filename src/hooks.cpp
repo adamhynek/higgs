@@ -401,39 +401,17 @@ void PerformHooks(void)
 			{
 				Xbyak::Label jumpBack;
 
-				push(rax);
 				push(rcx);
 				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
-				movsd(ptr[rsp + 0x20], xmm0);
-				movsd(ptr[rsp + 0x30], xmm1);
-				movsd(ptr[rsp + 0x40], xmm2);
-				movsd(ptr[rsp + 0x50], xmm3);
-				movsd(ptr[rsp + 0x60], xmm4);
-				movsd(ptr[rsp + 0x70], xmm5);
+				sub(rsp, 0x20); // Need an additional 0x20 bytes for scratch space
 
 				// Call our hook
 				mov(rax, (uintptr_t)HookedShaderReferenceEffectCtor);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp + 0x20]);
-				movsd(xmm1, ptr[rsp + 0x30]);
-				movsd(xmm2, ptr[rsp + 0x40]);
-				movsd(xmm3, ptr[rsp + 0x50]);
-				movsd(xmm4, ptr[rsp + 0x60]);
-				movsd(xmm5, ptr[rsp + 0x70]);
-				add(rsp, 0x88);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
+				add(rsp, 0x20);
 				pop(rdx);
 				pop(rcx);
-				pop(rax);
 
 				// Original code
 				mov(rax, shaderHookedFuncAddr);
@@ -642,48 +620,28 @@ void PerformHooks(void)
 				// rbp - 0x08 has the actual arg the refresh function uses, which just points to the char* owned by the BSFixedString
 
 				push(rax);
-				push(rbx);
-				mov(rbx, rbp);
-				add(rbx, 0x20);
-				mov(rax, (uintptr_t)&g_activateButtonName);
-				mov(ptr[rax], rbx);
-				mov(rbx, rbp);
-				sub(rbx, 0x8);
-				mov(rax, (uintptr_t)&g_activateButtonNameArg);
-				mov(ptr[rax], rbx);
-				mov(rax, (uintptr_t)&g_wsActivateRollover);
-				mov(ptr[rax], rdi);
-				pop(rbx);
-				pop(rax);
-
-				push(rax);
 				push(rcx);
 				push(rdx);
 				push(r8);
 				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
-				movsd(ptr[rsp + 0x20], xmm0);
-				movsd(ptr[rsp + 0x30], xmm1);
-				movsd(ptr[rsp + 0x40], xmm2);
-				movsd(ptr[rsp + 0x50], xmm3);
-				movsd(ptr[rsp + 0x60], xmm4);
-				movsd(ptr[rsp + 0x70], xmm5);
+				sub(rsp, 0x28); // Need an additional 0x20 bytes for scratch space and align the stack
+
+				mov(rcx, rbp);
+				add(rcx, 0x20);
+				mov(rax, (uintptr_t)&g_activateButtonName);
+				mov(ptr[rax], rcx);
+				mov(rcx, rbp);
+				sub(rcx, 0x8);
+				mov(rax, (uintptr_t)&g_activateButtonNameArg);
+				mov(ptr[rax], rcx);
+				mov(rax, (uintptr_t)&g_wsActivateRollover);
+				mov(ptr[rax], rdi);
 
 				// Call our hook
 				mov(rax, (uintptr_t)RefreshActivateButtonArtHook);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp + 0x20]);
-				movsd(xmm1, ptr[rsp + 0x30]);
-				movsd(xmm2, ptr[rsp + 0x40]);
-				movsd(xmm3, ptr[rsp + 0x50]);
-				movsd(xmm4, ptr[rsp + 0x60]);
-				movsd(xmm5, ptr[rsp + 0x70]);
-				add(rsp, 0x88);
-				pop(r11);
-				pop(r10);
+				add(rsp, 0x28);
 				pop(r9);
 				pop(r8);
 				pop(rdx);
@@ -755,39 +713,15 @@ void PerformHooks(void)
 			{
 				Xbyak::Label jumpBack;
 
-				push(rax);
 				push(rcx);
-				push(rdx);
-				push(r8);
-				push(r9);
-				push(r10);
-				push(r11);
-				sub(rsp, 0x88); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
-				movsd(ptr[rsp + 0x20], xmm0);
-				movsd(ptr[rsp + 0x30], xmm1);
-				movsd(ptr[rsp + 0x40], xmm2);
-				movsd(ptr[rsp + 0x50], xmm3);
-				movsd(ptr[rsp + 0x60], xmm4);
-				movsd(ptr[rsp + 0x70], xmm5);
+				sub(rsp, 0x28); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
 
 				// Call our hook
 				mov(rax, (uintptr_t)PlayerCharacterUpdateHook);
 				call(rax);
 
-				movsd(xmm0, ptr[rsp + 0x20]);
-				movsd(xmm1, ptr[rsp + 0x30]);
-				movsd(xmm2, ptr[rsp + 0x40]);
-				movsd(xmm3, ptr[rsp + 0x50]);
-				movsd(xmm4, ptr[rsp + 0x60]);
-				movsd(xmm5, ptr[rsp + 0x70]);
-				add(rsp, 0x88);
-				pop(r11);
-				pop(r10);
-				pop(r9);
-				pop(r8);
-				pop(rdx);
+				add(rsp, 0x28);
 				pop(rcx);
-				pop(rax);
 
 				// Original code
 				mov(rax, preVRIKPlayerCharacterUpdateHookedFuncAddr);
