@@ -114,9 +114,8 @@ void ShaderSetEffectDataHook(BSLightingShaderProperty *shaderProperty, void *eff
 			std::shared_lock lock(g_shaderNodesLock);
 
 			// We only play the shader on geometry that's in the set
-			auto &shaderNodes = *g_shaderNodes;
-			if (shaderNodes.count(g_shaderReference) == 0) return;
-			if (shaderNodes[g_shaderReference].count(g_shaderGeometry) == 0) return;
+			if (g_shaderNodes.count(g_shaderReference) == 0) return;
+			if (g_shaderNodes[g_shaderReference].count(g_shaderGeometry) == 0) return;
 		}
 	}
 
@@ -253,10 +252,10 @@ void PostWandUpdateHook()
 		NiAVObject *spellOrigin = player->unk3F0[PlayerCharacter::Node::kNode_SpellOrigin];
 		NiNode *spellOriginNode = spellOrigin ? spellOrigin->GetAsNiNode() : nullptr;
 		if (spellOriginNode && spellOriginNode->m_children.m_emptyRunStart >= 2) {
-			if (g_rightHand && g_rightHand->state == Hand::State::SelectionLocked) {
+			if (g_rightHand->state == Hand::State::SelectionLocked) {
 				g_rightHand->SetupSelectionBeam(spellOriginNode);
 			}
-			else if (g_leftHand && g_leftHand->state == Hand::State::SelectionLocked) {
+			else if (g_leftHand->state == Hand::State::SelectionLocked) {
 				g_leftHand->SetupSelectionBeam(spellOriginNode);
 			}
 			else {
@@ -373,12 +372,7 @@ void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *
 using CollisionFilterComparisonResult = HiggsPluginAPI::IHiggsInterface001::CollisionFilterComparisonResult;
 CollisionFilterComparisonResult bhkCollisionFilter_CompareFilterInfo_Hook(bhkCollisionFilter *filter, UInt32 filterInfoA, UInt32 filterInfoB)
 {
-	CollisionFilterComparisonResult result = HiggsPluginAPI::TriggerCollisionFilterComparisonCallbacks(filter, filterInfoA, filterInfoB);
-	if (result == CollisionFilterComparisonResult::Collide || result == CollisionFilterComparisonResult::Ignore) {
-		return result;
-	}
-
-	return CollisionFilterComparisonResult::Continue;
+	return HiggsPluginAPI::TriggerCollisionFilterComparisonCallbacks(filter, filterInfoA, filterInfoB);
 }
 
 void PrePhysicsStepHook(bhkWorld *world)

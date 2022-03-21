@@ -1,8 +1,9 @@
 #pragma once
 
-#include <mutex>
+#include <numeric>
 #include <array>
 #include <deque>
+#include <mutex>
 
 #include "skse64/InternalVR.h"
 
@@ -63,6 +64,35 @@ struct Hand
 		AngleState angleState = AngleState::None;
 	};
 
+	struct ControllerVelocityData
+	{
+		std::deque<NiPoint3> linearVelocities{ 5, NiPoint3() };
+		std::deque<NiPoint3> angularVelocities{ 5, NiPoint3() };
+		NiPoint3 avgVelocity;
+		float avgSpeed;
+
+		void RecomputeAverageVelocity()
+		{
+			avgVelocity = std::accumulate(linearVelocities.begin(), linearVelocities.end(), NiPoint3()) / linearVelocities.size();
+		}
+
+		void RecomputeAverageSpeed()
+		{
+			float speed = 0;
+			for (NiPoint3 &velocity : linearVelocities) {
+				speed += VectorLength(velocity);
+			}
+			speed /= std::size(linearVelocities);
+			avgSpeed = speed;
+		}
+
+		void Recompute()
+		{
+			RecomputeAverageVelocity();
+			RecomputeAverageSpeed();
+		}
+	};
+
 	enum class State : UInt8
 	{
 		Idle, // not pointing at anything meaningful
@@ -107,9 +137,6 @@ struct Hand
 		palmPosHandspace(palmPosHandspace),
 		rolloverOffset(rolloverOffset),
 		delayGripInput(delayGripInput),
-		controllerVelocities(5, NiPoint3()),
-		controllerAngularVelocities(5, NiPoint3()),
-		playerVelocitiesWorldspace(5, NiPoint3()),
 		haptics(isLeft ? BSVRInterface::BSControllerHand::kControllerHand_Left : BSVRInterface::BSControllerHand::kControllerHand_Right),
 		fingerAnimator(isLeft, fingerNodeNames)
 	{
@@ -196,7 +223,7 @@ struct Hand
 	void LateMainThreadUpdate();
 	void EndPull();
 	void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
-	void TriggerCollisionHaptics(float mass, float separatingVelocity);
+	void TriggerCollisionHaptics(float mass, float speed);
 	bool CanHoldBasedOnWeapon() const;
 
 	static const int equippedWeaponSlotBase = 32; // First biped slot to have equipped weapons
@@ -213,50 +240,51 @@ struct Hand
 	const bool isLeft = false;
 	const bool delayGripInput = false;
 	const CollisionInfo::State collisionMapState = CollisionInfo::State::HeldRight;
-	const NiPoint3 palmPosHandspace;
-	BSFixedString fingerNodeNames[5][3]; // 5 fingers, 3 joints
-	BSFixedString name; // Used for logging
-	BSFixedString handNodeName;
-	BSFixedString wandNodeName;
+	const NiPoint3 palmPosHandspace{};
+	BSFixedString fingerNodeNames[5][3]{}; // 5 fingers, 3 joints
+	BSFixedString name{}; // Used for logging
+	BSFixedString handNodeName{};
+	BSFixedString wandNodeName{};
 
-	std::mutex deselectLock;
+	std::mutex deselectLock{};
 
-	NiPoint3 rolloverOffset;
-	NiMatrix33 rolloverRotation;
-	float rolloverScale;
+	NiPoint3 rolloverOffset{};
+	NiMatrix33 rolloverRotation{};
+	float rolloverScale = 10.f;
 
-	UInt16 playerCollisionGroup;
+	UInt16 playerCollisionGroup = 0;
 
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	std::deque<NiPoint3> playerVelocitiesWorldspace; // previous n player velocities in skyrim worldspace
-	std::deque<NiPoint3> controllerVelocities;
-	std::deque<NiPoint3> controllerAngularVelocities;
+	ControllerVelocityData controllerVelocities{};
+	std::deque<NiPoint3> playerVelocitiesWorldspace{ 5, NiPoint3() }; // previous n player velocities in skyrim worldspace
+	NiPoint3 avgPlayerVelocityWorldspace{};
+	float avgPlayerSpeedWorldspace = 0.f;
 
-	std::vector<NiPointer<bhkRigidBody>> nearbyBodies; // This only exists to hold the NiPointers
-	std::unordered_map<bhkRigidBody *, std::pair<hkHalf, hkHalf>> nearbyBodyMap;
+	std::vector<NiPointer<bhkRigidBody>> nearbyBodies{}; // This only exists to hold the NiPointers
+	std::unordered_map<bhkRigidBody *, std::pair<hkHalf, hkHalf>> nearbyBodyMap{};
 
-	SelectedObject selectedObject;
-	PulledObject pulledObject;
-	TwoHandedState twoHandedState;
+	SelectedObject selectedObject{};
+	PulledObject pulledObject{};
+	TwoHandedState twoHandedState{};
 
-	NiPoint3 pulledPointOffset; // Offset from the center of mass of the point we're pulling on the pulled object
-	NiPoint3 pullTarget;
-	NiPoint3 initialGrabbedObjRelativePosition;
+	NiPoint3 pulledPointOffset{}; // Offset from the center of mass of the point we're pulling on the pulled object
+	NiPoint3 pullTarget{};
+	NiPoint3 initialGrabbedObjRelativePosition{};
 
-	NiTransform desiredNodeTransformHandSpace;
+	NiTransform desiredNodeTransformHandSpace{};
 
-	NiTransform handTransform;
-	NiTransform adjustedHandTransform;
-	NiTransform thirdPersonHandToWeaponTransform;
+	NiTransform handTransform{};
+	NiTransform adjustedHandTransform{};
+	NiTransform thirdPersonHandToWeaponTransform{};
 
-	NiPoint3 prevPlayerPosWorldspace;
+	NiPoint3 prevPlayerPosWorldspace{};
 
-	NiPoint3 prevHeldObjPosPlayerspace;
-	NiPoint3 prevHeldObjVelocityPlayerspace;
+	NiPoint3 prevHeldObjPosPlayerspace{};
+	NiPoint3 prevHeldObjVelocityPlayerspace{};
 
-	std::vector<TriangleData> triangles; // tris are in worldspace
+	std::vector<TriangleData> triangles{}; // tris are in worldspace
 
 	bool idleDesired = false;
 

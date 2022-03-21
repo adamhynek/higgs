@@ -60,12 +60,15 @@ namespace Config {
 		float grabProportionalHapticStrength = 0.06f;
 		float grabHapticMassExponent = 0.6f;
 
+		int collisionMaxInactiveFramesToConsiderActive = 15;
+		int collisionMaxInactiveFramesBeforeCleanup = 100;
+		float collisionMaxInitialContactPointDistance = 0.01f;
 		float collisionMinHapticSpeed = 0.2f;
 		float collisionBaseHapticStrength = 0.1f;
 		float collisionSpeedProportionalHapticStrength = 0.05f;
 		float collisionMassProportionalHapticStrength = 0.03f;
 		float collisionHapticMassExponent = 0.6f;
-		float collisionHapticDuration = 0.01;
+		float collisionHapticDuration = 0.01f;
 
 		float shoulderConstantHapticStrength = 0.2f;
 		float shoulderDropHapticStrength = 0.5f;

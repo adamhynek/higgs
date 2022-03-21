@@ -41,6 +41,8 @@
 #include "main.h"
 #include "finger_curves.h"
 
+#include <Physics/Dynamics/World/Extensions/hkpWorldExtension.h>
+
 
 // SKSE globals
 static PluginHandle	g_pluginHandle = kPluginHandle_Invalid;
@@ -65,13 +67,13 @@ bool g_isActivateBoundToGrip = false;
 Hand *g_rightHand = nullptr;
 Hand *g_leftHand = nullptr;
 
-std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes;
+std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> g_shaderNodes{};
 
-PlayingShader *g_playingShaders; // size == 2
-std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
+PlayingShader g_playingShaders[2]{};
+std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> g_effectDataMap{};
 
-ContactListener *contactListener = nullptr;
-IslandDeactivationListener activationListener;
+ContactListener g_contactListener{};
+IslandDeactivationListener g_activationListener;
 
 int g_savedShadowUpdateFrameDelay = -1;
 int g_shadowUpdateFrame = 0;
@@ -164,14 +166,16 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
 								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
-								g_rightHand->controllerVelocities.pop_back();
-								g_rightHand->controllerVelocities.push_front(velocityWorldspace);
+								g_rightHand->controllerVelocities.linearVelocities.pop_back();
+								g_rightHand->controllerVelocities.linearVelocities.push_front(velocityWorldspace);
+
+								g_rightHand->controllerVelocities.Recompute();
 
 								NiPoint3 openvrAngularVelocity = { pose.vAngularVelocity.v[0], pose.vAngularVelocity.v[1], pose.vAngularVelocity.v[2] };
 								NiPoint3 skyrimAngularVelocity = { openvrAngularVelocity.x, -openvrAngularVelocity.z, openvrAngularVelocity.y };
 								NiPoint3 angularVelocityWorldspace = openvrToSkyrimWorldTransform * skyrimAngularVelocity;
-								g_rightHand->controllerAngularVelocities.pop_back();
-								g_rightHand->controllerAngularVelocities.push_front(angularVelocityWorldspace);
+								g_rightHand->controllerVelocities.angularVelocities.pop_back();
+								g_rightHand->controllerVelocities.angularVelocities.push_front(angularVelocityWorldspace);
 							}
 						}
 						else if (i == leftIndex && isLeftConnected) {
@@ -180,14 +184,16 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
 								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
-								g_leftHand->controllerVelocities.pop_back();
-								g_leftHand->controllerVelocities.push_front(velocityWorldspace);
+								g_leftHand->controllerVelocities.linearVelocities.pop_back();
+								g_leftHand->controllerVelocities.linearVelocities.push_front(velocityWorldspace);
+
+								g_leftHand->controllerVelocities.Recompute();
 
 								NiPoint3 openvrAngularVelocity = { pose.vAngularVelocity.v[0], pose.vAngularVelocity.v[1], pose.vAngularVelocity.v[2] };
 								NiPoint3 skyrimAngularVelocity = { openvrAngularVelocity.x, -openvrAngularVelocity.z, openvrAngularVelocity.y };
 								NiPoint3 angularVelocityWorldspace = openvrToSkyrimWorldTransform * skyrimAngularVelocity;
-								g_leftHand->controllerAngularVelocities.pop_back();
-								g_leftHand->controllerAngularVelocities.push_front(angularVelocityWorldspace);
+								g_leftHand->controllerVelocities.angularVelocities.pop_back();
+								g_leftHand->controllerVelocities.angularVelocities.push_front(angularVelocityWorldspace);
 							}
 						}
 					}
@@ -253,18 +259,19 @@ void Update()
 		return;
 	}
 
-	if (world != contactListener->world) {
-		bhkWorld *oldWorld = contactListener->world;
-		if (oldWorld) {
+	if (world != g_contactListener.world) {
+		if (NiPointer<bhkWorld> oldWorld = g_contactListener.world) {
 			// If exists, remove the listener from the previous world
 			_MESSAGE("Removing listeners and collision from old havok world");
 
 			{
 				BSWriteLocker lock(&oldWorld->worldLock);
 
-				hkpWorld_removeContactListener(oldWorld->world, contactListener);
+				hkpWorld_removeContactListener(oldWorld->world, &g_contactListener);
+				hkpWorld_removeWorldPostSimulationListener(world->world, &g_contactListener);
+
 				if (Config::options.enableShadowUpdateFix) {
-					hkpWorld_removeIslandActivationListener(oldWorld->world, &activationListener);
+					hkpWorld_removeIslandActivationListener(oldWorld->world, &g_activationListener);
 				}
 
 				g_rightHand->RemoveHandCollision(oldWorld);
@@ -272,6 +279,8 @@ void Update()
 
 				g_rightHand->RemoveWeaponCollision(oldWorld);
 				g_leftHand->RemoveWeaponCollision(oldWorld);
+
+				g_contactListener = ContactListener{};
 			}
 		}
 
@@ -282,9 +291,11 @@ void Update()
 
 			AddHiggsCollisionLayer(world);
 
-			hkpWorld_addContactListener(world->world, contactListener);
+			hkpWorld_addContactListener(world->world, &g_contactListener);
+			hkpWorld_addWorldPostSimulationListener(world->world, &g_contactListener);
+
 			if (Config::options.enableShadowUpdateFix) {
-				hkpWorld_addIslandActivationListener(world->world, &activationListener);
+				hkpWorld_addIslandActivationListener(world->world, &g_activationListener);
 			}
 
 			g_rightHand->CreateHandCollision(world);
@@ -294,7 +305,7 @@ void Update()
 			g_leftHand->CreateWeaponCollision(world);
 		}
 
-		contactListener->world = world;
+		g_contactListener.world = world;
 	}
 
 	bool isRightHeld = g_rightHand->HasHeldKeyframed();
@@ -472,12 +483,6 @@ extern "C" {
 		g_isVrikPresent = GetModuleHandle("vrik") != NULL;
 
 		// Need to heap-allocate and "leak" anything with NiPointers since if they're statically allocated we crash when the game exits and these objects destruct
-		g_shaderNodes = new std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>>;
-
-		g_playingShaders = new PlayingShader[2];
-		g_effectDataMap = new std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>>;
-
-		contactListener = new ContactListener;
 
 		// Init both hands
 		NiPoint3 rightPalm = Config::options.palmPosition;
@@ -542,7 +547,8 @@ extern "C" {
 
 		g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
 		g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
-		if (!g_rightHand || !g_leftHand || !g_shaderNodes) {
+
+		if (!g_rightHand || !g_leftHand) {
 			ShowErrorBoxAndTerminate("[CRITICAL] Couldn't allocate memory");
 			return;
 		}

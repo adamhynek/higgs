@@ -184,20 +184,20 @@ void HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(void *world) {
 
 void HiggsInterface001::GrabObject(TESObjectREFR *object, bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
 
-	hand->externalGrabRequestedObject = object;
-	hand->externalGrabRequested = true;
+	hand.externalGrabRequestedObject = object;
+	hand.externalGrabRequested = true;
 }
 
 TESObjectREFR * HiggsInterface001::GetGrabbedObject(bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
 
-	if (hand->HasHeldObject()) {
-		UInt32 handle = hand->selectedObject.handle;
+	if (hand.HasHeldObject()) {
+		UInt32 handle = hand.selectedObject.handle;
 		// To be somewhat thread-safe, check again if we're in held after getting the handle
-		if (hand->HasHeldObject()) {
+		if (hand.HasHeldObject()) {
 			NiPointer<TESObjectREFR> grabbedObj;
 			if (LookupREFRByHandle(handle, grabbedObj)) {
 				return grabbedObj;
@@ -210,8 +210,8 @@ TESObjectREFR * HiggsInterface001::GetGrabbedObject(bool isLeft)
 
 bool HiggsInterface001::IsHandInGrabbableState(bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
-	return hand->IsInGrabbableState();
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	return hand.IsInGrabbableState();
 }
 
 void HiggsInterface001::DisableHand(bool isLeft)
@@ -286,27 +286,27 @@ bool HiggsInterface001::IsTwoHanding()
 
 bool HiggsInterface001::CanGrabObject(bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
-	return hand->CanGrabObject();
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	return hand.CanGrabObject();
 }
 
 NiObject * HiggsInterface001::GetHandRigidBody(bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
-	return hand->handBody;
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	return hand.handBody;
 }
 
 NiObject * HiggsInterface001::GetWeaponRigidBody(bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
-	return hand->weaponBody;
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	return hand.weaponBody;
 }
 
 NiObject * HiggsInterface001::GetGrabbedRigidBody(bool isLeft)
 {
-	Hand *hand = isLeft ? g_leftHand : g_rightHand;
-	if (hand->HasHeldObject()) {
-		return hand->selectedObject.rigidBody;
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	if (hand.HasHeldObject()) {
+		return hand.selectedObject.rigidBody;
 	}
 	return nullptr;
 }

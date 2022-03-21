@@ -68,6 +68,8 @@ RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener(0xAB5580);
 RelocAddr<_bhkWorld_addContactListener> bhkWorld_addContactListener(0xDA5C50);
 RelocAddr<_hkpEntity_addContactListener> hkpEntity_addContactListener(0xAA6FE0);
 RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener(0xC9F180);
+RelocAddr<_hkpWorld_addWorldPostSimulationListener> hkpWorld_addWorldPostSimulationListener(0xAB5280);
+RelocAddr<_hkpWorld_removeWorldPostSimulationListener> hkpWorld_removeWorldPostSimulationListener(0xAB52E0);
 RelocAddr<_hkpWorld_addIslandActivationListener> hkpWorld_addIslandActivationListener(0xAB5100);
 RelocAddr<_hkpWorld_removeIslandActivationListener> hkpWorld_removeIslandActivationListener(0xAB5160);
 RelocAddr<_hkpWorld_UpdateCollisionFilterOnEntity> hkpWorld_UpdateCollisionFilterOnEntity(0xAB3110);
@@ -101,6 +103,9 @@ RelocAddr<_bhkRigidBody_ctor> bhkRigidBody_ctor(0x2AEC80);
 RelocAddr<_bhkBoxShape_ctor> bhkBoxShape_ctor(0x2AEB70);
 RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReference(0xA01280);
 RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference(0xA01340);
+RelocAddr<_hkpCollisionCallbackUtil_requireCollisionCallbackUtil> hkpCollisionCallbackUtil_requireCollisionCallbackUtil(0xAB8700);
+RelocAddr<_hkpCollisionCallbackUtil_releaseCollisionCallbackUtil> hkpCollisionCallbackUtil_releaseCollisionCallbackUtil(0xB00C30);
+RelocAddr<_hkpWorld_findWorldExtension> hkpWorld_findWorldExtension(0xAB58F0);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);

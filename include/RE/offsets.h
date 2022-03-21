@@ -94,6 +94,12 @@ extern RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener;
 typedef void* (*_hkpWorld_removeContactListener)(hkpWorld *world, hkpContactListener* worldListener);
 extern RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener;
 
+typedef void(*_hkpWorld_addWorldPostSimulationListener)(hkpWorld *_this, hkpWorldPostSimulationListener* worldListener);
+extern RelocAddr<_hkpWorld_addWorldPostSimulationListener> hkpWorld_addWorldPostSimulationListener;
+
+typedef void(*_hkpWorld_removeWorldPostSimulationListener)(hkpWorld *_this, hkpWorldPostSimulationListener* worldListener);
+extern RelocAddr<_hkpWorld_removeWorldPostSimulationListener> hkpWorld_removeWorldPostSimulationListener;
+
 typedef void* (*_hkpWorld_addIslandActivationListener)(hkpWorld *world, hkpIslandActivationListener* worldListener);
 extern RelocAddr<_hkpWorld_addIslandActivationListener> hkpWorld_addIslandActivationListener;
 
@@ -197,6 +203,15 @@ extern RelocAddr<_hkReferencedObject_addReference> hkReferencedObject_addReferen
 
 typedef void(*_hkReferencedObject_removeReference)(hkReferencedObject *_this);
 extern RelocAddr<_hkReferencedObject_removeReference> hkReferencedObject_removeReference;
+
+typedef bool(*_hkpCollisionCallbackUtil_requireCollisionCallbackUtil)(hkpWorld *world);
+extern RelocAddr<_hkpCollisionCallbackUtil_requireCollisionCallbackUtil> hkpCollisionCallbackUtil_requireCollisionCallbackUtil;
+
+typedef bool(*_hkpCollisionCallbackUtil_releaseCollisionCallbackUtil)(hkpWorld *world);
+extern RelocAddr<_hkpCollisionCallbackUtil_releaseCollisionCallbackUtil> hkpCollisionCallbackUtil_releaseCollisionCallbackUtil;
+
+typedef hkpWorldExtension * (*_hkpWorld_findWorldExtension)(hkpWorld *world, int id);
+extern RelocAddr<_hkpWorld_findWorldExtension> hkpWorld_findWorldExtension;
 
 
 // More havok-related

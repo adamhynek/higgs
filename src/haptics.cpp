@@ -24,7 +24,7 @@ void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, fl
 
 	{
 		std::scoped_lock lock(eventsLock);
-		events.push_back(hapticEvent);
+		events.push_back(std::move(hapticEvent));
 	}
 }
 

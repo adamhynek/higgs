@@ -120,8 +120,8 @@ void StopShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, boo
 
 extern ShaderReferenceEffect ** volatile g_shaderReferenceToSet;
 
-extern PlayingShader *g_playingShaders; // size == 2
-extern std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> *g_effectDataMap;
+extern PlayingShader g_playingShaders[];
+extern std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> g_effectDataMap;
 
-extern std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> *g_shaderNodes; // Map root node to set of geom off of that root
+extern std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> g_shaderNodes; // Map root node to set of geom off of that root
 extern std::shared_mutex g_shaderNodesLock;

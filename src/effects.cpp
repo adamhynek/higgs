@@ -26,8 +26,8 @@ bool PlayingShader::IsPlaying() const
 void ClearEffectDataMap()
 {
 	if (!g_playingShaders[0].shaderReference && !g_playingShaders[1].shaderReference) {
-		if (g_effectDataMap->size() > 0) {
-			g_effectDataMap->clear();
+		if (g_effectDataMap.size() > 0) {
+			g_effectDataMap.clear();
 		}
 	}
 }
@@ -55,8 +55,7 @@ void SaveShaderData(UInt32 handle, NiAVObject *root)
 									TESEffectShader *shader = shaderReference->effectData;
 									if (shader != g_rightHand->itemSelectedShader && shader != g_rightHand->itemSelectedShaderOffLimits) {
 										// Only save shader data for shaders that are not our own
-										auto &effectDataMap = *g_effectDataMap;
-										effectDataMap[root] = shaderReference;
+										g_effectDataMap[root] = shaderReference;
 									}
 								}
 							}
@@ -84,9 +83,8 @@ void RestoreShaderData(UInt32 handle, NiAVObject *root)
 	if (geom) {
 		auto shaderProperty = DYNAMIC_CAST(geom->m_spEffectState, NiProperty, BSShaderProperty);
 		if (shaderProperty) {
-			auto &effectDataMap = *g_effectDataMap;
-			if (effectDataMap.count(root) != 0) {
-				NiPointer<ShaderReferenceEffect> savedShaderReference = effectDataMap[root];
+			if (g_effectDataMap.count(root) != 0) {
+				NiPointer<ShaderReferenceEffect> savedShaderReference = g_effectDataMap[root];
 
 				// Make sure the shader that was playing when we saved the shader data is still playing now that we're restoring its data
 				ProcessLists *processLists = *g_processLists;
@@ -101,7 +99,7 @@ void RestoreShaderData(UInt32 handle, NiAVObject *root)
 								NiPointer<BSEffectShaderData> shaderData = shaderReference->effectShaderData;
 								if (shaderData) {
 									*((NiPointer<BSEffectShaderData> *)&shaderProperty->unk68) = shaderData;
-									effectDataMap.erase(root);
+									g_effectDataMap.erase(root);
 								}
 							}
 						}
@@ -138,7 +136,7 @@ void HookedShaderReferenceEffectDtor(ShaderReferenceEffect *_this)
 	{
 		// Clear the nodes from the map for this reference effect
 		std::unique_lock lock(g_shaderNodesLock);
-		g_shaderNodes->erase(_this);
+		g_shaderNodes.erase(_this);
 	}
 
 	((_ShaderReferenceEffectDtor)g_shaderReferenceEffectDtor)(_this);
@@ -214,7 +212,7 @@ void CommitShaderNodes(ShaderReferenceEffect *shaderReference, NiAVObject *node,
 	FillGeometryNodes(node, geometryNodes, terminateAtCollision);
 
 	std::unique_lock lock(g_shaderNodesLock);
-	(*g_shaderNodes)[shaderReference] = std::move(geometryNodes);
+	g_shaderNodes[shaderReference] = std::move(geometryNodes);
 }
 
 void PlayShader(UInt32 objHandle, NiAVObject *node, TESEffectShader *shader, bool saveCurrentShader)

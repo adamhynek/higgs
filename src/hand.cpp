@@ -63,10 +63,10 @@ public:
 };
 
 
-void Hand::TriggerCollisionHaptics(float mass, float separatingVelocity)
+void Hand::TriggerCollisionHaptics(float mass, float speed)
 {
 	float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
-	float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * separatingVelocity;
+	float speedComponent = Config::options.collisionSpeedProportionalHapticStrength * speed;
 	float hapticStrength = Config::options.collisionBaseHapticStrength + speedComponent + massComponent;
 	hapticStrength = min(1.0f, hapticStrength);
 
@@ -1503,7 +1503,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
 				startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
 
-				_MESSAGE("finger %d", fingerIndex);
+				_DMESSAGE("finger %d", fingerIndex);
 
 				Intersection intersection;
 				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
@@ -1627,10 +1627,10 @@ bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const N
 	}
 
 	float speed = 0;
-	for (auto velocity : controllerVelocities) {
+	for (const NiPoint3 &velocity : controllerVelocities.linearVelocities) {
 		speed += VectorLength(velocity);
 	}
-	speed /= std::size(controllerVelocities);
+	speed /= std::size(controllerVelocities.linearVelocities);
 
 	if (speed < Config::options.shoulderVelocityThreshold) {
 		NiPoint3 rightShoulderPos = hmdNode->m_worldTransform * Config::options.rightShoulderHmdOffset;
@@ -1669,10 +1669,10 @@ bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const Ni
 	}
 
 	float speed = 0;
-	for (auto velocity : controllerVelocities) {
+	for (const NiPoint3 &velocity : controllerVelocities.linearVelocities) {
 		speed += VectorLength(velocity);
 	}
-	speed /= std::size(controllerVelocities);
+	speed /= std::size(controllerVelocities.linearVelocities);
 
 	if (speed < Config::options.mouthVelocityThreshold) {
 		NiPoint3 mouthPos = hmdNode->m_worldTransform * Config::options.mouthHmdOffset;
@@ -1871,8 +1871,8 @@ NiPoint3 Hand::GetHandVelocity()
 {
 	float largestSpeed = -1;
 	int largestIndex = -1;
-	for (int i = 0; i < controllerVelocities.size(); i++) {
-		NiPoint3 velocity = controllerVelocities[i];
+	for (int i = 0; i < controllerVelocities.linearVelocities.size(); i++) {
+		const NiPoint3 &velocity = controllerVelocities.linearVelocities[i];
 		float speed = VectorLength(velocity);
 		if (speed > largestSpeed) {
 			largestSpeed = speed;
@@ -1882,15 +1882,15 @@ NiPoint3 Hand::GetHandVelocity()
 
 	if (largestIndex == 0) {
 		// Max is the first value
-		return controllerVelocities[0];
+		return controllerVelocities.linearVelocities[0];
 	}
-	else if (largestIndex == controllerVelocities.size() - 1) {
+	else if (largestIndex == controllerVelocities.linearVelocities.size() - 1) {
 		// Max is the last value
-		return controllerVelocities[largestIndex];
+		return controllerVelocities.linearVelocities[largestIndex];
 	}
 	else {
 		// Regular case - avg 3 values centered at the peak
-		return (controllerVelocities[largestIndex - 1] + controllerVelocities[largestIndex] + controllerVelocities[largestIndex + 1]) / 3;
+		return (controllerVelocities.linearVelocities[largestIndex - 1] + controllerVelocities.linearVelocities[largestIndex] + controllerVelocities.linearVelocities[largestIndex + 1]) / 3;
 	}
 }
 
@@ -1989,7 +1989,8 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 	NiPoint3 playerVelocityWorldspace = (player->pos - prevPlayerPosWorldspace) / *g_deltaTime;
 	playerVelocitiesWorldspace.pop_back();
 	playerVelocitiesWorldspace.push_front(playerVelocityWorldspace);
-	NiPoint3 avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
+	avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
+	avgPlayerSpeedWorldspace = VectorLength(avgPlayerVelocityWorldspace);
 
 	UpdateHandCollision(handNode, world);
 	UpdateWeaponCollision();
@@ -2533,7 +2534,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
 						}
 
-						NiPoint3 handAngularVelocity = controllerAngularVelocities[0];
+						NiPoint3 handAngularVelocity = controllerVelocities.angularVelocities[0];
 						NiPoint3 angularVelocity = handAngularVelocity * Config::options.angularVelocityMultiplier;
 
 						NiPoint3 tangentialVelocity = { 0, 0, 0 };
@@ -2826,7 +2827,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 					NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 					NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-					NiPoint3 controllerVelocity = controllerVelocities[0];
+					NiPoint3 controllerVelocity = controllerVelocities.linearVelocities[0];
 					float controllerSpeedDirectionalized = DotProduct(controllerVelocity, VectorNormalized(-relObjPos));
 
 					if (controllerSpeedDirectionalized > Config::options.pullSpeedThreshold) {
@@ -2855,7 +2856,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 
 					hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
-					NiPoint3 controllerVelocity = controllerVelocities[0];
+					NiPoint3 controllerVelocity = controllerVelocities.linearVelocities[0];
 					float controllerSpeed = VectorLength(controllerVelocity);
 
 					if (controllerSpeed > Config::options.pullSpeedThreshold) {
@@ -3705,11 +3706,11 @@ void Hand::RestoreHandTransform()
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 		NiAVObject_UpdateNode(handNode, &ctx);
 
-		Hand *other = isLeft ? g_rightHand : g_leftHand;
-		handNode = other->GetFirstPersonHandNode();
+		Hand &other = isLeft ? *g_rightHand : *g_leftHand;
+		handNode = other.GetFirstPersonHandNode();
 		if (!handNode) return;
 
-		UpdateNodeTransformLocal(handNode, other->handTransform);
+		UpdateNodeTransformLocal(handNode, other.handTransform);
 		NiAVObject_UpdateNode(handNode, &ctx);
 	}
 }
@@ -3724,8 +3725,8 @@ void Hand::PostVrikUpdate()
 			NiAVObject_UpdateNode((*g_thePlayer)->GetNiRootNode(0), &ctx);
 
 			// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
-			Hand *other = isLeft ? g_rightHand : g_leftHand;
-			NiPointer<NiAVObject> weaponNode = other->GetWeaponNode(true);
+			Hand &other = isLeft ? *g_rightHand : *g_leftHand;
+			NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true);
 			UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
 			NiAVObject_UpdateNode(weaponNode, &ctx);
 		}
@@ -3941,9 +3942,9 @@ bool Hand::GetActivateText(std::string &strOut)
 					if (state == State::SelectedClose) {
 						verb = Config::options.grabString;
 
-						Hand *other = isLeft ? g_rightHand : g_leftHand;
+						Hand &other = isLeft ? *g_rightHand : *g_leftHand;
 
-						if (selectedObject.isActor && (selectedObject.isDisconnected || (selectedObject.hitForm && selectedObject.rigidBody == other->selectedObject.rigidBody && other->CanOtherGrab()))) {
+						if (selectedObject.isActor && (selectedObject.isDisconnected || (selectedObject.hitForm && selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()))) {
 							TESForm *wornForm = selectedObject.hitForm;
 							if (wornForm) {
 								BaseExtraList *wornExtraData = selectedObject.hitExtraList;

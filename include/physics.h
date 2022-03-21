@@ -1,6 +1,8 @@
 #pragma once
 
+#include <unordered_set>
 #include <vector>
+
 #include "RE/havok.h"
 
 #include <Physics/Collide/Shape/Query/hkpRayHitCollector.h>
@@ -10,6 +12,7 @@
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 #include <Physics/Dynamics/Collide/ContactListener/hkpContactListener.h>
 #include <Physics/Dynamics/World/Listener/hkpIslandActivationListener.h>
+#include <Physics/Dynamics/World/Listener/hkpWorldPostSimulationListener.h>
 
 #include "skse64/GameReferences.h"
 
@@ -81,9 +84,27 @@ struct IslandDeactivationListener : public hkpIslandActivationListener
 	void islandDeactivatedCallback(hkpSimulationIsland* island) override;
 };
 
-struct ContactListener : public hkpContactListener
+struct ContactListener : public hkpContactListener, hkpWorldPostSimulationListener
 {
 	void contactPointCallback(const hkpContactPointEvent& evnt) override;
+	void postSimulationCallback(hkpWorld* world) override;
+
+	void RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, bool isLeft);
+
+	struct HandCollisionData
+	{
+		struct RigidBodyCollisionData {
+			int collidedFrame;
+			float inverseMass;
+			float velocity;
+		};
+
+		std::unordered_map<hkpRigidBody *, RigidBodyCollisionData> collidedBodies{};
+		std::unordered_set<hkpRigidBody *> prevCollidedBodies{}; // rigidbodies that were collided with last frame
+	};
+
+	static std::mutex handLocks[2];
+	HandCollisionData handData[2];
 
 	NiPointer<bhkWorld> world = nullptr;
 };
