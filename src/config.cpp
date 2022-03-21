@@ -204,6 +204,9 @@ namespace Config {
 		if (!ReadFloat("GrabProportionalHapticStrength", options.grabProportionalHapticStrength)) return false;
 		if (!ReadFloat("GrabHapticMassExponent", options.grabHapticMassExponent)) return false;
 
+		if (!ReadInt("CollisionMaxInactiveFramesToConsiderActive", options.collisionMaxInactiveFramesToConsiderActive)) return false;
+		if (!ReadInt("CollisionMaxInactiveFramesBeforeCleanup", options.collisionMaxInactiveFramesBeforeCleanup)) return false;
+		if (!ReadFloat("CollisionMaxInitialContactPointDistance", options.collisionMaxInitialContactPointDistance)) return false;
 		if (!ReadFloat("CollisionMinHapticSpeed", options.collisionMinHapticSpeed)) return false;
 		if (!ReadFloat("CollisionBaseHapticStrength", options.collisionBaseHapticStrength)) return false;
 		if (!ReadFloat("CollisionMassProportionalHapticStrength", options.collisionMassProportionalHapticStrength)) return false;
