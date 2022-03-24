@@ -1948,6 +1948,10 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 
 	handTransform = handNode->m_worldTransform; // Save the old hand transform - we restore it later
 
+	NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+	if (!clavicle) return;
+	clavicleTransform = clavicle->m_worldTransform;
+
 	float havokWorldScale = *g_havokWorldScale;
 
 	NiPoint3 handPos = handNode->m_worldTransform.pos;
@@ -3690,25 +3694,47 @@ bool Hand::CanTwoHand() const
 void Hand::RestoreHandTransform()
 {
 	if (state == State::HeldBody) {
+		PlayerCharacter *player = *g_thePlayer;
+
 		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 		if (!handNode) return;
 
-		UpdateNodeTransformLocal(handNode, handTransform);
+		NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (!clavicle) return;
+
+		UpdateNodeTransformLocal(clavicle, clavicleTransform);
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateNode(clavicle, &ctx);
+
+		UpdateNodeTransformLocal(handNode, handTransform);
 		NiAVObject_UpdateNode(handNode, &ctx);
 	}
 	else if (state == State::HeldTwoHanded) {
+		PlayerCharacter *player = *g_thePlayer;
+
 		// Restore both this hand and the other hand
 		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 		if (!handNode) return;
 
-		UpdateNodeTransformLocal(handNode, handTransform);
+		NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (!clavicle) return;
+
+		UpdateNodeTransformLocal(clavicle, clavicleTransform);
 		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateNode(clavicle, &ctx);
+
+		UpdateNodeTransformLocal(handNode, handTransform);
 		NiAVObject_UpdateNode(handNode, &ctx);
 
 		Hand &other = isLeft ? *g_rightHand : *g_leftHand;
 		handNode = other.GetFirstPersonHandNode();
 		if (!handNode) return;
+
+		clavicle = other.isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (clavicle) return;
+
+		UpdateNodeTransformLocal(clavicle, other.clavicleTransform);
+		NiAVObject_UpdateNode(clavicle, &ctx);
 
 		UpdateNodeTransformLocal(handNode, other.handTransform);
 		NiAVObject_UpdateNode(handNode, &ctx);

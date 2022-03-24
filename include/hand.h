@@ -276,6 +276,7 @@ struct Hand
 	NiTransform desiredNodeTransformHandSpace{};
 
 	NiTransform handTransform{};
+	NiTransform clavicleTransform{};
 	NiTransform adjustedHandTransform{};
 	NiTransform thirdPersonHandToWeaponTransform{};
 
