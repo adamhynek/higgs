@@ -83,7 +83,7 @@ int g_numShadowUpdates = 0;
 bool TryHook()
 {
 	// This should be sized to the actual amount used by your trampoline
-	static const size_t TRAMPOLINE_SIZE = 4096;
+	static const size_t TRAMPOLINE_SIZE = 1024;
 
 	if (g_trampoline) {
 		void* branch = g_trampoline->AllocateFromBranchPool(g_pluginHandle, TRAMPOLINE_SIZE);
