@@ -1548,6 +1548,8 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 // Get skinned triangles for all geometry rooted at root
 void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo)
 {
+	if (root->m_flags & 1) return; // Node is culled
+
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
 		UpdateSkinnedTriangles(geom, triangles, trianglePartitions, partitionData, nodesToSkinTo);
@@ -1625,6 +1627,8 @@ void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std
 
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<NiAVObject *> &triangleNodes)
 {
+	if (root->m_flags & 1) return; // Node is culled
+
 	BSTriShape *geom = root->GetAsBSTriShape();
 	if (geom) {
 		UpdateTriangles(geom, triangles, triangleNodes);
