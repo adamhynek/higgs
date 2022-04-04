@@ -1,29 +1,42 @@
 #pragma once
 
-#include "skse64_common/Relocation.h"
-#include "skse64/PapyrusVM.h"
-#include "skse64/GameReferences.h"
-
 #include <Common/Base/hkBase.h>
-#include <Physics/Collide/Filter/hkpCollisionFilter.h>
 #include <Physics/Dynamics/Entity/hkpRigidBody.h>
 #include <Physics/Dynamics/Phantom/hkpSimpleShapePhantom.h>
 #include <Physics/Collide/Agent/hkpProcessCollisionInput.h>
+#include <Physics/Collide/Filter/hkpCollisionFilter.h>
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Collide/Agent/Collidable/hkpCdPoint.h>
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastCollectorOutput.h>
 #include <Physics/Collide/Shape/Compound/Tree/Mopp/hkpMoppBvTreeShape.h>
+#include <Physics/Dynamics/Collide/ContactListener/hkpContactPointEvent.h>
 
+#include "skse64_common/Relocation.h"
+#include "skse64/PapyrusVM.h"
+#include "skse64/GameReferences.h"
+
+#include "havok_ref_ptr.h"
+
+
+enum class HavokProperty : hkUint32
+{
+	Node = 1, // NiAVObject
+	CollisionObject = 2, // bhkCollisionObject
+	Character = 1000, // Character
+	CharacterController = 1002, // bhkCharacterController
+	TelekinesisDamageMult = 314159,
+	TelekinesisMass = 314160,
+};
 
 struct bhkCollisionFilter : hkpCollisionFilter
 {
 	UInt32 unk48;
 	UInt32 nextCollisionGroup; // 4C - this gets incremented when something gets added to the world - used for unique collision groups?
-	UInt32 bipedBitfields[32]; // 50 - About 18 of them seem to be actually filled in
+	UInt32 bipedBitfields[32]; // 50 - About 0x18 of them seem to be actually filled in
 	UInt32 layerCollisionGroups[64]; // D0 - if zero, use the counter from the collision filter (4C) as the collision group - afaik only 3 have non-zero entries: 9 (trees), 11 (water), and 13 (terrain)
 	UInt64 layerBitfields[64]; // 1D0 - only 56 are valid in vanilla - these are used to determine which layers collide with each other
-	UInt64 unk3D0;
-	UInt64 unk3D8;
+	UInt64 triggerBitfield1; // 3D0 - bit x determines if layer x should be tested against if a charcontroller with bit 15 set and bit 7 unset collides with it. Mostly used for triggers/traps
+	UInt64 triggerBitfield2; // 3D8 - similar to above, but it's not used in the collision filter comparison, so not sure where it's actually used
 	BSFixedString layerNames[64]; // 3E0 - only 56 are non-null
 };
 static_assert(offsetof(bhkCollisionFilter, nextCollisionGroup) == 0x4C);
@@ -46,7 +59,7 @@ static_assert(offsetof(ahkpWorld, m_userData) == 0x430);
 
 struct bhkRefObject : NiObject
 {
-	virtual void SetHavokObject(void); // 25
+	virtual void SetHavokObject(hkReferencedObject *object); // 25
 	virtual void AddOrRemoveReference(bool add); // 26
 };
 
@@ -59,8 +72,8 @@ struct bhkSerializable : bhkRefObject
 	virtual void	  Unk_2B(void); // 2B
 	virtual void	  Unk_2C(void); // 2C
 	virtual void	  Unk_2D(void); // 2D
-	virtual void	  InitHavokFromCinfo(void *cInfo) = 0; // 2E
-	virtual void	  GetSerializable(void) = 0; // 2F
+	virtual void	  InitHavokFromCinfo(void *cInfo); // 2E
+	virtual void	  GetSerializable(void); // 2F
 	virtual void	  Unk_30(void); // 30
 	virtual void	  Unk_31(void); // 31
 };
@@ -73,7 +86,7 @@ struct bhkWorld : bhkSerializable
 	virtual void Unk_35(void);  // 35
 	virtual void Unk_36(void);  // 36
 
-	ahkpWorld * world; // 10
+	RE::hkRefPtr<ahkpWorld> world; // 10
 	UInt8 unk18[0xC598 - 0x18];
 	BSReadWriteLock worldLock; // C598
 	BSReadWriteLock graphLock; // C5A0
@@ -89,7 +102,7 @@ static_assert(offsetof(bhkWorld, worldLock) == 0xC598);
 
 struct bhkShape : bhkSerializable
 {
-	hkpShape *shape; // 10
+	RE::hkRefPtr<hkpShape> shape; // 10
 	UInt64 unk18; // == 0?
 	UInt32 materialId; // 20
 	UInt32 pad28;
@@ -105,7 +118,7 @@ static_assert(sizeof(bhkBoxShape) == 0x28);
 
 struct bhkConstraint : bhkSerializable
 {
-	hkpConstraintInstance *constraint; // 10
+	RE::hkRefPtr <hkpConstraintInstance> constraint; // 10
 };
 
 struct bhkWorldObject : bhkSerializable
@@ -131,7 +144,7 @@ struct bhkRigidBody : bhkEntity
 	virtual void getAabbWorldspace(hkAabb &aabb); // 3B
 	virtual void Unk_3C(void); // 3C
 
-	hkpRigidBody * hkBody; // 10
+	RE::hkRefPtr<hkpRigidBody> hkBody; // 10
 	UInt64 unk18;
 	UInt8 flags; // at least first byte are some flags? bit 2 is set -> has constraints?
 	tArray<NiPointer<bhkConstraint>> constraints; // 28
@@ -192,7 +205,7 @@ static_assert(sizeof(bhkBlendCollisionObject) == 0x48);
 
 struct bhkSimpleShapePhantom : NiRefObject
 {
-	hkpSimpleShapePhantom * phantom; // 10
+	RE::hkRefPtr<hkpSimpleShapePhantom> phantom; // 10
 };
 
 struct bhkRigidBodyCinfo

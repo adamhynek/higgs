@@ -91,9 +91,6 @@ extern RelocAddr<_hkpWorld_RemoveEntity> hkpWorld_RemoveEntity;
 typedef void* (*_hkpWorld_addContactListener)(hkpWorld *world, hkpContactListener* worldListener);
 extern RelocAddr<_hkpWorld_addContactListener> hkpWorld_addContactListener;
 
-typedef void* (*_hkpWorld_removeContactListener)(hkpWorld *world, hkpContactListener* worldListener);
-extern RelocAddr<_hkpWorld_removeContactListener> hkpWorld_removeContactListener;
-
 typedef void(*_hkpWorld_addWorldPostSimulationListener)(hkpWorld *_this, hkpWorldPostSimulationListener* worldListener);
 extern RelocAddr<_hkpWorld_addWorldPostSimulationListener> hkpWorld_addWorldPostSimulationListener;
 

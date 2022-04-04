@@ -268,7 +268,7 @@ void Update()
 				BSWriteLocker lock(&oldWorld->worldLock);
 
 				hkpWorld_removeContactListener(oldWorld->world, &g_contactListener);
-				hkpWorld_removeWorldPostSimulationListener(world->world, &g_contactListener);
+				hkpWorld_removeWorldPostSimulationListener(oldWorld->world, &g_contactListener);
 
 				if (Config::options.enableShadowUpdateFix) {
 					hkpWorld_removeIslandActivationListener(oldWorld->world, &g_activationListener);

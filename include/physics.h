@@ -151,4 +151,5 @@ void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void SetAngularVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion rot, hkReal invDeltaTime);
 
+void hkpWorld_removeContactListener(hkpWorld *_this, hkpContactListener* worldListener);
 float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_this);

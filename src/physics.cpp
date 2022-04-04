@@ -941,6 +941,19 @@ void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion ro
 	}
 }
 
+void hkpWorld_removeContactListener(hkpWorld *_this, hkpContactListener* worldListener)
+{
+	hkArray<hkpContactListener *> &listeners = _this->m_contactListeners;
+
+	for (int i = 0; i < listeners.getSize(); i++) {
+		hkpContactListener *listener = listeners[i];
+		if (listener == worldListener) {
+			listeners[i] = nullptr;
+			return;
+		}
+	}
+}
+
 float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_this)
 {
 	if (_this.m_separatingVelocity)

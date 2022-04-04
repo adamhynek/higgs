@@ -580,7 +580,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	hkVector4 halfExtents = NiPointToHkVector(Config::options.handCollisionBoxHalfExtents);
 	bhkBoxShape_ctor(handShape, &halfExtents);
 	handShape->materialId = skinMaterialId;
-	((hkpBoxShape*)handShape->shape)->m_radius = Config::options.handCollisionBoxRadius;
+	((hkpBoxShape*)handShape->shape.val())->m_radius = Config::options.handCollisionBoxRadius;
 
 	bhkRigidBodyCinfo cInfo;
 	bhkRigidBodyCinfo_ctor(&cInfo);
