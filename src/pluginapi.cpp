@@ -320,3 +320,17 @@ void HiggsInterface001::SetHiggsLayerBitfield(UInt64 bitfield)
 {
 	higgsLayerBitfield = bitfield;
 }
+
+bool HiggsInterface001::IsHoldingObject(bool isLeft)
+{
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	return hand.HasHeldObject();
+}
+
+void HiggsInterface001::GetFingerValues(bool isLeft, float values[5])
+{
+	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+	for (int i = 0; i < 5; i++) {
+		values[i] = hand.grabbedFingerValues[i];
+	}
+}

@@ -56,6 +56,9 @@ namespace HiggsPluginAPI {
 
 		virtual bool CanGrabObject(bool isLeft);
 
+		bool IsHoldingObject(bool isLeft);
+		virtual void GetFingerValues(bool isLeft, float values[5]);
+
 
 		std::mutex addCallbackLock;
 		std::vector<PulledCallback> pulledCallbacks;
