@@ -148,5 +148,4 @@ typedef void(*Actor_PickUpObject)(Actor *_this, TESObjectREFR* a_object, std::in
 typedef void(*Actor_DropObject)(Actor *_this, UInt32 *outHandle, const TESBoundObject* a_object, BaseExtraList* a_extraList, std::int32_t a_count, const NiPoint3* a_dropLoc, const NiPoint3* a_rotate);
 typedef void(*Actor_GetLinearVelocity)(Actor *_this, NiPoint3 &velocity);
 typedef bool(*TESBoundObject_GetActivateText)(TESBoundObject *_this, TESObjectREFR* activator, BSString& text);
-
-typedef void(*TESObjectREFR_Update3DPosition)(TESObjectREFR *_this, bool warp);
+typedef bool(*_ActorValueOwner_RestoreActorValue)(ActorValueOwner *_this, UInt32 modifier, UInt64 actorValue, float value);

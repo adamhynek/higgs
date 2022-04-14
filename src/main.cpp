@@ -223,6 +223,49 @@ void UpdateShadowDelay()
 }
 
 
+int g_lastNumHeldObjects = 0;
+float g_savedSpeedReduction = 0.f;
+
+void UpdateSpeedReduction()
+{
+	bool rightHasHeld = g_rightHand->HasHeldObject();
+	bool leftHasHeld = g_leftHand->HasHeldObject();
+	int numHeld = int(rightHasHeld) + int(leftHasHeld);
+
+	if (numHeld != g_lastNumHeldObjects) {
+		// First just restore whatever our speed was before
+		ModSpeedMult(*g_thePlayer, g_savedSpeedReduction);
+
+		// Now modify the speed based on what we have held
+
+		if (numHeld > 0) {
+			// We are holding at least 1 object
+			float mass = 0.f;
+
+			if (rightHasHeld && leftHasHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
+				// Both hands are holding the same refr (ex. different limbs of the same body). We don't want to double up on the slowdown.
+				mass += g_rightHand->GetEffectiveHeldMass();
+			}
+			else {
+				if (rightHasHeld) {
+					mass += g_rightHand->GetEffectiveHeldMass();
+				}
+				if (leftHasHeld) {
+					mass += g_leftHand->GetEffectiveHeldMass();
+				}
+			}
+
+			g_savedSpeedReduction = min(Config::options.slowMovementMaxReduction, powf(mass, Config::options.slowMovementMassExponent) * Config::options.slowMovementMassProportion);
+			ModSpeedMult(*g_thePlayer, -g_savedSpeedReduction);
+		}
+		else {
+			g_savedSpeedReduction = 0.f;
+		}
+
+		g_lastNumHeldObjects = numHeld;
+	}
+}
+
 void Update()
 {
 	UpdateShadowDelay();
@@ -342,6 +385,10 @@ void Update()
 	if (g_rightHand->IsSafeToClearSavedCollision() && g_leftHand->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
 		CollisionInfo::ClearCollisionMap();
+	}
+
+	if (Config::options.slowMovementWhenObjectIsHeld) {
+		UpdateSpeedReduction();
 	}
 }
 

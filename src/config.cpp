@@ -262,6 +262,11 @@ namespace Config {
 		if (!ReadBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) return false;
 		if (!ReadBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) return false;
 
+		if (!ReadBool("slowMovementWhenObjectIsHeld", options.slowMovementWhenObjectIsHeld)) return false;
+		if (!ReadFloat("slowMovementMassProportion", options.slowMovementMassProportion)) return false;
+		if (!ReadFloat("slowMovementMassExponent", options.slowMovementMassExponent)) return false;
+		if (!ReadFloat("slowMovementMaxReduction", options.slowMovementMaxReduction)) return false;
+
 		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
 		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
 		if (!ReadFloat("HavokMaxMaxTime", options.havokMaxMaxTime)) return false;

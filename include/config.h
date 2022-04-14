@@ -131,6 +131,11 @@ namespace Config {
 		bool inheritTangentialVelocity = true;
 		bool offhandAffectsTwoHandedRotation = true;
 
+		bool slowMovementWhenObjectIsHeld = true;
+		float slowMovementMassProportion = 0.625f;
+		float slowMovementMassExponent = 1.f;
+		float slowMovementMaxReduction = 70.f;
+
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;
 		float havokMaxMaxTime = 0.02778f; // 36 fps

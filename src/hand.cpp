@@ -1222,6 +1222,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
 		}
 
+		selectedObject.totalMass = NiAVObject_GetMass(objRoot, 0.f);
+
 		if (playSound) {
 			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
 		}
@@ -4146,4 +4148,23 @@ void Hand::SetupSelectionBeam(NiNode *spellOrigin)
 		NiAVObject::ControllerUpdateContext ctx{ 0.0f, 0 };
 		NiAVObject_UpdateNode(spellOrigin, &ctx);
 	}
+}
+
+float Hand::GetEffectiveHeldMass()
+{
+	if (selectedObject.isActor) {
+		NiPointer<TESObjectREFR> refr;
+		if (LookupREFRByHandle(selectedObject.handle, refr)) {
+			if (Actor *actor = DYNAMIC_CAST(refr, TESObjectREFR, Actor)) {
+				if (Actor_IsInRagdollState(actor)) {
+					return selectedObject.totalMass;
+				}
+			}
+		}
+	}
+	else {
+		return selectedObject.totalMass;
+	}
+
+	return 0.f;
 }

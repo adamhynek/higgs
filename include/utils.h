@@ -19,6 +19,22 @@ extern ITimer g_timer;
 extern double g_currentFrameTime;
 //extern double g_deltaTime;
 
+inline void set_vtbl(void *object, void *vtbl) { *((void **)object) = ((void *)(vtbl)); }
+inline UInt64 * get_vtbl(void *object) { return *((UInt64 **)object); }
+
+inline void set_vfunc(void *object, UInt64 index, std::uintptr_t vfunc)
+{
+	UInt64 *vtbl = get_vtbl(object);
+	vtbl[index] = vfunc;
+}
+
+template<class T>
+inline T get_vfunc(void *object, UInt64 index)
+{
+	UInt64 *vtbl = get_vtbl(object);
+	return (T)(vtbl[index]);
+}
+
 NiAVObject * GetHighestParent(NiAVObject *node);
 void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx);
 NiTransform GetLocalTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform = false);
@@ -91,3 +107,4 @@ NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node);
 NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root);
 NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr);
 NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform);
+void ModSpeedMult(Actor *actor, float amount);
