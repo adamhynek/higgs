@@ -223,7 +223,6 @@ void UpdateShadowDelay()
 }
 
 
-int g_lastNumHeldObjects = 0;
 float g_savedSpeedReduction = 0.f;
 
 void UpdateSpeedReduction()
@@ -232,37 +231,34 @@ void UpdateSpeedReduction()
 	bool leftHasHeld = g_leftHand->HasHeldObject();
 	int numHeld = int(rightHasHeld) + int(leftHasHeld);
 
-	if (numHeld != g_lastNumHeldObjects) {
+	float speedReduction = 0.f;
+	if (numHeld > 0) {
+		// We are holding at least 1 object
+		float mass = 0.f;
+		if (rightHasHeld && leftHasHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
+			// Both hands are holding the same refr (ex. different limbs of the same body). We don't want to double up on the slowdown.
+			mass += g_rightHand->GetEffectiveHeldMass();
+		}
+		else {
+			if (rightHasHeld) {
+				mass += g_rightHand->GetEffectiveHeldMass();
+			}
+			if (leftHasHeld) {
+				mass += g_leftHand->GetEffectiveHeldMass();
+			}
+		}
+
+		speedReduction = min(Config::options.slowMovementMaxReduction, powf(mass, Config::options.slowMovementMassExponent) * Config::options.slowMovementMassProportion);
+	}
+
+	if (speedReduction != g_savedSpeedReduction) {
 		// First just restore whatever our speed was before
 		ModSpeedMult(*g_thePlayer, g_savedSpeedReduction);
 
 		// Now modify the speed based on what we have held
+		ModSpeedMult(*g_thePlayer, -speedReduction);
 
-		if (numHeld > 0) {
-			// We are holding at least 1 object
-			float mass = 0.f;
-
-			if (rightHasHeld && leftHasHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
-				// Both hands are holding the same refr (ex. different limbs of the same body). We don't want to double up on the slowdown.
-				mass += g_rightHand->GetEffectiveHeldMass();
-			}
-			else {
-				if (rightHasHeld) {
-					mass += g_rightHand->GetEffectiveHeldMass();
-				}
-				if (leftHasHeld) {
-					mass += g_leftHand->GetEffectiveHeldMass();
-				}
-			}
-
-			g_savedSpeedReduction = min(Config::options.slowMovementMaxReduction, powf(mass, Config::options.slowMovementMassExponent) * Config::options.slowMovementMassProportion);
-			ModSpeedMult(*g_thePlayer, -g_savedSpeedReduction);
-		}
-		else {
-			g_savedSpeedReduction = 0.f;
-		}
-
-		g_lastNumHeldObjects = numHeld;
+		g_savedSpeedReduction = speedReduction;
 	}
 }
 

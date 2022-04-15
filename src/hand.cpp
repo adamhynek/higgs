@@ -599,6 +599,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_enableDeactivation = false;
 	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks with statics such as walls
+	cInfo.hkCinfo.m_maxAngularVelocity = 500.f;
 
 	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (handNode) {
@@ -717,6 +718,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_enableDeactivation = false;
 	cInfo.hkCinfo.m_solverDeactivation = hkpRigidBodyCinfo::SolverDeactivation::SOLVER_DEACTIVATION_OFF;
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks with statics such as walls
+	cInfo.hkCinfo.m_maxAngularVelocity = 500.f;
 
 	hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
 	cInfo.hkCinfo.m_position = transform.m_translation;
@@ -835,8 +837,8 @@ void Hand::UpdateWeaponCollision()
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
 	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
 
-	/*
 	// This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
+	/*
 	NiPointer<NiAVObject> weaponNode = collisionNode;
 	NiTransform &weaponTransform = weaponNode->m_worldTransform;
 	NiAVObject *handNode = GetFirstPersonHandNode();
