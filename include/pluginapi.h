@@ -30,6 +30,11 @@ namespace HiggsPluginAPI {
 		virtual void AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback callback);
 		virtual void AddPrePhysicsStepCallback(PrePhysicsStepCallback callback);
 
+		virtual void AddPreVrikPreHiggsCallback(NoArgCallback callback);
+		virtual void AddPreVrikPostHiggsCallback(NoArgCallback callback);
+		virtual void AddPostVrikPreHiggsCallback(NoArgCallback callback);
+		virtual void AddPostVrikPostHiggsCallback(NoArgCallback callback);
+
 		virtual UInt64 GetHiggsLayerBitfield();
 		virtual void SetHiggsLayerBitfield(UInt64 bitfield);
 
@@ -72,6 +77,11 @@ namespace HiggsPluginAPI {
 		std::vector<CollisionFilterComparisonCallback> collisionFilterComparisonCallbacks;
 		std::vector<PrePhysicsStepCallback> prePhysicsStepCallbacks;
 
+		std::vector<NoArgCallback> preVrikPreHiggsCallbacks;
+		std::vector<NoArgCallback> preVrikPostHiggsCallbacks;
+		std::vector<NoArgCallback> postVrikPreHiggsCallbacks;
+		std::vector<NoArgCallback> postVrikPostHiggsCallbacks;
+
 		std::atomic<int> rightDisableCount = 0;
 		std::atomic<int> leftDisableCount = 0;
 
@@ -96,6 +106,10 @@ namespace HiggsPluginAPI {
 	using CollisionFilterComparisonResult = HiggsInterface001::CollisionFilterComparisonResult;
 	CollisionFilterComparisonResult TriggerCollisionFilterComparisonCallbacks(void *filter, UInt32 filterInfoA, UInt32 filterInfoB);
 	void TriggerPrePhysicsStepCallbacks(void *world);
+	void TriggerPreVrikPreHiggsCallbacks();
+	void TriggerPreVrikPostHiggsCallbacks();
+	void TriggerPostVrikPreHiggsCallbacks();
+	void TriggerPostVrikPostHiggsCallbacks();
 }
 
 extern HiggsPluginAPI::HiggsInterface001 g_interface001;

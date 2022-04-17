@@ -101,6 +101,30 @@ void HiggsInterface001::AddPrePhysicsStepCallback(PrePhysicsStepCallback callbac
 	prePhysicsStepCallbacks.push_back(callback);
 }
 
+void HiggsInterface001::AddPreVrikPreHiggsCallback(NoArgCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	preVrikPreHiggsCallbacks.push_back(callback);
+}
+
+void HiggsInterface001::AddPreVrikPostHiggsCallback(NoArgCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	preVrikPostHiggsCallbacks.push_back(callback);
+}
+
+void HiggsInterface001::AddPostVrikPreHiggsCallback(NoArgCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	postVrikPreHiggsCallbacks.push_back(callback);
+}
+
+void HiggsInterface001::AddPostVrikPostHiggsCallback(NoArgCallback callback) {
+	if (!callback) return;
+	std::scoped_lock lock(addCallbackLock);
+	postVrikPostHiggsCallbacks.push_back(callback);
+}
+
 
 void HiggsPluginAPI::TriggerPulledCallbacks(bool isLeft, TESObjectREFR *pulledRefr) {
 	for (auto callback : g_interface001.pulledCallbacks) {
@@ -179,6 +203,30 @@ CollisionFilterComparisonResult HiggsPluginAPI::TriggerCollisionFilterComparison
 void HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(void *world) {
 	for (auto callback : g_interface001.prePhysicsStepCallbacks) {
 		callback(world);
+	}
+}
+
+void HiggsPluginAPI::TriggerPreVrikPreHiggsCallbacks() {
+	for (auto callback : g_interface001.preVrikPreHiggsCallbacks) {
+		callback();
+	}
+}
+
+void HiggsPluginAPI::TriggerPreVrikPostHiggsCallbacks() {
+	for (auto callback : g_interface001.preVrikPostHiggsCallbacks) {
+		callback();
+	}
+}
+
+void HiggsPluginAPI::TriggerPostVrikPreHiggsCallbacks() {
+	for (auto callback : g_interface001.postVrikPreHiggsCallbacks) {
+		callback();
+	}
+}
+
+void HiggsPluginAPI::TriggerPostVrikPostHiggsCallbacks() {
+	for (auto callback : g_interface001.postVrikPostHiggsCallbacks) {
+		callback();
 	}
 }
 

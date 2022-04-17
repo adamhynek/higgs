@@ -283,12 +283,16 @@ void PostWandUpdateHook()
 
 void PlayerCharacterUpdateHook()
 {
+	HiggsPluginAPI::TriggerPreVrikPreHiggsCallbacks();
 	Update();
+	HiggsPluginAPI::TriggerPreVrikPostHiggsCallbacks();
 }
 
 
 void PostVRIKPCUpdateHook()
 {
+	HiggsPluginAPI::TriggerPostVrikPreHiggsCallbacks();
+
 	g_rightHand->PostVrikUpdate();
 	g_leftHand->PostVrikUpdate();
 
@@ -299,6 +303,8 @@ void PostVRIKPCUpdateHook()
 
 	g_rightHand->fingerAnimator.Update();
 	g_leftHand->fingerAnimator.Update();
+
+	HiggsPluginAPI::TriggerPostVrikPostHiggsCallbacks();
 }
 
 
