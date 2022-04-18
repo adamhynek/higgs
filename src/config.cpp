@@ -185,6 +185,7 @@ namespace Config {
 		if (!ReadFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) return false;
 		if (!ReadFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) return false;
 
+		if (!ReadFloat("SelectedCloseFingerAnimMaxHandSpeed", options.selectedCloseFingerAnimMaxHandSpeed)) return false;
 		if (!ReadFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) return false;
 		if (!ReadFloat("FingerAnimateGrabLinearSpeed", options.fingerAnimateGrabLinearSpeed)) return false;
 		if (!ReadFloat("FingerAnimateGrabAngularSpeed", options.fingerAnimateGrabAngularSpeed)) return false;

@@ -32,6 +32,7 @@ namespace Config {
 		float tangentialVelocityLimit = 5.0f;
 		float twoHandedRotationSnapSpeed = 1200.0f;
 
+		float selectedCloseFingerAnimMaxHandSpeed = 0.9f;
 		float selectedCloseFingerAnimValue = 0.9f;
 		float fingerAnimateGrabLinearSpeed = 4.0f;
 		float fingerAnimateGrabAngularSpeed = 630.0f;

@@ -2348,10 +2348,15 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 		}
 
 		if (state == State::SelectedTwoHand) {
-			double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
-			float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
-			float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
-			fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
+			if (controllerVelocities.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
+				double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
+				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
+				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
+				fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
+			}
+			else {
+				rolloverDisplayTime = g_currentFrameTime;
+			}
 
 			if (!isTwoHandedOffhand || closestRigidBody != other.weaponBody) {
 				Deselect();
@@ -2393,10 +2398,15 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (state == State::SelectedClose) {
-					double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
-					float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
-					float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
-					fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
+					if (controllerVelocities.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
+						double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
+						float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
+						float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
+						fingerAnimator.SetFingerValues(Config::options.selectedCloseFingerAnimValue, posSpeed, rotSpeed);
+					}
+					else {
+						rolloverDisplayTime = g_currentFrameTime;
+					}
 				}
 
 				if (!isSelectedThisFrame && g_currentFrameTime - lastSelectedTime > Config::options.selectedLeewayTime) {
