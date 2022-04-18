@@ -534,10 +534,10 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 }
 
 
-hkTransform Hand::ComputeHandCollisionTransform(NiAVObject *handNode)
+hkTransform Hand::ComputeHandCollisionTransform(NiAVObject *handNode, bool isBeast)
 {
 	hkTransform transform;
-	NiPoint3 handCollisionBoxOffset = Config::options.handCollisionBoxOffset;
+	NiPoint3 handCollisionBoxOffset = isBeast ? Config::options.handCollisionBoxOffsetBeast : Config::options.handCollisionBoxOffset;
 	if (isLeft) handCollisionBoxOffset.x *= -1;
 	float havokWorldScale = *g_havokWorldScale;
 	transform.m_translation = NiPointToHkVector((handNode->m_worldTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale);
@@ -574,13 +574,17 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 
 void Hand::CreateHandCollision(bhkWorld *world)
 {
+	PlayerCharacter *player = *g_thePlayer;
+
+	bool isBeast = TESRace_IsBeast(Actor_GetRace(player));
+
 	bhkBoxShape *handShape = (bhkBoxShape *)Heap_Allocate(sizeof(bhkBoxShape));
 	if (!handShape) return;
 
-	hkVector4 halfExtents = NiPointToHkVector(Config::options.handCollisionBoxHalfExtents);
+	hkVector4 halfExtents = NiPointToHkVector(isBeast ? Config::options.handCollisionBoxHalfExtentsBeast : Config::options.handCollisionBoxHalfExtents);
 	bhkBoxShape_ctor(handShape, &halfExtents);
 	handShape->materialId = skinMaterialId;
-	((hkpBoxShape*)handShape->shape.val())->m_radius = Config::options.handCollisionBoxRadius;
+	((hkpBoxShape*)handShape->shape.val())->m_radius = isBeast ? Config::options.handCollisionBoxRadiusBeast : Config::options.handCollisionBoxRadius;
 
 	bhkRigidBodyCinfo cInfo;
 	bhkRigidBodyCinfo_ctor(&cInfo);
@@ -603,7 +607,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 
 	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
 	if (handNode) {
-		hkTransform transform = ComputeHandCollisionTransform(handNode);
+		hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
 		cInfo.hkCinfo.m_position = transform.m_translation;
 		cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
 	}
@@ -619,20 +623,47 @@ void Hand::CreateHandCollision(bhkWorld *world)
 		hkpWorld_AddEntity(world->world, handRigidBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
 		handBody = handRigidBody;
+		wasBeastWhenHandCollisionCreated = isBeast;
 	}
 }
 
 
 void Hand::RemoveHandCollision(bhkWorld *world)
 {
+	if (!handBody) return;
+
 	hkBool ret;
 	hkpWorld_RemoveEntity(world->world, &ret, handBody->hkBody);
 	handBody = nullptr;
 }
 
 
+void Hand::RemoveHandCollisionFromCurrentWorld()
+{
+	if (handBody) {
+		if (ahkpWorld *world = handBody->GetHavokWorld_1()) {
+			if (NiPointer<bhkWorld> worldWrapper = world->m_userData) {
+				BSWriteLocker lock(&worldWrapper->worldLock);
+				RemoveHandCollision(worldWrapper);
+			}
+		}
+		handBody = nullptr;
+	}
+}
+
+
 void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 {
+	PlayerCharacter *player = *g_thePlayer;
+
+	bool isBeast = TESRace_IsBeast(Actor_GetRace(player));
+	if (isBeast != wasBeastWhenHandCollisionCreated) {
+		RemoveHandCollisionFromCurrentWorld();
+
+		BSWriteLocker lock(&world->worldLock);
+		CreateHandCollision(world);
+	}
+
 	hkpRigidBody *handCollBody = handBody->hkBody;
 	bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
 
@@ -657,7 +688,7 @@ void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
 	// Put our hand collision where we want it
-	hkTransform transform = ComputeHandCollisionTransform(handNode);
+	hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
 	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handCollBody);
@@ -691,6 +722,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 
 	NiCloningProcess cloningProcess = NiCloningProcess();
 	cloningProcess.scale = NiPoint3(1.0f, 1.0f, 1.0f) / *g_fMeleeWeaponHavokScale; // Undo the scaling of the original shape done when creating it
+	cloningProcess.scale *= Config::options.weaponCollisionScale;
 
 	if (g_isVrikPresent) {
 		cloningProcess.scale *= handSize; // Scale by the vrik hand size

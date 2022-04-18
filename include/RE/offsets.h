@@ -356,3 +356,6 @@ extern RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt;
 
 typedef bool(*_Actor_IsInRagdollState)(Actor *_this);
 extern RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState;
+
+typedef bool(*_TESRace_IsBeast)(TESRace *_this);
+extern RelocAddr<_TESRace_IsBeast> TESRace_IsBeast;

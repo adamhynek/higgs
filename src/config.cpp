@@ -104,6 +104,10 @@ namespace Config {
 		if (!ReadVector("HandCollisionBoxOffset", options.handCollisionBoxOffset)) return false;
 		if (!ReadFloat("HandCollisionBoxRadius", options.handCollisionBoxRadius)) return false;
 
+		if (!ReadVector("HandCollisionBoxHalfExtentsBeast", options.handCollisionBoxHalfExtentsBeast)) return false;
+		if (!ReadVector("HandCollisionBoxOffsetBeast", options.handCollisionBoxOffsetBeast)) return false;
+		if (!ReadFloat("HandCollisionBoxRadiusBeast", options.handCollisionBoxRadiusBeast)) return false;
+
 		if (!ReadVector("RightShoulderHmdOffset", options.rightShoulderHmdOffset)) return false;
 		if (!ReadFloat("RightShoulderRadius", options.rightShoulderRadius)) return false;
 
@@ -262,6 +266,8 @@ namespace Config {
 		if (!ReadBool("DisableGrabGeometryWithVertexAlpha", options.disableGrabGeometryWithVertexAlpha)) return false;
 		if (!ReadBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) return false;
 		if (!ReadBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) return false;
+
+		if (!ReadFloat("weaponCollisionScale", options.weaponCollisionScale)) return false;
 
 		if (!ReadBool("slowMovementWhenObjectIsHeld", options.slowMovementWhenObjectIsHeld)) return false;
 		if (!ReadFloat("slowMovementMassProportion", options.slowMovementMassProportion)) return false;

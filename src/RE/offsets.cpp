@@ -155,6 +155,7 @@ RelocAddr<_PlayerCharacter_GetOffsetNodeForWeaponIndex> PlayerCharacter_GetOffse
 RelocAddr<_BSFixedString_Copy> BSFixedString_Copy(0xC6DD50);
 RelocAddr<_RefreshActivateButtonArt> RefreshActivateButtonArt(0x53EFE0);
 RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState(0x5EBA50);
+RelocAddr<_TESRace_IsBeast> TESRace_IsBeast(0x398940);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);

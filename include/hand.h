@@ -164,8 +164,9 @@ struct Hand
 	bool FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &startPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, hkVector4 &hitPoint);
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
+	void RemoveHandCollisionFromCurrentWorld();
 	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);
-	hkTransform ComputeHandCollisionTransform(NiAVObject *handNode);
+	hkTransform ComputeHandCollisionTransform(NiAVObject *handNode, bool isBeast);
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
@@ -234,6 +235,7 @@ struct Hand
 	FingerAnimator fingerAnimator;
 
 	NiPointer<bhkRigidBody> handBody = nullptr;
+	bool wasBeastWhenHandCollisionCreated = false;
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
 	const bhkShape *clonedFromWeaponShape = nullptr; // the shape of the collision object we cloned to create ours

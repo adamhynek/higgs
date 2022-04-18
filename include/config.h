@@ -132,6 +132,8 @@ namespace Config {
 		bool inheritTangentialVelocity = true;
 		bool offhandAffectsTwoHandedRotation = true;
 
+		float weaponCollisionScale = 1.f;
+
 		bool slowMovementWhenObjectIsHeld = true;
 		float slowMovementMassProportion = 0.625f;
 		float slowMovementMassExponent = 1.f;
@@ -176,9 +178,12 @@ namespace Config {
 		NiPoint3 pointingVector = { 0, 0, 1 };
 		NiPoint3 palmPosition = { 0, -2.4, 6 }; // in handspace, skyrim units
 
-		NiPoint3 handCollisionBoxHalfExtents = { 0.05, 0.015, 0.075 }; // in meters
-		NiPoint3 handCollisionBoxOffset = { 0, -0.005, 0.08 }; // offset from hand node, in meters
+		NiPoint3 handCollisionBoxHalfExtents = { 0.05, 0.015, 0.09 }; // in meters
+		NiPoint3 handCollisionBoxOffset = { 0, -0.005, 0.086 }; // offset from hand node, in meters
 		float handCollisionBoxRadius = 0; // in meters
+		NiPoint3 handCollisionBoxHalfExtentsBeast = { 0.1, 0.015, 0.2 };
+		NiPoint3 handCollisionBoxOffsetBeast = { -0.007, -0.005, 0.2 };
+		float handCollisionBoxRadiusBeast = 0;
 
 		NiPoint3 rightShoulderHmdOffset = { 17.5, -5.0, -6.85 };
 		NiPoint3 leftShoulderHmdOffset = { -17.5, -5.0, -6.85 };
