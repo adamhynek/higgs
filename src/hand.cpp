@@ -348,6 +348,13 @@ bool Hand::FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &s
 bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &startPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
+	PlayerCharacter *player = *g_thePlayer;
+	UInt32 horseHandle = *(UInt32 *)((UInt64)player + 0x1014);
+	NiPointer<TESObjectREFR> lastRiddenHorse;
+	if (!LookupREFRByHandle(horseHandle, lastRiddenHorse)) {
+		lastRiddenHorse = nullptr;
+	}
+
 	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
 	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
@@ -381,7 +388,9 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &s
 		}
 		bhkRigidBody *rigidBodyWrapper = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(collidable);
-		if (ref && ref != *g_thePlayer) {
+		if (ref && ref != player) {
+			if (ref == lastRiddenHorse && collidable->getCollisionFilterInfo() >> 16 == playerCollisionGroup) continue;
+
 			if (IsObjectSelectable(rigidBody, ref) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
 					auto impactData = *(void **)((UInt64)ref.m_pObject + 0x98);
@@ -506,7 +515,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 						continue;
 					}
 				}
-				else {
+				else if (ref->formType == kFormType_Character) {
 					Actor *actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
 					if (actor && !Actor_IsInRagdollState(actor)) continue;
 				}

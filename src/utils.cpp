@@ -87,8 +87,7 @@ bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref)
 {
 	if (IsMoveableEntity(rigidBody)) return true;
 
-	TESForm *baseForm = ref->baseForm;
-	if (baseForm) {
+	if (TESForm *baseForm = ref->baseForm) {
 		if (baseForm->formType == kFormType_Projectile ||
 			(baseForm->formType == kFormType_Weapon && rigidBody->m_motion.m_type == hkpMotion::MotionType::MOTION_KEYFRAMED)) {
 			return true;
