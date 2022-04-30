@@ -1886,7 +1886,7 @@ bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, 
 				}
 			}
 
-			if (closestTri >= 0) {
+			if (closestTri != -1) {
 				*closestDistanceSoFar = closestDistance;
 				*closestPos = geom->m_worldTransform * closestTriPos;
 
@@ -1967,7 +1967,7 @@ bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &tr
 		}
 	}
 
-	if (closestTri) {
+	if (closestTri != -1) {
 		closestIndex = closestTri;
 		closestDistanceSoFar = closestDistance;
 		closestPos = closestTriPos;
