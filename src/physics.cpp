@@ -856,6 +856,17 @@ void AddHiggsCollisionLayer(bhkWorld *world)
 	ReSyncLayerBitfields(worldFilter, 56);
 }
 
+void EnsureHiggsCollisionLayer(bhkWorld *world)
+{
+	bhkCollisionFilter *worldFilter = (bhkCollisionFilter *)world->world->m_collisionFilter;
+	UInt64 currentHiggsBitfield = worldFilter->layerBitfields[56];
+	if (currentHiggsBitfield != g_interface001.higgsLayerBitfield) {
+		BSWriteLocker lock(&world->worldLock);
+		worldFilter->layerBitfields[56] = g_interface001.higgsLayerBitfield;
+		ReSyncLayerBitfields(worldFilter, 56);
+	}
+}
+
 void ReSyncLayerBitfields(bhkCollisionFilter *filter, UInt8 layer)
 {
 	UInt64 bitfield = filter->layerBitfields[layer];

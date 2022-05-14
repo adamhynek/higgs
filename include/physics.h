@@ -145,6 +145,7 @@ namespace CollisionInfo
 }
 
 void AddHiggsCollisionLayer(bhkWorld *world);
+void EnsureHiggsCollisionLayer(bhkWorld *world);
 void ReSyncLayerBitfields(bhkCollisionFilter *filter, UInt8 layer);
 
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);

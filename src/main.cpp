@@ -347,6 +347,8 @@ void Update()
 		g_contactListener.world = world;
 	}
 
+	EnsureHiggsCollisionLayer(world);
+
 	bool isRightHeld = g_rightHand->HasHeldKeyframed();
 	bool isLeftHeld = g_leftHand->HasHeldKeyframed();
 
