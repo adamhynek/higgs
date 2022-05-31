@@ -300,7 +300,6 @@ namespace Config {
 
 		if (!ReadBool("EnableDrinkPoison", options.enableDrinkPoison)) return false;
 		if (!ReadBool("OverrideActivateText", options.overrideActivateText)) return false;
-		if (!ReadBool("OverrideBodyCollision", options.overrideBodyCollision)) return false;
 		if (!ReadBool("UseAttachPointForInitialGrab", options.useAttachPointForInitialGrab)) return false;
 
 		if (!ReadBool("DelayRightGripInput", options.delayRightGripInput)) return false;

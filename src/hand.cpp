@@ -1280,12 +1280,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
 		StartNearbyDamping(world);
 
-		if (selectedObject.isActor) {
-			if (Config::options.overrideBodyCollision) {
-				CollisionInfo::SetCollisionGroupDownstream(objRoot, playerCollisionGroup, collisionMapState);
-			}
-		}
-		else {
+		if (!selectedObject.isActor) {
 			CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, collisionMapState);
 		}
 
@@ -2625,12 +2620,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 						bool collideWithHandWhenLettingGo = !velocityAboveThreshold;
 
 						if (state == State::HeldBody) {
-							if (selectedObject.isActor) {
-								if (Config::options.overrideBodyCollision) {
-									ResetCollisionGroupDownstream(objRoot, collisionMapState, nullptr);
-								}
-							}
-							else {
+							if (!selectedObject.isActor) {
 								ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
 							}
 						}
@@ -3313,6 +3303,8 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
 				fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
 
+				selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
+
 				NiTransform desiredTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
 				if (state == State::HeldInit) {
@@ -3372,6 +3364,8 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
 				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
 				fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+
+				selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
 				// Update the hand to match the object
 				NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
@@ -3885,6 +3879,11 @@ bool Hand::CanOtherGrab() const
 bool Hand::HasHeldKeyframed() const
 {
 	return state == State::Held || state == State::HeldInit;
+}
+
+bool Hand::HasHeldConstrained() const
+{
+	return state == State::HeldBody;
 }
 
 bool Hand::IsTwoHanding() const

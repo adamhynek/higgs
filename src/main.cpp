@@ -475,6 +475,51 @@ public:
 };
 HitEventHandler hitEventHandler;
 
+using CollisionFilterComparisonResult = HiggsPluginAPI::IHiggsInterface001::CollisionFilterComparisonResult;
+CollisionFilterComparisonResult CollisionFilterComparisonCallback(void *filter, UInt32 filterInfoA, UInt32 filterInfoB)
+{
+	UInt32 layerA = filterInfoA & 0x7f;
+	UInt32 layerB = filterInfoB & 0x7f;
+
+	if (layerA != BGSCollisionLayer::kCollisionLayer_CharController && layerB != BGSCollisionLayer::kCollisionLayer_CharController) {
+		// Neither collidee is a character controller
+		return CollisionFilterComparisonResult::Continue;
+	}
+
+	if (layerA == BGSCollisionLayer::kCollisionLayer_CharController && layerB == BGSCollisionLayer::kCollisionLayer_CharController) {
+		// Both collidees are character controllers
+		return CollisionFilterComparisonResult::Continue;
+	}
+
+	// One of the collidees is a character controller
+
+	UInt32 charControllerFilter = layerA == BGSCollisionLayer::kCollisionLayer_CharController ? filterInfoA : filterInfoB;
+	UInt16 group = charControllerFilter >> 16;
+	if (group != g_rightHand->playerCollisionGroup) {
+		// It's not the player
+		return CollisionFilterComparisonResult::Continue;
+	}
+
+	// The character controller belongs to the player
+
+	UInt32 otherFilter = charControllerFilter == filterInfoA ? filterInfoB : filterInfoA;
+	UInt32 otherLayer = otherFilter & 0x7f;
+	UInt16 otherGroup = otherFilter >> 16;
+
+	if (otherGroup != g_rightHand->playerCollisionGroup) {
+		if (otherLayer == BGSCollisionLayer::kCollisionLayer_DeadBip) {
+			// Ignore the body if we're grabbing it
+			if ((g_rightHand->HasHeldConstrained() && otherGroup == g_rightHand->selectedObject.collisionGroup) ||
+				(g_leftHand->HasHeldConstrained() && otherGroup == g_leftHand->selectedObject.collisionGroup)) {
+				return CollisionFilterComparisonResult::Ignore;
+			}
+			return CollisionFilterComparisonResult::Continue;
+		}
+	}
+
+	return CollisionFilterComparisonResult::Continue;
+}
+
 extern "C" {
 	void OnDataLoaded()
 	{
@@ -659,6 +704,8 @@ extern "C" {
 				OnDataLoaded();
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
+				g_interface001.AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback);
+
 				// Register our own mod api listener
 				g_messaging->RegisterListener(g_pluginHandle, nullptr, HiggsPluginAPI::ModMessageHandler);
 			}

@@ -30,6 +30,7 @@ struct Hand
 		NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
 		UInt32 handle = 0;
 		float totalMass = 0.f;
+		UInt32 collisionGroup = 0;
 		hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
 		hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
 		UInt8 savedRigidBodyFlags;
@@ -214,6 +215,7 @@ struct Hand
 	bool HasHeldObject() const;
 	bool CanOtherGrab() const;
 	bool HasHeldKeyframed() const;
+	bool HasHeldConstrained() const;
 	bool GetActivateText(std::string &str);
 	bool GetActivateButton(std::string &str);
 	void SetupRollover(NiAVObject *rolloverNode);
