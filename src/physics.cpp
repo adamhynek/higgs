@@ -880,6 +880,29 @@ void ReSyncLayerBitfields(bhkCollisionFilter *filter, UInt8 layer)
 	}
 }
 
+void ApplyHardKeyframeVelocityClamped(const hkVector4& nextPosition, const hkQuaternion& nextOrientation, hkReal invDeltaTime, bhkRigidBody* body)
+{
+	hkpRigidBody *hkBody = body->hkBody;
+	hkpKeyFrameUtility_applyHardKeyFrame(nextPosition, nextOrientation, invDeltaTime, hkBody);
+
+	if (VectorLength(HkVectorToNiPoint(hkBody->getLinearVelocity())) > bhkRigidBody_GetMaxLinearVelocityMetersPerSecond(body)) {
+		if (ahkpWorld *world = body->GetHavokWorld_2()) {
+			if (bhkWorld *worldWrapper = world->m_userData) {
+				BSWriteLocker lock(&worldWrapper->worldLock);
+				hkpRigidBody_setPosition(hkBody, nextPosition);
+			}
+		}
+	}
+	if (VectorLength(HkVectorToNiPoint(hkBody->getAngularVelocity())) > bhkRigidBody_GetMaxAngularVelocity(body)) {
+		if (ahkpWorld *world = body->GetHavokWorld_2()) {
+			if (bhkWorld *worldWrapper = world->m_userData) {
+				BSWriteLocker lock(&worldWrapper->worldLock);
+				hkpRigidBody_setRotation(hkBody, nextOrientation);
+			}
+		}
+	}
+}
+
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity)
 {
 	auto bRigidBody = GetRigidBody(obj);

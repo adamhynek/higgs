@@ -124,8 +124,20 @@ extern RelocAddr<_hkpEntity_activate> hkpEntity_activate;
 typedef void(*_bhkRigidBody_setActivated)(bhkRigidBody *rigidBody, bool activate);
 extern RelocAddr<_bhkRigidBody_setActivated> bhkRigidBody_setActivated;
 
-typedef void(*_hkpEntity_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkQuaternion& rotation);
-extern RelocAddr<_hkpEntity_setPositionAndRotation> hkpEntity_setPositionAndRotation;
+typedef float(*_bhkRigidBody_GetMaxLinearVelocityMetersPerSecond)(bhkRigidBody *rigidBody);
+extern RelocAddr<_bhkRigidBody_GetMaxLinearVelocityMetersPerSecond> bhkRigidBody_GetMaxLinearVelocityMetersPerSecond;
+
+typedef float(*_bhkRigidBody_GetMaxAngularVelocity)(bhkRigidBody *rigidBody);
+extern RelocAddr<_bhkRigidBody_GetMaxAngularVelocity> bhkRigidBody_GetMaxAngularVelocity;
+
+typedef void(*_hkpRigidBody_setPositionAndRotation)(hkpEntity *_this, const hkVector4& position, const hkQuaternion& rotation);
+extern RelocAddr<_hkpRigidBody_setPositionAndRotation> hkpRigidBody_setPositionAndRotation;
+
+typedef void(*_hkpRigidBody_setPosition)(hkpEntity *_this, const hkVector4& position);
+extern RelocAddr<_hkpRigidBody_setPosition> hkpRigidBody_setPosition;
+
+typedef void(*_hkpRigidBody_setRotation)(hkpEntity *_this, const hkQuaternion& rotation);
+extern RelocAddr<_hkpRigidBody_setRotation> hkpRigidBody_setRotation;
 
 typedef void(*_hkpEntity_setTransform)(hkpEntity *_this, const hkTransform& transform);
 extern RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform;

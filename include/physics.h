@@ -148,6 +148,8 @@ void AddHiggsCollisionLayer(bhkWorld *world);
 void EnsureHiggsCollisionLayer(bhkWorld *world);
 void ReSyncLayerBitfields(bhkCollisionFilter *filter, UInt8 layer);
 
+void ApplyHardKeyframeVelocityClamped(const hkVector4& nextPosition, const hkQuaternion& nextOrientation, hkReal invDeltaTime, bhkRigidBody* body);
+
 void SetVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void SetAngularVelocityDownstream(NiAVObject *obj, hkVector4 velocity);
 void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion rot, hkReal invDeltaTime);

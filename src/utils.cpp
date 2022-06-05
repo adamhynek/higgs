@@ -269,7 +269,7 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 			NiQuaternion rot = MatrixToQuaternion(rigidBodyTransform.rot);
 
 			//bhkRigidBody_MoveToPositionAndRotation(rigidBody, pos, rot); // This doesn't work because this function does stuff like read the collision object's center of mass without compensating for bhkRigidBodyT transformations...
-			hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(pos * *g_havokWorldScale), NiQuatToHkQuat(rot), 1.0f / *g_deltaTime, rigidBody->hkBody);
+			ApplyHardKeyframeVelocityClamped(NiPointToHkVector(pos * *g_havokWorldScale), NiQuatToHkQuat(rot), 1.0f / *g_deltaTime, rigidBody);
 		}
 	}
 	

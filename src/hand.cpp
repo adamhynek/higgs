@@ -389,7 +389,7 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &s
 		bhkRigidBody *rigidBodyWrapper = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(collidable);
 		if (ref && ref != player) {
-			if (ref == lastRiddenHorse && collidable->getCollisionFilterInfo() >> 16 == playerCollisionGroup) continue;
+			if (ref == lastRiddenHorse && collidable->getCollisionFilterInfo() >> 16 == playerCollisionGroup && !Config::options.allowGrabCurrentHorse) continue;
 
 			if (IsObjectSelectable(rigidBody, ref) || (collidable == other.selectedObject.collidable && otherObjectIsGrabbable)) {
 				if (ref->baseForm->formType == kFormType_Projectile) {
@@ -700,7 +700,7 @@ void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 	hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
-	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handCollBody);
+	ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handBody);
 }
 
 
@@ -876,7 +876,7 @@ void Hand::UpdateWeaponCollision()
 
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
-	hkpKeyFrameUtility_applyHardKeyFrame(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody->hkBody);
+	ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody);
 
 	// This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
 	/*

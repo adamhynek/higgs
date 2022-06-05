@@ -294,6 +294,7 @@ namespace Config {
 		if (!ReadBool("AllowGrabWithEmptyArrowHand", options.allowGrabWithEmptyArrowHand)) return false;
 		if (!ReadBool("AllowGrabWithTwoHandedOffhand", options.allowGrabWithTwoHandedOffhand)) return false;
 		if (!ReadBool("AllowTwoHandingWithSpellInOffhand", options.allowTwoHandingWithSpellInOffhand)) return false;
+		if (!ReadBool("AllowGrabCurrentHorse", options.allowGrabCurrentHorse)) return false;
 
 		if (!ReadBool("EnableTrigger", options.enableTrigger)) return false;
 		if (!ReadBool("EnableGrip", options.enableGrip)) return false;
