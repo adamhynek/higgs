@@ -42,6 +42,8 @@ void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransfor
 void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform);
 void UpdateBoneMatrices(NiAVObject *obj);
 
+inline VRMeleeData * GetVRMeleeData(bool isLeft) { return (VRMeleeData *)((UInt64)*g_thePlayer + 0x710 + (isLeft ? sizeof(VRMeleeData) : 0)); };
+
 NiPointer<NiAVObject> GetTorsoNode(Actor *actor);
 
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);

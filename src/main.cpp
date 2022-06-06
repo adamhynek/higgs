@@ -520,6 +520,48 @@ CollisionFilterComparisonResult CollisionFilterComparisonCallback(void *filter, 
 	return CollisionFilterComparisonResult::Continue;
 }
 
+// Hook right when the Projectiles process the output of the projectile linear cast
+_Projectile_UpdateImpactFromCollector g_originalMissileProjectileUpdateImpactFromCollector = nullptr;
+_Projectile_UpdateImpactFromCollector g_originalArrowProjectileUpdateImpactFromCollector = nullptr;
+static RelocPtr<_Projectile_UpdateImpactFromCollector> MissileProjectile_UpdateImpactFromCollector_vtbl(0x16FE4F0); // MissileProjectile
+static RelocPtr<_Projectile_UpdateImpactFromCollector> ArrowProjectile_UpdateImpactFromCollector_vtbl(0x16F99A0); // ArrowProjectile
+
+void Projectile_UpdateImpactFromCollector_Hook(Projectile *_this, hkpAllCdPointCollector *collector)
+{
+	for (hkpRootCdPoint &point : collector->getHits()) {
+		if (hkpRigidBody *rigidBody = hkpGetRigidBody(point.m_rootCollidableB)) {
+			if (bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData) {
+				if (wrapper == g_rightHand->handBody || wrapper == g_rightHand->weaponBody) {
+					if (NiPointer<NiNode> meleeNode = GetVRMeleeData(false)->collisionNode) {
+						if (NiPointer<bhkRigidBody> meleeRigidBody = GetRigidBody(meleeNode)) {
+							point.m_rootCollidableB = meleeRigidBody->hkBody->getCollidable();
+						}
+					}
+				}
+				else if (wrapper == g_leftHand->handBody || wrapper == g_leftHand->weaponBody) {
+					if (NiPointer<NiNode> meleeNode = GetVRMeleeData(true)->collisionNode) {
+						if (NiPointer<bhkRigidBody> meleeRigidBody = GetRigidBody(meleeNode)) {
+							point.m_rootCollidableB = meleeRigidBody->hkBody->getCollidable();
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+bool MissileProjectile_UpdateImpactFromCollector_Hook(MissileProjectile *_this, hkpAllCdPointCollector *collector)
+{
+	Projectile_UpdateImpactFromCollector_Hook(_this, collector);
+	return g_originalMissileProjectileUpdateImpactFromCollector(_this, collector);
+}
+
+bool ArrowProjectile_UpdateImpactFromCollector_Hook(ArrowProjectile *_this, hkpAllCdPointCollector *collector)
+{
+	Projectile_UpdateImpactFromCollector_Hook(_this, collector);
+	return g_originalArrowProjectileUpdateImpactFromCollector(_this, collector);
+}
+
 extern "C" {
 	void OnDataLoaded()
 	{
@@ -797,6 +839,12 @@ extern "C" {
 			ShowErrorBoxAndLog("[CRITICAL] Failed to perform hooks");
 			return false;
 		}
+
+		g_originalMissileProjectileUpdateImpactFromCollector = *MissileProjectile_UpdateImpactFromCollector_vtbl;
+		SafeWrite64(MissileProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(MissileProjectile_UpdateImpactFromCollector_Hook));
+
+		g_originalArrowProjectileUpdateImpactFromCollector = *ArrowProjectile_UpdateImpactFromCollector_vtbl;
+		SafeWrite64(ArrowProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(ArrowProjectile_UpdateImpactFromCollector_Hook));
 
 		g_timer.Start();
 

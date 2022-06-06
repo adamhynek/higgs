@@ -710,9 +710,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 
 	PlayerCharacter *player = *g_thePlayer;
 	
-	UInt64 dataOffset = 0x710;
-	if (isLeft) dataOffset += sizeof(VRMeleeData);
-	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
+	VRMeleeData *meleeData = GetVRMeleeData(isLeft);
 
 	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
 	if (!collisionNode) return;
@@ -811,9 +809,7 @@ void Hand::UpdateWeaponCollision()
 
 	PlayerCharacter *player = *g_thePlayer;
 
-	UInt64 dataOffset = 0x710;
-	if (isLeft) dataOffset += sizeof(VRMeleeData);
-	VRMeleeData *meleeData = (VRMeleeData *)((UInt64)player + dataOffset);
+	VRMeleeData *meleeData = GetVRMeleeData(isLeft);
 
 	NiPointer<NiNode> collisionNode = meleeData->collisionNode;
 	if (!collisionNode) {

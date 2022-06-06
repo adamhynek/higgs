@@ -5,6 +5,8 @@
 #include "skse64/GameTypes.h"
 #include "skse64/NiNodes.h"
 
+#include "Physics/Collide/Query/Collector/PointCollector/hkpAllCdPointCollector.h"
+
 #include "RE/havok.h"
 
 
@@ -149,3 +151,4 @@ typedef void(*Actor_DropObject)(Actor *_this, UInt32 *outHandle, const TESBoundO
 typedef void(*Actor_GetLinearVelocity)(Actor *_this, NiPoint3 &velocity);
 typedef bool(*TESBoundObject_GetActivateText)(TESBoundObject *_this, TESObjectREFR* activator, BSString& text);
 typedef bool(*_ActorValueOwner_RestoreActorValue)(ActorValueOwner *_this, UInt32 modifier, UInt64 actorValue, float value);
+typedef bool(*_Projectile_UpdateImpactFromCollector)(Projectile *_this, hkpAllCdPointCollector *collector);
