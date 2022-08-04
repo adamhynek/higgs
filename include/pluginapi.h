@@ -19,6 +19,9 @@ namespace HiggsPluginAPI {
 	{
 		virtual unsigned int GetBuildNumber();
 
+		virtual bool GetSettingDouble(const std::string_view& name, double& out);
+		virtual bool SetSettingDouble(const std::string& name, double val);
+
 		virtual void AddPulledCallback(PulledCallback Callback);
 		virtual void AddGrabbedCallback(GrabbedCallback callback);
 		virtual void AddDroppedCallback(DroppedCallback callback);
@@ -61,7 +64,7 @@ namespace HiggsPluginAPI {
 
 		virtual bool CanGrabObject(bool isLeft);
 
-		bool IsHoldingObject(bool isLeft);
+		virtual bool IsHoldingObject(bool isLeft);
 		virtual void GetFingerValues(bool isLeft, float values[5]);
 
 

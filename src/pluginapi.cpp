@@ -3,6 +3,7 @@
 #include "pluginapi.h"
 #include "version.h"
 #include "papyrusapi.h"
+#include "config.h"
 #include "hand.h"
 
 using namespace HiggsPluginAPI;
@@ -39,6 +40,14 @@ constexpr int higgsBuildNumber = FPVR_VERSION_MAJOR * 1000000 + FPVR_VERSION_MIN
 // Fetches the HIGGS version number
 unsigned int HiggsInterface001::GetBuildNumber() {
 	return higgsBuildNumber;
+}
+
+bool HiggsInterface001::GetSettingDouble(const std::string_view& name, double& out) {
+	return Config::GetSettingDouble(name, out);
+}
+
+bool HiggsInterface001::SetSettingDouble(const std::string& name, double val) {
+	return Config::SetSettingDouble(name, val);
 }
 
 void HiggsInterface001::AddPulledCallback(PulledCallback callback) {

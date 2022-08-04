@@ -4,6 +4,16 @@
 
 namespace PapyrusAPI
 {
+	float PapyrusGetSetting(StaticFunctionTag* base, BSFixedString name) {
+		double out;
+		bool success = g_interface001.GetSettingDouble(name.c_str(), out);
+		return success ? out : -2.71828f;
+	}
+
+	bool PapyrusSetSetting(StaticFunctionTag* base, BSFixedString name, float val) {
+		return g_interface001.SetSettingDouble(name.c_str(), val);
+	}
+
 	void PapyrusGrabObject(StaticFunctionTag *base, TESObjectREFR *object, bool isLeft) {
 		g_interface001.GrabObject(object, isLeft);
 	}
@@ -269,6 +279,9 @@ namespace PapyrusAPI
 	}
 
 	bool RegisterPapyrusFuncs(VMClassRegistry* registry) {
+		registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, float, BSFixedString>("GetSetting", "HiggsVR", PapyrusGetSetting, registry));
+		registry->RegisterFunction(new NativeFunction2<StaticFunctionTag, bool, BSFixedString, float>("SetSetting", "HiggsVR", PapyrusSetSetting, registry));
+
 		registry->RegisterFunction(new NativeFunction2 <StaticFunctionTag, void, TESObjectREFR*, bool>("GrabObject", "HiggsVR", PapyrusGrabObject, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, TESObjectREFR*, bool>("GetGrabbedObject", "HiggsVR", PapyrusGetGrabbedObject, registry));
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("CanGrabObject", "HiggsVR", PapyrusCanGrabObject, registry));

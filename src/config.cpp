@@ -20,6 +20,11 @@ static inline double vlibGetSetting(const char * name) {
 namespace Config {
 	// Define extern options
 	Options options;
+	std::map<std::string, float*, std::less<>> floatMap{};
+	std::map<std::string, double*, std::less<>> doubleMap{};
+	std::map<std::string, int*, std::less<>> intMap{};
+	std::map<std::string, bool*, std::less<>> boolMap{};
+	bool g_registrationComplete = false;
 
 	bool ReadFloat(const std::string &name, float &val)
 	{
@@ -94,227 +99,297 @@ namespace Config {
 		return true;
 	}
 
+	bool RegisterFloat(const std::string& name, float& val)
+	{
+		if (!g_registrationComplete) floatMap[name] = &val;
+		return ReadFloat(name, val);
+	}
+
+	bool RegisterDouble(const std::string& name, double& val)
+	{
+		if (!g_registrationComplete) doubleMap[name] = &val;
+		return ReadDouble(name, val);
+	}
+
+	bool RegisterInt(const std::string& name, int& val)
+	{
+		if (!g_registrationComplete) intMap[name] = &val;
+		return ReadInt(name, val);
+	}
+
+	bool RegisterBool(const std::string& name, bool& val)
+	{
+		if (!g_registrationComplete) boolMap[name] = &val;
+		return ReadBool(name, val);
+	}
+
+	bool SetSettingDouble(const std::string_view& name, double val)
+	{
+		if (auto it = doubleMap.find(name); it != doubleMap.end()) {
+			*it->second = val;
+			return true;
+		}
+		if (auto it = floatMap.find(name); it != floatMap.end()) {
+			*it->second = float(val);
+			return true;
+		}
+		if (auto it = intMap.find(name); it != intMap.end()) {
+			*it->second = int(val);
+			return true;
+		}
+		if (auto it = boolMap.find(name); it != boolMap.end()) {
+			*it->second = bool(val);
+			return true;
+		}
+		return false;
+	}
+
+	bool GetSettingDouble(const std::string_view& name, double& out)
+	{
+		if (auto it = doubleMap.find(name); it != doubleMap.end()) {
+			out = *it->second;
+			return true;
+		}
+		if (auto it = floatMap.find(name); it != floatMap.end()) {
+			out = double(*it->second);
+			return true;
+		}
+		if (auto it = intMap.find(name); it != intMap.end()) {
+			out = double(*it->second);
+			return true;
+		}
+		if (auto it = boolMap.find(name); it != boolMap.end()) {
+			out = double(*it->second);
+			return true;
+		}
+		return false;
+	}
+
 	bool ReadConfigOptions()
 	{
-		if (!ReadVector("PalmVector", options.palmVector)) return false;
-		if (!ReadVector("PointingVector", options.pointingVector)) return false;
-		if (!ReadVector("PalmPosition", options.palmPosition)) return false;
+		bool success = true;
 
-		if (!ReadVector("HandCollisionBoxHalfExtents", options.handCollisionBoxHalfExtents)) return false;
-		if (!ReadVector("HandCollisionBoxOffset", options.handCollisionBoxOffset)) return false;
-		if (!ReadFloat("HandCollisionBoxRadius", options.handCollisionBoxRadius)) return false;
+		if (!ReadVector("PalmVector", options.palmVector)) success = false;
+		if (!ReadVector("PointingVector", options.pointingVector)) success = false;
+		if (!ReadVector("PalmPosition", options.palmPosition)) success = false;
 
-		if (!ReadVector("HandCollisionBoxHalfExtentsBeast", options.handCollisionBoxHalfExtentsBeast)) return false;
-		if (!ReadVector("HandCollisionBoxOffsetBeast", options.handCollisionBoxOffsetBeast)) return false;
-		if (!ReadFloat("HandCollisionBoxRadiusBeast", options.handCollisionBoxRadiusBeast)) return false;
+		if (!ReadVector("HandCollisionBoxHalfExtents", options.handCollisionBoxHalfExtents)) success = false;
+		if (!ReadVector("HandCollisionBoxOffset", options.handCollisionBoxOffset)) success = false;
+		if (!RegisterFloat("HandCollisionBoxRadius", options.handCollisionBoxRadius)) success = false;
 
-		if (!ReadVector("RightShoulderHmdOffset", options.rightShoulderHmdOffset)) return false;
-		if (!ReadFloat("RightShoulderRadius", options.rightShoulderRadius)) return false;
+		if (!ReadVector("HandCollisionBoxHalfExtentsBeast", options.handCollisionBoxHalfExtentsBeast)) success = false;
+		if (!ReadVector("HandCollisionBoxOffsetBeast", options.handCollisionBoxOffsetBeast)) success = false;
+		if (!RegisterFloat("HandCollisionBoxRadiusBeast", options.handCollisionBoxRadiusBeast)) success = false;
 
-		if (!ReadVector("LeftShoulderHmdOffset", options.leftShoulderHmdOffset)) return false;
-		if (!ReadFloat("LeftShoulderRadius", options.leftShoulderRadius)) return false;
+		if (!ReadVector("RightShoulderHmdOffset", options.rightShoulderHmdOffset)) success = false;
+		if (!RegisterFloat("RightShoulderRadius", options.rightShoulderRadius)) success = false;
 
-		if (!ReadVector("MouthHmdOffset", options.mouthHmdOffset)) return false;
-		if (!ReadFloat("MouthRadius", options.mouthRadius)) return false;
+		if (!ReadVector("LeftShoulderHmdOffset", options.leftShoulderHmdOffset)) success = false;
+		if (!RegisterFloat("LeftShoulderRadius", options.leftShoulderRadius)) success = false;
 
-		if (!ReadVector("SelectionBeamStretch", options.selectionBeamStretch)) return false;
+		if (!ReadVector("MouthHmdOffset", options.mouthHmdOffset)) success = false;
+		if (!RegisterFloat("MouthRadius", options.mouthRadius)) success = false;
+
+		if (!ReadVector("SelectionBeamStretch", options.selectionBeamStretch)) success = false;
 		
-		if (!ReadVector("RolloverOffsetRight", options.rolloverOffsetRight)) return false;
-		if (!ReadVector("RolloverOffsetLeft", options.rolloverOffsetLeft)) return false;
-		if (!ReadVector("RolloverRotation", options.rolloverRotation)) return false;
+		if (!ReadVector("RolloverOffsetRight", options.rolloverOffsetRight)) success = false;
+		if (!ReadVector("RolloverOffsetLeft", options.rolloverOffsetLeft)) success = false;
+		if (!ReadVector("RolloverRotation", options.rolloverRotation)) success = false;
 
-		if (!ReadFloat("FarCastRadius", options.farCastRadius)) return false;
-		if (!ReadFloat("FarCastDistance", options.farCastDistance)) return false;
+		if (!RegisterFloat("FarCastRadius", options.farCastRadius)) success = false;
+		if (!RegisterFloat("FarCastDistance", options.farCastDistance)) success = false;
 
-		if (!ReadFloat("NearCastRadius", options.nearCastRadius)) return false;
-		if (!ReadFloat("NearCastDistance", options.nearCastDistance)) return false;
+		if (!RegisterFloat("NearCastRadius", options.nearCastRadius)) success = false;
+		if (!RegisterFloat("NearCastDistance", options.nearCastDistance)) success = false;
 
-		if (!ReadFloat("WidePullGrabRadius", options.widePullGrabRadius)) return false;
+		if (!RegisterFloat("WidePullGrabRadius", options.widePullGrabRadius)) success = false;
 
-		if (!ReadFloat("NearbyGrabBodyRadius", options.nearbyGrabBodyRadius)) return false;
+		if (!RegisterFloat("NearbyGrabBodyRadius", options.nearbyGrabBodyRadius)) success = false;
 
 		float castDirectionRequiredHalfAngle;
-		if (!ReadFloat("CastDirectionRequiredHalfAngle", castDirectionRequiredHalfAngle)) return false;
+		if (!RegisterFloat("CastDirectionRequiredHalfAngle", castDirectionRequiredHalfAngle)) success = false;
 		options.requiredCastDotProduct = cosf(castDirectionRequiredHalfAngle * 0.0174533); // degrees to radians
 
-		if (!ReadDouble("SelectedFadeTime", options.selectedLeewayTime)) return false;
-		if (!ReadDouble("TriggerPreemptTime", options.triggerPressedLeewayTime)) return false;
-		if (!ReadDouble("InputLeewayTime", options.inputLeewayTime)) return false;
-		if (!ReadDouble("ForceInputTime", options.forceInputTime)) return false;
-		if (!ReadDouble("PullApplyVelocityTime", options.pullApplyVelocityTime)) return false;
-		if (!ReadDouble("PullTrackHandTime", options.pullTrackHandTime)) return false;
-		if (!ReadDouble("LootSpawnInTime", options.lootSpawnInTime)) return false;
-		if (!ReadDouble("GrabFreezeNearbyVelocityTime", options.grabFreezeNearbyVelocityTime)) return false;
-		if (!ReadDouble("PullHapticFadeTime", options.pullHapticFadeTime)) return false;
-		if (!ReadDouble("GrabHapticFadeTime", options.grabHapticFadeTime)) return false;
-		if (!ReadDouble("GrabStartMaxTime", options.grabStartMaxTime)) return false;
-		if (!ReadDouble("ShoulderDropHapticFadeTime", options.shoulderDropHapticFadeTime)) return false;
-		if (!ReadDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) return false;
-		if (!ReadDouble("RolloverHideTime", options.rolloverHideTime)) return false;
-		if (!ReadDouble("PreDampVelocityTime", options.preDampVelocityTime)) return false;
-		if (!ReadDouble("TryLeaveDampedTime", options.tryLeaveDampedTime)) return false;
-		if (!ReadDouble("PhysicsGrabInitTime", options.physicsGrabInitTime)) return false;
+		if (!RegisterDouble("SelectedFadeTime", options.selectedLeewayTime)) success = false;
+		if (!RegisterDouble("TriggerPreemptTime", options.triggerPressedLeewayTime)) success = false;
+		if (!RegisterDouble("InputLeewayTime", options.inputLeewayTime)) success = false;
+		if (!RegisterDouble("ForceInputTime", options.forceInputTime)) success = false;
+		if (!RegisterDouble("PullApplyVelocityTime", options.pullApplyVelocityTime)) success = false;
+		if (!RegisterDouble("PullTrackHandTime", options.pullTrackHandTime)) success = false;
+		if (!RegisterDouble("LootSpawnInTime", options.lootSpawnInTime)) success = false;
+		if (!RegisterDouble("GrabFreezeNearbyVelocityTime", options.grabFreezeNearbyVelocityTime)) success = false;
+		if (!RegisterDouble("PullHapticFadeTime", options.pullHapticFadeTime)) success = false;
+		if (!RegisterDouble("GrabHapticFadeTime", options.grabHapticFadeTime)) success = false;
+		if (!RegisterDouble("GrabStartMaxTime", options.grabStartMaxTime)) success = false;
+		if (!RegisterDouble("ShoulderDropHapticFadeTime", options.shoulderDropHapticFadeTime)) success = false;
+		if (!RegisterDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) success = false;
+		if (!RegisterDouble("RolloverHideTime", options.rolloverHideTime)) success = false;
+		if (!RegisterDouble("PreDampVelocityTime", options.preDampVelocityTime)) success = false;
+		if (!RegisterDouble("TryLeaveDampedTime", options.tryLeaveDampedTime)) success = false;
+		if (!RegisterDouble("PhysicsGrabInitTime", options.physicsGrabInitTime)) success = false;
 
-		if (!ReadDouble("FingerAnimateEndTime", options.fingerAnimateEndTime)) return false;
-		if (!ReadDouble("FingerAnimateEndDoubleSpeedTime", options.fingerAnimateEndDoubleSpeedTime)) return false;
-		if (!ReadDouble("AfterDropFingerAnimateTime", options.afterDropFingerAnimateTime)) return false;
-		if (!ReadDouble("FingerAnimateStartDoubleSpeedTime", options.fingerAnimateStartDoubleSpeedTime)) return false;
-		if (!ReadDouble("FingerAnimateGrabDoubleSpeedTime", options.fingerAnimateGrabDoubleSpeedTime)) return false;
-		if (!ReadDouble("WeaponCollisionDisableOnHitTime", options.weaponCollisionDisableOnHitTime)) return false;
-		if (!ReadDouble("WeaponCollisionDisableOnHitDelay", options.weaponCollisionDisableOnHitDelay)) return false;
-		if (!ReadDouble("TriggerGripIconSwitchTime", options.triggerGripIconSwitchTime)) return false;
+		if (!RegisterDouble("FingerAnimateEndTime", options.fingerAnimateEndTime)) success = false;
+		if (!RegisterDouble("FingerAnimateEndDoubleSpeedTime", options.fingerAnimateEndDoubleSpeedTime)) success = false;
+		if (!RegisterDouble("AfterDropFingerAnimateTime", options.afterDropFingerAnimateTime)) success = false;
+		if (!RegisterDouble("FingerAnimateStartDoubleSpeedTime", options.fingerAnimateStartDoubleSpeedTime)) success = false;
+		if (!RegisterDouble("FingerAnimateGrabDoubleSpeedTime", options.fingerAnimateGrabDoubleSpeedTime)) success = false;
+		if (!RegisterDouble("WeaponCollisionDisableOnHitTime", options.weaponCollisionDisableOnHitTime)) success = false;
+		if (!RegisterDouble("WeaponCollisionDisableOnHitDelay", options.weaponCollisionDisableOnHitDelay)) success = false;
+		if (!RegisterDouble("TriggerGripIconSwitchTime", options.triggerGripIconSwitchTime)) success = false;
 
-		if (!ReadDouble("RolloverAfterGrabAlphaFadeInTime", options.rolloverAfterGrabAlphaFadeInTime)) return false;
-		if (!ReadDouble("RolloverAfterDropAlphaFadeInTime", options.rolloverAfterDropAlphaFadeInTime)) return false;
+		if (!RegisterDouble("RolloverAfterGrabAlphaFadeInTime", options.rolloverAfterGrabAlphaFadeInTime)) success = false;
+		if (!RegisterDouble("RolloverAfterDropAlphaFadeInTime", options.rolloverAfterDropAlphaFadeInTime)) success = false;
 
-		if (!ReadInt("LogLevel", options.logLevel)) return false;
+		if (!ReadInt("LogLevel", options.logLevel)) success = false;
 
-		if (!ReadFloat("GrabStartSpeed", options.grabStartSpeed)) return false;
-		if (!ReadFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) return false;
+		if (!RegisterFloat("GrabStartSpeed", options.grabStartSpeed)) success = false;
+		if (!RegisterFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) success = false;
 
-		if (!ReadFloat("PullSpeedThreshold", options.pullSpeedThreshold)) return false;
+		if (!RegisterFloat("PullSpeedThreshold", options.pullSpeedThreshold)) success = false;
 
-		if (!ReadFloat("RolloverScale", options.rolloverScale)) return false;
+		if (!RegisterFloat("RolloverScale", options.rolloverScale)) success = false;
 
-		if (!ReadFloat("ThrowVelocityThreshold", options.throwVelocityThreshold)) return false;
-		if (!ReadFloat("ThrowVelocityBoostFactor", options.throwVelocityBoostFactor)) return false;
+		if (!RegisterFloat("ThrowVelocityThreshold", options.throwVelocityThreshold)) success = false;
+		if (!RegisterFloat("ThrowVelocityBoostFactor", options.throwVelocityBoostFactor)) success = false;
 
-		if (!ReadFloat("ShoulderVelocityThreshold", options.shoulderVelocityThreshold)) return false;
-		if (!ReadFloat("MouthVelocityThreshold", options.mouthVelocityThreshold)) return false;
+		if (!RegisterFloat("ShoulderVelocityThreshold", options.shoulderVelocityThreshold)) success = false;
+		if (!RegisterFloat("MouthVelocityThreshold", options.mouthVelocityThreshold)) success = false;
 
-		if (!ReadFloat("PullDestinationZOffset", options.pullDestinationZOffset)) return false;
-		if (!ReadFloat("PulledAngularDamping", options.pulledAngularDamping)) return false;
-		if (!ReadFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) return false;
-		if (!ReadFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) return false;
-		if (!ReadFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) return false;
-		if (!ReadFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) return false;
+		if (!RegisterFloat("PullDestinationZOffset", options.pullDestinationZOffset)) success = false;
+		if (!RegisterFloat("PulledAngularDamping", options.pulledAngularDamping)) success = false;
+		if (!RegisterFloat("PulledGrabHandAdjustDistance", options.pulledGrabHandAdjustDistance)) success = false;
+		if (!RegisterFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) success = false;
+		if (!RegisterFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) success = false;
+		if (!RegisterFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) success = false;
 
-		if (!ReadFloat("SelectedCloseFingerAnimMaxHandSpeed", options.selectedCloseFingerAnimMaxHandSpeed)) return false;
-		if (!ReadFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) return false;
-		if (!ReadFloat("FingerAnimateGrabLinearSpeed", options.fingerAnimateGrabLinearSpeed)) return false;
-		if (!ReadFloat("FingerAnimateGrabAngularSpeed", options.fingerAnimateGrabAngularSpeed)) return false;
-		if (!ReadFloat("FingerAnimateStartLinearSpeed", options.fingerAnimateStartLinearSpeed)) return false;
-		if (!ReadFloat("FingerAnimateStartAngularSpeed", options.fingerAnimateStartAngularSpeed)) return false;
-		if (!ReadFloat("FingerAnimateEndLinearSpeed", options.fingerAnimateEndLinearSpeed)) return false;
-		if (!ReadFloat("FingerAnimateEndAngularSpeed", options.fingerAnimateEndAngularSpeed)) return false;
+		if (!RegisterFloat("SelectedCloseFingerAnimMaxHandSpeed", options.selectedCloseFingerAnimMaxHandSpeed)) success = false;
+		if (!RegisterFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) success = false;
+		if (!RegisterFloat("FingerAnimateGrabLinearSpeed", options.fingerAnimateGrabLinearSpeed)) success = false;
+		if (!RegisterFloat("FingerAnimateGrabAngularSpeed", options.fingerAnimateGrabAngularSpeed)) success = false;
+		if (!RegisterFloat("FingerAnimateStartLinearSpeed", options.fingerAnimateStartLinearSpeed)) success = false;
+		if (!RegisterFloat("FingerAnimateStartAngularSpeed", options.fingerAnimateStartAngularSpeed)) success = false;
+		if (!RegisterFloat("FingerAnimateEndLinearSpeed", options.fingerAnimateEndLinearSpeed)) success = false;
+		if (!RegisterFloat("FingerAnimateEndAngularSpeed", options.fingerAnimateEndAngularSpeed)) success = false;
 
-		if (!ReadFloat("SelectionLockedStartHapticStrength", options.selectionLockedStartHapticStrength)) return false;
-		if (!ReadFloat("SelectionLockedStartHapticDuration", options.selectionLockedStartHapticDuration)) return false;
-		if (!ReadFloat("SelectionLockedEndHapticStrength", options.selectionLockedEndHapticStrength)) return false;
-		if (!ReadFloat("SelectionLockedEndHapticDuration", options.selectionLockedEndHapticDuration)) return false;
-		if (!ReadFloat("SelectionLockedBaseHapticStrength", options.selectionLockedBaseHapticStrength)) return false;
-		if (!ReadFloat("SelectionLockedProportionalHapticStrength", options.selectionLockedProportionalHapticStrength)) return false;
+		if (!RegisterFloat("SelectionLockedStartHapticStrength", options.selectionLockedStartHapticStrength)) success = false;
+		if (!RegisterFloat("SelectionLockedStartHapticDuration", options.selectionLockedStartHapticDuration)) success = false;
+		if (!RegisterFloat("SelectionLockedEndHapticStrength", options.selectionLockedEndHapticStrength)) success = false;
+		if (!RegisterFloat("SelectionLockedEndHapticDuration", options.selectionLockedEndHapticDuration)) success = false;
+		if (!RegisterFloat("SelectionLockedBaseHapticStrength", options.selectionLockedBaseHapticStrength)) success = false;
+		if (!RegisterFloat("SelectionLockedProportionalHapticStrength", options.selectionLockedProportionalHapticStrength)) success = false;
 
-		if (!ReadFloat("GrabBaseHapticStrength", options.grabBaseHapticStrength)) return false;
-		if (!ReadFloat("GrabProportionalHapticStrength", options.grabProportionalHapticStrength)) return false;
-		if (!ReadFloat("GrabHapticMassExponent", options.grabHapticMassExponent)) return false;
+		if (!RegisterFloat("GrabBaseHapticStrength", options.grabBaseHapticStrength)) success = false;
+		if (!RegisterFloat("GrabProportionalHapticStrength", options.grabProportionalHapticStrength)) success = false;
+		if (!RegisterFloat("GrabHapticMassExponent", options.grabHapticMassExponent)) success = false;
 
-		if (!ReadInt("CollisionMaxInactiveFramesToConsiderActive", options.collisionMaxInactiveFramesToConsiderActive)) return false;
-		if (!ReadInt("CollisionMaxInactiveFramesBeforeCleanup", options.collisionMaxInactiveFramesBeforeCleanup)) return false;
-		if (!ReadFloat("CollisionMaxInitialContactPointDistance", options.collisionMaxInitialContactPointDistance)) return false;
-		if (!ReadFloat("CollisionMinHapticSpeed", options.collisionMinHapticSpeed)) return false;
-		if (!ReadFloat("CollisionBaseHapticStrength", options.collisionBaseHapticStrength)) return false;
-		if (!ReadFloat("CollisionMassProportionalHapticStrength", options.collisionMassProportionalHapticStrength)) return false;
-		if (!ReadFloat("CollisionSpeedProportionalHapticStrength", options.collisionSpeedProportionalHapticStrength)) return false;
-		if (!ReadFloat("CollisionHapticMassExponent", options.collisionHapticMassExponent)) return false;
-		if (!ReadFloat("CollisionHapticDuration", options.collisionHapticDuration)) return false;
+		if (!ReadInt("CollisionMaxInactiveFramesToConsiderActive", options.collisionMaxInactiveFramesToConsiderActive)) success = false;
+		if (!ReadInt("CollisionMaxInactiveFramesBeforeCleanup", options.collisionMaxInactiveFramesBeforeCleanup)) success = false;
+		if (!RegisterFloat("CollisionMaxInitialContactPointDistance", options.collisionMaxInitialContactPointDistance)) success = false;
+		if (!RegisterFloat("CollisionMinHapticSpeed", options.collisionMinHapticSpeed)) success = false;
+		if (!RegisterFloat("CollisionBaseHapticStrength", options.collisionBaseHapticStrength)) success = false;
+		if (!RegisterFloat("CollisionMassProportionalHapticStrength", options.collisionMassProportionalHapticStrength)) success = false;
+		if (!RegisterFloat("CollisionSpeedProportionalHapticStrength", options.collisionSpeedProportionalHapticStrength)) success = false;
+		if (!RegisterFloat("CollisionHapticMassExponent", options.collisionHapticMassExponent)) success = false;
+		if (!RegisterFloat("CollisionHapticDuration", options.collisionHapticDuration)) success = false;
 
-		if (!ReadFloat("ShoulderConstantHapticStrength", options.shoulderConstantHapticStrength)) return false;
-		if (!ReadFloat("ShoulderDropHapticStrength", options.shoulderDropHapticStrength)) return false;
+		if (!RegisterFloat("ShoulderConstantHapticStrength", options.shoulderConstantHapticStrength)) success = false;
+		if (!RegisterFloat("ShoulderDropHapticStrength", options.shoulderDropHapticStrength)) success = false;
 
-		if (!ReadFloat("MouthConstantHapticStrength", options.mouthConstantHapticStrength)) return false;
-		if (!ReadFloat("MouthDropHapticStrength", options.mouthDropHapticStrength)) return false;
+		if (!RegisterFloat("MouthConstantHapticStrength", options.mouthConstantHapticStrength)) success = false;
+		if (!RegisterFloat("MouthDropHapticStrength", options.mouthDropHapticStrength)) success = false;
 
-		if (!ReadFloat("NearbyGrabLinearDamping", options.nearbyGrabLinearDamping)) return false;
-		if (!ReadFloat("NearbyGrabAngularDamping", options.nearbyGrabAngularDamping)) return false;
+		if (!RegisterFloat("NearbyGrabLinearDamping", options.nearbyGrabLinearDamping)) success = false;
+		if (!RegisterFloat("NearbyGrabAngularDamping", options.nearbyGrabAngularDamping)) success = false;
 
-		if (!ReadFloat("NearbyGrabMaxLinearVelocity", options.nearbyGrabMaxLinearVelocity)) return false;
-		if (!ReadFloat("NearbyGrabMaxAngularVelocity", options.nearbyGrabMaxAngularVelocity)) return false;
+		if (!RegisterFloat("NearbyGrabMaxLinearVelocity", options.nearbyGrabMaxLinearVelocity)) success = false;
+		if (!RegisterFloat("NearbyGrabMaxAngularVelocity", options.nearbyGrabMaxAngularVelocity)) success = false;
 
-		if (!ReadFloat("PullDurationA", options.pullDurationA)) return false;
-		if (!ReadFloat("PullDurationB", options.pullDurationB)) return false;
-		if (!ReadFloat("PullDurationC", options.pullDurationC)) return false;
+		if (!RegisterFloat("PullDurationA", options.pullDurationA)) success = false;
+		if (!RegisterFloat("PullDurationB", options.pullDurationB)) success = false;
+		if (!RegisterFloat("PullDurationC", options.pullDurationC)) success = false;
 
-		if (!ReadFloat("MaxHandDistance", options.maxHandDistance)) return false;
-		if (!ReadFloat("MinDampedRequiredVelocityProportion", options.minDampedRequiredVelocityProportion)) return false;
-		if (!ReadFloat("MinVelocityToPotentiallyDamp", options.minVelocityToPotentiallyDamp)) return false;
-		if (!ReadFloat("DampedLinearVelocityMultiplier", options.dampedLinearVelocityMultiplier)) return false;
-		if (!ReadFloat("DampedLinearVelocityExponent", options.dampedLinearVelocityExponent)) return false;
-		if (!ReadFloat("DampedAngularVelocityMultiplier", options.dampedAngularVelocityMultiplier)) return false;
-		if (!ReadFloat("DampedCollisionHapticStrengthMultiplier", options.dampedCollisionHapticStrengthMultiplier)) return false;
+		if (!RegisterFloat("MaxHandDistance", options.maxHandDistance)) success = false;
+		if (!RegisterFloat("MinDampedRequiredVelocityProportion", options.minDampedRequiredVelocityProportion)) success = false;
+		if (!RegisterFloat("MinVelocityToPotentiallyDamp", options.minVelocityToPotentiallyDamp)) success = false;
+		if (!RegisterFloat("DampedLinearVelocityMultiplier", options.dampedLinearVelocityMultiplier)) success = false;
+		if (!RegisterFloat("DampedLinearVelocityExponent", options.dampedLinearVelocityExponent)) success = false;
+		if (!RegisterFloat("DampedAngularVelocityMultiplier", options.dampedAngularVelocityMultiplier)) success = false;
+		if (!RegisterFloat("DampedCollisionHapticStrengthMultiplier", options.dampedCollisionHapticStrengthMultiplier)) success = false;
 
-		if (!ReadFloat("RolloverMinAlphaToShow", options.rolloverMinAlphaToShow)) return false;
-		if (!ReadFloat("RolloverAlphaLogisticK", options.rolloverAlphaLogisticK)) return false;
-		if (!ReadFloat("RolloverAlphaLogisticMidpoint", options.rolloverAlphaLogisticMidpoint)) return false;
-		if (!ReadFloat("RolloverAlphaFadeInLogisticK", options.rolloverAlphaFadeInLogisticK)) return false;
-		if (!ReadFloat("RolloverAlphaFadeInLogisticMidpoint", options.rolloverAlphaFadeInLogisticMidpoint)) return false;
+		if (!RegisterFloat("RolloverMinAlphaToShow", options.rolloverMinAlphaToShow)) success = false;
+		if (!RegisterFloat("RolloverAlphaLogisticK", options.rolloverAlphaLogisticK)) success = false;
+		if (!RegisterFloat("RolloverAlphaLogisticMidpoint", options.rolloverAlphaLogisticMidpoint)) success = false;
+		if (!RegisterFloat("RolloverAlphaFadeInLogisticK", options.rolloverAlphaFadeInLogisticK)) success = false;
+		if (!RegisterFloat("RolloverAlphaFadeInLogisticMidpoint", options.rolloverAlphaFadeInLogisticMidpoint)) success = false;
 
-		if (!ReadFloat("GeometryVertexAlphaThreshold", options.geometryVertexAlphaThreshold)) return false;
+		if (!RegisterFloat("GeometryVertexAlphaThreshold", options.geometryVertexAlphaThreshold)) success = false;
 
-		if (!ReadFloat("GrabLateralWeight", options.grabLateralWeight)) return false;
-		if (!ReadFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) return false;
+		if (!RegisterFloat("GrabLateralWeight", options.grabLateralWeight)) success = false;
+		if (!RegisterFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) success = false;
 
-		if (!ReadBool("UseLoudSoundGrab", options.useLoudSoundGrab)) return false;
-		if (!ReadBool("UseLoudSoundDrop", options.useLoudSoundDrop)) return false;
-		if (!ReadBool("UseLoudSoundPull", options.useLoudSoundPull)) return false;
+		if (!RegisterBool("UseLoudSoundGrab", options.useLoudSoundGrab)) success = false;
+		if (!RegisterBool("UseLoudSoundDrop", options.useLoudSoundDrop)) success = false;
+		if (!RegisterBool("UseLoudSoundPull", options.useLoudSoundPull)) success = false;
 
-		if (!ReadBool("EnableWeaponCollision", options.enableWeaponCollision)) return false;
-		if (!ReadBool("ForcePhysicsGrab", options.forcePhysicsGrab)) return false;
-		if (!ReadBool("DisableGrabDamping", options.disableDampedGrab)) return false;
-		if (!ReadBool("DisableGrabDampingForBodies", options.disableDampedGrabForBodies)) return false;
-		if (!ReadBool("DisableGrabHairGeometry", options.disableGrabHair)) return false;
-		if (!ReadBool("DisableGrabGeometryWithVertexAlpha", options.disableGrabGeometryWithVertexAlpha)) return false;
-		if (!ReadBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) return false;
-		if (!ReadBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) return false;
+		if (!RegisterBool("EnableWeaponCollision", options.enableWeaponCollision)) success = false;
+		if (!RegisterBool("ForcePhysicsGrab", options.forcePhysicsGrab)) success = false;
+		if (!RegisterBool("DisableGrabDamping", options.disableDampedGrab)) success = false;
+		if (!RegisterBool("DisableGrabDampingForBodies", options.disableDampedGrabForBodies)) success = false;
+		if (!RegisterBool("DisableGrabHairGeometry", options.disableGrabHair)) success = false;
+		if (!RegisterBool("DisableGrabGeometryWithVertexAlpha", options.disableGrabGeometryWithVertexAlpha)) success = false;
+		if (!RegisterBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) success = false;
+		if (!RegisterBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) success = false;
 
-		if (!ReadFloat("weaponCollisionScale", options.weaponCollisionScale)) return false;
+		if (!RegisterFloat("weaponCollisionScale", options.weaponCollisionScale)) success = false;
 
-		if (!ReadBool("slowMovementWhenObjectIsHeld", options.slowMovementWhenObjectIsHeld)) return false;
-		if (!ReadFloat("slowMovementMassProportion", options.slowMovementMassProportion)) return false;
-		if (!ReadFloat("slowMovementMassExponent", options.slowMovementMassExponent)) return false;
-		if (!ReadFloat("slowMovementMaxReduction", options.slowMovementMaxReduction)) return false;
+		if (!RegisterBool("slowMovementWhenObjectIsHeld", options.slowMovementWhenObjectIsHeld)) success = false;
+		if (!RegisterFloat("slowMovementMassProportion", options.slowMovementMassProportion)) success = false;
+		if (!RegisterFloat("slowMovementMassExponent", options.slowMovementMassExponent)) success = false;
+		if (!RegisterFloat("slowMovementMaxReduction", options.slowMovementMaxReduction)) success = false;
 
-		if (!ReadBool("EnableHavokFix", options.enableHavokFix)) return false;
-		if (!ReadFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) return false;
-		if (!ReadFloat("HavokMaxMaxTime", options.havokMaxMaxTime)) return false;
+		if (!RegisterBool("EnableHavokFix", options.enableHavokFix)) success = false;
+		if (!RegisterFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) success = false;
+		if (!RegisterFloat("HavokMaxMaxTime", options.havokMaxMaxTime)) success = false;
 
-		if (!ReadBool("EnableShadowUpdateFix", options.enableShadowUpdateFix)) return false;
-		if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) return false;
-		if (!ReadFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) return false;
+		if (!RegisterBool("EnableShadowUpdateFix", options.enableShadowUpdateFix)) success = false;
+		if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) success = false;
+		if (!RegisterFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) success = false;
 
-		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
-		if (!ReadBool("DisableSelectionBeam", options.disableSelectionBeam)) return false;
-		if (!ReadBool("DisableLooting", options.disableLooting)) return false;
-		if (!ReadBool("allowLootingNonRagdolledActors", options.allowLootingNonRagdolledActors)) return false;
-		if (!ReadBool("allowLootingLiveActors", options.allowLootingLiveActors)) return false;
-		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
-		if (!ReadBool("DisableRolloverRumble", options.disableRolloverRumble)) return false;
-		if (!ReadBool("AlwaysShowHands", options.alwaysShowHands)) return false;
-		if (!ReadBool("DisableVanillaGrab", options.disableVanillaGrab)) return false;
-		if (!ReadBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) return false;
+		if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
+		if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;
+		if (!RegisterBool("DisableLooting", options.disableLooting)) success = false;
+		if (!RegisterBool("allowLootingNonRagdolledActors", options.allowLootingNonRagdolledActors)) success = false;
+		if (!RegisterBool("allowLootingLiveActors", options.allowLootingLiveActors)) success = false;
+		if (!RegisterBool("SkipActivateBooks", options.skipActivateBooks)) success = false;
+		if (!RegisterBool("DisableRolloverRumble", options.disableRolloverRumble)) success = false;
+		if (!RegisterBool("AlwaysShowHands", options.alwaysShowHands)) success = false;
+		if (!RegisterBool("DisableVanillaGrab", options.disableVanillaGrab)) success = false;
+		if (!RegisterBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) success = false;
 
-		if (!ReadBool("AllowGrabWithEmptyArrowHand", options.allowGrabWithEmptyArrowHand)) return false;
-		if (!ReadBool("AllowGrabWithTwoHandedOffhand", options.allowGrabWithTwoHandedOffhand)) return false;
-		if (!ReadBool("AllowTwoHandingWithSpellInOffhand", options.allowTwoHandingWithSpellInOffhand)) return false;
-		if (!ReadBool("AllowGrabCurrentHorse", options.allowGrabCurrentHorse)) return false;
+		if (!RegisterBool("AllowGrabWithEmptyArrowHand", options.allowGrabWithEmptyArrowHand)) success = false;
+		if (!RegisterBool("AllowGrabWithTwoHandedOffhand", options.allowGrabWithTwoHandedOffhand)) success = false;
+		if (!RegisterBool("AllowTwoHandingWithSpellInOffhand", options.allowTwoHandingWithSpellInOffhand)) success = false;
+		if (!RegisterBool("AllowGrabCurrentHorse", options.allowGrabCurrentHorse)) success = false;
 
-		if (!ReadBool("EnableTrigger", options.enableTrigger)) return false;
-		if (!ReadBool("EnableGrip", options.enableGrip)) return false;
+		if (!RegisterBool("EnableTrigger", options.enableTrigger)) success = false;
+		if (!RegisterBool("EnableGrip", options.enableGrip)) success = false;
 
-		if (!ReadBool("EnableDrinkPoison", options.enableDrinkPoison)) return false;
-		if (!ReadBool("OverrideActivateText", options.overrideActivateText)) return false;
-		if (!ReadBool("UseAttachPointForInitialGrab", options.useAttachPointForInitialGrab)) return false;
+		if (!RegisterBool("EnableDrinkPoison", options.enableDrinkPoison)) success = false;
+		if (!RegisterBool("OverrideActivateText", options.overrideActivateText)) success = false;
+		if (!RegisterBool("UseAttachPointForInitialGrab", options.useAttachPointForInitialGrab)) success = false;
 
-		if (!ReadBool("DelayRightGripInput", options.delayRightGripInput)) return false;
-		if (!ReadBool("DelayLeftGripInput", options.delayLeftGripInput)) return false;
+		if (!RegisterBool("DelayRightGripInput", options.delayRightGripInput)) success = false;
+		if (!RegisterBool("DelayLeftGripInput", options.delayLeftGripInput)) success = false;
 
-		if (!ReadString("GrabString", Config::options.grabString)) return false;
-		if (!ReadString("PullString", Config::options.pullString)) return false;
-		if (!ReadString("LootString", Config::options.lootString)) return false;
+		if (!ReadString("GrabString", Config::options.grabString)) success = false;
+		if (!ReadString("PullString", Config::options.pullString)) success = false;
+		if (!ReadString("LootString", Config::options.lootString)) success = false;
 
-		if (!ReadStringSet("GrabNodeNameBlacklist", Config::options.grabNodeNameBlacklist)) return false;
+		if (!ReadStringSet("GrabNodeNameBlacklist", Config::options.grabNodeNameBlacklist)) success = false;
 
-		return true;
+		g_registrationComplete = true;
+
+		return success;
 	}
 
 	bool ReloadIfModified()
