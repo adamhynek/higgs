@@ -2160,7 +2160,7 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 			bool breakStickiness = false;
 
 			if (
-				actor &&
+				actor && !Actor_IsGhost(actor) &&
 				(Config::options.allowLootingNonRagdolledActors || Actor_IsInRagdollState(actor)) &&
 				(Config::options.allowLootingLiveActors || actor->IsDead(1))
 				) {
