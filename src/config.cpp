@@ -285,6 +285,8 @@ namespace Config {
 		if (!ReadBool("DisableShaders", options.disableShaders)) return false;
 		if (!ReadBool("DisableSelectionBeam", options.disableSelectionBeam)) return false;
 		if (!ReadBool("DisableLooting", options.disableLooting)) return false;
+		if (!ReadBool("allowLootingNonRagdolledActors", options.allowLootingNonRagdolledActors)) return false;
+		if (!ReadBool("allowLootingLiveActors", options.allowLootingLiveActors)) return false;
 		if (!ReadBool("SkipActivateBooks", options.skipActivateBooks)) return false;
 		if (!ReadBool("DisableRolloverRumble", options.disableRolloverRumble)) return false;
 		if (!ReadBool("AlwaysShowHands", options.alwaysShowHands)) return false;

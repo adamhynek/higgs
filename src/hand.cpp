@@ -2159,7 +2159,12 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 			Actor *actor = DYNAMIC_CAST(closestObj, TESObjectREFR, Actor);
 			bool breakStickiness = false;
 
-			if (actor && Actor_IsInRagdollState(actor)) {
+			if (
+				actor &&
+				(Config::options.allowLootingNonRagdolledActors || Actor_IsInRagdollState(actor)) &&
+				(Config::options.allowLootingLiveActors || actor->IsDead(1))
+				) {
+
 				NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
 				if (hitNode) {
 					BipedModel *biped = actor->GetBipedSmall();

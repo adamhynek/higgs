@@ -151,6 +151,8 @@ namespace Config {
 		bool disableShaders = false;
 		bool disableSelectionBeam = false;
 		bool disableLooting = false;
+		bool allowLootingNonRagdolledActors = false;
+		bool allowLootingLiveActors = false;
 		bool skipActivateBooks = true;
 		bool disableRolloverRumble = true;
 		bool alwaysShowHands = true;
