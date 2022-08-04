@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include <mutex>
 
 #include "skse64/GameVR.h"
