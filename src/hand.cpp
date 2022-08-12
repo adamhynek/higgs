@@ -517,7 +517,9 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 				}
 				else if (ref->formType == kFormType_Character) {
 					Actor *actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
-					if (actor && !Actor_IsInRagdollState(actor)) continue;
+					if (actor && !Config::options.allowLootingNonRagdolledActors && !Actor_IsInRagdollState(actor)) {
+						continue;
+					}
 				}
 				// Get distance from the hit on the collidable to the ray
 				NiPoint3 hit = HkVectorToNiPoint(pair.second.getPosition());
