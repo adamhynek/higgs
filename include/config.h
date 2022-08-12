@@ -160,6 +160,7 @@ namespace Config {
 
 		bool allowGrabWithEmptyArrowHand = false;
 		bool allowGrabWithTwoHandedOffhand = false;
+		bool allowDaggerTwoHanding = true;
 		bool allowTwoHandingWithSpellInOffhand = true;
 		bool allowGrabCurrentHorse = false;
 

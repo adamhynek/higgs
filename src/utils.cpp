@@ -318,8 +318,11 @@ bool IsTwoHanded(const TESObjectWEAP *weap)
 
 bool IsTwoHandable(const TESObjectWEAP *weap)
 {
+	UInt8 type = weap->gameData.type;
+	if (type == TESObjectWEAP::GameData::kType_OneHandDagger && !Config::options.allowDaggerTwoHanding) return false;
+
 	// Basically, not unarmed or bow
-	switch (weap->gameData.type) {
+	switch (type) {
 	case TESObjectWEAP::GameData::kType_OneHandSword:
 	case TESObjectWEAP::GameData::kType_OneHandDagger:
 	case TESObjectWEAP::GameData::kType_OneHandAxe:

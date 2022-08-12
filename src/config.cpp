@@ -368,6 +368,7 @@ namespace Config {
 
 		if (!RegisterBool("AllowGrabWithEmptyArrowHand", options.allowGrabWithEmptyArrowHand)) success = false;
 		if (!RegisterBool("AllowGrabWithTwoHandedOffhand", options.allowGrabWithTwoHandedOffhand)) success = false;
+		if (!RegisterBool("allowDaggerTwoHanding", options.allowDaggerTwoHanding)) success = false;
 		if (!RegisterBool("AllowTwoHandingWithSpellInOffhand", options.allowTwoHandingWithSpellInOffhand)) success = false;
 		if (!RegisterBool("AllowGrabCurrentHorse", options.allowGrabCurrentHorse)) success = false;
 
