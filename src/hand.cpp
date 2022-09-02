@@ -517,7 +517,12 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 				}
 				else if (ref->formType == kFormType_Character) {
 					Actor *actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
-					if (actor && !Config::options.allowLootingNonRagdolledActors && !Actor_IsInRagdollState(actor)) {
+					bool disableLooting = 
+						Config::options.disableLooting ||
+						Config::options.disableGravityGlovesLooting ||
+						(!Config::options.allowLootingNonRagdolledActors && !Actor_IsInRagdollState(actor)) ||
+						(Config::options.disableGravityGlovesLootingLiveActors && !actor->IsDead(1));
+					if (actor && disableLooting) {
 						continue;
 					}
 				}

@@ -358,6 +358,8 @@ namespace Config {
 		if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
 		if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;
 		if (!RegisterBool("DisableLooting", options.disableLooting)) success = false;
+		if (!RegisterBool("disableGravityGlovesLooting", options.disableGravityGlovesLooting)) success = false;
+		if (!RegisterBool("disableGravityGlovesLootingLiveActors", options.disableGravityGlovesLootingLiveActors)) success = false;
 		if (!RegisterBool("allowLootingNonRagdolledActors", options.allowLootingNonRagdolledActors)) success = false;
 		if (!RegisterBool("allowLootingLiveActors", options.allowLootingLiveActors)) success = false;
 		if (!RegisterBool("SkipActivateBooks", options.skipActivateBooks)) success = false;
