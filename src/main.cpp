@@ -767,8 +767,8 @@ extern "C" {
 	bool SKSEPlugin_Query(const SKSEInterface* skse, PluginInfo* info)
 	{
 		gLog.OpenRelative(CSIDL_MYDOCUMENTS, "\\My Games\\Skyrim VR\\SKSE\\higgs_vr.log");
-		gLog.SetPrintLevel(IDebugLog::kLevel_DebugMessage);
-		gLog.SetLogLevel(IDebugLog::kLevel_DebugMessage);
+		gLog.SetPrintLevel(IDebugLog::kLevel_Message);
+		gLog.SetLogLevel(IDebugLog::kLevel_Message);
 
 		_MESSAGE("HIGGS VR v%s", FPVR_VERSION_VERSTRING);
 

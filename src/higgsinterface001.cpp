@@ -7,7 +7,7 @@ struct HiggsMessage {
 };
 
 // Stores the API after it has already been fetched
-static HiggsPluginAPI::IHiggsInterface001 * g_higgsInterface = nullptr;
+HiggsPluginAPI::IHiggsInterface001 * g_higgsInterface = nullptr;
 
 // Fetches the interface to use from HIGGS
 HiggsPluginAPI::IHiggsInterface001 * HiggsPluginAPI::GetHiggsInterface001(const PluginHandle & pluginHandle, SKSEMessagingInterface * messagingInterface)
