@@ -1,4 +1,4 @@
-# HIGGS
+# HIGGS ([Nexus link](https://www.nexusmods.com/skyrimspecialedition/mods/43930))
 
 This mod is complicated.
 
@@ -29,5 +29,3 @@ void OnSKSEMessage(SKSEMessagingInterface::Message* msg)
 }
         
 ```
-
-[Nexus link](https://www.nexusmods.com/skyrimspecialedition/mods/43930)
