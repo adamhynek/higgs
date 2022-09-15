@@ -175,24 +175,9 @@ NiPointer<NiAVObject> GetTorsoNode(Actor *actor)
 	return nullptr;
 }
 
-void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx)
-{
-	root->UpdateWorldData(ctx);
-
-	auto node = root->GetAsNiNode();
-
-	if (node) {
-		for (int i = 0; i < node->m_children.m_arrayBufLen; ++i) {
-			auto child = node->m_children.m_data[i];
-			if (child) updateTransformTree(child, ctx);
-		}
-	}
-}
-
 NiTransform GetLocalTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform)
 {
-	NiPointer<NiNode> parent = node->m_parent;
-	if (parent) {
+	if (NiPointer<NiNode> parent = node->m_parent) {
 		NiTransform inverseParent = InverseTransform(useOldParentTransform ? node->m_parent->m_oldWorldTransform : node->m_parent->m_worldTransform);
 		return inverseParent * worldTransform;
 	}

@@ -36,7 +36,6 @@ inline T get_vfunc(void *object, UInt64 index)
 }
 
 NiAVObject * GetHighestParent(NiAVObject *node);
-void updateTransformTree(NiAVObject * root, NiAVObject::ControllerUpdateContext *ctx);
 NiTransform GetLocalTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform = false);
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);
 void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform);
