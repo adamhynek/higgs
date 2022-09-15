@@ -132,6 +132,8 @@ namespace Config {
 		bool inheritTangentialVelocity = true;
 		bool offhandAffectsTwoHandedRotation = true;
 
+		bool updateHandsToMatchWeaponCollisionTransform = false;
+		bool useVrikWeaponTransform = true;
 		float weaponCollisionScale = 1.f;
 
 		bool slowMovementWhenObjectIsHeld = true;

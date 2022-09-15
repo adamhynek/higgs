@@ -151,7 +151,8 @@ struct Hand
 
 	~Hand() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
-	void Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world);
+	void Update(Hand &other, bhkWorld *world);
+	void PostUpdate(Hand &other, bhkWorld *world);
 	void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 
 	void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);

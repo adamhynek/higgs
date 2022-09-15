@@ -340,6 +340,7 @@ namespace Config {
 		if (!RegisterBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) success = false;
 		if (!RegisterBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) success = false;
 
+		if (!RegisterBool("useVrikWeaponTransform", options.useVrikWeaponTransform)) success = false;
 		if (!RegisterFloat("weaponCollisionScale", options.weaponCollisionScale)) success = false;
 
 		if (!RegisterBool("slowMovementWhenObjectIsHeld", options.slowMovementWhenObjectIsHeld)) success = false;

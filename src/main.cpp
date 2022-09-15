@@ -377,8 +377,11 @@ void Update()
 		}
 	}
 
-	firstHandToUpdate->Update(*lastHandToUpdate, playerWorldNode, world);
-	lastHandToUpdate->Update(*firstHandToUpdate, playerWorldNode, world);
+	firstHandToUpdate->Update(*lastHandToUpdate, world);
+	lastHandToUpdate->Update(*firstHandToUpdate, world);
+
+	firstHandToUpdate->PostUpdate(*lastHandToUpdate, world);
+	lastHandToUpdate->PostUpdate(*firstHandToUpdate, world);
 
 	if (g_rightHand->IsSafeToClearSavedCollision() && g_leftHand->IsSafeToClearSavedCollision()) {
 		// cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it

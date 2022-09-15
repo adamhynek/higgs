@@ -568,21 +568,15 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 	PlayerCharacter *player = *g_thePlayer;
 	hkTransform transform = existingWeaponCollision->hkBody->getTransform();
 
-	/* This is broken for some people. I have no idea why.
-	if (g_isVrikPresent) {
-		// If using VRIK, the weapon is actually a bit offset. Use the actual position of the weapon from vrik from last frame. That's the best we can do.
-		static BSFixedString weaponNodeName("WEAPON");
-		static BSFixedString shieldNodeName("SHIELD");
-		bool useLeft = isLeft;
-		if (*g_leftHandedMode) useLeft = !useLeft;
-		BSFixedString &handWeaponNodeName = useLeft ? shieldNodeName : weaponNodeName;
-		NiPointer<NiAVObject> weaponNode = player->GetNiRootNode(0)->GetObjectByName(&handWeaponNodeName.data);
-		if (weaponNode) {
-			NiTransform &nodeTransform = weaponNode->m_oldWorldTransform;
-			transform.m_translation = NiPointToHkVector(nodeTransform.pos * *g_havokWorldScale);
-			NiMatrixToHkMatrix(nodeTransform.rot, transform.m_rotation);
+	if (g_isVrikPresent && Config::options.useVrikWeaponTransform) {
+		if (NiPointer<NiAVObject> fpHandNode = GetFirstPersonHandNode()) {
+			NiTransform thisFrameVrikHandTransform = fpHandNode->m_worldTransform;
+			thisFrameVrikHandTransform.scale = handSize;
+
+			NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * thirdPersonHandToWeaponTransform;
+			transform = NiTransformTohkTransform(thisFrameWeaponTransform);
 		}
-	}*/
+	}
 
 	return transform;
 }
@@ -879,26 +873,24 @@ void Hand::UpdateWeaponCollision()
 
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
-	ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, weaponBody);
+	ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, weaponBody);
 
-	// This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
-	/*
-	NiPointer<NiAVObject> weaponNode = collisionNode;
-	NiTransform &weaponTransform = weaponNode->m_worldTransform;
-	NiAVObject *handNode = GetFirstPersonHandNode();
-	NiTransform &handTransform = handNode->m_worldTransform;
-	NiTransform inverseHand = InverseTransform(handTransform);
-	NiTransform handToWeapon = inverseHand * weaponTransform;
+	if (Config::options.updateHandsToMatchWeaponCollisionTransform) {
+		// This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
+		NiPointer<NiAVObject> weaponNode = collisionNode;
+		NiTransform &weaponTransform = weaponNode->m_worldTransform;
+		NiAVObject *handNode = GetFirstPersonHandNode();
+		NiTransform &handTransform = handNode->m_worldTransform;
+		NiTransform inverseHand = InverseTransform(handTransform);
+		NiTransform handToWeapon = inverseHand * weaponTransform;
 
-	NiTransform inverseDesired = InverseTransform(handToWeapon);
+		NiTransform inverseDesired = InverseTransform(handToWeapon);
 
-	NiTransform newWeaponTransform = weaponTransform; // gets the scale
-	const hkTransform &t = weaponBody->hkBody->getTransform();
-	newWeaponTransform.pos = HkVectorToNiPoint(t.getTranslation()) * *g_inverseHavokWorldScale;
-	HkMatrixToNiMatrix(t.getRotation(), newWeaponTransform.rot);
+		hkTransform t; weaponBody->getTransform(t);
+		NiTransform newWeaponTransform = hkTransformToNiTransform(t, weaponTransform.scale);
 
-	UpdateHandTransform(newWeaponTransform * inverseDesired);
-	*/
+		UpdateHandTransform(newWeaponTransform * inverseDesired);
+	}
 }
 
 
@@ -1003,8 +995,7 @@ bool Hand::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
 	bool left = isLeftHanded ? !isLeft : isLeft;
 	UInt32 leftToPass = left ? *(UInt32 *)((UInt64)player + 1752) : *(UInt32 *)((UInt64)player + 1748);
 
-	TESObjectWEAP *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP);
-	if (weapon) {
+	if (TESObjectWEAP *weapon = DYNAMIC_CAST(baseForm, TESForm, TESObjectWEAP)) {
 		UInt8 weaponType = weapon->type();
 		UInt32 offsetNodeIndex = 2; // MeleeWeaponOffset
 		if (weaponType == TESObjectWEAP::GameData::kType_Bow) {
@@ -1037,8 +1028,7 @@ bool Hand::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
 		return true;
 	}
 
-	TESObjectLIGH *light = DYNAMIC_CAST(baseForm, TESForm, TESObjectLIGH);
-	if (light) {
+	if (TESObjectLIGH *light = DYNAMIC_CAST(baseForm, TESForm, TESObjectLIGH)) {
 		// This is basically all because of torches
 		if (!(light->unkE0.unk0C & (1 << 1))) return false; // kCanCarry
 		NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, 2); // MeleeWeaponOffset
@@ -1945,8 +1935,7 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 
 	// When not using vrik, we need to update the clavicle to move the hand just as beth does, otherwise only part of the "hand" moves and we get stretched verts
 	PlayerCharacter *player = *g_thePlayer;
-	NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
-	if (clavicle) {
+	if (NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle]) {
 		if (std::isnan(worldTransform.pos.x) || std::isnan(worldTransform.pos.y) || std::isnan(worldTransform.pos.z)) {
 			_WARNING("[WARNING] Attempted hand transform contains nans!");
 			return;
@@ -1979,7 +1968,7 @@ NiPoint3 Hand::GetPointingVectorWS(NiMatrix33 &handRotation)
 }
 
 
-void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
+void Hand::Update(Hand &other, bhkWorld *world)
 {
 	//_MESSAGE("%s:, pose update", name);
 
@@ -2038,9 +2027,6 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 	playerVelocitiesWorldspace.push_front(playerVelocityWorldspace);
 	avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
 	avgPlayerSpeedWorldspace = VectorLength(avgPlayerVelocityWorldspace);
-
-	UpdateHandCollision(handNode, world);
-	UpdateWeaponCollision();
 
 	if (g_currentFrameTime - pulledTime > pulledExpireTime) {
 		EndPull();
@@ -3507,6 +3493,20 @@ void Hand::Update(Hand &other, NiNode *playerWorldNode, bhkWorld *world)
 
 	prevState = state;
 	prevPlayerPosWorldspace = player->pos;
+}
+
+
+void Hand::PostUpdate(Hand &other, bhkWorld *world)
+{
+	PlayerCharacter *player = *g_thePlayer;
+	if (!player->GetNiNode()) return;
+
+	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+	if (!handNode) return;
+
+	// Update these after stuff like two-handing hand updates
+	UpdateHandCollision(handNode, world);
+	UpdateWeaponCollision();
 }
 
 
