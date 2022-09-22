@@ -61,7 +61,7 @@ struct Hand
 		NiTransform handToWand;
 		NiTransform handToWeapon;
 		NiTransform prevWeaponTransform;
-		NiTransform prevLocalWeaponTransform;
+		NiTransform prevWeaponTransformRoomspace;
 		TESObjectWEAP *weapon;
 		float prevFrameTwistAngle360 = 0;
 		AngleState angleState = AngleState::None;

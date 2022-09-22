@@ -1605,7 +1605,10 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 		twoHandedState.weapon = otherHandWeapon;
 		twoHandedState.handToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
 		twoHandedState.prevWeaponTransform = weaponNode->m_worldTransform;
-		twoHandedState.prevLocalWeaponTransform = weaponNode->m_localTransform;
+
+		NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+		twoHandedState.prevWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * weaponNode->m_worldTransform;
+
 		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
 		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
 		NiPointer<NiAVObject> wandNode = other.GetWandNode();
@@ -3189,15 +3192,14 @@ void Hand::Update(Hand &other, bhkWorld *world)
 			}
 
 			NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
-			NiTransform desiredTransformLocal = GetLocalTransform(weaponNode, desiredTransform);
 
-			std::optional<NiTransform> advancedTransform = AdvanceTransform(twoHandedState.prevLocalWeaponTransform, desiredTransformLocal, 9999.f, Config::options.twoHandedRotationSnapSpeed);
-			weaponNode->m_localTransform = advancedTransform ? *advancedTransform : desiredTransformLocal;
+			NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
 
-			// First, set weapon node from the local transform so that we can retrieve the desired world transform
-			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-			NiAVObject_UpdateNode(weaponNode, &ctx);
-			desiredTransform = weaponNode->m_worldTransform;
+			NiTransform desiredWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * desiredTransform;
+
+			std::optional<NiTransform> advancedTransform = AdvanceTransform(twoHandedState.prevWeaponTransformRoomspace, desiredWeaponTransformRoomspace, 9999.f, Config::options.twoHandedRotationSnapSpeed);
+			NiTransform weaponTransformRoomspace = advancedTransform ? *advancedTransform : desiredWeaponTransformRoomspace;
+			desiredTransform = roomNode->m_worldTransform * weaponTransformRoomspace;
 
 			// Set hand transforms
 			NiTransform newHandTransform = desiredTransform * weaponToThisHand;
@@ -3208,6 +3210,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 			// Now set weapon offset, and weapon collision offset node transforms.
 			// All of those need to happen, even when using vrik.
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+
+			UpdateNodeTransformLocal(weaponNode, desiredTransform);
+			NiAVObject_UpdateNode(weaponNode, &ctx);
 
 			// This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
 			NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
@@ -3261,7 +3267,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 			// Since UpdateWeaponSwing is called before AlignClaviclesToHands (which calls VRMeleeData_UpdateArrays), I believe it uses the last frame's data,
 			// meaning since we hook after AlignClaviclesToHands, hopefully UpdateWeaponSwing will use the values we overwrite with.
 
-			twoHandedState.prevLocalWeaponTransform = weaponNode->m_localTransform;
+			twoHandedState.prevWeaponTransformRoomspace = weaponTransformRoomspace;
 			twoHandedState.prevWeaponTransform = desiredTransform;
 		}
 		else {
