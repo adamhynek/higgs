@@ -170,6 +170,7 @@ inline NiPoint3 lerp(const NiPoint3 &a, const NiPoint3 &b, float t) { return a *
 inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
 inline float logistic(float x, float k, float midpoint) { return 1.0f / (1.0f + expf(-k * (x - midpoint))); };
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed);
+std::optional<NiTransform> AdvanceTransformSpeedMultiplied(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeedMult, float rotSpeedMult);
 float Determinant33(const NiMatrix33 &m);
 NiPoint3 QuadraticFromPoints(const NiPoint2 &p1, const NiPoint2 &p2, const NiPoint2 &p3);
 inline float ConstrainAngle180(float x) { x = fmodf(x + M_PI, 2*M_PI); if (x < 0) x += 2*M_PI; return x - M_PI; }

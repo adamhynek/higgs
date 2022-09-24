@@ -72,7 +72,7 @@ std::unordered_map<ShaderReferenceEffect *, std::unordered_set<BSGeometry *>> g_
 PlayingShader g_playingShaders[2]{};
 std::unordered_map<NiAVObject *, NiPointer<ShaderReferenceEffect>> g_effectDataMap{};
 
-ContactListener g_contactListener{};
+PhysicsListener g_physicsListener{};
 IslandDeactivationListener g_activationListener;
 
 int g_savedShadowUpdateFrameDelay = -1;
@@ -166,16 +166,16 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
 								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
-								g_rightHand->controllerVelocities.linearVelocities.pop_back();
-								g_rightHand->controllerVelocities.linearVelocities.push_front(velocityWorldspace);
+								g_rightHand->controllerData.linearVelocities.pop_back();
+								g_rightHand->controllerData.linearVelocities.push_front(velocityWorldspace);
 
-								g_rightHand->controllerVelocities.Recompute();
+								g_rightHand->controllerData.Recompute();
 
 								NiPoint3 openvrAngularVelocity = { pose.vAngularVelocity.v[0], pose.vAngularVelocity.v[1], pose.vAngularVelocity.v[2] };
 								NiPoint3 skyrimAngularVelocity = { openvrAngularVelocity.x, -openvrAngularVelocity.z, openvrAngularVelocity.y };
 								NiPoint3 angularVelocityWorldspace = openvrToSkyrimWorldTransform * skyrimAngularVelocity;
-								g_rightHand->controllerVelocities.angularVelocities.pop_back();
-								g_rightHand->controllerVelocities.angularVelocities.push_front(angularVelocityWorldspace);
+								g_rightHand->controllerData.angularVelocities.pop_back();
+								g_rightHand->controllerData.angularVelocities.push_front(angularVelocityWorldspace);
 							}
 						}
 						else if (i == leftIndex && isLeftConnected) {
@@ -184,16 +184,16 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 								NiPoint3 openvrVelocity = { pose.vVelocity.v[0], pose.vVelocity.v[1], pose.vVelocity.v[2] };
 								NiPoint3 skyrimVelocity = { openvrVelocity.x, -openvrVelocity.z, openvrVelocity.y };
 								NiPoint3 velocityWorldspace = openvrToSkyrimWorldTransform * skyrimVelocity;
-								g_leftHand->controllerVelocities.linearVelocities.pop_back();
-								g_leftHand->controllerVelocities.linearVelocities.push_front(velocityWorldspace);
+								g_leftHand->controllerData.linearVelocities.pop_back();
+								g_leftHand->controllerData.linearVelocities.push_front(velocityWorldspace);
 
-								g_leftHand->controllerVelocities.Recompute();
+								g_leftHand->controllerData.Recompute();
 
 								NiPoint3 openvrAngularVelocity = { pose.vAngularVelocity.v[0], pose.vAngularVelocity.v[1], pose.vAngularVelocity.v[2] };
 								NiPoint3 skyrimAngularVelocity = { openvrAngularVelocity.x, -openvrAngularVelocity.z, openvrAngularVelocity.y };
 								NiPoint3 angularVelocityWorldspace = openvrToSkyrimWorldTransform * skyrimAngularVelocity;
-								g_leftHand->controllerVelocities.angularVelocities.pop_back();
-								g_leftHand->controllerVelocities.angularVelocities.push_front(angularVelocityWorldspace);
+								g_leftHand->controllerData.angularVelocities.pop_back();
+								g_leftHand->controllerData.angularVelocities.push_front(angularVelocityWorldspace);
 							}
 						}
 					}
@@ -298,16 +298,16 @@ void Update()
 		return;
 	}
 
-	if (world != g_contactListener.world) {
-		if (NiPointer<bhkWorld> oldWorld = g_contactListener.world) {
+	if (world != g_physicsListener.world) {
+		if (NiPointer<bhkWorld> oldWorld = g_physicsListener.world) {
 			// If exists, remove the listener from the previous world
 			_MESSAGE("Removing listeners and collision from old havok world");
 
 			{
 				BSWriteLocker lock(&oldWorld->worldLock);
 
-				hkpWorld_removeContactListener(oldWorld->world, &g_contactListener);
-				hkpWorld_removeWorldPostSimulationListener(oldWorld->world, &g_contactListener);
+				hkpWorld_removeContactListener(oldWorld->world, &g_physicsListener);
+				hkpWorld_removeWorldPostSimulationListener(oldWorld->world, &g_physicsListener);
 
 				if (Config::options.enableShadowUpdateFix) {
 					hkpWorld_removeIslandActivationListener(oldWorld->world, &g_activationListener);
@@ -319,7 +319,7 @@ void Update()
 				g_rightHand->RemoveWeaponCollision(oldWorld);
 				g_leftHand->RemoveWeaponCollision(oldWorld);
 
-				g_contactListener = ContactListener{};
+				g_physicsListener = PhysicsListener{};
 			}
 		}
 
@@ -330,8 +330,8 @@ void Update()
 
 			AddHiggsCollisionLayer(world);
 
-			hkpWorld_addContactListener(world->world, &g_contactListener);
-			hkpWorld_addWorldPostSimulationListener(world->world, &g_contactListener);
+			hkpWorld_addContactListener(world->world, &g_physicsListener);
+			hkpWorld_addWorldPostSimulationListener(world->world, &g_physicsListener);
 
 			if (Config::options.enableShadowUpdateFix) {
 				hkpWorld_addIslandActivationListener(world->world, &g_activationListener);
@@ -344,7 +344,7 @@ void Update()
 			g_leftHand->CreateWeaponCollision(world);
 		}
 
-		g_contactListener.world = world;
+		g_physicsListener.world = world;
 	}
 
 	EnsureHiggsCollisionLayer(world);

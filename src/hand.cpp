@@ -1664,10 +1664,10 @@ bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const N
 	}
 
 	float speed = 0;
-	for (const NiPoint3 &velocity : controllerVelocities.linearVelocities) {
+	for (const NiPoint3 &velocity : controllerData.linearVelocities) {
 		speed += VectorLength(velocity);
 	}
-	speed /= std::size(controllerVelocities.linearVelocities);
+	speed /= std::size(controllerData.linearVelocities);
 
 	if (speed < Config::options.shoulderVelocityThreshold) {
 		NiPoint3 rightShoulderPos = hmdNode->m_worldTransform * Config::options.rightShoulderHmdOffset;
@@ -1706,10 +1706,10 @@ bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const Ni
 	}
 
 	float speed = 0;
-	for (const NiPoint3 &velocity : controllerVelocities.linearVelocities) {
+	for (const NiPoint3 &velocity : controllerData.linearVelocities) {
 		speed += VectorLength(velocity);
 	}
-	speed /= std::size(controllerVelocities.linearVelocities);
+	speed /= std::size(controllerData.linearVelocities);
 
 	if (speed < Config::options.mouthVelocityThreshold) {
 		NiPoint3 mouthPos = hmdNode->m_worldTransform * Config::options.mouthHmdOffset;
@@ -1908,8 +1908,8 @@ NiPoint3 Hand::GetHandVelocity()
 {
 	float largestSpeed = -1;
 	int largestIndex = -1;
-	for (int i = 0; i < controllerVelocities.linearVelocities.size(); i++) {
-		const NiPoint3 &velocity = controllerVelocities.linearVelocities[i];
+	for (int i = 0; i < controllerData.linearVelocities.size(); i++) {
+		const NiPoint3 &velocity = controllerData.linearVelocities[i];
 		float speed = VectorLength(velocity);
 		if (speed > largestSpeed) {
 			largestSpeed = speed;
@@ -1919,15 +1919,15 @@ NiPoint3 Hand::GetHandVelocity()
 
 	if (largestIndex == 0) {
 		// Max is the first value
-		return controllerVelocities.linearVelocities[0];
+		return controllerData.linearVelocities[0];
 	}
-	else if (largestIndex == controllerVelocities.linearVelocities.size() - 1) {
+	else if (largestIndex == controllerData.linearVelocities.size() - 1) {
 		// Max is the last value
-		return controllerVelocities.linearVelocities[largestIndex];
+		return controllerData.linearVelocities[largestIndex];
 	}
 	else {
 		// Regular case - avg 3 values centered at the peak
-		return (controllerVelocities.linearVelocities[largestIndex - 1] + controllerVelocities.linearVelocities[largestIndex] + controllerVelocities.linearVelocities[largestIndex + 1]) / 3;
+		return (controllerData.linearVelocities[largestIndex - 1] + controllerData.linearVelocities[largestIndex] + controllerData.linearVelocities[largestIndex + 1]) / 3;
 	}
 }
 
@@ -2093,6 +2093,21 @@ void Hand::Update(Hand &other, bhkWorld *world)
 				state = State::Idle;
 			}
 		}
+	}
+
+	if (Config::options.enableHandDelay) {
+		NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+		NiTransform desiredHandRoomspace = InverseTransform(roomNode->m_worldTransform) * handNode->m_worldTransform;
+
+		// 5, 250 very slow
+		// 10, 500 slow but still not that bad
+		// 20, 750 basically unnoticeable
+		std::optional<NiTransform> advancedTransform = AdvanceTransformSpeedMultiplied(prevHandTransformRoomspace, desiredHandRoomspace, Config::options.roomspaceHandLinearSpeed, Config::options.roomspaceHandAngularSpeed);
+		NiTransform handRoomspace = advancedTransform ? *advancedTransform : prevHandTransformRoomspace;
+		prevHandTransformRoomspace = handRoomspace;
+
+		NiTransform newHandTransform = roomNode->m_worldTransform * handRoomspace;
+		UpdateHandTransform(newHandTransform);
 	}
 
 	if (state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectedTwoHand) {
@@ -2382,7 +2397,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 		}
 
 		if (state == State::SelectedTwoHand) {
-			if (controllerVelocities.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
+			if (controllerData.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
 				double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
 				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
 				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
@@ -2432,7 +2447,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				if (state == State::SelectedClose) {
-					if (controllerVelocities.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
+					if (controllerData.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
 						double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
 						float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartLinearSpeed;
 						float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateStartAngularSpeed;
@@ -2586,7 +2601,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							velocityHandComponent *= Config::options.throwVelocityBoostFactor;
 						}
 
-						NiPoint3 handAngularVelocity = controllerVelocities.angularVelocities[0];
+						NiPoint3 handAngularVelocity = controllerData.angularVelocities[0];
 						NiPoint3 angularVelocity = handAngularVelocity * Config::options.angularVelocityMultiplier;
 
 						NiPoint3 tangentialVelocity = { 0, 0, 0 };
@@ -2874,7 +2889,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
 					NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
-					NiPoint3 controllerVelocity = controllerVelocities.linearVelocities[0];
+					NiPoint3 controllerVelocity = controllerData.linearVelocities[0];
 					float controllerSpeedDirectionalized = DotProduct(controllerVelocity, VectorNormalized(-relObjPos));
 
 					if (controllerSpeedDirectionalized > Config::options.pullSpeedThreshold) {
@@ -2903,7 +2918,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 					hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
-					NiPoint3 controllerVelocity = controllerVelocities.linearVelocities[0];
+					NiPoint3 controllerVelocity = controllerData.linearVelocities[0];
 					float controllerSpeed = VectorLength(controllerVelocity);
 
 					if (controllerSpeed > Config::options.pullSpeedThreshold) {

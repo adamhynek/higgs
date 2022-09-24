@@ -372,6 +372,17 @@ std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform,
 	return std::nullopt;
 }
 
+std::optional<NiTransform> AdvanceTransformSpeedMultiplied(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeedMult, float rotSpeedMult)
+{
+	NiQuaternion currentQuat = MatrixToQuaternion(currentTransform.rot);
+	NiQuaternion desiredQuat = MatrixToQuaternion(targetTransform.rot);
+
+	float angleDiffAmount = QuaternionAngle(currentQuat, desiredQuat);
+	float posDiffAmount = VectorLength(targetTransform.pos - currentTransform.pos);
+
+	return AdvanceTransform(currentTransform, targetTransform, posDiffAmount * posSpeedMult, angleDiffAmount * rotSpeedMult);
+}
+
 float Determinant33(const NiMatrix33 &m)
 {
 	float a = m.data[0][0];

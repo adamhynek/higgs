@@ -12,6 +12,7 @@
 #include "utils.h"
 #include "haptics.h"
 #include "finger_animator.h"
+#include "config.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 
@@ -67,7 +68,7 @@ struct Hand
 		AngleState angleState = AngleState::None;
 	};
 
-	struct ControllerVelocityData
+	struct ControllerTrackingData
 	{
 		std::deque<NiPoint3> linearVelocities{ 5, NiPoint3() };
 		std::deque<NiPoint3> angularVelocities{ 5, NiPoint3() };
@@ -265,7 +266,7 @@ struct Hand
 	TESEffectShader *itemSelectedShader = nullptr;
 	TESEffectShader *itemSelectedShaderOffLimits = nullptr;
 
-	ControllerVelocityData controllerVelocities{};
+	ControllerTrackingData controllerData{};
 	std::deque<NiPoint3> playerVelocitiesWorldspace{ 5, NiPoint3() }; // previous n player velocities in skyrim worldspace
 	NiPoint3 avgPlayerVelocityWorldspace{};
 	float avgPlayerSpeedWorldspace = 0.f;
@@ -282,6 +283,8 @@ struct Hand
 	NiPoint3 initialGrabbedObjRelativePosition{};
 
 	NiTransform desiredNodeTransformHandSpace{};
+
+	NiTransform prevHandTransformRoomspace{};
 
 	NiTransform handTransform{};
 	NiTransform clavicleTransform{};

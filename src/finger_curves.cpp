@@ -299,9 +299,9 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 						g_fingerCurveData->zeroAngleVector[i] = VectorNormalized(handNode3rd->m_oldWorldTransform.rot.Transpose() * VectorNormalized(startToEnd));
 						g_fingerCurveData->fingerStartPos[i] = inverseHandNode3rd * fingerStart3rd->m_oldWorldTransform.pos;
 
-						g_fingerCurveData->openFingerTransforms[i][0] = GetLocalTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->openFingerTransforms[i][1] = GetLocalTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->openFingerTransforms[i][2] = GetLocalTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->openFingerTransforms[i][0] = GetLocalTransformForDesiredWorldTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->openFingerTransforms[i][1] = GetLocalTransformForDesiredWorldTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->openFingerTransforms[i][2] = GetLocalTransformForDesiredWorldTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
 					}
 
 					g_fingerCurveData->frameCount = 0;
@@ -401,9 +401,9 @@ void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString finger
 						angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
 						g_fingerCurveData->fingerInnerVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
 
-						g_fingerCurveData->closedFingerTransforms[i][0] = GetLocalTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->closedFingerTransforms[i][1] = GetLocalTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->closedFingerTransforms[i][2] = GetLocalTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->closedFingerTransforms[i][0] = GetLocalTransformForDesiredWorldTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->closedFingerTransforms[i][1] = GetLocalTransformForDesiredWorldTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
+						g_fingerCurveData->closedFingerTransforms[i][2] = GetLocalTransformForDesiredWorldTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
 					}
 
 					// Dump results to file

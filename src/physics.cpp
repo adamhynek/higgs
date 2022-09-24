@@ -316,7 +316,7 @@ inline bool IsHiggsRigidBody(hkpRigidBody *rigidBody)
 	return IsHandRigidBody(rigidBody) || IsWeaponRigidBody(rigidBody) || IsHeldRigidBody(rigidBody);
 }
 
-std::mutex ContactListener::handLocks[2]{};
+std::mutex PhysicsListener::handLocks[2]{};
 
 void TriggerCollisionHaptics(float inverseMass, float speed, bool isLeft) {
 	float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
@@ -345,7 +345,7 @@ void TriggerCollisionHapticsUsingHandSpeed(float inverseMass, bool isLeft) {
 
 	if (g_rightHand->IsTwoHanding() || g_leftHand->IsTwoHanding()) {
 		// Both hands are holding an equipped weapon - play haptics for both
-		float speed = g_rightHand->avgPlayerSpeedWorldspace + max(g_rightHand->controllerVelocities.avgSpeed, g_leftHand->controllerVelocities.avgSpeed);
+		float speed = g_rightHand->avgPlayerSpeedWorldspace + max(g_rightHand->controllerData.avgSpeed, g_leftHand->controllerData.avgSpeed);
 		g_leftHand->TriggerCollisionHaptics(mass, speed);
 		g_rightHand->TriggerCollisionHaptics(mass, speed);
 		HiggsPluginAPI::TriggerCollisionCallbacks(true, mass, speed);
@@ -353,19 +353,19 @@ void TriggerCollisionHapticsUsingHandSpeed(float inverseMass, bool isLeft) {
 	}
 	else {
 		if (isLeft) {
-			float speed = g_leftHand->avgPlayerSpeedWorldspace + g_leftHand->controllerVelocities.avgSpeed;
+			float speed = g_leftHand->avgPlayerSpeedWorldspace + g_leftHand->controllerData.avgSpeed;
 			g_leftHand->TriggerCollisionHaptics(mass, speed);
 			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, speed);
 		}
 		else {
-			float speed = g_rightHand->avgPlayerSpeedWorldspace + g_rightHand->controllerVelocities.avgSpeed;
+			float speed = g_rightHand->avgPlayerSpeedWorldspace + g_rightHand->controllerData.avgSpeed;
 			g_rightHand->TriggerCollisionHaptics(mass, speed);
 			HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, speed);
 		}
 	}
 }
 
-void ContactListener::RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, bool isLeft)
+void PhysicsListener::RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, bool isLeft)
 {
 	auto &collidedBodies = handData[isLeft].collidedBodies;
 	if (auto it = collidedBodies.find(body); it == collidedBodies.end()) {
@@ -384,7 +384,7 @@ void ContactListener::RegisterHandCollision(hkpRigidBody *body, float separating
 	}
 }
 
-void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
+void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
 {
 	if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
 		// Early out
@@ -442,7 +442,7 @@ void ContactListener::contactPointCallback(const hkpContactPointEvent& evnt)
 	*/
 }
 
-void ContactListener::postSimulationCallback(hkpWorld* world)
+void PhysicsListener::postSimulationCallback(hkpWorld* world)
 {
 	int currentFrame = *g_currentFrameCounter;
 

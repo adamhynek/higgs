@@ -175,7 +175,7 @@ NiPointer<NiAVObject> GetTorsoNode(Actor *actor)
 	return nullptr;
 }
 
-NiTransform GetLocalTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform)
+NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform)
 {
 	if (NiPointer<NiNode> parent = node->m_parent) {
 		NiTransform inverseParent = InverseTransform(useOldParentTransform ? node->m_parent->m_oldWorldTransform : node->m_parent->m_worldTransform);
@@ -187,7 +187,7 @@ NiTransform GetLocalTransform(NiAVObject *node, const NiTransform &worldTransfor
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
 {
 	// Given world transform, set the necessary local transform
-	node->m_localTransform = GetLocalTransform(node, worldTransform);
+	node->m_localTransform = GetLocalTransformForDesiredWorldTransform(node, worldTransform);
 }
 
 void UpdateBoneMatrices(NiAVObject *obj)

@@ -84,7 +84,7 @@ struct IslandDeactivationListener : public hkpIslandActivationListener
 	void islandDeactivatedCallback(hkpSimulationIsland* island) override;
 };
 
-struct ContactListener : public hkpContactListener, hkpWorldPostSimulationListener
+struct PhysicsListener : public hkpContactListener, hkpWorldPostSimulationListener
 {
 	void contactPointCallback(const hkpContactPointEvent& evnt) override;
 	void postSimulationCallback(hkpWorld* world) override;
