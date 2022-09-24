@@ -265,8 +265,7 @@ void PostWandUpdateHook()
 	}
 
 	if (!g_isVrikPresent) {
-		NiPointer<NiAVObject> offhandNode = player->unk3F0[*g_leftHandedMode ? PlayerCharacter::Node::kNode_RightControllerNode : PlayerCharacter::Node::kNode_LeftControllerNode];
-		if (offhandNode) {
+		if (NiPointer<NiAVObject> offhandNode = player->unk3F0[*g_leftHandedMode ? PlayerCharacter::Node::kNode_RightControllerNode : PlayerCharacter::Node::kNode_LeftControllerNode]) {
 			if (MenuChecker::isGameStopped()) { // A menu is open
 				offhandNode->m_localTransform.scale = 1.0f;
 			}
@@ -384,6 +383,33 @@ CollisionFilterComparisonResult bhkCollisionFilter_CompareFilterInfo_Hook(bhkCol
 void PrePhysicsStepHook(bhkWorld *world)
 {
 	HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(world);
+}
+
+typedef void(*_Actor_Update)(Actor *_this, float a_delta);
+_Actor_Update g_originalPCUpdate = nullptr;
+static RelocPtr<_Actor_Update> PlayerCharacter_Update_vtbl(0x16E27A8); // 0x16E2230 + 0xAF * 8
+void PlayerCharacter_Update_Hook(PlayerCharacter *_this, float delta)
+{
+	g_originalPCUpdate(_this, delta);
+
+	if (Config::options.debugDrawControllers) {
+		if (NiPointer<NiAVObject> rightController = _this->unk3F0[PlayerCharacter::Node::kNode_RightControllerNode]) {
+			rightController->m_localTransform.pos = { 0.f, 0.f, 0.f };
+			rightController->m_localTransform.scale = 1.0f;
+			rightController->m_flags &= ~1;
+
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateNode(rightController, &ctx);
+		}
+		if (NiPointer<NiAVObject> leftController = _this->unk3F0[PlayerCharacter::Node::kNode_LeftControllerNode]) {
+			leftController->m_localTransform.pos = { 0.f, 0.f, 0.f };
+			leftController->m_localTransform.scale = 1.0f;
+			leftController->m_flags &= ~1;
+
+			NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+			NiAVObject_UpdateNode(leftController, &ctx);
+		}
+	}
 }
 
 
@@ -979,5 +1005,10 @@ void PerformHooks(void)
 		UInt64 bytes = 0x00000060B9; // mov ecx, 0x60
 		SafeWriteBuf(allocMeleeRigidBodySizeLoc.GetUIntPtr(), &bytes, 5);
 		_MESSAGE("Patched allocation for melee rigidbody to allocate 0x60 bytes instead of 0x40");
+	}
+
+	{
+		g_originalPCUpdate = *PlayerCharacter_Update_vtbl;
+		SafeWrite64(PlayerCharacter_Update_vtbl.GetUIntPtr(), uintptr_t(PlayerCharacter_Update_Hook));
 	}
 }

@@ -8,6 +8,8 @@
 
 namespace Config {
 	struct Options {
+		bool debugDrawControllers = false;
+
 		bool enableHandDelay = false;
 		float roomspaceHandLinearSpeed = 10.f;
 		float roomspaceHandAngularSpeed = 500.f;

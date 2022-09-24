@@ -169,6 +169,8 @@ namespace Config {
 	{
 		bool success = true;
 
+		if (!RegisterBool("debugDrawControllers", options.debugDrawControllers)) success = false;
+
 		if (!ReadVector("PalmVector", options.palmVector)) success = false;
 		if (!ReadVector("PointingVector", options.pointingVector)) success = false;
 		if (!ReadVector("PalmPosition", options.palmPosition)) success = false;
