@@ -109,4 +109,5 @@ NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root);
 NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr);
 NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform);
 void ModSpeedMult(Actor *actor, float amount);
+void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book);
 inline TESRace * Actor_GetRace(Actor *actor) { return *((TESRace **)((UInt64)actor + 0x1F0)); }

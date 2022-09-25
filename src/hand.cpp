@@ -2583,8 +2583,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 			NiPointer<TESObjectREFR> selectedObj;
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-				if (objRoot) {
+				if (NiPointer<NiNode> objRoot = selectedObj->GetNiNode()) {
 					if (state == State::SelectionLocked || state == State::LootOtherHand) {
 						if (state == State::SelectionLocked) {
 							float hapticStrength = Config::options.selectionLockedEndHapticStrength;
@@ -2670,26 +2669,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 								if (baseForm->formType != kFormType_Book) {
 									papyrusActor::EquipItemEx(player, baseForm, 0, false, true);
 								}
-								else {
-									auto book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
-									if (book && book->data.flags & TESObjectBOOK::Data::kType_Spell) {
-										EquipManager *equipManager = EquipManager::GetSingleton();
-										if (equipManager) {
-											ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(player->extraData.GetByType(kExtraData_ContainerChanges));
-											ExtraContainerChanges::Data* containerData = containerChanges ? containerChanges->data : nullptr;
-											if (containerData) {
-												InventoryEntryData *entryData = containerData->FindItemEntry(book);
-												if (entryData) {
-													EquipManager_EquipEntryData(equipManager, player, entryData, nullptr);
-													if (TESObjectBOOK_LearnSpell(book, player)) {
-														UInt64 *vtbl = *((UInt64 **)player);
-														UInt32 droppedObjHandle = *g_invalidRefHandle;
-														BaseExtraList *extraList = entryData->extendDataList ? entryData->extendDataList->GetNthItem(0) : nullptr;
-														((Actor_RemoveItem)(vtbl[0x56]))(player, &droppedObjHandle, book, 1, 0, extraList, nullptr, nullptr, nullptr);
-													}
-												}
-											}
-										}
+								else if (TESObjectBOOK *book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK)) {
+									if (book->data.flags & TESObjectBOOK::Data::kType_Spell) {
+										ConsumeSpellBook(player, book);
 									}
 								}
 							}
@@ -2711,8 +2693,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 								// PickUpObject is unsafe for random objects - some stuff will be 'picked up' but not show up in inventory, like moveablestatics.
 								// Some stuff like containers go into the inventory but then when dropped again they essentially are reset with new items.
 								// We do want to directly pick up books though, since otherwise we get the book prompt.
-								UInt64 *vtbl = *((UInt64 **)player);
-								((Actor_PickUpObject)(vtbl[0xCE]))(player, selectedObj, count, false, true);
+								get_vfunc<Actor_PickUpObject>(player, 0xCE)(player, selectedObj, count, false, true);
 							}
 							else {
 								TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
@@ -2728,8 +2709,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							droppedTime = g_currentFrameTime;
 
 							if (!disableDropEvents) {
-								//ObjectReference_SetActorCause(VM_REGISTRY, 0, selectedObj, player); // doesn't make people that your object hit get mad at you unfortunately
-
 								PlayPhysicsSound(palmPos, Config::options.useLoudSoundDrop);
 
 								HiggsPluginAPI::TriggerDroppedCallbacks(isLeft, selectedObj);

@@ -1000,3 +1000,21 @@ void ModSpeedMult(Actor *actor, float amount)
 	get_vfunc<_ActorValueOwner_RestoreActorValue>(&actor->actorValueOwner, 6)(&actor->actorValueOwner, 1, 32, 0.1f);
 	get_vfunc<_ActorValueOwner_RestoreActorValue>(&actor->actorValueOwner, 6)(&actor->actorValueOwner, 1, 32, -0.1f);
 }
+
+void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book)
+{
+	if (EquipManager *equipManager = EquipManager::GetSingleton()) {
+		ExtraContainerChanges *containerChanges = static_cast<ExtraContainerChanges *>(player->extraData.GetByType(kExtraData_ContainerChanges));
+		ExtraContainerChanges::Data *containerData = containerChanges ? containerChanges->data : nullptr;
+		if (containerData) {
+			if (InventoryEntryData *entryData = containerData->FindItemEntry(book)) {
+				EquipManager_EquipEntryData(equipManager, player, entryData, nullptr);
+				if (TESObjectBOOK_LearnSpell(book, player)) {
+					UInt32 droppedObjHandle = *g_invalidRefHandle;
+					BaseExtraList *extraList = entryData->extendDataList ? entryData->extendDataList->GetNthItem(0) : nullptr;
+					get_vfunc<Actor_RemoveItem>(player, 0x56)(player, &droppedObjHandle, book, 1, 0, extraList, nullptr, nullptr, nullptr);
+				}
+			}
+		}
+	}
+}
