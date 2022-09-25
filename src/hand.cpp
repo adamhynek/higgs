@@ -84,7 +84,7 @@ void Hand::Select(TESObjectREFR *obj)
 	selectedObject.handle = GetOrCreateRefrHandle(obj);
 
 	selectedObject.isImpactedProjectile = false;
-	auto baseForm = obj->baseForm;
+	TESForm *baseForm = obj->baseForm;
 	if (baseForm && baseForm->formType == kFormType_Projectile) {
 		auto impactData = *(void **)((UInt64)obj + 0x98);
 		if (impactData) {
@@ -195,7 +195,7 @@ void Hand::StartNearbyDamping(bhkWorld &world)
 	// Process result of cast
 	float closestDistance = (std::numeric_limits<float>::max)();
 	for (auto &pair : cdPointCollector.m_hits) {
-		auto collidable = static_cast<hkpCollidable *>(pair.first);
+		hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
 		if (collidable->m_broadPhaseHandle.m_collisionFilterInfo & (1 << 14)) {
 			continue; // Collision is disabled
 		}
@@ -203,18 +203,18 @@ void Hand::StartNearbyDamping(bhkWorld &world)
 		if (!rigidBody || !rigidBody->m_userData) {
 			continue; // No rigidbody -> no movement :/
 		}
-		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
-		if (bRigidBody && IsMoveableEntity(rigidBody)) {
+		bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
+		if (wrapper && IsMoveableEntity(rigidBody)) {
 			hkContactPoint &contactPoint = pair.second;
 			if (contactPoint.getDistance() < Config::options.nearbyGrabBodyRadius) {
 				hkpMotion &motion = rigidBody->m_motion;
 
 				if (VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
 					VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
-					if (g_nearbyBodies.count(bRigidBody) == 0) {
-						g_nearbyBodies.insert(bRigidBody);
-						nearbyBodies.push_back(bRigidBody);
-						nearbyBodyMap[bRigidBody] = { motion.m_motionState.m_linearDamping, motion.m_motionState.m_angularDamping };
+					if (g_nearbyBodies.count(wrapper) == 0) {
+						g_nearbyBodies.insert(wrapper);
+						nearbyBodies.push_back(wrapper);
+						nearbyBodyMap[wrapper] = { motion.m_motionState.m_linearDamping, motion.m_motionState.m_angularDamping };
 						motion.m_motionState.m_linearDamping = hkHalf(Config::options.nearbyGrabLinearDamping);
 						motion.m_motionState.m_angularDamping = hkHalf(Config::options.nearbyGrabAngularDamping);
 					}
@@ -234,13 +234,11 @@ NiPoint3 GetClosestPointToRigidbody(bhkWorld &world, bhkRigidBody *rigidBody, bh
 	NiPoint3 centerOfMass = HkVectorToNiPoint(rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation);
 	NiPoint3 foundPoint = centerOfMass; // Fallback to the center of the object
 
-	hkpCollisionDispatcher *dispatcher = world.world->m_collisionDispatcher;
-	if (dispatcher) {
-		auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+	if (hkpCollisionDispatcher *dispatcher = world.world->m_collisionDispatcher) {
+		hkpConvexShape *sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 
 		hkpShapeType shapeType = collidable->m_shape->m_type;
-		hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type);
-		if (closestPointsFunc) {
+		if (hkpCollisionDispatcher::GetClosestPointsFunc closestPointsFunc = dispatcher->getGetClosestPointsFunc(shapeType, sphereShape->m_type)) {
 			// Position the object in the direction of the palm for better grab results
 			rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation = NiPointToHkVector(initialTranslation);
 
@@ -310,7 +308,7 @@ bool Hand::FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &s
 		return false; // Collision is disabled, i.e. weapon is not out
 	}
 
-	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+	hkpConvexShape *sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
 	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
 	float radiusBefore = sphereShape->getRadius();
@@ -355,7 +353,7 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &s
 		lastRiddenHorse = nullptr;
 	}
 
-	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+	hkpConvexShape *sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
 	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
 	float radiusBefore = sphereShape->getRadius();
@@ -474,7 +472,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 		hitPosition = start + (startToTarget * rayHitCollector.m_closestHitInfo.m_hitFraction);// -(VectorNormalized(handToTarget) * Config::options.castRadius);
 	}
 
-	auto sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
+	hkpConvexShape *sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 
 	// Save sphere properties so we can change them and restore them later
 	UInt32 filterInfoBefore = sphere->phantom->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo;
@@ -496,7 +494,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 	// Process result of cast
 	float closestDistance = (std::numeric_limits<float>::max)();
 	for (auto pair : cdPointCollector.m_hits) {
-		auto collidable = static_cast<hkpCollidable *>(pair.first);
+		hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
 		if (other.HasExclusiveObject() && collidable == other.selectedObject.collidable) {
 			continue;
 		}
@@ -504,7 +502,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 		if (!rigidBody || !rigidBody->m_userData) {
 			continue; // No rigidbody -> no movement :/
 		}
-		bhkRigidBody *bRigidBody = (bhkRigidBody *)rigidBody->m_userData;
+		bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
 		NiPointer<TESObjectREFR> ref = GetRefFromCollidable(collidable);
 		if (ref && ref != *g_thePlayer) {
 			if (IsObjectSelectable(rigidBody, ref)) {
@@ -532,7 +530,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 				float dist = VectorLength(ProjectVectorOntoPlane(startToHit, direction)); // distance from hit location to closest point on the ray
 				if (dist < closestDistance && DotProduct(VectorNormalized(hit - hkHmdPos), hmdForward) >= Config::options.requiredCastDotProduct) {
 					closestObj = ref;
-					closestRigidBody = bRigidBody;
+					closestRigidBody = wrapper;
 					closestPoint = pair.second.getPosition();
 					closestDistance = dist;
 				}
@@ -899,30 +897,25 @@ void Hand::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 	BGSSoundDescriptorForm *sound = nullptr;
 	// Try and get the sound that plays when the object hits stone first, as the grab sound
 	if (selectedObject.collidable->m_shape && selectedObject.collidable->m_shape->m_userData) {
-		auto shape = (bhkShape *)selectedObject.collidable->m_shape->m_userData;
-		if (shape) {
+		if (bhkShape *shape = (bhkShape *)selectedObject.collidable->m_shape->m_userData) {
 			UInt32 materialId = shape->materialId;
 
 			// Handle MOPP shape, as it doesn't have a material on the MOPP shape itself, only the child collection shape...
-			auto moppShape = DYNAMIC_CAST(shape->shape, hkpShape, hkpMoppBvTreeShape);
-			if (moppShape) {
-				const hkpShape *childShape = moppShape->getChild();
-				if (childShape) {
-					auto bChildShape = (bhkShape *)childShape->m_userData;
-					if (bChildShape) {
-						materialId = bChildShape->materialId;
+			if (hkpMoppBvTreeShape *moppShape = DYNAMIC_CAST(shape->shape, hkpShape, hkpMoppBvTreeShape)) {
+				if (const hkpShape *childShape = moppShape->getChild()) {
+					if (bhkShape *childShapeWrapper = (bhkShape *)childShape->m_userData) {
+						materialId = childShapeWrapper->materialId;
 					}
 				}
 			}
 
-			BGSMaterialType *material = GetMaterialType(materialId);
 			BGSMaterialType *skinMaterial = GetMaterialType(skinMaterialId);
 			BGSMaterialType *stoneMaterial = GetMaterialType(stoneMaterialId);
-			if (material) {
+
+			if (BGSMaterialType *material = GetMaterialType(materialId)) {
 				BGSImpactData *impactData = nullptr;
 				if (material->impactDataSet) {
-					auto impactDataSet = DYNAMIC_CAST(material->impactDataSet, TESForm, BGSImpactDataSet);
-					if (impactDataSet) {
+					if (BGSImpactDataSet *impactDataSet = DYNAMIC_CAST(material->impactDataSet, TESForm, BGSImpactDataSet)) {
 						if (skinMaterial) {
 							impactData = BGSImpactDataSet_GetImpactData(impactDataSet, skinMaterial);
 						}
@@ -937,16 +930,14 @@ void Hand::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 				else {
 					// No impact data set for the material on the shape... try a lookup in the other direction
 					if (skinMaterial && skinMaterial->impactDataSet) {
-						auto impactDataSet = DYNAMIC_CAST(skinMaterial->impactDataSet, TESForm, BGSImpactDataSet);
-						if (impactDataSet) {
+						if (BGSImpactDataSet *impactDataSet = DYNAMIC_CAST(skinMaterial->impactDataSet, TESForm, BGSImpactDataSet)) {
 							impactData = BGSImpactDataSet_GetImpactData(impactDataSet, material);
 						}
 					}
 
 					if (!impactData) {
 						if (stoneMaterial && stoneMaterial->impactDataSet) {
-							auto impactDataSet = DYNAMIC_CAST(stoneMaterial->impactDataSet, TESForm, BGSImpactDataSet);
-							if (impactDataSet) {
+							if (BGSImpactDataSet *impactDataSet = DYNAMIC_CAST(stoneMaterial->impactDataSet, TESForm, BGSImpactDataSet)) {
 								impactData = BGSImpactDataSet_GetImpactData(impactDataSet, material);
 							}
 						}
@@ -1243,8 +1234,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 		}
 
 		if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-			auto rigidBody = GetFirstRigidBody(objRoot);
-			if (rigidBody) {
+			if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
 				// Do not use selectedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
 				hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
 				// The filterinfo for impacted projectiles does not collide with much, so we need to change it
@@ -1658,7 +1648,7 @@ bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const N
 	TESForm *baseForm = refr->baseForm;
 	if (!baseForm || !baseForm->IsPlayable()) return false;
 
-	auto book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
+	TESObjectBOOK *book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
 	if (book && (book->data.flags & TESObjectBOOK::Data::kType_CantBeTaken)) {
 		return false;
 	}
@@ -1695,12 +1685,12 @@ bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const Ni
 		return false;
 	}
 
-	auto potion = DYNAMIC_CAST(baseForm, TESForm, AlchemyItem);
+	AlchemyItem *potion = DYNAMIC_CAST(baseForm, TESForm, AlchemyItem);
 	if (potion && (potion->IsPoison() && !Config::options.enableDrinkPoison)) {
 		return false;
 	}
 
-	auto book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
+	TESObjectBOOK *book = DYNAMIC_CAST(baseForm, TESForm, TESObjectBOOK);
 	if (book && (book->data.flags & TESObjectBOOK::Data::kType_CantBeTaken)) {
 		return false;
 	}
@@ -2010,7 +2000,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 		_MESSAGE("No COM [COM ] node on player");
 		return;
 	}
-	auto comRigidBody = GetRigidBody(comNode);
+	NiPointer<bhkRigidBody> comRigidBody = GetRigidBody(comNode);
 	if (comRigidBody) {
 		playerCollisionGroup = comRigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 16;
 	}
@@ -2255,7 +2245,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 									if (equipData.pForm) {
 										Biped::Data *hitBipedData = &bipedData->unk10[hitIndex];
-										auto hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
+										TESObjectARMO *hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
 										// If it's armor, make sure it has a name. If it doesn't, it could be FEC, or who knows...
 										if (!hitArmor || *hitArmor->fullName.name.data) {
 											nodeOnWhichToPlayShader = hitBipedData->object;
@@ -2809,10 +2799,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							motion->m_motionState.m_angularDamping = hkHalf(Config::options.pulledAngularDamping);
 
 							if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-								auto rigidBody = GetFirstRigidBody(objRoot);
-								if (rigidBody) {
+								if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
 									// Do not use grabbedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
-									auto collidable = &rigidBody->hkBody->m_collidable;
+									hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
 									// Projectiles do not interact with collision usually. We need to change the filter to make them interact.
 									collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
 									// Projectiles have 'Fixed' motion type by default, making them unmovable
@@ -2936,11 +2925,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 				if (objRoot && objRoot->m_parent) {
 					// Transition to grabbed with the newly spawned item
 
-					auto rigidBody = GetFirstRigidBody(objRoot);
-					if (rigidBody) {
+					if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
 						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
-						NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable);
-						if (collidableNode) {
+						if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable)) {
 							selectedObject.rigidBody = rigidBody;
 							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
@@ -2973,8 +2960,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 				if (objRoot && objRoot->m_parent) {
 					// Transition to pulled with the newly spawned item
 
-					auto rigidBody = GetFirstRigidBody(objRoot);
-					if (rigidBody) {
+					if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
 						selectedObject.rigidBody = rigidBody;
 						selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 

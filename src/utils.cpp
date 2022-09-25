@@ -743,17 +743,17 @@ bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target)
 
 NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root)
 {
-	auto rigidBody = GetRigidBody(root);
-	if (rigidBody) {
+	if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root)) {
 		return rigidBody;
 	}
 
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
-				return GetFirstRigidBody(child);
+			if (NiAVObject *child = node->m_children.m_data[i]) {
+				if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(child)) {
+					return rigidBody;
+				}
 			}
 		}
 	}
