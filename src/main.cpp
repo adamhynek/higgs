@@ -843,11 +843,13 @@ extern "C" {
 			return false;
 		}
 
-		g_originalMissileProjectileUpdateImpactFromCollector = *MissileProjectile_UpdateImpactFromCollector_vtbl;
-		SafeWrite64(MissileProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(MissileProjectile_UpdateImpactFromCollector_Hook));
+		if (Config::options.treatProjectileWeaponHitsAsSelfHits) {
+			g_originalMissileProjectileUpdateImpactFromCollector = *MissileProjectile_UpdateImpactFromCollector_vtbl;
+			SafeWrite64(MissileProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(MissileProjectile_UpdateImpactFromCollector_Hook));
 
-		g_originalArrowProjectileUpdateImpactFromCollector = *ArrowProjectile_UpdateImpactFromCollector_vtbl;
-		SafeWrite64(ArrowProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(ArrowProjectile_UpdateImpactFromCollector_Hook));
+			g_originalArrowProjectileUpdateImpactFromCollector = *ArrowProjectile_UpdateImpactFromCollector_vtbl;
+			SafeWrite64(ArrowProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(ArrowProjectile_UpdateImpactFromCollector_Hook));
+		}
 
 		g_timer.Start();
 
