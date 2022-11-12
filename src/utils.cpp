@@ -94,7 +94,7 @@ std::tuple<EquipData, int> GetEquipDataForBipedObject(Actor *actor, Biped *biped
 			}
 		}
 	}
-	return { equipData, 0 };
+	return { { nullptr, nullptr }, 0 };
 };
 
 ITimer g_timer;
