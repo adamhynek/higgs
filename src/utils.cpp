@@ -17,7 +17,7 @@
 #include "hand.h"
 
 
-UInt32 priorities[] = { // lower is better
+UInt32 g_bipedObjectPriorities[] = { // lower is better
 	4, // head
 	3, // hair
 	10, // body
@@ -54,8 +54,48 @@ UInt32 priorities[] = { // lower is better
 bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat)
 {
 	// Return true if fist index beats second index
-	return priorities[indexInQuestion] < priorities[indexToBeat];
+	return g_bipedObjectPriorities[indexInQuestion] < g_bipedObjectPriorities[indexToBeat];
 }
+
+// Copied from PapyrusActor.cpp
+class MatchByForm : public FormMatcher
+{
+	TESForm *m_form;
+public:
+	MatchByForm(TESForm *form) : m_form(form) {}
+
+	bool Matches(TESForm *pForm) const { return m_form == pForm; }
+};
+
+std::tuple<EquipData, int> GetEquipDataForBipedObject(Actor *actor, Biped *bipedData, TESForm *matchForm, int bipedIndex)
+{
+	EquipData equipData{ nullptr, nullptr };
+
+	if (ExtraContainerChanges *containerChanges = static_cast<ExtraContainerChanges *>(actor->extraData.GetByType(kExtraData_ContainerChanges))) {
+		MatchByForm matcher(matchForm);
+
+		if (bipedIndex == 9) { // 9 == shield / left-hand weapon
+			equipData = containerChanges->FindEquipped(matcher, false, true);
+			if (!equipData.pForm) {
+				// Sometimes it's not actually WornLeft...
+				equipData = containerChanges->FindEquipped(matcher, true, true);
+			}
+		}
+		else {
+			equipData = containerChanges->FindEquipped(matcher, true, true);
+		}
+
+		if (equipData.pForm) {
+			Biped::Data *hitBipedData = &bipedData->unk10[bipedIndex];
+			TESObjectARMO *hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
+			// If it's armor, make sure it has a name. If it doesn't, it could be FEC, or who knows...
+			if (!hitArmor || *hitArmor->fullName.name.data) {
+				return { equipData, ContainerChanges_GetCount(containerChanges->data, equipData.pForm) };
+			}
+		}
+	}
+	return { equipData, 0 };
+};
 
 ITimer g_timer;
 double g_currentFrameTime;
@@ -659,15 +699,11 @@ bool DoesRefrHaveNode(TESObjectREFR *ref, NiAVObject *node)
 bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObject *> &targets)
 {
 	// Check if skinnedRoot is skinned to target
-	BSGeometry *geom = skinnedRoot->GetAsBSGeometry();
-	if (geom) {
-		NiSkinInstancePtr skinInstance = geom->m_spSkinInstance;
-		if (skinInstance) {
-			NiSkinDataPtr skinData = skinInstance->m_spSkinData;
-			if (skinData) {
+	if (BSGeometry *geom = skinnedRoot->GetAsBSGeometry()) {
+		if (NiSkinInstancePtr skinInstance = geom->m_spSkinInstance) {
+			if (NiSkinDataPtr skinData = skinInstance->m_spSkinData) {
 				for (int i = 0; i < skinData->m_uiBones; i++) {
-					NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i];
-					if (bone) {
+					if (NiPointer<NiAVObject> bone = skinInstance->m_ppkBones[i]) {
 						if (targets.count(bone) != 0) {
 							return true;
 						}
@@ -675,20 +711,22 @@ bool IsSkinnedToNodes(NiAVObject *skinnedRoot, const std::unordered_set<NiAVObje
 				}
 			}
 		}
+
 		return false;
 	}
-	NiNode *node = skinnedRoot->GetAsNiNode();
-	if (node) {
+
+	if (NiNode *node = skinnedRoot->GetAsNiNode()) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
+			if (NiAVObject *child = node->m_children.m_data[i]) {
 				if (IsSkinnedToNodes(child, targets)) {
 					return true;
 				}
 			}
 		}
+
 		return false;
 	}
+
 	return false;
 }
 
@@ -698,11 +736,9 @@ void GetDownstreamNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &targ
 
 	targets.insert(root);
 
-	NiNode *node = root->GetAsNiNode();
-	if (node) {
+	if (NiNode *node = root->GetAsNiNode()) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
+			if (NiAVObject *child = node->m_children.m_data[i]) {
 				GetDownstreamNodes(child, targets);
 			}
 		}
@@ -717,11 +753,9 @@ void GetDownstreamNodesNoCollision(NiAVObject *root, std::unordered_set<NiAVObje
 
 	targets.insert(root);
 
-	NiNode *node = root->GetAsNiNode();
-	if (node) {
+	if (NiNode *node = root->GetAsNiNode()) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
+			if (NiAVObject *child = node->m_children.m_data[i]) {
 				if (!GetRigidBody(child)) {
 					GetDownstreamNodesNoCollision(child, targets);
 				}

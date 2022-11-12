@@ -52,17 +52,6 @@ SpecificPairCollector specificPairCollector;
 hkpWorldRayCastInput rayCastInput;
 
 
-// Copied from PapyrusActor.cpp
-class MatchByForm : public FormMatcher
-{
-	TESForm * m_form;
-public:
-	MatchByForm(TESForm * form) : m_form(form) {}
-
-	bool Matches(TESForm* pForm) const { return m_form == pForm; }
-};
-
-
 void Hand::TriggerCollisionHaptics(float mass, float speed)
 {
 	float massComponent = Config::options.collisionMassProportionalHapticStrength * max(0.0f, powf(mass, Config::options.collisionHapticMassExponent));
@@ -2162,33 +2151,34 @@ void Hand::Update(Hand &other, bhkWorld *world)
 			bool breakStickiness = false;
 
 			if (
-				actor && !Actor_IsGhost(actor) &&
+				actor &&
+				!Actor_IsGhost(actor) &&
 				(Config::options.allowLootingNonRagdolledActors || Actor_IsInRagdollState(actor)) &&
 				(Config::options.allowLootingLiveActors || actor->IsDead(1))
 				) {
 
-				NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable);
-				if (hitNode) {
-					BipedModel *biped = actor->GetBipedSmall();
-					if (biped) {
-						Biped *bipedData = biped->bipedData;
-						if (bipedData) {
+				if (NiPointer<NiAVObject> hitNode = GetNodeFromCollidable(&closestRigidBody->hkBody->m_collidable)) {
+					if (BipedModel *biped = actor->GetBipedSmall()) {
+						if (Biped *bipedData = biped->bipedData) {
 							int hitIndex = -1;
 							TESForm *hitForm = nullptr;
 							bool isDisconnected = false;
 							for (int i = 0; i < equippedWeaponSlotBase; i++) {
 								// For skinned armor, the nodes are not attached to the skeleton. Find nodes the armor is skinned to and see if one of them was hit
-								NiPointer<NiAVObject> geomNode = bipedData->unk10[i].object;
-								if (geomNode) {
+								if (NiPointer<NiAVObject> geomNode = bipedData->unk10[i].object) {
 									TESForm *armorForm = bipedData->unk10[i].armor;
 									if (armorForm && armorForm->IsPlayable()) {
 										// Now check if we actually hit a node the armor is skinned to
 										bool isArmorDisconnected = DoesNodeHaveNode(geomNode, hitNode); // This is mainly for shields that are off the body
 										if (IsSkinnedToNode(geomNode, hitNode) || isArmorDisconnected) {
-											if (hitIndex == -1 || IsBipedIndexHigherPriority(i, hitIndex)) {
-												hitIndex = i;
-												hitForm = armorForm;
-												isDisconnected = isArmorDisconnected;
+											// Make sure the armor we hit is actually equipped. When nothing is equipped, there can still be 'naked' armor in the biped data that's not really equipped armor.
+											auto [equipData, equipCount] = GetEquipDataForBipedObject(actor, bipedData, armorForm, i);
+											if (equipData.pForm) {
+												if (hitIndex == -1 || IsBipedIndexHigherPriority(i, hitIndex)) {
+													hitIndex = i;
+													hitForm = armorForm;
+													isDisconnected = isArmorDisconnected;
+												}
 											}
 										}
 									}
@@ -2196,8 +2186,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							}
 							for (int i = equippedWeaponSlotBase; i < 42; i++) {
 								// For equipped weapons, the nodes are attached to the skeleton. Find the nearest parent that has collision and see if it was hit
-								NiPointer<NiAVObject> geomNode = bipedData->unk10[i].object;
-								if (geomNode) {
+								if (NiPointer<NiAVObject> geomNode = bipedData->unk10[i].object) {
 									if (DoesNodeHaveNode(geomNode, hitNode)) {
 										TESForm *form = bipedData->unk10[i].armor;
 										if (form && form->IsPlayable()) {
@@ -2225,41 +2214,20 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							}
 
 							if (hitForm && (!Config::options.disableLooting || isDisconnected)) {
-								// Make sure the armor we hit is actually equipped. When nothing is equipped, there can still be 'naked' armor in the biped data that's not really equipped armor.
+								auto [equipData, equipCount] = GetEquipDataForBipedObject(actor, bipedData, hitForm, hitIndex);
+								if (equipData.pForm) {
+									Biped::Data *hitBipedData = &bipedData->unk10[hitIndex];
+									nodeOnWhichToPlayShader = hitBipedData->object;
 
-								ExtraContainerChanges* containerChanges = static_cast<ExtraContainerChanges*>(actor->extraData.GetByType(kExtraData_ContainerChanges));
-								if (containerChanges) {
-									MatchByForm matcher(hitForm);
-									EquipData equipData;
-
-									if (hitIndex == 9) { // 9 == shield / left-hand weapon
-										equipData = containerChanges->FindEquipped(matcher, false, true);
-										if (!equipData.pForm) {
-											// Sometimes it's not actually WornLeft...
-											equipData = containerChanges->FindEquipped(matcher, true, true);
-										}
-									}
-									else {
-										equipData = containerChanges->FindEquipped(matcher, true, true);
-									}
-
-									if (equipData.pForm) {
-										Biped::Data *hitBipedData = &bipedData->unk10[hitIndex];
-										TESObjectARMO *hitArmor = DYNAMIC_CAST(hitBipedData->armor, TESForm, TESObjectARMO);
-										// If it's armor, make sure it has a name. If it doesn't, it could be FEC, or who knows...
-										if (!hitArmor || *hitArmor->fullName.name.data) {
-											nodeOnWhichToPlayShader = hitBipedData->object;
-											selectedObject.hitForm = hitForm;
-											selectedObject.hitExtraList = equipData.pExtraData;
-											selectedObject.hitFormCount = ContainerChanges_GetCount(containerChanges->data, equipData.pForm);
-											selectedObject.hitNode = hitNode;
-											selectedObject.isDisconnected = isDisconnected;
-										}
-									}
-									else {
-										// The form we hit is not equipped - do the same as if no form was selected
-										breakStickiness = true;
-									}
+									selectedObject.hitForm = hitForm;
+									selectedObject.hitExtraList = equipData.pExtraData;
+									selectedObject.hitFormCount = equipCount;
+									selectedObject.hitNode = hitNode;
+									selectedObject.isDisconnected = isDisconnected;
+								}
+								else {
+									// The form we hit is not equipped - do the same as if no form was selected
+									breakStickiness = true;
 								}
 							}
 						}

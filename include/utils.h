@@ -68,6 +68,7 @@ SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand);
 bool IsUnarmed(TESForm *equippedObject);
 
 bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
+std::tuple<EquipData, int> GetEquipDataForBipedObject(Actor *actor, Biped *bipedData, TESForm *matchForm, int bipedIndex);
 
 double GetTime();
 
