@@ -602,8 +602,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_qualityType = hkpCollidableQualityType::HK_COLLIDABLE_QUALITY_KEYFRAMED; // Could use KEYFRAMED_REPORTING to have its collisions trigger callbacks with statics such as walls
 	cInfo.hkCinfo.m_maxAngularVelocity = 500.f;
 
-	NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
-	if (handNode) {
+	if (NiPointer<NiAVObject> handNode = GetFirstPersonHandNode()) {
 		hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
 		cInfo.hkCinfo.m_position = transform.m_translation;
 		cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
@@ -612,8 +611,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 		cInfo.hkCinfo.m_position = NiPointToHkVector((*g_thePlayer)->loadedState->node->m_worldTransform.pos * *g_havokWorldScale); // Place it where the player is
 	}
 
-	bhkRigidBody *handRigidBody = (bhkRigidBody *)Heap_Allocate(sizeof(bhkRigidBody));
-	if (handRigidBody) {
+	if (bhkRigidBody *handRigidBody = (bhkRigidBody *)Heap_Allocate(sizeof(bhkRigidBody))) {
 		bhkRigidBody_ctor(handRigidBody, &cInfo);
 
 		bhkRigidBody_setActivated(handRigidBody, true);
@@ -2721,8 +2719,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 	if (state == State::SelectionLocked) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-			if (objRoot) {
+			if (NiPointer<NiNode> objRoot = selectedObj->GetNiNode()) {
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 
 				auto TransitionPulled = [this, &other, &objRoot, &hkPalmPos, motion, selectedObj, handNode, havokWorldScale]()
@@ -2847,8 +2844,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 	if (state == State::LootOtherHand) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-			if (objRoot) {
+			if (NiPointer<NiNode> objRoot = selectedObj->GetNiNode()) {
 				if (other.HasHeldObject() && other.selectedObject.rigidBody == selectedObject.rigidBody) {
 					// Other hand is still holding this object
 
@@ -2969,8 +2965,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 	if (state == State::Pulled) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
-			NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-			if (objRoot) {
+			if (NiPointer<NiNode> objRoot = selectedObj->GetNiNode()) {
 				hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
 				NiPoint3 hkObjPos = HkVectorToNiPoint(motion->m_motionState.m_transform.m_translation);
 
@@ -3249,8 +3244,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 	if (state == State::HeldInit || state == State::Held) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
-			if (collidableNode) {
+			if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
 				double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
 				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
 				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
@@ -3283,6 +3277,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 				if (state == State::Held) {
 					UpdateKeyframedNode(collidableNode, desiredTransform);
+					if (selectedObj->formType == kFormType_Reference && collidableNode == selectedObj->GetNiNode()) {
+						// Update the refr position and changeflags
+						// Technically we should check the kNotify flag on the collision object, but often it's not set even though it should be.
+						TESObjectREFR_SetPosition(selectedObj, collidableNode->m_worldTransform.pos);
+					}
 
 					if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
 						ResetNearbyDamping();
@@ -3311,8 +3310,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 	if (state == State::HeldBody) {
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
-			NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
-			if (collidableNode) {
+			if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
 				double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
 				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
 				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
