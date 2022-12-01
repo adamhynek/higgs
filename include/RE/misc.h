@@ -45,9 +45,12 @@ public:
 	UInt8 copyType = 1; // 60 - CopyType - default 1
 	UInt8 m_eAffectedNodeRelationBehavior = 0; // 61 - CloneRelationBehavior - default 0
 	UInt8 m_eDynamicEffectRelationBehavior = 0; // 62 - CloneRelationBehavior - default 0
+	UInt8 pad63;
 	char m_cAppendChar = '$'; // 64 - default '$'
 	NiPoint3 scale = { 1.0f, 1.0f, 1.0f }; // 0x68 - default {1, 1, 1}
 };
+static_assert(offsetof(NiCloningProcess, m_cAppendChar) == 0x64);
+static_assert(offsetof(NiCloningProcess, scale) == 0x68);
 
 struct VRMeleeData
 {
