@@ -373,6 +373,9 @@ namespace Config {
 		if (!RegisterBool("DisableVanillaGrab", options.disableVanillaGrab)) success = false;
 		if (!RegisterBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) success = false;
 
+		if (!RegisterBool("treatHandCollisionAsBelongingToPlayer", options.treatHandCollisionAsBelongingToPlayer)) success = false;
+		if (!RegisterBool("allowAllPlayerCollisionForTriggers", options.allowAllPlayerCollisionForTriggers)) success = false;
+
 		if (!RegisterBool("AllowGrabWithEmptyArrowHand", options.allowGrabWithEmptyArrowHand)) success = false;
 		if (!RegisterBool("AllowGrabWithTwoHandedOffhand", options.allowGrabWithTwoHandedOffhand)) success = false;
 		if (!RegisterBool("allowDaggerTwoHanding", options.allowDaggerTwoHanding)) success = false;

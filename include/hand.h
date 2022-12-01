@@ -240,9 +240,11 @@ struct Hand
 	FingerAnimator fingerAnimator;
 
 	NiPointer<bhkRigidBody> handBody = nullptr;
+	hkpCollidable *handCollidable = nullptr; // read only
 	bool wasBeastWhenHandCollisionCreated = false;
 
 	NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
+	hkpCollidable *weaponCollidable = nullptr; // read only
 	const bhkShape *clonedFromWeaponShape = nullptr; // the shape of the collision object we cloned to create ours
 	float weaponBodyHandSize = 1.f;
 

@@ -618,6 +618,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 		hkpWorld_AddEntity(world->world, handRigidBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
 		handBody = handRigidBody;
+		handCollidable = handBody->hkBody->getCollidableRw();
 		wasBeastWhenHandCollisionCreated = isBeast;
 	}
 }
@@ -630,6 +631,7 @@ void Hand::RemoveHandCollision(bhkWorld *world)
 	hkBool ret;
 	hkpWorld_RemoveEntity(world->world, &ret, handBody->hkBody);
 	handBody = nullptr;
+	handCollidable = nullptr;
 }
 
 
@@ -643,6 +645,7 @@ void Hand::RemoveHandCollisionFromCurrentWorld()
 			}
 		}
 		handBody = nullptr;
+		handCollidable = nullptr;
 	}
 }
 
@@ -758,6 +761,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
 
 		clonedFromWeaponShape = shapeWrapper;
 		weaponBody = clonedBody;
+		weaponCollidable = weaponBody->hkBody->getCollidableRw();
 	}
 }
 
@@ -771,6 +775,7 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
 	hkBool ret;
 	hkpWorld_RemoveEntity(world->world, &ret, weaponBody->hkBody);
 	weaponBody = nullptr;
+	weaponCollidable = nullptr;
 	clonedFromWeaponShape = nullptr;
 }
 
@@ -785,6 +790,7 @@ void Hand::RemoveWeaponCollisionFromCurrentWorld()
 			}
 		}
 		weaponBody = nullptr;
+		weaponCollidable = nullptr;
 	}
 }
 

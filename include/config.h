@@ -170,6 +170,9 @@ namespace Config {
 		bool alwaysShowHands = true;
 		bool disableVanillaGrab = true;
 
+		bool treatHandCollisionAsBelongingToPlayer = true;
+		bool allowAllPlayerCollisionForTriggers = true;
+
 		bool allowGrabWithEmptyArrowHand = false;
 		bool allowGrabWithTwoHandedOffhand = false;
 		bool allowDaggerTwoHanding = true;

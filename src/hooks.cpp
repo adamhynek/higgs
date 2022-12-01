@@ -92,6 +92,35 @@ auto shaderCheckFlagsHookLoc = RelocAddr<uintptr_t>(0x229243);
 
 auto prePhysicsStepHookLoc = RelocAddr<uintptr_t>(0xDFB709);
 
+auto GetRefFromCollidable_GetNodeFromCollidable_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x3B495B);
+
+auto TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x3B6E23);
+
+
+bool TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_Hook(Actor *actor)
+{
+	// While an actor is not ragdolled, a trigger will only work for it with objects on the character controller layer, so we make the trigger think the player is ragdolled.
+	// This IsInRagdollState check is only used for that purpose by the trigger.
+
+	if (actor == (*g_thePlayer)) {
+		return true;
+	}
+	return Actor_IsInRagdollState(actor);
+}
+
+
+NiAVObject * GetRefFromCollidable_GetNodeFromCollidable_Hook(hkpCollidable *collidable)
+{
+	// When the game wants to know which refr a collidable belongs do, we want our hands to be treated as if they belong to the player.
+	// The PlayerWorldNode is treated as belonging to the player, so we pretend the hands belong to the player world node.
+
+	if (collidable && (collidable == g_rightHand->handCollidable || collidable == g_leftHand->handCollidable)) {
+		return (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode]; // even if it's null, that's fine
+	}
+
+	return GetNodeFromCollidable(collidable);
+}
+
 
 ShaderReferenceEffect ** volatile g_shaderReferenceToSet = nullptr;
 void HookedShaderReferenceEffectCtor(ShaderReferenceEffect *ref) // DO NOT USE THIS MEMORY YET - IT HAS JUST BEEN ALLOCATED. LET THE GAME CONSTRUCT IT IN A BIT.
@@ -999,6 +1028,16 @@ void PerformHooks(void)
 		UInt8 ret = 0xC3;
 		SafeWrite8(startGrabObjectLoc.GetUIntPtr(), ret);
 		_MESSAGE("ret'd out PlayerCharacter::StartGrabObject");
+	}
+
+	if (Config::options.treatHandCollisionAsBelongingToPlayer) {
+		g_branchTrampoline.Write5Call(GetRefFromCollidable_GetNodeFromCollidable_HookLoc.GetUIntPtr(), uintptr_t(GetRefFromCollidable_GetNodeFromCollidable_Hook));
+		_MESSAGE("GetRefFromCollidable GetNodeFromCollidable hook complete");
+	}
+
+	if (Config::options.allowAllPlayerCollisionForTriggers) {
+		g_branchTrampoline.Write5Call(TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_HookLoc.GetUIntPtr(), uintptr_t(TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_Hook));
+		_MESSAGE("TriggerEntry::RegisterOverLap Actor::IsInRagdollState hook complete");
 	}
 
 	{
