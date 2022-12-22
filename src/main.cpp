@@ -268,26 +268,12 @@ void Update()
 
 	if (!initComplete) return;
 
-	if (MenuChecker::isGameStopped()) return;
-
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode()) return;
 
 	//Config::ReloadIfModified(); // TODO: Remove
 
 	g_currentFrameTime = GetTime();
-
-	NiPointer<NiAVObject> playerWorldObj = player->unk3F0[PlayerCharacter::Node::kNode_PlayerWorldNode];
-	NiNode *playerWorldNode = playerWorldObj ? playerWorldObj->GetAsNiNode() : nullptr;
-	if (!playerWorldNode) return;
-
-	NiPointer<NiAVObject> rightWandObj = player->unk3F0[PlayerCharacter::Node::kNode_RightWandNode];
-	NiNode *rightWandNode = rightWandObj ? rightWandObj->GetAsNiNode() : nullptr;
-	if (!rightWandNode) return;
-
-	NiPointer<NiAVObject> leftWandObj = player->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode];
-	NiNode *leftWandNode = leftWandObj ? leftWandObj->GetAsNiNode() : nullptr;
-	if (!leftWandNode) return;
 
 	TESObjectCELL *cell = player->parentCell;
 	if (!cell) return;
