@@ -205,6 +205,7 @@
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\effects.cpp" />
     <ClCompile Include="src\pluginapi.cpp" />
+    <ClCompile Include="src\RE\havok.cpp" />
     <ClCompile Include="src\RE\offsets.cpp" />
     <ClCompile Include="src\utils.cpp" />
     <ClCompile Include="src\vrikinterface001.cpp" />

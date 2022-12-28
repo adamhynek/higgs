@@ -113,6 +113,7 @@ static_assert(sizeof(bhkBoxShape) == 0x28);
 struct bhkConstraint : bhkSerializable
 {
 	RE::hkRefPtr <hkpConstraintInstance> constraint; // 10
+	struct hkConstraintCinfo *cinfo; // 18
 };
 
 struct bhkWorldObject : bhkSerializable
@@ -217,3 +218,35 @@ struct bhkRigidBodyCinfo
 static_assert(offsetof(bhkRigidBodyCinfo, shape) == 0x08);
 static_assert(offsetof(bhkRigidBodyCinfo, hkCinfo) == 0x30);
 static_assert(sizeof(bhkRigidBodyCinfo) == 0x110);
+
+struct hkConstraintCinfo
+{
+	~hkConstraintCinfo();
+
+	void *vtbl = 0; // 00
+	RE::hkRefPtr<hkpConstraintData> constraintData = nullptr; // 08
+	hkpConstraintInstance::ConstraintPriority priority = hkpConstraintInstance::ConstraintPriority::PRIORITY_INVALID; // 10
+	UInt32 pad14 = 0;
+	hkpRigidBody *rigidBodyA = nullptr; // 18
+	hkpRigidBody *rigidBodyB = nullptr; // 20
+};
+
+typedef void(*_hkConstraintCinfo_CreateConstraintData)(hkConstraintCinfo *); // vfunc 4
+
+struct hkBallAndSocketConstraintCinfo : hkConstraintCinfo
+{
+	hkBallAndSocketConstraintCinfo(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);
+
+	// These are not necessarily 16 byte aligned
+	float pivotB[4]; // 28
+	float pivotA[4]; // 38
+};
+
+struct bhkGroupConstraint : bhkConstraint
+{
+	UInt32 collisionGroup; // 20
+	UInt32 pad24;
+};
+static_assert(sizeof(bhkGroupConstraint) == 0x28);
+
+bhkGroupConstraint *CreateBallAndSocketConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);

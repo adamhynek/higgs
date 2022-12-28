@@ -199,6 +199,8 @@ struct Hand
 	NiPointer<NiAVObject> GetMagicNode(bool thirdPerson);
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
+	NiTransform GetGrabTransform();
+	void SetGrabTransform(NiTransform &transform);
 	inline NiPoint3 GetPalmPositionWS(NiTransform &handTransform) { return handTransform * palmPosHandspace; }
 	NiPoint3 GetPalmVectorWS(NiMatrix33 &handRotation);
 	NiPoint3 GetPointingVectorWS(NiMatrix33 &handRotation);
@@ -283,6 +285,8 @@ struct Hand
 	NiPoint3 pulledPointOffset{}; // Offset from the center of mass of the point we're pulling on the pulled object
 	NiPoint3 pullTarget{};
 	NiPoint3 initialGrabbedObjRelativePosition{};
+
+	NiPointer<bhkConstraint> grabConstraint = nullptr;
 
 	NiTransform desiredNodeTransformHandSpace{};
 

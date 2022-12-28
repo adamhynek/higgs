@@ -13,6 +13,7 @@
 #include "skse64/NiGeometry.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
+#include <Physics/Dynamics/Constraint/Bilateral/BallAndSocket/hkpBallAndSocketConstraintData.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 #include <Physics/Utilities/Collide/TriggerVolume/hkpTriggerVolume.h>
 
@@ -222,6 +223,32 @@ extern RelocAddr<_hkpCollisionCallbackUtil_releaseCollisionCallbackUtil> hkpColl
 typedef hkpWorldExtension * (*_hkpWorld_findWorldExtension)(hkpWorld *world, int id);
 extern RelocAddr<_hkpWorld_findWorldExtension> hkpWorld_findWorldExtension;
 
+typedef bool(*_hkConstraintCinfo_setConstraintData)(struct hkConstraintCinfo *_this, hkpConstraintData *data);
+extern RelocAddr<_hkConstraintCinfo_setConstraintData> hkConstraintCinfo_setConstraintData;
+
+typedef bool(*_hkpBallAndSocketConstraintData_setInBodySpace)(hkpBallAndSocketConstraintData *_this, const hkVector4 &pivotA, const hkVector4 &pivotB);
+extern RelocAddr<_hkpBallAndSocketConstraintData_setInBodySpace> hkpBallAndSocketConstraintData_setInBodySpace;
+
+typedef bool(*_hkpBallAndSocketConstraintData_setInWorldSpace)(hkpBallAndSocketConstraintData *_this, const hkTransform &bodyATransform, const hkTransform &bodyBTransform, const hkVector4 &pivot);
+extern RelocAddr<_hkpBallAndSocketConstraintData_setInWorldSpace> hkpBallAndSocketConstraintData_setInWorldSpace;
+
+typedef bhkGroupConstraint *(*_bhkGroupConstraint_ctor)(bhkGroupConstraint *_this, hkConstraintCinfo *cinfo);
+extern RelocAddr<_bhkGroupConstraint_ctor> bhkGroupConstraint_ctor;
+
+typedef void(*_bhkRigidBody_AddConstraintToArray)(bhkRigidBody *_this, bhkConstraint *constraint);
+extern RelocAddr<_bhkRigidBody_AddConstraintToArray> bhkRigidBody_AddConstraintToArray;
+
+typedef void(*_bhkRigidBody_RemoveConstraintFromArray)(bhkRigidBody *_this, bhkConstraint *constraint);
+extern RelocAddr<_bhkRigidBody_RemoveConstraintFromArray> bhkRigidBody_RemoveConstraintFromArray;
+
+typedef void(*_bhkWorld_AddConstraint)(bhkWorld *_this, hkpConstraintInstance *constraint);
+extern RelocAddr<_bhkWorld_AddConstraint> bhkWorld_AddConstraint;
+
+typedef void(*_bhkWorld_RemoveConstraint)(bhkWorld *_this, hkpConstraintInstance *constraint);
+extern RelocAddr<_bhkWorld_RemoveConstraint> bhkWorld_RemoveConstraint;
+
+typedef void(*_hkVector4_setTransformedInversePos)(hkVector4 &_this, const hkTransform &transform, const hkVector4 &pos);
+extern RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedInversePos;
 
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);

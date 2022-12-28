@@ -543,8 +543,8 @@ hkTransform Hand::ComputeHandCollisionTransform(NiAVObject *handNode, bool isBea
 	NiPoint3 handCollisionBoxOffset = isBeast ? Config::options.handCollisionBoxOffsetBeast : Config::options.handCollisionBoxOffset;
 	if (isLeft) handCollisionBoxOffset.x *= -1;
 	float havokWorldScale = *g_havokWorldScale;
-	transform.m_translation = NiPointToHkVector((handNode->m_worldTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale);
-	NiMatrixToHkMatrix(handNode->m_worldTransform.rot, transform.m_rotation);
+	transform.m_translation = NiPointToHkVector((handTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale);
+	NiMatrixToHkMatrix(handTransform.rot, transform.m_rotation);
 
 	return transform;
 }
@@ -1422,6 +1422,20 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 		desiredNodeTransform.pos += palmPos - ptPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
+		if (usePhysicsGrab) {
+			hkVector4 hkPivotA = NiPointToHkVector(palmPos * havokWorldScale);
+			hkVector4 hkPivotB = NiPointToHkVector(ptPos * havokWorldScale);
+
+			hkpRigidBody *bodyA = handBody->hkBody;
+			hkpRigidBody *bodyB = selectedObject.rigidBody->hkBody;
+			hkVector4 pivotA; hkVector4_setTransformedInversePos(pivotA, bodyA->getTransform(), hkPivotA);
+			hkVector4 pivotB; hkVector4_setTransformedInversePos(pivotB, bodyB->getTransform(), hkPivotB);
+			bhkGroupConstraint *constraint = CreateBallAndSocketConstraint(bodyA, bodyB, HkVectorToNiPoint(pivotA), HkVectorToNiPoint(pivotB));
+			bhkRigidBody_AddConstraintToArray(handBody, constraint);
+			bhkWorld_AddConstraint(&world, constraint->constraint);
+			grabConstraint = constraint;
+		}
+
 		dampingState = DampingState::Undamped;
 
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
@@ -1931,6 +1945,18 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
 		NiTransform identity;
 		UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
 	}
+}
+
+
+NiTransform Hand::GetGrabTransform()
+{
+	return desiredNodeTransformHandSpace;
+}
+
+
+void Hand::SetGrabTransform(NiTransform &transform)
+{
+	desiredNodeTransformHandSpace = transform;
 }
 
 
@@ -2596,6 +2622,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						if (state == State::HeldBody) {
 							if (!selectedObject.isActor) {
 								ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
+							}
+
+							if (grabConstraint) {
+								bhkWorld_RemoveConstraint(world, grabConstraint->constraint);
+								bhkRigidBody_RemoveConstraintFromArray(handBody, grabConstraint);
+								grabConstraint = nullptr;
 							}
 						}
 						if (state == State::Held || state == State::HeldInit) {
@@ -3358,9 +3390,23 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					desiredPos += playerHkVelocity * *g_deltaTime;
 
 					hkRotation desiredRot; NiMatrixToHkMatrix(newTransform.rot, desiredRot);
+					//hkRotation desiredRot = selectedObject.rigidBody->hkBody->getTransform().m_rotation;
 					hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(desiredRot);
 
-					hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+					hkVector4 linearVelocity = selectedObject.rigidBody->hkBody->getLinearVelocity();
+					hkVector4 angularVelocity = selectedObject.rigidBody->hkBody->getAngularVelocity();
+					//hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
+					
+					hkVector4 keyframeLinearVelocity = selectedObject.rigidBody->hkBody->getLinearVelocity();
+					hkVector4 keyframeAngularVelocity = selectedObject.rigidBody->hkBody->getAngularVelocity();
+
+					//selectedObject.rigidBody->hkBody->getRigidMotion()->setLinearVelocity(linearVelocity);
+					//selectedObject.rigidBody->hkBody->getRigidMotion()->setAngularVelocity(angularVelocity);
+
+					float mass = 1.f / selectedObject.rigidBody->hkBody->getMassInv();
+					NiPoint3 impulse = VectorNormalized(HkVectorToNiPoint(keyframeLinearVelocity)) * mass;
+					//selectedObject.rigidBody->hkBody->m_motion.applyPointImpulse(NiPointToHkVector(impulse), NiPointToHkVector(hkPalmPos));
+					//selectedObject.rigidBody->hkBody->m_motion.applyLinearImpulse(NiPointToHkVector(impulse));
 
 					// Now, check if in general, the object has been moving as we want it to be. If it isn't, then it's likely blocked by something and so we need to damp its velocities.
 
