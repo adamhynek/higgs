@@ -190,19 +190,19 @@ void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat)
 	niMat.data[2][2] = col2(2);
 }
 
-NiTransform hkTransformToNiTransform(hkTransform &t, float scale)
+NiTransform hkTransformToNiTransform(hkTransform &t, float scale, bool useHavokScale)
 {
 	NiTransform out;
-	out.pos = HkVectorToNiPoint(t.m_translation) * *g_inverseHavokWorldScale;
+	out.pos = HkVectorToNiPoint(t.m_translation) * (useHavokScale ? *g_inverseHavokWorldScale : 1.f);
 	HkMatrixToNiMatrix(t.m_rotation, out.rot);
 	out.scale = scale;
 	return out;
 }
 
-hkTransform NiTransformTohkTransform(NiTransform &t)
+hkTransform NiTransformTohkTransform(NiTransform &t, bool useHavokScale)
 {
 	hkTransform out;
-	out.m_translation = NiPointToHkVector(t.pos * *g_havokWorldScale);
+	out.m_translation = NiPointToHkVector(t.pos * (useHavokScale ? *g_havokWorldScale : 1.f));
 	NiMatrixToHkMatrix(t.rot, out.m_rotation);
 	return out;
 }

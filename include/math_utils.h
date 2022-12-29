@@ -147,8 +147,8 @@ NiTransform RotateTransformAboutPoint(NiTransform &transform, NiPoint3 &point, N
 std::pair<NiQuaternion, NiQuaternion> SwingTwistDecomposition(NiQuaternion &rotation, NiPoint3 &direction);
 void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat);
 void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat);
-NiTransform hkTransformToNiTransform(hkTransform &t, float scale = 1.f);
-hkTransform NiTransformTohkTransform(NiTransform &t);
+NiTransform hkTransformToNiTransform(hkTransform &t, float scale = 1.f, bool useHavokScale = true);
+hkTransform NiTransformTohkTransform(NiTransform &t, bool useHavokScale = true);
 NiMatrix33 QuaternionToMatrix(const NiQuaternion &q);
 inline NiQuaternion MatrixToQuaternion(const NiMatrix33 &m) { NiQuaternion q; NiMatrixToNiQuaternion(q, m); return q; }
 inline NiQuaternion HkQuatToNiQuat(const hkQuaternion &quat) { return { quat.m_vec(3), quat.m_vec(0), quat.m_vec(1), quat.m_vec(2) }; }
