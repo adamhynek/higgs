@@ -221,6 +221,7 @@ static_assert(sizeof(bhkRigidBodyCinfo) == 0x110);
 
 struct hkConstraintCinfo
 {
+	hkConstraintCinfo();
 	~hkConstraintCinfo();
 
 	void *vtbl = 0; // 00
@@ -249,4 +250,16 @@ struct bhkGroupConstraint : bhkConstraint
 };
 static_assert(sizeof(bhkGroupConstraint) == 0x28);
 
+hkMemoryRouter &hkGetMemoryRouter();
+inline void *hkHeapAlloc(int numBytes) { return hkGetMemoryRouter().heap().blockAlloc(numBytes); }
+
+template <typename T>
+T * hkAllocReferencedObject() {
+	T *allocated = (T *)hkHeapAlloc(sizeof(T));
+	allocated->m_memSizeAndFlags = sizeof(T);
+	return allocated;
+}
+
 bhkGroupConstraint *CreateBallAndSocketConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);
+bhkGroupConstraint *CreateBallAndSocketConstraint2(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);
+bhkGroupConstraint *CreateGrabConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);

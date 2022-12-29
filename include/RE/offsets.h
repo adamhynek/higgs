@@ -64,7 +64,7 @@ extern RelocPtr<float> g_fMagicHandRotateY;
 extern RelocPtr<float> g_fMagicHandRotateZ;
 extern RelocPtr<float> g_fMagicHandScale;
 
-extern RelocPtr<DWORD> g_dwTlsIndex;
+extern RelocPtr<DWORD> g_havokMemoryRouterTlsIndex;
 
 
 // Havok / Bethesda havok wrappers
@@ -232,6 +232,9 @@ extern RelocAddr<_hkpBallAndSocketConstraintData_setInBodySpace> hkpBallAndSocke
 typedef bool(*_hkpBallAndSocketConstraintData_setInWorldSpace)(hkpBallAndSocketConstraintData *_this, const hkTransform &bodyATransform, const hkTransform &bodyBTransform, const hkVector4 &pivot);
 extern RelocAddr<_hkpBallAndSocketConstraintData_setInWorldSpace> hkpBallAndSocketConstraintData_setInWorldSpace;
 
+typedef bool(*_hkpBallAndSocketConstraintData_ctor)(hkpBallAndSocketConstraintData *_this);
+extern RelocAddr<_hkpBallAndSocketConstraintData_ctor> hkpBallAndSocketConstraintData_ctor;
+
 typedef bhkGroupConstraint *(*_bhkGroupConstraint_ctor)(bhkGroupConstraint *_this, hkConstraintCinfo *cinfo);
 extern RelocAddr<_bhkGroupConstraint_ctor> bhkGroupConstraint_ctor;
 
@@ -249,6 +252,12 @@ extern RelocAddr<_bhkWorld_RemoveConstraint> bhkWorld_RemoveConstraint;
 
 typedef void(*_hkVector4_setTransformedInversePos)(hkVector4 &_this, const hkTransform &transform, const hkVector4 &pos);
 extern RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedInversePos;
+
+typedef bool(*_hkRealTohkUFloat8)(hkUFloat8 &out, const hkReal &value);
+extern RelocAddr<_hkRealTohkUFloat8> hkRealTohkUFloat8;
+
+typedef bool(*_GetConstraintInfoFromAtoms)(const hkpConstraintAtom *atoms, int sizeOfAllAtoms, hkpConstraintData::ConstraintInfo &infoOut);
+extern RelocAddr<_GetConstraintInfoFromAtoms> GetConstraintInfoFromAtoms;
 
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);

@@ -1430,7 +1430,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			hkpRigidBody *bodyB = selectedObject.rigidBody->hkBody;
 			hkVector4 pivotA; hkVector4_setTransformedInversePos(pivotA, bodyA->getTransform(), hkPivotA);
 			hkVector4 pivotB; hkVector4_setTransformedInversePos(pivotB, bodyB->getTransform(), hkPivotB);
-			bhkGroupConstraint *constraint = CreateBallAndSocketConstraint(bodyA, bodyB, HkVectorToNiPoint(pivotA), HkVectorToNiPoint(pivotB));
+			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, HkVectorToNiPoint(pivotA), HkVectorToNiPoint(pivotB));
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
 			bhkWorld_AddConstraint(&world, constraint->constraint);
 			grabConstraint = constraint;

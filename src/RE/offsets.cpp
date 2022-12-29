@@ -47,7 +47,7 @@ RelocPtr<float> g_fMagicHandRotateY(0x1EAEAB8);
 RelocPtr<float> g_fMagicHandRotateZ(0x1EAEAD0);
 RelocPtr<float> g_fMagicHandScale(0x1EAEAE8);
 
-RelocPtr<DWORD> g_dwTlsIndex(0x30A8C04);
+RelocPtr<DWORD> g_havokMemoryRouterTlsIndex(0x30A8C04);
 
 RelocPtr<BGSImpactManager> g_impactManager(0x2FEBD60);
 
@@ -112,12 +112,15 @@ RelocAddr<_hkpWorld_findWorldExtension> hkpWorld_findWorldExtension(0xAB58F0);
 RelocAddr<_hkConstraintCinfo_setConstraintData> hkConstraintCinfo_setConstraintData(0xE3E6F0);
 RelocAddr<_hkpBallAndSocketConstraintData_setInBodySpace> hkpBallAndSocketConstraintData_setInBodySpace(0xAC1FF0);
 RelocAddr<_hkpBallAndSocketConstraintData_setInWorldSpace> hkpBallAndSocketConstraintData_setInWorldSpace(0xAC2010);
+RelocAddr<_hkpBallAndSocketConstraintData_ctor> hkpBallAndSocketConstraintData_ctor(0xAC1F60);
 RelocAddr<_bhkGroupConstraint_ctor> bhkGroupConstraint_ctor(0xE62630);
 RelocAddr<_bhkRigidBody_AddConstraintToArray> bhkRigidBody_AddConstraintToArray(0xE08B10);
 RelocAddr<_bhkRigidBody_RemoveConstraintFromArray> bhkRigidBody_RemoveConstraintFromArray(0xE08A70);
 RelocAddr<_bhkWorld_AddConstraint> bhkWorld_AddConstraint(0xDFA810);
 RelocAddr<_bhkWorld_RemoveConstraint> bhkWorld_RemoveConstraint(0xDFB240);
 RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedInversePos(0xA05DC0);
+RelocAddr<_hkRealTohkUFloat8> hkRealTohkUFloat8(0xA02B10);
+RelocAddr<_GetConstraintInfoFromAtoms> GetConstraintInfoFromAtoms(0xACC490);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);
