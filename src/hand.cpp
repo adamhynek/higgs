@@ -24,6 +24,7 @@
 #include "hooks.h"
 #include "pluginapi.h"
 #include "main.h"
+#include "constraint.h"
 
 #include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
@@ -1437,6 +1438,11 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			NiTransform handTransformObjSpace = InverseTransform(desiredNodeTransformHandSpace);
 			handTransformObjSpace.pos = HkVectorToNiPoint(pivotB);
 
+			// TODO: Gradually (but rather quickly) ramp up maxForce of the constraint?
+			// Ideas:
+			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
+			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
+
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
 			bhkWorld_AddConstraint(&world, constraint->constraint);
@@ -2632,7 +2638,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							}
 
 							if (grabConstraint) {
-								bhkWorld_RemoveConstraint(world, grabConstraint->constraint);
+								grabConstraint->RemoveFromCurrentWorld();
 								bhkRigidBody_RemoveConstraintFromArray(handBody, grabConstraint);
 								grabConstraint = nullptr;
 							}
@@ -3379,6 +3385,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					// Not too far away. Update hand to object and set object velocity to target.
 					UpdateHandTransform(adjustedHandTransform);
 
+					if (grabConstraint) {
+						GrabConstraintData *constraintData = (GrabConstraintData *)grabConstraint->constraint->getData();
+						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(inverseDesired.rot));
+					}
+
 					// Update object velocity to go where we want it
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
 					NiTransform newTransform = handTransform * desiredNodeTransformHandSpace;
@@ -3397,24 +3408,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					desiredPos += playerHkVelocity * *g_deltaTime;
 
 					hkRotation desiredRot; NiMatrixToHkMatrix(newTransform.rot, desiredRot);
-					//hkRotation desiredRot = selectedObject.rigidBody->hkBody->getTransform().m_rotation;
 					hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(desiredRot);
 
 					hkVector4 linearVelocity = selectedObject.rigidBody->hkBody->getLinearVelocity();
 					hkVector4 angularVelocity = selectedObject.rigidBody->hkBody->getAngularVelocity();
 					//hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
 					
-					hkVector4 keyframeLinearVelocity = selectedObject.rigidBody->hkBody->getLinearVelocity();
-					hkVector4 keyframeAngularVelocity = selectedObject.rigidBody->hkBody->getAngularVelocity();
-
-					//selectedObject.rigidBody->hkBody->getRigidMotion()->setLinearVelocity(linearVelocity);
-					//selectedObject.rigidBody->hkBody->getRigidMotion()->setAngularVelocity(angularVelocity);
-
-					float mass = 1.f / selectedObject.rigidBody->hkBody->getMassInv();
-					NiPoint3 impulse = VectorNormalized(HkVectorToNiPoint(keyframeLinearVelocity)) * mass;
-					//selectedObject.rigidBody->hkBody->m_motion.applyPointImpulse(NiPointToHkVector(impulse), NiPointToHkVector(hkPalmPos));
-					//selectedObject.rigidBody->hkBody->m_motion.applyLinearImpulse(NiPointToHkVector(impulse));
-
 					// Now, check if in general, the object has been moving as we want it to be. If it isn't, then it's likely blocked by something and so we need to damp its velocities.
 
 					NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);

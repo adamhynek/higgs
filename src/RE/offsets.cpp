@@ -120,7 +120,9 @@ RelocAddr<_bhkWorld_AddConstraint> bhkWorld_AddConstraint(0xDFA810);
 RelocAddr<_bhkWorld_RemoveConstraint> bhkWorld_RemoveConstraint(0xDFB240);
 RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedInversePos(0xA05DC0);
 RelocAddr<_hkRealTohkUFloat8> hkRealTohkUFloat8(0xA02B10);
-RelocAddr<_GetConstraintInfoFromAtoms> GetConstraintInfoFromAtoms(0xACC490);
+RelocAddr<_hkpConstraintData_getConstraintInfoUtil> hkpConstraintData_getConstraintInfoUtil(0xACC490);
+RelocAddr<_hkMatrix3_setMul> hkMatrix3_setMul(0xA09A10);
+RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ctor(0xAD62C0);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);

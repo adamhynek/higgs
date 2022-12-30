@@ -14,9 +14,9 @@
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Dynamics/Constraint/Bilateral/BallAndSocket/hkpBallAndSocketConstraintData.h>
+#include <Physics/Dynamics/Constraint/Motor/Position/hkpPositionConstraintMotor.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
 #include <Physics/Utilities/Collide/TriggerVolume/hkpTriggerVolume.h>
-
 
 // Multiply skyrim coords by this to get havok coords
 // It's the number of meters per skyrim unit
@@ -256,8 +256,14 @@ extern RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedIn
 typedef bool(*_hkRealTohkUFloat8)(hkUFloat8 &out, const hkReal &value);
 extern RelocAddr<_hkRealTohkUFloat8> hkRealTohkUFloat8;
 
-typedef bool(*_GetConstraintInfoFromAtoms)(const hkpConstraintAtom *atoms, int sizeOfAllAtoms, hkpConstraintData::ConstraintInfo &infoOut);
-extern RelocAddr<_GetConstraintInfoFromAtoms> GetConstraintInfoFromAtoms;
+typedef bool(*_hkpConstraintData_getConstraintInfoUtil)(const hkpConstraintAtom *atoms, int sizeOfAllAtoms, hkpConstraintData::ConstraintInfo &infoOut);
+extern RelocAddr<_hkpConstraintData_getConstraintInfoUtil> hkpConstraintData_getConstraintInfoUtil;
+
+typedef bool(*_hkMatrix3_setMul)(hkMatrix3 &_this, const hkMatrix3 &a, const hkMatrix3 &b);
+extern RelocAddr<_hkMatrix3_setMul> hkMatrix3_setMul;
+
+typedef bool(*_hkpPositionConstraintMotor_ctor)(hkpPositionConstraintMotor *_this);
+extern RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ctor;
 
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);

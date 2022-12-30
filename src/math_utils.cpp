@@ -172,6 +172,13 @@ void NiMatrixToHkMatrix(const NiMatrix33 &niMat, hkMatrix3 &hkMat)
 		{ niMat.data[0][2], niMat.data[1][2], niMat.data[2][2], 0 });
 }
 
+hkRotation NiMatrixToHkMatrix(const NiMatrix33 &niMat)
+{
+	hkRotation out;
+	NiMatrixToHkMatrix(niMat, out);
+	return out;
+}
+
 void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat)
 {
 	hkVector4 col0, col1, col2;
@@ -188,6 +195,13 @@ void HkMatrixToNiMatrix(const hkMatrix3 &hkMat, NiMatrix33 &niMat)
 	niMat.data[0][2] = col2(0);
 	niMat.data[1][2] = col2(1);
 	niMat.data[2][2] = col2(2);
+}
+
+NiMatrix33 HkMatrixToNiMatrix(const hkMatrix3 &hkMat)
+{
+	NiMatrix33 out;
+	HkMatrixToNiMatrix(hkMat, out);
+	return out;
 }
 
 NiTransform hkTransformToNiTransform(hkTransform &t, float scale, bool useHavokScale)

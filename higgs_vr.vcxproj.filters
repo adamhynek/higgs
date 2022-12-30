@@ -72,6 +72,9 @@
     <ClCompile Include="src\RE\havok.cpp">
       <Filter>src\RE</Filter>
     </ClCompile>
+    <ClCompile Include="src\constraint.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\version.h">
@@ -135,6 +138,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\haptics.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\constraint.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

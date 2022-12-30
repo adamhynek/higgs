@@ -192,6 +192,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
+    <ClCompile Include="src\constraint.cpp" />
     <ClCompile Include="src\finger_animator.cpp" />
     <ClCompile Include="src\finger_curves.cpp" />
     <ClCompile Include="src\hand.cpp" />
@@ -211,6 +212,7 @@
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\constraint.h" />
     <ClInclude Include="include\finger_animator.h" />
     <ClInclude Include="include\finger_curves.h" />
     <ClInclude Include="include\haptics.h" />

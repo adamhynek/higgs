@@ -157,6 +157,12 @@ namespace Config {
 		int maxNumEntitiesPerSimulationIslandToCheck = 50;
 		float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
 
+		float grabConstraintTau = 0.8f;
+		float grabConstraintMaxForce = 100.f;
+		float grabConstraintProportionalRecoveryVelocity = 2.f;
+		float grabConstraintConstantRecoveryVelocity = 1.f;
+		float grabConstraintDamping = 0.8f;
+
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
 		bool disableSelectionBeam = false;
