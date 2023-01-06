@@ -3388,6 +3388,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					if (grabConstraint) {
 						GrabConstraintData *constraintData = (GrabConstraintData *)grabConstraint->constraint->getData();
 						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(inverseDesired.rot));
+
+						// inverseDesired is the hand's transform in the space of the grabbed object
+						NiPoint3 newPivotB = (inverseDesired * palmPosHandspace) * havokWorldScale;
+						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 					}
 
 					// Update object velocity to go where we want it
