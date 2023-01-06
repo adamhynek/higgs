@@ -163,6 +163,12 @@ namespace Config {
 		float grabConstraintConstantRecoveryVelocity = 1.f;
 		float grabConstraintDamping = 0.8f;
 
+		float grabConstraintLinearTau = 0.8f;
+		float grabConstraintLinearMaxForce = 250.f;
+		float grabConstraintLinearProportionalRecoveryVelocity = 2.f;
+		float grabConstraintLinearConstantRecoveryVelocity = 1.f;
+		float grabConstraintLinearDamping = 0.8f;
+
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
 		bool disableSelectionBeam = false;

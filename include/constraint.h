@@ -67,9 +67,9 @@ public:
 		SOLVER_RESULT_MOTOR_1 = 1,		// the angular motor value
 		SOLVER_RESULT_MOTOR_2 = 2,		// the angular motor value
 
-		SOLVER_RESULT_LIN_0 = 3,		// linear constraint
-		SOLVER_RESULT_LIN_1 = 4,		// linear constraint
-		SOLVER_RESULT_LIN_2 = 5,		// linear constraint
+		SOLVER_RESULT_MOTOR_3 = 3,		// the linear motor value
+		SOLVER_RESULT_MOTOR_4 = 4,		// the linear motor value
+		SOLVER_RESULT_MOTOR_5 = 5,		// the linear motor value
 
 		SOLVER_RESULT_MAX = 6
 	};
@@ -81,6 +81,10 @@ public:
 		// for angular constraint motors
 		hkUint8 m_initialized[3]; // 30
 		hkReal m_previousTargetAngles[3]; // 34
+
+		// for linear constraint motors
+		hkUint8 m_initializedLinear[3];
+		hkReal m_previousTargetPositions[3];
 	};
 
 	inline Runtime *getRuntime(hkpConstraintRuntime *runtime) { return reinterpret_cast<Runtime *>(runtime); }
@@ -90,14 +94,16 @@ public:
 		struct hkpSetLocalTransformsConstraintAtom		m_transforms;
 		struct hkpSetupStabilizationAtom				m_setupStabilization;
 		struct hkpRagdollMotorConstraintAtom			m_ragdollMotors;
-		struct hkpBallSocketConstraintAtom				m_ballSocket;
+		struct hkpLinMotorConstraintAtom				m_linearMotor0;
+		struct hkpLinMotorConstraintAtom				m_linearMotor1;
+		struct hkpLinMotorConstraintAtom				m_linearMotor2;
 
 		Atoms() {	}
 
 		// get a pointer to the first atom
 		const hkpConstraintAtom *getAtoms() const { return &m_transforms; }
 
-		int getSizeOfAllAtoms() const { return hkGetByteOffsetInt(this, &m_ballSocket + 1); }
+		int getSizeOfAllAtoms() const { return hkGetByteOffsetInt(this, &m_linearMotor2 + 1); }
 	};
 
 	__declspec(align(16)) struct Atoms m_atoms; // 20

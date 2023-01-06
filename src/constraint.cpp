@@ -36,6 +36,43 @@ GrabConstraintData::GrabConstraintData() : hkpConstraintData() {
 	setMotor(2, motor);
 
 	hkReferencedObject_removeReference(motor);
+
+
+	m_atoms.m_linearMotor0.m_isEnabled = false;
+	m_atoms.m_linearMotor0.m_motorAxis = 0;
+	m_atoms.m_linearMotor0.m_initializedOffset = offsetof(Runtime, m_initializedLinear[0]);
+	m_atoms.m_linearMotor0.m_previousTargetPositionOffset = offsetof(Runtime, m_previousTargetPositions[0]);
+	m_atoms.m_linearMotor0.m_targetPosition = 0.f;
+	m_atoms.m_linearMotor0.m_motor = nullptr;
+
+	m_atoms.m_linearMotor1.m_isEnabled = false;
+	m_atoms.m_linearMotor1.m_motorAxis = 1;
+	m_atoms.m_linearMotor1.m_initializedOffset = offsetof(Runtime, m_initializedLinear[1]);
+	m_atoms.m_linearMotor1.m_previousTargetPositionOffset = offsetof(Runtime, m_previousTargetPositions[1]);
+	m_atoms.m_linearMotor1.m_targetPosition = 0.f;
+	m_atoms.m_linearMotor1.m_motor = nullptr;
+
+	m_atoms.m_linearMotor2.m_isEnabled = false;
+	m_atoms.m_linearMotor2.m_motorAxis = 2;
+	m_atoms.m_linearMotor2.m_initializedOffset = offsetof(Runtime, m_initializedLinear[2]);
+	m_atoms.m_linearMotor2.m_previousTargetPositionOffset = offsetof(Runtime, m_previousTargetPositions[2]);
+	m_atoms.m_linearMotor2.m_targetPosition = 0.f;
+	m_atoms.m_linearMotor2.m_motor = nullptr;
+
+	hkpPositionConstraintMotor *linearMotor = hkAllocReferencedObject<hkpPositionConstraintMotor>();
+	hkpPositionConstraintMotor_ctor(linearMotor);
+
+	linearMotor->m_tau = Config::options.grabConstraintLinearTau;
+	linearMotor->setMaxForce(Config::options.grabConstraintLinearMaxForce);
+	linearMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintLinearProportionalRecoveryVelocity;
+	linearMotor->m_constantRecoveryVelocity = Config::options.grabConstraintLinearConstantRecoveryVelocity;
+	linearMotor->m_damping = Config::options.grabConstraintLinearDamping;
+
+	setMotor(3, linearMotor);
+	setMotor(4, linearMotor);
+	setMotor(5, linearMotor);
+
+	hkReferencedObject_removeReference(linearMotor);
 }
 
 GrabConstraintData::~GrabConstraintData() {
@@ -43,6 +80,10 @@ GrabConstraintData::~GrabConstraintData() {
 	setMotor(0, nullptr);
 	setMotor(1, nullptr);
 	setMotor(2, nullptr);
+
+	setMotor(3, nullptr);
+	setMotor(4, nullptr);
+	setMotor(5, nullptr);
 }
 
 void GrabConstraintData::setInBodySpace(const hkTransform &transformA, const hkTransform &transformB)
@@ -53,27 +94,27 @@ void GrabConstraintData::setInBodySpace(const hkTransform &transformA, const hkT
 
 void GrabConstraintData::setMaxLinearImpulse(hkReal maxImpulse)
 {
-	m_atoms.m_ballSocket.m_maxImpulse = maxImpulse;
+	return;
 }
 
 hkReal GrabConstraintData::getMaxLinearImpulse() const
 {
-	return m_atoms.m_ballSocket.m_maxImpulse;
+	return HK_REAL_MAX;
 }
 
 void GrabConstraintData::setBodyToNotify(int bodyIdx)
 {
-	m_atoms.m_ballSocket.m_bodiesToNotify = 1 << bodyIdx;
+	return;
 }
 
 hkUint8 GrabConstraintData::getNotifiedBodyIndex() const
 {
-	return m_atoms.m_ballSocket.m_bodiesToNotify >> 1;
+	return 0;
 }
 
 hkBool GrabConstraintData::isValid() const
 {
-	return m_atoms.m_ballSocket.m_solvingMethod != hkpConeLimitConstraintAtom::SolvingMethod::METHOD_STABILIZED || m_atoms.m_setupStabilization.m_enabled;
+	return true;
 }
 
 int GrabConstraintData::getType() const
@@ -89,19 +130,16 @@ void GrabConstraintData::setSolvingMethod(hkpConstraintAtom::SolvingMethod metho
 	else {
 		m_atoms.m_setupStabilization.m_enabled = false;
 	}
-
-	m_atoms.m_ballSocket.m_solvingMethod = method;
 }
 
 hkResult GrabConstraintData::getInertiaStabilizationFactor(hkReal &inertiaStabilizationFactorOut) const
 {
-	inertiaStabilizationFactorOut = m_atoms.m_ballSocket.getInertiaStabilizationFactor();
+	inertiaStabilizationFactorOut = 0.f;
 	return hkResult::HK_SUCCESS;
 }
 
 hkResult GrabConstraintData::setInertiaStabilizationFactor(const hkReal inertiaStabilizationFactorIn)
 {
-	m_atoms.m_ballSocket.setInertiaStabilizationFactor(std::clamp(inertiaStabilizationFactorIn, 0.f, 1.f));
 	return hkResult::HK_SUCCESS;
 }
 
@@ -112,7 +150,7 @@ void GrabConstraintData::getConstraintInfo(hkpConstraintData::ConstraintInfo &in
 
 void GrabConstraintData::getRuntimeInfo(hkBool wantRuntime, hkpConstraintData::RuntimeInfo &infoOut) const
 {
-	if (wantRuntime || m_atoms.m_ballSocket.m_maxImpulse != HK_REAL_MAX) {
+	if (wantRuntime) {
 		infoOut.m_numSolverResults = SOLVER_RESULT_MAX;
 		infoOut.m_sizeOfExternalRuntime = sizeof(Runtime);
 	}
@@ -135,7 +173,7 @@ void GrabConstraintData::setMotor(int index, hkpConstraintMotor *newMotor)
 		//hkReferencedObject_addReference(newMotor);
 		hkReferencedObject_addReference((hkReferencedObject *)newMotor);
 	}
-	hkpConstraintMotor *&motor = m_atoms.m_ragdollMotors.m_motors[index];
+	hkpConstraintMotor *&motor = index < 3 ? m_atoms.m_ragdollMotors.m_motors[index] : (index == 3 ? m_atoms.m_linearMotor0.m_motor : (index == 4 ? m_atoms.m_linearMotor1.m_motor : m_atoms.m_linearMotor2.m_motor));
 	if (motor) {
 		//hkReferencedObject_removeReference(motor);
 		hkReferencedObject_removeReference((hkReferencedObject *)motor);
@@ -146,12 +184,19 @@ void GrabConstraintData::setMotor(int index, hkpConstraintMotor *newMotor)
 void GrabConstraintData::setMotorsActive(hkpConstraintInstance *instance, hkBool toBeEnabled)
 {
 	m_atoms.m_ragdollMotors.m_isEnabled = toBeEnabled;
+	m_atoms.m_linearMotor0.m_isEnabled = toBeEnabled;
+	m_atoms.m_linearMotor1.m_isEnabled = toBeEnabled;
+	m_atoms.m_linearMotor2.m_isEnabled = toBeEnabled;
 	if (!toBeEnabled) {
 		if (hkConstraintInternal *constraintInternal = instance->getInternal()) {
 			if (Runtime *runtime = getRuntime(constraintInternal->m_runtime)) {
 				runtime->m_solverResults[SOLVER_RESULT_MOTOR_0].init();
 				runtime->m_solverResults[SOLVER_RESULT_MOTOR_1].init();
 				runtime->m_solverResults[SOLVER_RESULT_MOTOR_2].init();
+
+				runtime->m_solverResults[SOLVER_RESULT_MOTOR_3].init();
+				runtime->m_solverResults[SOLVER_RESULT_MOTOR_4].init();
+				runtime->m_solverResults[SOLVER_RESULT_MOTOR_5].init();
 			}
 		}
 	}
