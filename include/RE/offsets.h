@@ -419,3 +419,6 @@ extern RelocAddr<_TESRace_IsBeast> TESRace_IsBeast;
 
 typedef bool(*_Actor_IsGhost)(Actor* _this);
 extern RelocAddr<_Actor_IsGhost> Actor_IsGhost;
+
+typedef bool(*_Actor_GetMount)(Actor *_this, NiPointer<Actor> &mount);
+extern RelocAddr<_Actor_GetMount> Actor_GetMount;

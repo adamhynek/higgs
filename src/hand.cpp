@@ -337,11 +337,8 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &s
 	NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint)
 {
 	PlayerCharacter *player = *g_thePlayer;
-	UInt32 horseHandle = *(UInt32 *)((UInt64)player + 0x1014);
-	NiPointer<TESObjectREFR> lastRiddenHorse;
-	if (!LookupREFRByHandle(horseHandle, lastRiddenHorse)) {
-		lastRiddenHorse = nullptr;
-	}
+
+	NiPointer<Actor> lastRiddenHorse; Actor_GetMount(player, lastRiddenHorse);
 
 	hkpConvexShape *sphereShape = (hkpConvexShape *)sphere->phantom->m_collidable.m_shape;
 	// Save sphere properties so we can change them and restore them later
