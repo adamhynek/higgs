@@ -265,6 +265,9 @@ extern RelocAddr<_hkMatrix3_setMul> hkMatrix3_setMul;
 typedef bool(*_hkpPositionConstraintMotor_ctor)(hkpPositionConstraintMotor *_this);
 extern RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ctor;
 
+typedef bool(*_bhkPositionConstraintMotor_ctor)(hkpPositionConstraintMotor *_this);
+extern RelocAddr<_bhkPositionConstraintMotor_ctor> bhkPositionConstraintMotor_ctor;
+
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);
 extern RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell;

@@ -38,6 +38,7 @@ inline T get_vfunc(void *object, UInt64 index)
 NiAVObject * GetHighestParent(NiAVObject *node);
 NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform = false);
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);
+NiTransform GetRigidBodyTLocalTransform(bhkRigidBody *rigidBody);
 void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform);
 void UpdateBoneMatrices(NiAVObject *obj);
 

@@ -156,15 +156,15 @@ namespace Config {
 		bool enableShadowUpdateFix = true;
 		int maxNumEntitiesPerSimulationIslandToCheck = 50;
 		float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
-
-		float grabConstraintTau = 0.8f;
-		float grabConstraintMaxForce = 100.f;
+		
+		float grabConstraintTau = 0.3f;
+		float grabConstraintMaxForce = 200.f;
 		float grabConstraintProportionalRecoveryVelocity = 2.f;
 		float grabConstraintConstantRecoveryVelocity = 1.f;
 		float grabConstraintDamping = 0.8f;
 
 		float grabConstraintLinearTau = 0.8f;
-		float grabConstraintLinearMaxForce = 250.f;
+		float grabConstraintLinearMaxForce = 2000.f;
 		float grabConstraintLinearProportionalRecoveryVelocity = 2.f;
 		float grabConstraintLinearConstantRecoveryVelocity = 1.f;
 		float grabConstraintLinearDamping = 0.8f;

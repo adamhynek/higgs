@@ -299,9 +299,6 @@ struct Hand
 
 	NiPoint3 prevPlayerPosWorldspace{};
 
-	NiPoint3 prevHeldObjPosPlayerspace{};
-	NiPoint3 prevHeldObjVelocityPlayerspace{};
-
 	std::vector<TriangleData> triangles{}; // tris are in worldspace
 
 	bool idleDesired = false;

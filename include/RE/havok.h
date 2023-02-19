@@ -59,17 +59,17 @@ struct bhkRefObject : NiObject
 
 struct bhkSerializable : bhkRefObject
 {
-	virtual ahkpWorld* GetHavokWorld_1(); // 27
-	virtual ahkpWorld* GetHavokWorld_2(); // 28
+	virtual ahkpWorld * GetHavokWorld_1(); // 27
+	virtual ahkpWorld * GetHavokWorld_2(); // 28
 	virtual void	  MoveToWorld(struct bhkWorld *world); // 29
 	virtual void	  RemoveFromCurrentWorld(); // 2A
-	virtual void	  Unk_2B(void); // 2B
+	virtual void	  DestroyCinfo(bool destroy); // 2B
 	virtual void	  Unk_2C(void); // 2C
 	virtual void	  Unk_2D(void); // 2D
 	virtual void	  InitHavokFromCinfo(void *cInfo); // 2E
-	virtual void	  GetSerializable(void); // 2F
-	virtual void	  Unk_30(void); // 30
-	virtual void	  Unk_31(void); // 31
+	virtual void *    GetOrCreateCinfo(bool &didCreateCinfo); // 2F
+	virtual void	  Destroy(); // 30
+	virtual void	  Unk_31(void *cInfo); // 31
 };
 
 struct bhkWorld : bhkSerializable
@@ -112,7 +112,7 @@ static_assert(sizeof(bhkBoxShape) == 0x28);
 
 struct bhkConstraint : bhkSerializable
 {
-	RE::hkRefPtr <hkpConstraintInstance> constraint; // 10
+	RE::hkRefPtr<hkpConstraintInstance> constraint; // 10
 	struct hkConstraintCinfo *cinfo; // 18
 };
 

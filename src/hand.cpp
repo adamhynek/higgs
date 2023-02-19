@@ -1435,13 +1435,18 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			NiTransform handTransformHandSpace = NiTransform{};
 			handTransformHandSpace.pos = HkVectorToNiPoint(pivotA);
 
-			NiTransform handTransformObjSpace = InverseTransform(desiredNodeTransformHandSpace);
+			NiTransform desiredHavokTransformHandSpace = desiredNodeTransformHandSpace * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
+			NiTransform handTransformObjSpace = InverseTransform(desiredHavokTransformHandSpace);
 			handTransformObjSpace.pos = HkVectorToNiPoint(pivotB);
 
 			// TODO: Gradually (but rather quickly) ramp up maxForce of the constraint?
 			// Ideas:
 			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
 			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
+
+			// TODO: Something is off with some objects (bad rotation or translation - translation is worse when we do the constant updating during the state machine as well). Probably bhkRigidBodyT.
+
+			// TODO: Increase max force when the player is undergoing acceleration (basically to simulate the body itself applying force), e.g. when starting/stopping to move
 
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
@@ -2412,31 +2417,30 @@ void Hand::Update(Hand &other, bhkWorld *world)
 				Deselect();
 			}
 			else if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
-				if (g_isVrikPresent) {
+				NiPointer<NiAVObject> tpHandNode = other.GetThirdPersonHandNode();
+				NiPointer<NiAVObject> tpWeaponNode = other.GetWeaponNode(true);
+
+				if (g_isVrikPresent && tpHandNode && tpWeaponNode) {
 					// This hook is before vrik, so vrik's transforms are out of date.
 					// We compute where the vrik transform will be this frame, update the node, then compute hand/finger positioning and restore the old transforms.
 
-					NiPointer<NiAVObject> fpHandNode = other.GetFirstPersonHandNode();
-					NiPointer<NiAVObject> tpHandNode = other.GetThirdPersonHandNode();
-					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true);
-
-					NiTransform thisFrameVrikHandTransform = fpHandNode->m_worldTransform;
+					NiTransform thisFrameVrikHandTransform = handNode->m_worldTransform;
 					thisFrameVrikHandTransform.scale = tpHandNode->m_worldTransform.scale;
 
 					NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * other.thirdPersonHandToWeaponTransform;
-					NiTransform currentWeaponLocalTransform = weaponNode->m_localTransform;
+					NiTransform currentWeaponLocalTransform = tpWeaponNode->m_localTransform;
 
-					UpdateNodeTransformLocal(weaponNode, thisFrameWeaponTransform);
+					UpdateNodeTransformLocal(tpWeaponNode, thisFrameWeaponTransform);
 					NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-					NiAVObject_UpdateNode(weaponNode, &ctx);
+					NiAVObject_UpdateNode(tpWeaponNode, &ctx);
 
-					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
-					weaponNode->m_localTransform = currentWeaponLocalTransform;
-					NiAVObject_UpdateNode(weaponNode, &ctx);
+					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, tpWeaponNode, otherHandEquippedWeap);
+					tpWeaponNode->m_localTransform = currentWeaponLocalTransform;
+					NiAVObject_UpdateNode(tpWeaponNode, &ctx);
 				}
 				else {
-					NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
-					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, weaponNode, otherHandEquippedWeap);
+					NiPointer<NiAVObject> fpWeaponNode = other.GetWeaponNode(false);
+					TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, fpWeaponNode, otherHandEquippedWeap);
 				}
 
 				grabRequested = false;
@@ -3386,101 +3390,23 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					UpdateHandTransform(adjustedHandTransform);
 
 					if (grabConstraint) {
-						GrabConstraintData *constraintData = (GrabConstraintData *)grabConstraint->constraint->getData();
-						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(inverseDesired.rot));
+						NiTransform desiredTransformHandSpace = desiredNodeTransformHandSpace * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
+						NiTransform inverseDesiredHavok = InverseTransform(desiredTransformHandSpace);
 
-						// inverseDesired is the hand's transform in the space of the grabbed object
-						NiPoint3 newPivotB = (inverseDesired * palmPosHandspace) * havokWorldScale;
+						GrabConstraintData *constraintData = (GrabConstraintData *)grabConstraint->constraint->getData();
+						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(inverseDesiredHavok.rot));
+
+						// inverseDesiredHavok is the hand's transform in the space of the grabbed object
+						// TODO: This appears to be broken for bhkRigidBodyT
+						NiPoint3 newPivotB = (inverseDesiredHavok * palmPosHandspace) * havokWorldScale;
 						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 					}
 
-					// Update object velocity to go where we want it
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-					NiTransform newTransform = handTransform * desiredNodeTransformHandSpace;
-
-					if (bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(selectedObject.rigidBody.m_pObject, bhkRigidBody, bhkRigidBodyT)) {
-						NiTransform rigidBodyLocalTransform{};
-						rigidBodyLocalTransform.pos = HkVectorToNiPoint(rigidBodyT->translation) * *g_inverseHavokWorldScale;
-						rigidBodyLocalTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(rigidBodyT->rotation));
-
-						newTransform = newTransform * rigidBodyLocalTransform;
-					}
-
-					NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
-
-					NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
-					desiredPos += playerHkVelocity * *g_deltaTime;
-
-					hkRotation desiredRot; NiMatrixToHkMatrix(newTransform.rot, desiredRot);
-					hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(desiredRot);
-
-					hkVector4 linearVelocity = selectedObject.rigidBody->hkBody->getLinearVelocity();
-					hkVector4 angularVelocity = selectedObject.rigidBody->hkBody->getAngularVelocity();
-					//hkpKeyFrameUtility_applyHardKeyFrame(NiPointToHkVector(desiredPos), desiredQuat, 1.0f / *g_deltaTime, selectedObject.rigidBody->hkBody);
 					
-					// Now, check if in general, the object has been moving as we want it to be. If it isn't, then it's likely blocked by something and so we need to damp its velocities.
-
-					NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
-					NiPoint3 currentVelocityPlayerspace = currentVelocity - playerHkVelocity;
-
-					NiPoint3 hkPlayerPos = player->pos * havokWorldScale;
-					NiPoint3 heldObjPosPlayerspace = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_sweptTransform.m_centerOfMass1) - hkPlayerPos;
-
-					// TODO: Check directionalized velocity progress, not just magnitude?
-
-					bool isNontrivialVelocity = VectorLength(currentVelocityPlayerspace) > Config::options.minVelocityToPotentiallyDamp;
-					bool isObjectPreventedFromMoving = VectorLength(heldObjPosPlayerspace - prevHeldObjPosPlayerspace) < Config::options.minDampedRequiredVelocityProportion * VectorLength(prevHeldObjVelocityPlayerspace) * *g_deltaTime;
-
-					bool shouldDamp = isNontrivialVelocity && isObjectPreventedFromMoving;
-
-					if (dampingState == DampingState::Undamped) {
-						if (!Config::options.disableDampedGrab && shouldDamp && (!selectedObject.isActor || !Config::options.disableDampedGrabForBodies)) {
-							dampingState = DampingState::PreDamp;
-							preDampTime = g_currentFrameTime;
-						}
-					}
-
-					if (dampingState == DampingState::PreDamp) {
-						if (shouldDamp) {
-							if (g_currentFrameTime - preDampTime > Config::options.preDampVelocityTime) {
-								dampingState = DampingState::Damped;
-							}
-						}
-						else {
-							dampingState = DampingState::Undamped;
-						}
-					}
-
-					if (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped) {
-						if (dampingState == DampingState::Damped) {
-							if (!shouldDamp) {
-								dampingState = DampingState::TryLeaveDamped;
-								tryLeaveDampedTime = g_currentFrameTime;
-							}
-						}
-						if (dampingState == DampingState::TryLeaveDamped) {
-							if (shouldDamp) {
-								dampingState = DampingState::Damped;
-							}
-							else {
-								if (g_currentFrameTime - tryLeaveDampedTime > Config::options.tryLeaveDampedTime) {
-									dampingState = DampingState::Undamped;
-								}
-							}
-						}
-
-						float speed = powf(VectorLength(currentVelocityPlayerspace), Config::options.dampedLinearVelocityExponent) * Config::options.dampedLinearVelocityMultiplier;
-						NiPoint3 newVelocityPlayerspace = VectorNormalized(currentVelocityPlayerspace) * speed;
-
-						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(newVelocityPlayerspace + playerHkVelocity);
-						//_MESSAGE("%s: Damped %.2f", name, speed);
-						// TODO: Damp angular velocity separately from linear velocity
-						NiPoint3 currentAngularVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity);
-						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(currentAngularVelocity * Config::options.dampedAngularVelocityMultiplier);
-					}
-
-					prevHeldObjPosPlayerspace = heldObjPosPlayerspace;
-					prevHeldObjVelocityPlayerspace = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity) - playerHkVelocity; // potentially damped - need to set here after keyframe and damping has occurred
+					/*NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
+					NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
+					desiredPos += playerHkVelocity * *g_deltaTime;*/
 
 					if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
 						haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
@@ -3828,9 +3754,10 @@ void Hand::PostVrikUpdate()
 
 			// Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
 			Hand &other = isLeft ? *g_rightHand : *g_leftHand;
-			NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true);
-			UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
-			NiAVObject_UpdateNode(weaponNode, &ctx);
+			if (NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true)) {
+				UpdateNodeTransformLocal(weaponNode, twoHandedState.prevWeaponTransform);
+				NiAVObject_UpdateNode(weaponNode, &ctx);
+			}
 		}
 	}
 

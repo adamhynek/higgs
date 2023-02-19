@@ -230,6 +230,16 @@ void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransfor
 	node->m_localTransform = GetLocalTransformForDesiredWorldTransform(node, worldTransform);
 }
 
+NiTransform GetRigidBodyTLocalTransform(bhkRigidBody *rigidBody)
+{
+	NiTransform rigidBodyLocalTransform{}; // identity
+	if (bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT)) {
+		rigidBodyLocalTransform.pos = HkVectorToNiPoint(rigidBodyT->translation) * *g_inverseHavokWorldScale;
+		rigidBodyLocalTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(rigidBodyT->rotation));
+	}
+	return rigidBodyLocalTransform;
+}
+
 void UpdateBoneMatrices(NiAVObject *obj)
 {
 	BSGeometry *geom = obj->GetAsBSGeometry();
@@ -261,14 +271,11 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 	ctx.delta = 0;
 	NiAVObject_UpdateNode(node, &ctx); // This will set the collision object's velocity as well
 
-	bhkCollisionObject *collisionObject = GetCollisionObject(node);
-	if (collisionObject) {
-		bhkBlendCollisionObject *blendCollisionObject = DYNAMIC_CAST(collisionObject, bhkCollisionObject, bhkBlendCollisionObject);
-		if (blendCollisionObject) {
+	if (bhkCollisionObject *collisionObject = GetCollisionObject(node)) {
+		if (bhkBlendCollisionObject *blendCollisionObject = DYNAMIC_CAST(collisionObject, bhkCollisionObject, bhkBlendCollisionObject)) {
 			// The bhkBlendCollisionObject update function does not have a case where it checks if it's keyframed (and thus would do a node->collision update instead of a collision->node update) like the bhkCollisionObject update does.
 			// So, I need to do it myself.
-			NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
-			if (rigidBody) {
+			if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node)) {
 				rigidBody->flags |= (1 << 6); // I'm not 100% sure what the true purpose of this flag is, but the bhkBlendCollisionObject update function skips updating the node from the collision if it's set, which is handy for me.
 				UpdateNodeTransformLocal(node, transform);
 				blendCollisionObject->UpdateCollisionFromNodeTransform();
@@ -276,19 +283,13 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 		}
 	}
 
-	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
-	if (rigidBody) {
+	if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node)) {
 		bhkRigidBody_setActivated(rigidBody, 1);
 
-		bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT);
-		if (rigidBodyT) {
+		if (bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT)) {
 			// bhkRigidBodyT means the collision object is offset from the node. Bethesda didn't code it correctly in the node update when using the velocity flag for this case, so I have to do it myself.
 
-			NiTransform rigidBodyLocalTransform;
-			rigidBodyLocalTransform.pos = HkVectorToNiPoint(rigidBodyT->translation) * *g_inverseHavokWorldScale;
-			rigidBodyLocalTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(rigidBodyT->rotation));
-
-			NiTransform rigidBodyTransform = transform * rigidBodyLocalTransform;
+			NiTransform rigidBodyTransform = transform * GetRigidBodyTLocalTransform(rigidBodyT);
 
 			NiPoint3 pos = rigidBodyTransform.pos;
 			NiQuaternion rot = MatrixToQuaternion(rigidBodyTransform.rot);
@@ -301,32 +302,6 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 	UpdateBoneMatrices(node); // Update skinned geometry on the object so that it's not a frame behind
 
 	ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false); // Gets shadows to update since keyframed nodes are not "dynamic" and so the game doesn't think they can move
-
-	//UpdateNodeTransformLocal(node, transform);
-
-	//// UpdateWithContext
-	/*
-	// UpdateCollisionFromNodeTransform
-	NiAVObject_RecalculateWorldTransform(node);
-
-	NiQuaternion rot;
-	NiMatrixToNiQuaternion(rot, transform.rot);
-	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(node);
-	if (rigidBody) {
-		bhkRigidBody_setActivated(rigidBody, 1);
-		bhkRigidBody_MoveToPositionAndRotation(rigidBody, transform.pos, rot);
-	}
-	//
-
-	NiAVObject_RecalculateWorldTransform(node);
-	////
-	*/
-	/*
-	bhkCollisionObject *collisionObject = GetCollisionObject(node);
-	if (collisionObject) {
-		bhkCollisionObject_SetNodeTransformsFromWorldTransform(collisionObject, transform);
-	}
-	*/
 }
 
 bool IsTwoHanded(const TESObjectWEAP *weap)

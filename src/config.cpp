@@ -360,6 +360,18 @@ namespace Config {
 		if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) success = false;
 		if (!RegisterFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) success = false;
 
+		if (!RegisterFloat("grabConstraintTau", options.grabConstraintTau)) success = false;
+		if (!RegisterFloat("grabConstraintMaxForce", options.grabConstraintMaxForce)) success = false;
+		if (!RegisterFloat("grabConstraintProportionalRecoveryVelocity", options.grabConstraintProportionalRecoveryVelocity)) success = false;
+		if (!RegisterFloat("grabConstraintConstantRecoveryVelocity", options.grabConstraintConstantRecoveryVelocity)) success = false;
+		if (!RegisterFloat("grabConstraintDamping", options.grabConstraintDamping)) success = false;
+
+		if (!RegisterFloat("grabConstraintLinearTau", options.grabConstraintLinearTau)) success = false;
+		if (!RegisterFloat("grabConstraintLinearMaxForce", options.grabConstraintLinearMaxForce)) success = false;
+		if (!RegisterFloat("grabConstraintLinearProportionalRecoveryVelocity", options.grabConstraintLinearProportionalRecoveryVelocity)) success = false;
+		if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
+		if (!RegisterFloat("grabConstraintLinearDamping", options.grabConstraintLinearDamping)) success = false;
+
 		if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
 		if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;
 		if (!RegisterBool("DisableLooting", options.disableLooting)) success = false;

@@ -92,26 +92,6 @@ void GrabConstraintData::setInBodySpace(const hkTransform &transformA, const hkT
 	m_atoms.m_transforms.m_transformB = transformB;
 }
 
-void GrabConstraintData::setMaxLinearImpulse(hkReal maxImpulse)
-{
-	return;
-}
-
-hkReal GrabConstraintData::getMaxLinearImpulse() const
-{
-	return HK_REAL_MAX;
-}
-
-void GrabConstraintData::setBodyToNotify(int bodyIdx)
-{
-	return;
-}
-
-hkUint8 GrabConstraintData::getNotifiedBodyIndex() const
-{
-	return 0;
-}
-
 hkBool GrabConstraintData::isValid() const
 {
 	return true;
@@ -132,17 +112,6 @@ void GrabConstraintData::setSolvingMethod(hkpConstraintAtom::SolvingMethod metho
 	}
 }
 
-hkResult GrabConstraintData::getInertiaStabilizationFactor(hkReal &inertiaStabilizationFactorOut) const
-{
-	inertiaStabilizationFactorOut = 0.f;
-	return hkResult::HK_SUCCESS;
-}
-
-hkResult GrabConstraintData::setInertiaStabilizationFactor(const hkReal inertiaStabilizationFactorIn)
-{
-	return hkResult::HK_SUCCESS;
-}
-
 void GrabConstraintData::getConstraintInfo(hkpConstraintData::ConstraintInfo &infoOut) const
 {
 	hkpConstraintData_getConstraintInfoUtil(m_atoms.getAtoms(), m_atoms.getSizeOfAllAtoms(), infoOut);
@@ -152,7 +121,9 @@ void GrabConstraintData::getRuntimeInfo(hkBool wantRuntime, hkpConstraintData::R
 {
 	if (wantRuntime) {
 		infoOut.m_numSolverResults = SOLVER_RESULT_MAX;
-		infoOut.m_sizeOfExternalRuntime = sizeof(Runtime);
+		// sizeof(Runtime) is not enough apparently without crashing, and neither is sizeof(Runtime) aligned to the next 16 bytes.
+		// So just give it twice the memory as that seems to be fine.
+		infoOut.m_sizeOfExternalRuntime = sizeof(Runtime) * 2;
 	}
 	else {
 		infoOut.m_numSolverResults = 0;

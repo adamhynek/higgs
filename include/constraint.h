@@ -18,9 +18,9 @@ public:
 	}
 
 	inline void *operator new(hk_size_t, void *p) { return p; }
-	inline void *operator new[](hk_size_t, void *p) { HK_BREAKPOINT(0); return p; }
+	inline void *operator new[](hk_size_t, void *p) { ASSERT(false); return p; }
 	inline void operator delete(void *, void *) { }
-	inline void operator delete[](void *, void *) { HK_BREAKPOINT(0); }
+	inline void operator delete[](void *, void *) { ASSERT(false); }
 
 	GrabConstraintData();
 
@@ -32,17 +32,6 @@ public:
 
 	virtual void calcContentStatistics(hkStatisticsCollector *collector, const hkClass *cls) const { return; }
 
-	virtual void setMaxLinearImpulse(hkReal maxImpulse);
-
-	/// Gets the maximum impulse that can be applied by this constraint.
-	virtual hkReal getMaxLinearImpulse() const;
-
-	/// Choose the body to be notified when the constraint's maximum impulse is breached.
-	virtual void setBodyToNotify(int bodyIdx);
-
-	/// Returns the index of the body that is notified when the constraint's maximum impulse is breached.
-	virtual hkUint8 getNotifiedBodyIndex() const;
-
 	/// Check consistency of constraint members.
 	virtual hkBool isValid() const;
 
@@ -51,12 +40,6 @@ public:
 
 	/// Sets the solving method for this constraint. Use one of the hkpConstraintAtom::SolvingMethod as a value for method.
 	virtual void setSolvingMethod(hkpConstraintAtom::SolvingMethod method);
-
-	/// Gets the inertia stabilization factor, returns HK_FAILURE if the factor is not defined for the given constraint.
-	virtual hkResult getInertiaStabilizationFactor(hkReal &inertiaStabilizationFactorOut) const;
-
-	/// Sets the inertia stabilization factor, return HK_FAILURE if the factor is not defined for the given constraint.
-	virtual hkResult setInertiaStabilizationFactor(const hkReal inertiaStabilizationFactorIn);
 
 	//
 	//	Solver interface
@@ -83,9 +66,12 @@ public:
 		hkReal m_previousTargetAngles[3]; // 34
 
 		// for linear constraint motors
-		hkUint8 m_initializedLinear[3];
-		hkReal m_previousTargetPositions[3];
+		hkUint8 m_initializedLinear[3]; // 40
+		hkReal m_previousTargetPositions[3]; // 44
+
+		static inline int getSizeOfExternalRuntime() { return ((sizeof(Runtime) + 16) / 16) * 16; }
 	};
+	// size == 0x50
 
 	inline Runtime *getRuntime(hkpConstraintRuntime *runtime) { return reinterpret_cast<Runtime *>(runtime); }
 
