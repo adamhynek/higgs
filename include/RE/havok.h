@@ -10,6 +10,11 @@
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastCollectorOutput.h>
 #include <Physics/Collide/Shape/Compound/Tree/Mopp/hkpMoppBvTreeShape.h>
 #include <Physics/Dynamics/Collide/ContactListener/hkpContactPointEvent.h>
+#include <Physics/Utilities/CharacterControl/CharacterProxy/hkpCharacterProxy.h>
+#include <Physics/Utilities/CharacterControl/CharacterProxy/hkpCharacterProxyListener.h>
+#include <Physics/Utilities/CharacterControl/CharacterRigidBody/hkpCharacterRigidBodyListener.h>
+#include <Physics/Utilities/CharacterControl/CharacterRigidBody/hkpCharacterRigidBody.h>
+#include <Physics/Utilities/CharacterControl/StateMachine/hkpCharacterContext.h>
 
 #include "skse64_common/Relocation.h"
 #include "skse64/PapyrusVM.h"
@@ -250,6 +255,153 @@ struct bhkGroupConstraint : bhkConstraint
 };
 static_assert(sizeof(bhkGroupConstraint) == 0x28);
 
+
+struct bhkCharacterController : NiRefObject
+{
+	virtual void  GetPositionImpl(hkVector4 &a_pos, bool a_applyCenterOffset) const = 0; // 02
+	virtual void  SetPositionImpl(const hkVector4 &a_pos, bool a_applyCenterOffset, bool a_forceWarp) = 0; // 03
+	virtual void  GetTransformImpl(hkTransform &a_tranform) const = 0; // 04
+	virtual void  SetTransformImpl(const hkTransform &a_tranform) = 0; // 05
+	virtual void  GetLinearVelocityImpl(hkVector4 &a_velocity) const = 0; // 06
+	virtual void  SetLinearVelocityImpl(const hkVector4 &a_velocity) = 0; // 07
+	virtual void  GetCollisionFilterInfo(std::uint32_t &a_collisionFilterInfo) const = 0; // 08
+	virtual void  SetCollisionFilterInfo(std::uint32_t filterInfo) = 0; // 09
+	virtual void  Unk_0A(void) = 0; // 0A
+	virtual void  Integrate(void) = 0; // 0B
+	virtual void  FireMoveFinishEvent(void) = 0; // 0C
+	virtual void  CheckSupportImpl() = 0; // 0D
+	virtual void  MoveToWorld(bhkWorld *newWorld) = 0; // 0E
+	virtual bhkWorld *GetbhkWorld(void) = 0; // 0F
+	virtual hkpWorldObject *GetHavokWorldObject(void) = 0; // 10
+	virtual float GetVDBAlpha() const = 0; // 11
+	virtual void  Unk_12(void) = 0; // 12
+	virtual void  SetTransformThroughAngularVelocity(hkTransform &a_transform) = 0;
+
+	struct UpdateData
+	{
+		float deltaTime; // 00
+		NiPoint3 rot; // 04 - euler
+		NiPoint3 targetPos; // 10
+	};
+
+	struct CollisionEvent
+	{
+		NiPointer<bhkRigidBody> body; // 00
+		// All 3 of these are multiplied by inverseHavokWorldScale
+		NiPoint3 position; // 08
+		NiPoint3 separatingNormal; // 14
+		NiPoint3 bodyVelocity; // 20
+	};
+	static_assert(sizeof(CollisionEvent) == 0x30);
+
+	UInt8 unk10[0x70 - 0x10];
+	hkVector4                                        forwardVec;                 // 070
+	hkStepInfo                                       stepInfo;                   // 080
+	hkVector4                                        outVelocity;                // 090
+	hkVector4                                        initialVelocity;            // 0A0
+	hkVector4                                        velocityMod;                // 0B0
+	hkVector4                                        direction;                  // 0C0
+	hkVector4                                        rotCenter;                  // 0D0
+	hkVector4                                        pushDelta;                  // 0E0
+	hkVector4                                        fakeSupportStart;           // 0F0
+	hkVector4                                        up;                         // 100
+	hkVector4                                        supportNorm;                // 110
+	UInt8                                            collisionBound[0x150 - 0x120];             // 120
+	UInt8                                            bumperCollisionBound[0x180 - 0x150];       // 150
+	std::uint64_t                                    unk180;                     // 180
+	std::uint64_t                                    unk188;                     // 188
+	struct bhkICharOrientationController *orientationCtrl;            // 190
+	std::uint64_t                                    pad198;                     // 198
+	hkpSurfaceInfo                                   surfaceInfo;                // 1A0
+	hkpCharacterContext                              context;                    // 1E0
+	UInt32                                           flags;                      // 218
+	hkpCharacterStateType                            wantState;                  // 21C
+	float                                            velocityTime;               // 220
+	float                                            rotMod;                     // 224
+	float                                            rotModTime;                 // 228
+	float                                            calculatePitchTimer;        // 22C
+	float                                            acrobatics;                 // 230
+	float                                            center;                     // 234
+	float                                            waterHeight;                // 238
+	float                                            jumpHeight;                 // 23C
+	float                                            fallStartHeight;            // 240
+	float                                            fallTime;                   // 244
+	float                                            gravity;                    // 248
+	float                                            pitchAngle;                 // 24C
+	float                                            rollAngle;                  // 250
+	float                                            pitchMult;                  // 254
+	float                                            scale;                      // 258
+	float                                            swimFloatHeight;            // 25C
+	float                                            actorHeight;                // 260
+	float                                            speedPct;                   // 264
+	std::uint32_t                                    pushCount;                  // 268
+	std::uint32_t                                    unk26C;                     // 26C
+	std::uint64_t                                    unk270;                     // 270
+	std::uint64_t                                    unk278;                     // 278
+	NiPointer<bhkShape>                              shapes[2];                  // 280
+	std::uint64_t                                    unk290;                     // 290
+	std::uint64_t                                    unk298;                     // 298
+	std::uint64_t                                    unk2A0;                     // 2A0
+	std::uint64_t                                    unk2A8;                     // 2A8
+	RE::hkRefPtr<hkpRigidBody>                       supportBody;                // 2B0
+	float                                            bumpedForce;                // 2B8
+	std::uint32_t                                    pad2BC;                     // 2BC
+	RE::hkRefPtr<hkpRigidBody>                       bumpedBody;                 // 2C0
+	RE::hkRefPtr<hkpRigidBody>                       bumpedCharCollisionObject;  // 2C8
+	UInt8                                            unk2D0[0x300 - 0x2D0];      // 2D0 - BSTHashMap<bhkRigidBody, CollisionEvent>
+	std::uint64_t                                    unk300;                     // 300
+	std::uint64_t                                    unk308;                     // 308
+	std::uint64_t                                    unk310;                     // 310
+	std::uint64_t                                    unk318;                     // 318
+	std::uint64_t                                    unk320;                     // 320
+	std::uint64_t                                    unk328;                     // 328
+};
+static_assert(offsetof(bhkCharacterController, context) == 0x1E0);
+static_assert(sizeof(bhkCharacterController) == 0x330);
+
+class bhkCharacterPointCollector : public hkpAllCdPointCollector
+{
+	UInt64 unk220;  // 220
+	UInt64 unk228;  // 228
+	UInt64 unk230;  // 230
+	UInt64 unk238;  // 238
+};
+static_assert(sizeof(bhkCharacterPointCollector) == 0x240);
+
+struct bhkCharacterProxy : bhkSerializable
+{
+	RE::hkRefPtr<hkpCharacterProxy> characterProxy; // 10
+	UInt64 unk18;
+	bhkCharacterPointCollector ignoredCollisionStartCollector; // 020
+};
+
+struct bhkCharacterRigidBody : bhkSerializable
+{
+	RE::hkRefPtr <hkpCharacterRigidBody> characterRigidBody; // 10
+	UInt64 unk18;
+	bhkRigidBody *rigidBody; // 20
+	NiAVObject *unk28; // 28 - MarkerX ??
+	bhkCharacterPointCollector ignoredCollisionStartCollector;  // 30
+};
+static_assert(offsetof(bhkCharacterRigidBody, ignoredCollisionStartCollector) == 0x30);
+
+struct bhkCharProxyController :
+	hkpCharacterProxyListener, // 000
+	bhkCharacterController // 010
+{
+	bhkCharacterProxy proxy; // 340
+};
+static_assert(offsetof(bhkCharProxyController, proxy) == 0x340);
+
+struct bhkCharRigidBodyController :
+	bhkCharacterController, // 00
+	hkpCharacterRigidBodyListener // 330
+{
+	bhkCharacterRigidBody characterRigidBody; // 340
+};
+static_assert(offsetof(bhkCharRigidBodyController, characterRigidBody) == 0x340);
+
+
 hkMemoryRouter &hkGetMemoryRouter();
 inline void *hkHeapAlloc(int numBytes) { return hkGetMemoryRouter().heap().blockAlloc(numBytes); }
 
@@ -263,3 +415,7 @@ T * hkAllocReferencedObject() {
 bhkGroupConstraint *CreateBallAndSocketConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);
 bhkGroupConstraint *CreateBallAndSocketConstraint2(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiPoint3 &pivotA, NiPoint3 &pivotB);
 bhkGroupConstraint *CreateGrabConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody *rigidBodyB, NiTransform &transformA, NiTransform &transformB);
+
+NiPointer<bhkCharacterController> GetCharacterController(Actor *actor);
+NiPointer<bhkCharRigidBodyController> GetCharRigidBodyController(Actor *actor);
+NiPointer<bhkCharProxyController> GetCharProxyController(Actor *actor);

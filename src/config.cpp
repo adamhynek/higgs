@@ -360,11 +360,11 @@ namespace Config {
 		if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) success = false;
 		if (!RegisterFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) success = false;
 
-		if (!RegisterFloat("grabConstraintTau", options.grabConstraintTau)) success = false;
-		if (!RegisterFloat("grabConstraintMaxForce", options.grabConstraintMaxForce)) success = false;
-		if (!RegisterFloat("grabConstraintProportionalRecoveryVelocity", options.grabConstraintProportionalRecoveryVelocity)) success = false;
-		if (!RegisterFloat("grabConstraintConstantRecoveryVelocity", options.grabConstraintConstantRecoveryVelocity)) success = false;
-		if (!RegisterFloat("grabConstraintDamping", options.grabConstraintDamping)) success = false;
+		if (!RegisterFloat("grabConstraintAngularTau", options.grabConstraintAngularTau)) success = false;
+		if (!RegisterFloat("grabConstraintAngularMaxForce", options.grabConstraintAngularMaxForce)) success = false;
+		if (!RegisterFloat("grabConstraintAngularProportionalRecoveryVelocity", options.grabConstraintAngularProportionalRecoveryVelocity)) success = false;
+		if (!RegisterFloat("grabConstraintAngularConstantRecoveryVelocity", options.grabConstraintAngularConstantRecoveryVelocity)) success = false;
+		if (!RegisterFloat("grabConstraintAngularDamping", options.grabConstraintAngularDamping)) success = false;
 
 		if (!RegisterFloat("grabConstraintLinearTau", options.grabConstraintLinearTau)) success = false;
 		if (!RegisterFloat("grabConstraintLinearMaxForce", options.grabConstraintLinearMaxForce)) success = false;

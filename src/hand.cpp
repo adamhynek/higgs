@@ -3383,7 +3383,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}
 				else {
-					// Not too far away. Update hand to object and set object velocity to target.
+					// Not too far away. Update hand to object and update constraint params to match the current grab transform.
 					UpdateHandTransform(adjustedHandTransform);
 
 					if (grabConstraint) {
@@ -3394,9 +3394,15 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(inverseDesiredHavok.rot));
 
 						// inverseDesiredHavok is the hand's transform in the space of the grabbed object
-						// TODO: This appears to be broken for bhkRigidBodyT
+						// TODO: This appears to be broken for bhkRigidBodyT - or no, is it just for scaled objects?
 						NiPoint3 newPivotB = (inverseDesiredHavok * palmPosHandspace) * havokWorldScale;
 						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
+
+						if (NiPointer<bhkCharProxyController> controller = GetCharProxyController(*g_thePlayer)) {
+							if (hkpCharacterProxy *proxy = controller->proxy.characterProxy) {
+								// TODO: Get velocity, compare to previous to compute acceleration, and adjust constraint linear max force based on this.
+							}
+						}
 					}
 
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);

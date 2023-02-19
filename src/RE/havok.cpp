@@ -4,6 +4,7 @@
 #include "RE/offsets.h"
 #include "constraint.h"
 #include "utils.h"
+#include "skse64/GameRTTI.h"
 
 hkMemoryRouter &hkGetMemoryRouter()
 {
@@ -110,4 +111,31 @@ bhkGroupConstraint *CreateGrabConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody 
 	constraintData->setMotorsActive(constraint->constraint, true);
 
 	return constraint;
+}
+
+NiPointer<bhkCharacterController> GetCharacterController(Actor *actor)
+{
+	ActorProcessManager *process = actor->processManager;
+	if (!process) return nullptr;
+
+	MiddleProcess *middleProcess = process->middleProcess;
+	if (!middleProcess) return nullptr;
+
+	return *((NiPointer<bhkCharacterController> *) & middleProcess->unk250);
+}
+
+NiPointer<bhkCharRigidBodyController> GetCharRigidBodyController(Actor *actor)
+{
+	NiPointer<bhkCharacterController> controller = GetCharacterController(actor);
+	if (!controller) return nullptr;
+
+	return DYNAMIC_CAST(controller, bhkCharacterController, bhkCharRigidBodyController);
+}
+
+NiPointer<bhkCharProxyController> GetCharProxyController(Actor *actor)
+{
+	NiPointer<bhkCharacterController> controller = GetCharacterController(actor);
+	if (!controller) return nullptr;
+
+	return DYNAMIC_CAST(controller, bhkCharacterController, bhkCharProxyController);
 }

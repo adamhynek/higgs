@@ -157,11 +157,11 @@ namespace Config {
 		int maxNumEntitiesPerSimulationIslandToCheck = 50;
 		float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
 		
-		float grabConstraintTau = 0.3f;
-		float grabConstraintMaxForce = 200.f;
-		float grabConstraintProportionalRecoveryVelocity = 2.f;
-		float grabConstraintConstantRecoveryVelocity = 1.f;
-		float grabConstraintDamping = 0.8f;
+		float grabConstraintAngularTau = 0.3f;
+		float grabConstraintAngularMaxForce = 200.f;
+		float grabConstraintAngularProportionalRecoveryVelocity = 2.f;
+		float grabConstraintAngularConstantRecoveryVelocity = 1.f;
+		float grabConstraintAngularDamping = 0.8f;
 
 		float grabConstraintLinearTau = 0.8f;
 		float grabConstraintLinearMaxForce = 2000.f;
