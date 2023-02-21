@@ -165,6 +165,7 @@ namespace Config {
 
 		float grabConstraintLinearTau = 0.8f;
 		float grabConstraintLinearMaxForce = 2000.f;
+		float grabConstraintLinearMaxForcePerPlayerAcceleration = 50.f;
 		float grabConstraintLinearProportionalRecoveryVelocity = 2.f;
 		float grabConstraintLinearConstantRecoveryVelocity = 1.f;
 		float grabConstraintLinearDamping = 0.8f;

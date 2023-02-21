@@ -298,6 +298,8 @@ struct Hand
 	NiTransform thirdPersonHandToWeaponTransform{};
 
 	NiPoint3 prevPlayerPosWorldspace{};
+	NiPoint3 prevPlayerVelocityWorldspace{};
+	NiPoint3 playerAcceleration{};
 
 	std::vector<TriangleData> triangles{}; // tris are in worldspace
 
@@ -331,8 +333,6 @@ struct Hand
 
 	State state = State::Idle;
 	State prevState = State::Idle;
-
-	DampingState dampingState = DampingState::Undamped;
 
 	InputState inputState = InputState::Idle;
 	bool inputTrigger = false;

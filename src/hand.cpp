@@ -60,7 +60,7 @@ void Hand::TriggerCollisionHaptics(float mass, float speed)
 	float hapticStrength = Config::options.collisionBaseHapticStrength + speedComponent + massComponent;
 	hapticStrength = min(1.0f, hapticStrength);
 
-	if (state == State::HeldBody && (dampingState == DampingState::Damped || dampingState == DampingState::TryLeaveDamped)) {
+	if (state == State::HeldBody) {
 		hapticStrength *= Config::options.dampedCollisionHapticStrengthMultiplier;
 		hapticStrength = std::clamp(hapticStrength, Config::options.collisionBaseHapticStrength, 1.0f); // don't let it go below the base strength
 	}
@@ -1451,8 +1451,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			grabConstraint = constraint;
 		}
 
-		dampingState = DampingState::Undamped;
-
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
 		state = usePhysicsGrab ? State::HeldBody : State::HeldInit;
@@ -2055,6 +2053,15 @@ void Hand::Update(Hand &other, bhkWorld *world)
 	playerVelocitiesWorldspace.push_front(playerVelocityWorldspace);
 	avgPlayerVelocityWorldspace = std::accumulate(playerVelocitiesWorldspace.begin(), playerVelocitiesWorldspace.end(), NiPoint3()) / playerVelocitiesWorldspace.size();
 	avgPlayerSpeedWorldspace = VectorLength(avgPlayerVelocityWorldspace);
+
+	if (NiPointer<bhkCharProxyController> controller = GetCharProxyController(*g_thePlayer)) {
+		if (hkpCharacterProxy* proxy = controller->proxy.characterProxy) {
+			// Get velocity, compare to previous to compute acceleration, and adjust constraint linear max force based on this.
+			NiPoint3 currentPlayerVelocity = HkVectorToNiPoint(proxy->m_velocity);
+			playerAcceleration = (currentPlayerVelocity - prevPlayerVelocityWorldspace) / *g_deltaTime;;
+			prevPlayerVelocityWorldspace = currentPlayerVelocity;
+		}
+	}
 
 	if (g_currentFrameTime - pulledTime > pulledExpireTime) {
 		EndPull();
@@ -3398,11 +3405,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						NiPoint3 newPivotB = (inverseDesiredHavok * palmPosHandspace) * havokWorldScale;
 						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 
-						if (NiPointer<bhkCharProxyController> controller = GetCharProxyController(*g_thePlayer)) {
-							if (hkpCharacterProxy *proxy = controller->proxy.characterProxy) {
-								// TODO: Get velocity, compare to previous to compute acceleration, and adjust constraint linear max force based on this.
-							}
-						}
+						// set max force of the constraint proportional to the player acceleration
+						hkpLimitedForceConstraintMotor* motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
+						float playerAccelerationAmount = VectorLength(playerAcceleration);
+						motor->m_maxForce = Config::options.grabConstraintLinearMaxForce + playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
 					}
 
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
