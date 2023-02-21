@@ -271,8 +271,6 @@ void Update()
 	PlayerCharacter *player = *g_thePlayer;
 	if (!player || !player->GetNiNode()) return;
 
-	//Config::ReloadIfModified(); // TODO: Remove
-
 	g_currentFrameTime = GetTime();
 
 	TESObjectCELL *cell = player->parentCell;
@@ -283,6 +281,10 @@ void Update()
 		_MESSAGE("Could not get havok world from player cell");
 		return;
 	}
+
+#ifdef _DEBUG
+	Config::ReloadIfModified();
+#endif // _DEBUG
 
 	if (world != g_physicsListener.world) {
 		if (NiPointer<bhkWorld> oldWorld = g_physicsListener.world) {

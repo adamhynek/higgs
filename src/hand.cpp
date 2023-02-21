@@ -2428,7 +2428,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					// This hook is before vrik, so vrik's transforms are out of date.
 					// We compute where the vrik transform will be this frame, update the node, then compute hand/finger positioning and restore the old transforms.
 
-					NiTransform thisFrameVrikHandTransform = handNode->m_worldTransform;
+					NiPointer<NiAVObject> fpHandNode = other.GetFirstPersonHandNode();
+
+					NiTransform thisFrameVrikHandTransform = fpHandNode->m_worldTransform;
 					thisFrameVrikHandTransform.scale = tpHandNode->m_worldTransform.scale;
 
 					NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * other.thirdPersonHandToWeaponTransform;
