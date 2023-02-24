@@ -3370,10 +3370,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 		NiPointer<TESObjectREFR> selectedObj;
 		if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
 			if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
-				double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
-				float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
-				float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
-				fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+				{
+					double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
+					float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
+					float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
+					fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+				}
 
 				selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
@@ -3390,6 +3392,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}
 				else {
+					double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabInitTime;
+					if (elapsedTimeFraction < 1.0) {
+						adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
+					}
+
 					// Not too far away. Update hand to object and update constraint params to match the current grab transform.
 					UpdateHandTransform(adjustedHandTransform);
 

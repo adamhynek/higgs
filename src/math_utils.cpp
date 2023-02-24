@@ -350,6 +350,15 @@ NiQuaternion slerp(const NiQuaternion &qa, const NiQuaternion &qb, double t)
 	return qm;
 }
 
+NiTransform lerp(NiTransform& a, NiTransform& b, double t)
+{
+	NiTransform lerped{};
+	lerped.pos = lerp(a.pos, b.pos, t);
+	lerped.scale = lerp(a.scale, b.scale, t);
+	lerped.rot = QuaternionToMatrix(slerp(MatrixToQuaternion(a.rot), MatrixToQuaternion(b.rot), t));
+	return lerped;
+}
+
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed)
 {
 	NiQuaternion currentQuat = MatrixToQuaternion(currentTransform.rot);
