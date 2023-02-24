@@ -1443,8 +1443,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
 			// TODO: Something is off with some objects (bad rotation or translation - translation is worse when we do the constant updating during the state machine as well). Probably bhkRigidBodyT.
 
-			// TODO: Increase max force when the player is undergoing acceleration (basically to simulate the body itself applying force), e.g. when starting/stopping to move
-
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
 			bhkWorld_AddConstraint(&world, constraint->constraint);
@@ -2653,24 +2651,24 @@ void Hand::Update(Hand &other, bhkWorld *world)
 								grabConstraint = nullptr;
 							}
 						}
-						if (state == State::Held || state == State::HeldInit) {
+						else if (state == State::Held || state == State::HeldInit) {
 							selectedObject.rigidBody->flags = selectedObject.savedRigidBodyFlags;
 							ResetCollisionInfoDownstream(objRoot, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
 							ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
+
+							/* This should work to get inertia about the rotation axis, but I don't know if there's a good thing to do with it
+							hkMatrix3 hkInertiaTensor;
+							NiMatrix33 inertiaTensor;
+							selectedObject.rigidBody->hkBody->getInertiaWorld(hkInertiaTensor);
+							HkMatrixToNiMatrix(hkInertiaTensor, inertiaTensor);
+							float inertiaInPlane = DotProduct(inertiaTensor * axis, axis);
+							//_MESSAGE("Inertia: %.3f", inertiaInPlane);
+							*/
+
+							bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+							selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
+							selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(angularVelocity);
 						}
-
-						/* This should work to get inertia about the rotation axis, but I don't know if there's a good thing to do with it
-						hkMatrix3 hkInertiaTensor;
-						NiMatrix33 inertiaTensor;
-						selectedObject.rigidBody->hkBody->getInertiaWorld(hkInertiaTensor);
-						HkMatrixToNiMatrix(hkInertiaTensor, inertiaTensor);
-						float inertiaInPlane = DotProduct(inertiaTensor * axis, axis);
-						//_MESSAGE("Inertia: %.3f", inertiaInPlane);
-						*/
-
-						bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-						selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(totalVelocity);
-						selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(angularVelocity);
 
 						if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableDropEvents) {
 							// Object dropped at the mouth
