@@ -402,6 +402,8 @@ namespace Config {
 		if (!RegisterBool("OverrideActivateText", options.overrideActivateText)) success = false;
 		if (!RegisterBool("UseAttachPointForInitialGrab", options.useAttachPointForInitialGrab)) success = false;
 
+		if (!RegisterBool("dontAnimateFingersWhenBeast", options.dontAnimateFingersWhenBeast)) success = false;
+
 		if (!RegisterBool("DelayRightGripInput", options.delayRightGripInput)) success = false;
 		if (!RegisterBool("DelayLeftGripInput", options.delayLeftGripInput)) success = false;
 

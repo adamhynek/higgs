@@ -324,13 +324,14 @@ void PostVRIKPCUpdateHook()
 	g_rightHand->PostVrikUpdate();
 	g_leftHand->PostVrikUpdate();
 
-	if (g_isVrikPresent) {
-		g_rightHand->RestoreHandTransform();
-		g_leftHand->RestoreHandTransform();
+	if (Config::options.dontAnimateFingersWhenBeast && TESRace_IsBeast(Actor_GetRace(*g_thePlayer))) {
+		g_rightHand->fingerAnimator.animate = false;
+		g_leftHand->fingerAnimator.animate = false;
 	}
-
-	g_rightHand->fingerAnimator.Update();
-	g_leftHand->fingerAnimator.Update();
+	else {
+		g_rightHand->fingerAnimator.Update();
+		g_leftHand->fingerAnimator.Update();
+	}
 
 	HiggsPluginAPI::TriggerPostVrikPostHiggsCallbacks();
 }

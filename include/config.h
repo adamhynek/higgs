@@ -205,6 +205,8 @@ namespace Config {
 		bool overrideActivateText = true;
 		bool useAttachPointForInitialGrab = true;
 
+		bool dontAnimateFingersWhenBeast = true;
+
 		NiPoint3 palmVector = { -0.018, -0.965, 0.261 };
 		NiPoint3 pointingVector = { 0, 0, 1 };
 		NiPoint3 palmPosition = { 0, -2.4, 6 }; // in handspace, skyrim units
