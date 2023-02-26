@@ -381,13 +381,13 @@ void HiggsInterface001::SetHiggsLayerBitfield(UInt64 bitfield)
 NiTransform HiggsInterface001::GetGrabTransform(bool isLeft)
 {
 	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
-	return hand.desiredNodeTransformHandSpace;
+	return hand.GetGrabTransform();
 }
 
 void HiggsInterface001::SetGrabTransform(bool isLeft, const NiTransform &transform)
 {
 	Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
-	hand.desiredNodeTransformHandSpace = transform;
+	hand.SetGrabTransform(transform);
 }
 
 bool HiggsInterface001::IsHoldingObject(bool isLeft)

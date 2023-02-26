@@ -121,9 +121,7 @@ void GrabConstraintData::getRuntimeInfo(hkBool wantRuntime, hkpConstraintData::R
 {
 	if (wantRuntime) {
 		infoOut.m_numSolverResults = SOLVER_RESULT_MAX;
-		// sizeof(Runtime) is not enough apparently without crashing, and neither is sizeof(Runtime) aligned to the next 16 bytes.
-		// So just give it twice the memory as that seems to be fine.
-		infoOut.m_sizeOfExternalRuntime = sizeof(Runtime) * 2;
+		infoOut.m_sizeOfExternalRuntime = Runtime::getSizeOfExternalRuntime();
 	}
 	else {
 		infoOut.m_numSolverResults = 0;

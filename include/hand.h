@@ -200,7 +200,7 @@ struct Hand
 	float GetHandSize();
 	void UpdateHandTransform(NiTransform &worldTransform);
 	NiTransform GetGrabTransform();
-	void SetGrabTransform(NiTransform &transform);
+	void SetGrabTransform(const NiTransform &transform);
 	inline NiPoint3 GetPalmPositionWS(NiTransform &handTransform) { return handTransform * palmPosHandspace; }
 	NiPoint3 GetPalmVectorWS(NiMatrix33 &handRotation);
 	NiPoint3 GetPointingVectorWS(NiMatrix33 &handRotation);

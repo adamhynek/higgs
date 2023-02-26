@@ -69,7 +69,9 @@ public:
 		hkUint8 m_initializedLinear[3]; // 40
 		hkReal m_previousTargetPositions[3]; // 44
 
-		static inline int getSizeOfExternalRuntime() { return ((sizeof(Runtime) + 16) / 16) * 16; }
+		// sizeof(Runtime) is not enough apparently without crashing, and neither is sizeof(Runtime) aligned to the next 16 bytes.
+		// So just give it twice the memory as that seems to be fine.
+		static inline int getSizeOfExternalRuntime() { return sizeof(Runtime) * 2; }
 	};
 	// size == 0x50
 

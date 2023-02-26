@@ -663,8 +663,8 @@ void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 	hkpRigidBody *handCollBody = handBody->hkBody;
 	bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
 
-	if (state == State::HeldBody && selectedObject.isActor) {
-		// Don't have the hand collide while we're holding a body
+	if (state == State::HeldBody) {
+		// Don't have the hand collide while we're holding a physically-grabbed object
 		handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
 		if (!wasCollisionDisabled) {
 			BSWriteLocker lock(&world->worldLock);
@@ -1436,7 +1436,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			NiTransform handTransformObjSpace = InverseTransform(desiredHavokTransformHandSpace);
 			handTransformObjSpace.pos = HkVectorToNiPoint(pivotB);
 
-			// TODO: Gradually (but rather quickly) ramp up maxForce of the constraint?
 			// Ideas:
 			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
 			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
@@ -1965,7 +1964,7 @@ NiTransform Hand::GetGrabTransform()
 }
 
 
-void Hand::SetGrabTransform(NiTransform &transform)
+void Hand::SetGrabTransform(const NiTransform &transform)
 {
 	desiredNodeTransformHandSpace = transform;
 }
@@ -3392,9 +3391,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}
 				else {
-					double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabInitTime;
-					if (elapsedTimeFraction < 1.0) {
-						adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
+					{
+						double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabInitTime;
+						if (elapsedTimeFraction < 1.0) {
+							adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
+						}
 					}
 
 					// Not too far away. Update hand to object and update constraint params to match the current grab transform.
@@ -3415,6 +3416,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						// set max force of the constraint proportional to the player acceleration
 						hkpLimitedForceConstraintMotor* motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
 						float playerAccelerationAmount = VectorLength(playerAcceleration);
+
 						motor->m_maxForce = Config::options.grabConstraintLinearMaxForce + playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
 					}
 
