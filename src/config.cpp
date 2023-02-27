@@ -265,6 +265,9 @@ namespace Config {
 		if (!RegisterFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) success = false;
 		if (!RegisterFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) success = false;
 		if (!RegisterFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) success = false;
+		if (!RegisterFloat("twoHandedHandToHandAlignmentFactor", options.twoHandedHandToHandAlignmentFactor)) success = false;
+		if (!RegisterFloat("twoHandedHandToHandShiftFactor", options.twoHandedHandToHandShiftFactor)) success = false;
+		if (!RegisterFloat("twoHandedHandToHandRotationFactor", options.twoHandedHandToHandRotationFactor)) success = false;
 
 		if (!RegisterFloat("SelectedCloseFingerAnimMaxHandSpeed", options.selectedCloseFingerAnimMaxHandSpeed)) success = false;
 		if (!RegisterFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) success = false;

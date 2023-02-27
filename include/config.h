@@ -39,6 +39,9 @@ namespace Config {
 		float angularVelocityMultiplier = 0.6f;
 		float tangentialVelocityLimit = 5.0f;
 		float twoHandedRotationSnapSpeed = 1200.0f;
+		float twoHandedHandToHandAlignmentFactor = 1.f;
+		float twoHandedHandToHandShiftFactor = 0.5f;
+		float twoHandedHandToHandRotationFactor = 0.5f;
 
 		float selectedCloseFingerAnimMaxHandSpeed = 0.9f;
 		float selectedCloseFingerAnimValue = 0.9f;

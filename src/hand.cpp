@@ -3101,13 +3101,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 			float snapAngle = acosf(DotProductSafe(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
 			NiPoint3 snapAxis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
-			NiMatrix33 snapRotation = MatrixFromAxisAngle(snapAxis, snapAngle);
+			NiMatrix33 snapRotation = MatrixFromAxisAngle(snapAxis, snapAngle * Config::options.twoHandedHandToHandAlignmentFactor);
 			desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, snapRotation);
 
 			// Now move the weapon along the palm->palm axis such that each hand on the weapon is equidistant from where it is in real life
 			thisHandFromWeapon = desiredTransform * weaponToThisHand;
 			palmPosOnWeapon = GetPalmPositionWS(thisHandFromWeapon);
-			desiredTransform.pos += (palmPos - palmPosOnWeapon) * 0.5f;
+			desiredTransform.pos += (palmPos - palmPosOnWeapon) * Config::options.twoHandedHandToHandShiftFactor;
 
 			if (Config::options.offhandAffectsTwoHandedRotation) {
 				// Compute the angle in the palm-palm plane of the offhand's palm vector
@@ -3154,7 +3154,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					crosses41 = true;
 				}
 
-				float twistAngle = twistAngle180 * 0.5f;
+				float twistAngle = twistAngle180 * Config::options.twoHandedHandToHandRotationFactor;
 				if (twoHandedState.angleState == TwoHandedState::AngleState::None) {
 					if (crosses23) {
 						twoHandedState.angleState = TwoHandedState::AngleState::CrossPi;
@@ -3168,7 +3168,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						twoHandedState.angleState = TwoHandedState::AngleState::None;
 					}
 					else {
-						twistAngle = twistAngle360 * 0.5f; // continue same rotation past pi
+						twistAngle = twistAngle360 * Config::options.twoHandedHandToHandRotationFactor; // continue same rotation past pi
 					}
 				}
 				if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegativePi) {
@@ -3176,7 +3176,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						twoHandedState.angleState = TwoHandedState::AngleState::None;
 					}
 					else {
-						twistAngle = ConstrainAngleNegative360(twistAngle180) * 0.5f; // continue same rotation past -pi
+						twistAngle = ConstrainAngleNegative360(twistAngle180) * Config::options.twoHandedHandToHandRotationFactor; // continue same rotation past -pi
 					}
 				}
 				twistAngle *= palmDirectionOnWeaponOrthogonality;
