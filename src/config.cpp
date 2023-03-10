@@ -365,6 +365,7 @@ namespace Config {
 
 		if (!RegisterFloat("grabConstraintAngularTau", options.grabConstraintAngularTau)) success = false;
 		if (!RegisterFloat("grabConstraintAngularMaxForce", options.grabConstraintAngularMaxForce)) success = false;
+		if (!RegisterFloat("grabConstraintAngularMaxForceActor", options.grabConstraintAngularMaxForceActor)) success = false;
 		if (!RegisterFloat("grabConstraintAngularProportionalRecoveryVelocity", options.grabConstraintAngularProportionalRecoveryVelocity)) success = false;
 		if (!RegisterFloat("grabConstraintAngularConstantRecoveryVelocity", options.grabConstraintAngularConstantRecoveryVelocity)) success = false;
 		if (!RegisterFloat("grabConstraintAngularDamping", options.grabConstraintAngularDamping)) success = false;

@@ -3413,11 +3413,17 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						NiPoint3 newPivotB = (inverseDesiredHavok * palmPosHandspace) * havokWorldScale;
 						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 
-						// set max force of the constraint proportional to the player acceleration
-						hkpLimitedForceConstraintMotor* motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
-						float playerAccelerationAmount = VectorLength(playerAcceleration);
+						{ // set max force of the linear constraint proportional to the player acceleration
+							hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
+							float playerAccelerationAmount = VectorLength(playerAcceleration);
 
-						motor->m_maxForce = Config::options.grabConstraintLinearMaxForce + playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
+							motor->m_maxForce = Config::options.grabConstraintLinearMaxForce + playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
+						}
+
+						{ // set max force of the angular constraint based on what's grabbed
+							hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
+							motor->m_maxForce = selectedObject.isActor ? Config::options.grabConstraintAngularMaxForceActor : Config::options.grabConstraintAngularMaxForce;
+						}
 					}
 
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);

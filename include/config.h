@@ -162,6 +162,7 @@ namespace Config {
 		
 		float grabConstraintAngularTau = 0.3f;
 		float grabConstraintAngularMaxForce = 200.f;
+		float grabConstraintAngularMaxForceActor = 30.f;
 		float grabConstraintAngularProportionalRecoveryVelocity = 2.f;
 		float grabConstraintAngularConstantRecoveryVelocity = 1.f;
 		float grabConstraintAngularDamping = 0.8f;
