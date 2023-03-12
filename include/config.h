@@ -148,9 +148,10 @@ namespace Config {
 		float weaponCollisionScale = 1.f;
 
 		bool slowMovementWhenObjectIsHeld = true;
-		float slowMovementMassProportion = 0.625f;
+		float slowMovementMassProportion = 0.675f;
 		float slowMovementMassExponent = 1.f;
-		float slowMovementMaxReduction = 70.f;
+		float slowMovementMaxReduction = 75.f;
+		double slowMovementFadeOutTime = 5.0;
 
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;

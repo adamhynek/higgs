@@ -354,6 +354,7 @@ namespace Config {
 		if (!RegisterFloat("slowMovementMassProportion", options.slowMovementMassProportion)) success = false;
 		if (!RegisterFloat("slowMovementMassExponent", options.slowMovementMassExponent)) success = false;
 		if (!RegisterFloat("slowMovementMaxReduction", options.slowMovementMaxReduction)) success = false;
+		if (!RegisterDouble("slowMovementFadeOutTime", options.slowMovementFadeOutTime)) success = false;
 
 		if (!RegisterBool("EnableHavokFix", options.enableHavokFix)) success = false;
 		if (!RegisterFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) success = false;

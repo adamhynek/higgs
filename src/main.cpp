@@ -224,6 +224,7 @@ void UpdateShadowDelay()
 
 
 float g_savedSpeedReduction = 0.f;
+double g_lastHeldTime = 0.0;
 
 void UpdateSpeedReduction()
 {
@@ -249,6 +250,10 @@ void UpdateSpeedReduction()
 		}
 
 		speedReduction = min(Config::options.slowMovementMaxReduction, powf(mass, Config::options.slowMovementMassExponent) * Config::options.slowMovementMassProportion);
+		g_lastHeldTime = g_currentFrameTime;
+	}
+	else if (g_currentFrameTime - g_lastHeldTime < Config::options.slowMovementFadeOutTime) {
+		speedReduction = g_savedSpeedReduction * (1.f - (g_currentFrameTime - g_lastHeldTime) / Config::options.slowMovementFadeOutTime);
 	}
 
 	if (speedReduction != g_savedSpeedReduction) {
