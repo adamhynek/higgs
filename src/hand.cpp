@@ -3417,7 +3417,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
 							hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
 							float playerAccelerationAmount = VectorLength(playerAcceleration);
 
-							motor->m_maxForce = Config::options.grabConstraintLinearMaxForce + playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
+							motor->m_maxForce = selectedObject.isActor ? Config::options.grabConstraintLinearMaxForceActor : Config::options.grabConstraintLinearMaxForce;
+							motor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
 						}
 
 						{ // set max force of the angular constraint based on what's grabbed
