@@ -343,11 +343,20 @@ bool IsBow(const TESObjectWEAP *weap)
 	return (type == TESObjectWEAP::GameData::kType_Bow);
 }
 
-TESObjectWEAP * GetEquippedWeapon(Actor *actor, bool isOffhand)
+TESObjectWEAP *GetEquippedWeapon(Actor *actor, bool isOffhand)
 {
 	TESForm *equippedObject = actor->GetEquippedObject(isOffhand);
 	if (equippedObject) {
 		return DYNAMIC_CAST(equippedObject, TESForm, TESObjectWEAP);
+	}
+	return nullptr;
+}
+
+TESObjectARMO *GetEquippedShield(Actor *actor, bool isOffhand)
+{
+	TESForm *equippedObject = actor->GetEquippedObject(isOffhand);
+	if (equippedObject) {
+		return DYNAMIC_CAST(equippedObject, TESForm, TESObjectARMO);
 	}
 	return nullptr;
 }

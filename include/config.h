@@ -14,7 +14,7 @@ namespace Config {
 		float roomspaceHandLinearSpeed = 10.f;
 		float roomspaceHandAngularSpeed = 500.f;
 
-		bool treatProjectileWeaponHitsAsSelfHits = true;
+		bool treatProjectileWeaponHitsAsSelfHits = false;
 
 		float farCastDistance = 5.0f;
 		float farCastRadius = 0.3f;

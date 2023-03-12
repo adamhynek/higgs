@@ -64,7 +64,8 @@ bool HasGeometryChildren(NiAVObject *obj);
 bool IsTwoHanded(const TESObjectWEAP *weap);
 bool IsTwoHandable(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
-TESObjectWEAP * GetEquippedWeapon(Actor *actor, bool isOffhand);
+TESObjectWEAP *GetEquippedWeapon(Actor *actor, bool isOffhand);
+TESObjectARMO *GetEquippedShield(Actor *actor, bool isOffhand);
 SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand);
 bool IsUnarmed(TESForm *equippedObject);
 
@@ -113,3 +114,13 @@ NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTrans
 void ModSpeedMult(Actor *actor, float amount);
 void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book);
 inline TESRace * Actor_GetRace(Actor *actor) { return *((TESRace **)((UInt64)actor + 0x1F0)); }
+
+struct SnapTurnState
+{
+	bool isSnapTurning; // 00
+	float targetAngle; // 04
+	float currentAngle; // 08
+	UInt32 currentFrame; // 0C
+	float turningSpeed; // 10
+};
+inline SnapTurnState &PlayerCharacter_GetSnapTurnState(PlayerCharacter *player) { return *(SnapTurnState *)((UInt64)player + 0x970); }

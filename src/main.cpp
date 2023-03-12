@@ -517,19 +517,22 @@ _Projectile_UpdateImpactFromCollector g_originalArrowProjectileUpdateImpactFromC
 static RelocPtr<_Projectile_UpdateImpactFromCollector> MissileProjectile_UpdateImpactFromCollector_vtbl(0x16FE4F0); // MissileProjectile
 static RelocPtr<_Projectile_UpdateImpactFromCollector> ArrowProjectile_UpdateImpactFromCollector_vtbl(0x16F99A0); // ArrowProjectile
 
-void Projectile_UpdateImpactFromCollector_Hook(Projectile *_this, hkpAllCdPointCollector *collector)
+void Projectile_UpdateImpactFromCollector_Hook(Projectile *_this, hkpAllCdPointCollector *collector, bool isArrow)
 {
+	// The check for if the projectile hit a shield is in ArrowProjectile::Func189_AddImpact
+	// It is then checked against specifically the player's shield collision node in HitData::ApplyDamageReduction and MissileProjectile::Stick
+
 	for (hkpRootCdPoint &point : collector->getHits()) {
 		if (hkpRigidBody *rigidBody = hkpGetRigidBody(point.m_rootCollidableB)) {
 			if (bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData) {
-				if (wrapper == g_rightHand->handBody || wrapper == g_rightHand->weaponBody) {
+				if (wrapper == g_rightHand->handBody || (wrapper == g_rightHand->weaponBody && (Config::options.treatProjectileWeaponHitsAsSelfHits || GetEquippedShield(*g_thePlayer, *g_leftHandedMode)))) {
 					if (NiPointer<NiNode> meleeNode = GetVRMeleeData(false)->collisionNode) {
 						if (NiPointer<bhkRigidBody> meleeRigidBody = GetRigidBody(meleeNode)) {
 							point.m_rootCollidableB = meleeRigidBody->hkBody->getCollidable();
 						}
 					}
 				}
-				else if (wrapper == g_leftHand->handBody || wrapper == g_leftHand->weaponBody) {
+				else if (wrapper == g_leftHand->handBody || (wrapper == g_leftHand->weaponBody && (Config::options.treatProjectileWeaponHitsAsSelfHits || GetEquippedShield(*g_thePlayer, !*g_leftHandedMode)))) {
 					if (NiPointer<NiNode> meleeNode = GetVRMeleeData(true)->collisionNode) {
 						if (NiPointer<bhkRigidBody> meleeRigidBody = GetRigidBody(meleeNode)) {
 							point.m_rootCollidableB = meleeRigidBody->hkBody->getCollidable();
@@ -543,13 +546,13 @@ void Projectile_UpdateImpactFromCollector_Hook(Projectile *_this, hkpAllCdPointC
 
 bool MissileProjectile_UpdateImpactFromCollector_Hook(MissileProjectile *_this, hkpAllCdPointCollector *collector)
 {
-	Projectile_UpdateImpactFromCollector_Hook(_this, collector);
+	Projectile_UpdateImpactFromCollector_Hook(_this, collector, false);
 	return g_originalMissileProjectileUpdateImpactFromCollector(_this, collector);
 }
 
 bool ArrowProjectile_UpdateImpactFromCollector_Hook(ArrowProjectile *_this, hkpAllCdPointCollector *collector)
 {
-	Projectile_UpdateImpactFromCollector_Hook(_this, collector);
+	Projectile_UpdateImpactFromCollector_Hook(_this, collector, true);
 	return g_originalArrowProjectileUpdateImpactFromCollector(_this, collector);
 }
 
