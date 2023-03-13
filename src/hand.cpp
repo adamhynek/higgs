@@ -1440,8 +1440,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
 			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
 
-			// TODO: Something is off with some objects (bad rotation or translation - translation is worse when we do the constant updating during the state machine as well). Probably bhkRigidBodyT.
-
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
 			bhkWorld_AddConstraint(&world, constraint->constraint);
@@ -3403,14 +3401,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 					if (grabConstraint) {
 						NiTransform desiredTransformHandSpace = desiredNodeTransformHandSpace * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
-						NiTransform inverseDesiredHavok = InverseTransform(desiredTransformHandSpace);
+						NiTransform desiredHandTransformHavokObjSpace = InverseTransform(desiredTransformHandSpace);
 
 						GrabConstraintData *constraintData = (GrabConstraintData *)grabConstraint->constraint->getData();
-						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(inverseDesiredHavok.rot));
+						constraintData->setTargetRelativeOrientationOfBodies(NiMatrixToHkMatrix(desiredHandTransformHavokObjSpace.rot));
 
-						// inverseDesiredHavok is the hand's transform in the space of the grabbed object
-						// TODO: This appears to be broken for bhkRigidBodyT - or no, is it just for scaled objects?
-						NiPoint3 newPivotB = (inverseDesiredHavok * palmPosHandspace) * havokWorldScale;
+						// desiredHandTransformHavokObjSpace is the hand's transform in the space of the grabbed object
+						NiPoint3 newPivotB = (desiredHandTransformHavokObjSpace * palmPosHandspace) * collidableNode->m_worldTransform.scale * havokWorldScale;
 						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 
 						{ // set max force of the linear constraint proportional to the player acceleration
