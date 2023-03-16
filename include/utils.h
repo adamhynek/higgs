@@ -124,3 +124,17 @@ struct SnapTurnState
 	float turningSpeed; // 10
 };
 inline SnapTurnState &PlayerCharacter_GetSnapTurnState(PlayerCharacter *player) { return *(SnapTurnState *)((UInt64)player + 0x970); }
+
+inline UInt32 GetCollisionLayer(UInt32 collisionFilterInfo) { return collisionFilterInfo & 0x7f; }
+inline void SetCollisionLayer(hkUint32 &collisionFilterInfo, UInt32 layer) {
+	collisionFilterInfo &= ~(0x7f); // zero out layer
+	collisionFilterInfo |= (layer & 0x7f); // set layer
+}
+inline UInt32 GetCollisionLayer(hkpRigidBody *rigidBody) { return GetCollisionLayer(rigidBody->getCollisionFilterInfo()); }
+inline void SetCollisionLayer(hkpRigidBody *rigidBody, UInt32 layer) { return SetCollisionLayer(rigidBody->getCollidableRw()->getBroadPhaseHandle()->m_collisionFilterInfo, layer); }
+
+inline UInt32 GetPartNumber(UInt32 collisionFilterInfo) { return (collisionFilterInfo >> 8) & 0x1f; }
+inline void SetPartNumber(hkUint32 &collisionFilterInfo, UInt32 partNumber) {
+	collisionFilterInfo &= ~(0x1f00); // zero out part number
+	collisionFilterInfo |= (partNumber & 0x1f) << 8; // set part number
+}

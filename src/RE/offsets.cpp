@@ -124,6 +124,7 @@ RelocAddr<_hkpConstraintData_getConstraintInfoUtil> hkpConstraintData_getConstra
 RelocAddr<_hkMatrix3_setMul> hkMatrix3_setMul(0xA09A10);
 RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ctor(0xAD62C0);
 RelocAddr<_bhkPositionConstraintMotor_ctor> bhkPositionConstraintMotor_ctor(0xE7A610);
+RelocAddr<_bhkCollisionObject_GetRigidBody> bhkCollisionObject_GetRigidBody(0x152EE0);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);
@@ -177,6 +178,9 @@ RelocAddr<_Actor_IsInRagdollState> Actor_IsInRagdollState(0x5EBA50);
 RelocAddr<_TESRace_IsBeast> TESRace_IsBeast(0x398940);
 RelocAddr<_Actor_IsGhost> Actor_IsGhost(0x5DAAE0);
 RelocAddr<_Actor_GetMount> Actor_GetMount(0x637A90);
+RelocAddr<_Actor_IsBlocking> Actor_IsBlocking(0x611680);
+RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableFloat> IAnimationGraphManagerHolder_SetAnimationVariableFloat(0x500990);
+RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableBool> IAnimationGraphManagerHolder_SetAnimationVariableBool(0x500950);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);

@@ -171,7 +171,7 @@ namespace Config {
 
 		if (!RegisterBool("debugDrawControllers", options.debugDrawControllers)) success = false;
 
-		if (!RegisterBool("treatProjectileWeaponHitsAsSelfHits", options.treatProjectileWeaponHitsAsSelfHits)) success = false;
+		if (!RegisterBool("spoofProjectileWeaponHitsAsIfBlocked", options.spoofProjectileWeaponHitsAsIfBlocked)) success = false;
 
 		if (!ReadVector("PalmVector", options.palmVector)) success = false;
 		if (!ReadVector("PointingVector", options.pointingVector)) success = false;

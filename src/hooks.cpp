@@ -96,6 +96,101 @@ auto GetRefFromCollidable_GetNodeFromCollidable_HookLoc = RelocPtr<_GetNodeFromC
 
 auto TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x3B6E23);
 
+auto ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x75CF10);
+
+
+// Hook right when the Projectiles process the output of the projectile linear cast
+_Projectile_UpdateImpactFromCollector g_originalMissileProjectileUpdateImpactFromCollector = nullptr;
+_Projectile_UpdateImpactFromCollector g_originalArrowProjectileUpdateImpactFromCollector = nullptr;
+static RelocPtr<_Projectile_UpdateImpactFromCollector> MissileProjectile_UpdateImpactFromCollector_vtbl(0x16FE4F0); // MissileProjectile
+static RelocPtr<_Projectile_UpdateImpactFromCollector> ArrowProjectile_UpdateImpactFromCollector_vtbl(0x16F99A0); // ArrowProjectile
+
+bhkRigidBody *g_overrideProjectileHitRigidBody = nullptr;
+
+bool Projectile_UpdateImpactFromCollector_Hook(Projectile *_this, hkpAllCdPointCollector *collector, _Projectile_UpdateImpactFromCollector originalUpdateImpactFromCollector)
+{
+	// The check for if the projectile hit a shield is in ArrowProjectile::Func189_AddImpact()
+	// ArrowProjectile::Func189_AddImpact() is called from within ArrowProjectile::UpdateImpactFromCollector()
+
+	bhkRigidBody *rigidBodyToFakeBlockWith = nullptr;
+
+	for (hkpRootCdPoint &point : collector->getHits()) {
+		if (hkpRigidBody *rigidBody = hkpGetRigidBody(point.m_rootCollidableB)) {
+			if (bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData) {
+				for (int isLeft = 0; isLeft < 2; ++isLeft) {
+					bool isOffhand = bool(isLeft) != *g_leftHandedMode;
+					bhkRigidBody *handBody = isLeft ? g_leftHand->handBody : g_rightHand->handBody;
+					bhkRigidBody *weaponBody = isLeft ? g_leftHand->weaponBody : g_rightHand->weaponBody;
+
+					if (wrapper == handBody || wrapper == weaponBody) {
+						if (NiPointer<NiNode> meleeNode = GetVRMeleeData(isLeft)->collisionNode) {
+							if (NiPointer<bhkRigidBody> meleeRigidBody = GetRigidBody(meleeNode)) {
+								if (wrapper == weaponBody && Config::options.spoofProjectileWeaponHitsAsIfBlocked) {
+									bool isShield = GetEquippedShield(*g_thePlayer, isOffhand) != nullptr;
+									if (!isShield && !rigidBodyToFakeBlockWith) {
+										rigidBodyToFakeBlockWith = meleeRigidBody;
+									}
+								}
+
+								point.m_rootCollidableB = meleeRigidBody->hkBody->getCollidable();
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	static BSFixedString sIsBlocking("IsBlocking");
+	bool wasBlocking;
+	UInt32 partNumberToRestore;
+
+	if (rigidBodyToFakeBlockWith) {
+		// Pretend the player is blocking for when the hit data is filled in.
+		// Also, set the part number to that of a shield so that in ArrowProjectile::AddImpact(), it will both set the projectile flag for "blocked" as well as do the ModShieldDeflectArrowChance perk entry point.
+
+		wasBlocking = Actor_IsBlocking(*g_thePlayer);
+		IAnimationGraphManagerHolder_SetAnimationVariableBool(&(*g_thePlayer)->animGraphHolder, sIsBlocking, true);
+
+		partNumberToRestore = GetPartNumber(rigidBodyToFakeBlockWith->hkBody->getCollisionFilterInfo());
+		SetPartNumber(rigidBodyToFakeBlockWith->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo, 18); // shield part number
+
+		g_overrideProjectileHitRigidBody = rigidBodyToFakeBlockWith;
+	}
+
+	bool ret = originalUpdateImpactFromCollector(_this, collector);
+
+	// Restore everything after the hit has been dealt with.
+
+	g_overrideProjectileHitRigidBody = nullptr;
+
+	if (rigidBodyToFakeBlockWith) {
+		IAnimationGraphManagerHolder_SetAnimationVariableBool(&(*g_thePlayer)->animGraphHolder, sIsBlocking, wasBlocking);
+		SetPartNumber(rigidBodyToFakeBlockWith->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo, partNumberToRestore);
+	}
+
+	return ret;
+}
+
+bool MissileProjectile_UpdateImpactFromCollector_Hook(MissileProjectile *_this, hkpAllCdPointCollector *collector)
+{
+	return Projectile_UpdateImpactFromCollector_Hook(_this, collector, g_originalMissileProjectileUpdateImpactFromCollector);
+}
+
+bool ArrowProjectile_UpdateImpactFromCollector_Hook(ArrowProjectile *_this, hkpAllCdPointCollector *collector)
+{
+	return Projectile_UpdateImpactFromCollector_Hook(_this, collector, g_originalArrowProjectileUpdateImpactFromCollector);
+}
+
+
+bhkRigidBody * ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_Hook(bhkCollisionObject *obj)
+{
+	if (g_overrideProjectileHitRigidBody) {
+		return g_overrideProjectileHitRigidBody;
+	}
+	return bhkCollisionObject_GetRigidBody(obj);
+}
+
 
 bool TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_Hook(Actor *actor)
 {
@@ -1050,5 +1145,16 @@ void PerformHooks(void)
 	{
 		g_originalPCUpdate = *PlayerCharacter_Update_vtbl;
 		SafeWrite64(PlayerCharacter_Update_vtbl.GetUIntPtr(), uintptr_t(PlayerCharacter_Update_Hook));
+	}
+
+	g_originalMissileProjectileUpdateImpactFromCollector = *MissileProjectile_UpdateImpactFromCollector_vtbl;
+	SafeWrite64(MissileProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(MissileProjectile_UpdateImpactFromCollector_Hook));
+
+	g_originalArrowProjectileUpdateImpactFromCollector = *ArrowProjectile_UpdateImpactFromCollector_vtbl;
+	SafeWrite64(ArrowProjectile_UpdateImpactFromCollector_vtbl.GetUIntPtr(), uintptr_t(ArrowProjectile_UpdateImpactFromCollector_Hook));
+
+	{
+		g_branchTrampoline.Write5Call(ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc.GetUIntPtr(), uintptr_t(ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_Hook));
+		_MESSAGE("ArrowProjectile::AddImpact bhkCollisionObject::GetRigidBody hook complete");
 	}
 }

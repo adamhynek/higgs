@@ -1440,6 +1440,9 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
 			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
 
+			// TODO: Do something when snap turning?
+			// TODO: Check for constraint violation of constraints on grabbed object (i.e. ragdoll)?
+
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
 			bhkWorld_AddConstraint(&world, constraint->constraint);

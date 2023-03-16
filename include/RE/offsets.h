@@ -268,6 +268,9 @@ extern RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ct
 typedef bool(*_bhkPositionConstraintMotor_ctor)(hkpPositionConstraintMotor *_this);
 extern RelocAddr<_bhkPositionConstraintMotor_ctor> bhkPositionConstraintMotor_ctor;
 
+typedef bhkRigidBody *(*_bhkCollisionObject_GetRigidBody)(bhkCollisionObject *obj);
+extern RelocAddr<_bhkCollisionObject_GetRigidBody> bhkCollisionObject_GetRigidBody;
+
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);
 extern RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell;
@@ -422,3 +425,12 @@ extern RelocAddr<_Actor_IsGhost> Actor_IsGhost;
 
 typedef bool(*_Actor_GetMount)(Actor *_this, NiPointer<Actor> &mount);
 extern RelocAddr<_Actor_GetMount> Actor_GetMount;
+
+typedef bool(*_Actor_IsBlocking)(Actor *_this);
+extern RelocAddr<_Actor_IsBlocking> Actor_IsBlocking;
+
+typedef bool(*_IAnimationGraphManagerHolder_SetAnimationVariableFloat)(IAnimationGraphManagerHolder *_this, const BSFixedString &variableName, float value);
+extern RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableFloat> IAnimationGraphManagerHolder_SetAnimationVariableFloat;
+
+typedef bool(*_IAnimationGraphManagerHolder_SetAnimationVariableBool)(IAnimationGraphManagerHolder *_this, const BSFixedString &variableName, bool value);
+extern RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableBool> IAnimationGraphManagerHolder_SetAnimationVariableBool;
