@@ -2039,6 +2039,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
 		return;
 	}
 
+	if (PlayerCharacter_GetSnapTurnState(player).isSnapTurning) {
+		lastWasSnapTurningTime = g_currentFrameTime;
+	}
+
 
 	//if (!isLeft) {
 	//	UpdateGenerateFingerCurve(handNodeName, fingerNodeNames);
@@ -3419,6 +3423,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 							motor->m_maxForce = selectedObject.isActor ? Config::options.grabConstraintLinearMaxForceActor : Config::options.grabConstraintLinearMaxForce;
 							motor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
+
+							if (g_currentFrameTime - lastWasSnapTurningTime < Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime) {
+								motor->m_maxForce += Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurning;
+							}
 						}
 
 						{ // set max force of the angular constraint based on what's grabbed

@@ -176,6 +176,9 @@ namespace Config {
 		float grabConstraintLinearConstantRecoveryVelocity = 1.f;
 		float grabConstraintLinearDamping = 0.8f;
 
+		float grabConstraintLinearMaxForceAddedWhenSnapTurning = 2000.f;
+		double grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime = 0.2;
+
 		bool disableHeadBobbingWhileGrabbed = true;
 		bool disableShaders = false;
 		bool disableSelectionBeam = false;

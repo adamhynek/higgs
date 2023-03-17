@@ -325,6 +325,7 @@ struct Hand
 	double tryLeaveDampedTime = 0;
 	double weaponHitTime = 0;
 	double rolloverAlphaSetTime = 0;
+	double lastWasSnapTurningTime = 0;
 
 	float handSize = 1.f;
 

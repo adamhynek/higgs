@@ -379,6 +379,9 @@ namespace Config {
 		if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
 		if (!RegisterFloat("grabConstraintLinearDamping", options.grabConstraintLinearDamping)) success = false;
 
+		if (!RegisterFloat("grabConstraintLinearMaxForceAddedWhenSnapTurning", options.grabConstraintLinearMaxForceAddedWhenSnapTurning)) success = false;
+		if (!RegisterDouble("grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime", options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime)) success = false;
+
 		if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
 		if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;
 		if (!RegisterBool("DisableLooting", options.disableLooting)) success = false;
