@@ -29,6 +29,10 @@ extern RelocPtr<bhkSimpleShapePhantom *> g_pickSphere;
 extern RelocPtr<CrosshairPickData *> g_pickData;
 
 extern RelocPtr<float> g_deltaTime;
+extern RelocPtr<float> g_physicsDeltaTime;
+
+extern RelocPtr<UInt32> g_uMaxNumPhysicsStepsPerUpdate;
+extern RelocPtr<UInt32> g_uMaxNumPhysicsStepsPerUpdateComplex;
 
 extern RelocPtr<float> g_globalTimeMultiplier;
 

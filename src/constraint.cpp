@@ -180,3 +180,25 @@ void GrabConstraintData::setTargetRelativeOrientationOfBodies(const hkRotation &
 {
 	hkMatrix3_setMul(m_atoms.m_ragdollMotors.m_target_bRca, bRa, m_atoms.m_transforms.m_transformA.m_rotation);
 }
+
+float GetMaxForceForFPS(float fps, std::map<float, float> &fpsToMaxForceMap)
+{
+	// Get the closest 2 values in the map to the given fps and lerp between them
+	auto it = fpsToMaxForceMap.lower_bound(fps);
+	if (it == fpsToMaxForceMap.end()) {
+		return fpsToMaxForceMap.rbegin()->second;
+	}
+	else if (it == fpsToMaxForceMap.begin()) {
+		return it->second;
+	}
+	else {
+		auto it2 = it;
+		--it2;
+		float fps1 = it2->first;
+		float fps2 = it->first;
+		float maxForce1 = it2->second;
+		float maxForce2 = it->second;
+		float t = (fps - fps1) / (fps2 - fps1);
+		return lerp(maxForce1, maxForce2, t);
+	}
+}

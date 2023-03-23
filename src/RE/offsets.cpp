@@ -14,6 +14,10 @@ RelocPtr<bhkSimpleShapePhantom *> g_pickSphere(0x3000958);
 RelocPtr<CrosshairPickData *> g_pickData(0x2FC60C0);
 
 RelocPtr<float> g_deltaTime(0x1EC8278);
+RelocPtr<float> g_physicsDeltaTime(0x1EC8280);
+
+RelocPtr<UInt32> g_uMaxNumPhysicsStepsPerUpdate(0x1EC8418);
+RelocPtr<UInt32> g_uMaxNumPhysicsStepsPerUpdateComplex(0x1EC8430);
 
 RelocPtr<float> g_globalTimeMultiplier(0xC42710);
 

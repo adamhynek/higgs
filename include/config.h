@@ -155,22 +155,37 @@ namespace Config {
 
 		bool enableHavokFix = true;
 		float havokMaxTimeComplexMultiplier = 1.0f;
-		float havokMaxMaxTime = 0.02778f; // 36 fps
+		float minPhysicsFrameRate = 70.f;
+		int maxNumPhysicsStepsPerUpdate = 3;
+		int maxNumPhysicsStepsPerUpdateComplex = 3;
 
 		bool enableShadowUpdateFix = true;
 		int maxNumEntitiesPerSimulationIslandToCheck = 50;
 		float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
-		
+
+		// TODO: Load test from config
+		std::map<float, float> fpsToActorMaxForceMapLinear = {
+			{ 72, 1750 },
+			{ 90, 2500 },
+			{ 120, 4000 },
+			{ 144, 5000 },
+		};
+
+		std::map<float, float> fpsToActorMaxForceMapAngular = {
+			{ 72, 20 },
+			{ 90, 40 },
+			{ 120, 55 },
+			{ 144, 60 },
+		};
+
 		float grabConstraintAngularTau = 0.3f;
 		float grabConstraintAngularMaxForce = 200.f;
-		float grabConstraintAngularMaxForceActor = 30.f;
 		float grabConstraintAngularProportionalRecoveryVelocity = 2.f;
 		float grabConstraintAngularConstantRecoveryVelocity = 1.f;
 		float grabConstraintAngularDamping = 0.8f;
 
 		float grabConstraintLinearTau = 0.8f;
 		float grabConstraintLinearMaxForce = 2000.f;
-		float grabConstraintLinearMaxForceActor = 2000.f;
 		float grabConstraintLinearMaxForcePerPlayerAcceleration = 50.f;
 		float grabConstraintLinearProportionalRecoveryVelocity = 2.f;
 		float grabConstraintLinearConstantRecoveryVelocity = 1.f;

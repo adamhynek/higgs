@@ -682,6 +682,12 @@ extern "C" {
 			setting->SetDouble(1);
 		}
 
+		if (Config::options.enableHavokFix) {
+			// Overwrite these as the user may have set them to to something of their own choosing in the game's ini file
+			*g_uMaxNumPhysicsStepsPerUpdate = Config::options.maxNumPhysicsStepsPerUpdate;
+			*g_uMaxNumPhysicsStepsPerUpdateComplex = Config::options.maxNumPhysicsStepsPerUpdateComplex;
+		}
+
 		initComplete = true;
 		_MESSAGE("Successfully loaded all forms");
 	}

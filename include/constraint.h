@@ -119,3 +119,5 @@ public:
 
 	void setTargetRelativeOrientationOfBodies(const hkRotation &bRa);
 };
+
+float GetMaxForceForFPS(float fps, std::map<float, float> &fpsToMaxForceMap);

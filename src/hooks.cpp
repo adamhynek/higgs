@@ -480,9 +480,22 @@ void RefreshActivateButtonArtHook()
 
 void UpdatePhysicsTimesHook()
 {
-	float deltaTime = min(*g_secondsSinceLastFrame_Unmultiplied, Config::options.havokMaxMaxTime);
-	*fMaxTime = deltaTime;
-	*fMaxTimeComplex = deltaTime * Config::options.havokMaxTimeComplexMultiplier;
+	float gameFrametime = *g_secondsSinceLastFrame_Unmultiplied;
+
+	float maxPhysicsFrameTime = 1.f / Config::options.minPhysicsFrameRate;
+
+	float physicsFrameTime = gameFrametime;
+
+	// Split the physics step into multiple shorter steps if the frame time is too long
+	for (int i = 2; i <= *g_uMaxNumPhysicsStepsPerUpdate; i++) {
+		if (physicsFrameTime <= maxPhysicsFrameTime) {
+			break;
+		}
+		physicsFrameTime = gameFrametime / float(i); // i physics steps per frame
+	}
+
+	*fMaxTime = physicsFrameTime;
+	*fMaxTimeComplex = physicsFrameTime * Config::options.havokMaxTimeComplexMultiplier;
 }
 
 
@@ -490,9 +503,8 @@ auto bhkRigidBodyT_vtbl = RelocAddr<void *>(0x182BA80);
 void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *root)
 {
 	NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root);
-	bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT);
-	if (rigidBodyT) {
-		*((void **)newRigidBody) = ((void *)(bhkRigidBodyT_vtbl)); // set vtbl
+	if (bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT)) {
+		set_vtbl(newRigidBody, bhkRigidBodyT_vtbl);
 		bhkRigidBodyT *newRigidBodyT = DYNAMIC_CAST(newRigidBody, bhkRigidBody, bhkRigidBodyT);
 		newRigidBodyT->rotation = rigidBodyT->rotation;
 		newRigidBodyT->translation = rigidBodyT->translation;

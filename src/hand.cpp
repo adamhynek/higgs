@@ -1440,7 +1440,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
 			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
 
-			// TODO: Do something when snap turning?
 			// TODO: Check for constraint violation of constraints on grabbed object (i.e. ragdoll)?
 
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
@@ -3417,11 +3416,14 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						NiPoint3 newPivotB = (desiredHandTransformHavokObjSpace * palmPosHandspace) * collidableNode->m_worldTransform.scale * havokWorldScale;
 						constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 
+						float physicsFPS = 1.f / *g_physicsDeltaTime;
+
 						{ // set max force of the linear constraint proportional to the player acceleration
 							hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
 							float playerAccelerationAmount = VectorLength(playerAcceleration);
 
-							motor->m_maxForce = selectedObject.isActor ? Config::options.grabConstraintLinearMaxForceActor : Config::options.grabConstraintLinearMaxForce;
+							motor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear) : Config::options.grabConstraintLinearMaxForce;
+
 							motor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
 
 							if (g_currentFrameTime - lastWasSnapTurningTime < Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime) {
@@ -3431,7 +3433,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 						{ // set max force of the angular constraint based on what's grabbed
 							hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
-							motor->m_maxForce = selectedObject.isActor ? Config::options.grabConstraintAngularMaxForceActor : Config::options.grabConstraintAngularMaxForce;
+							motor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular) : Config::options.grabConstraintAngularMaxForce;
 						}
 					}
 
