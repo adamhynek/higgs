@@ -89,11 +89,6 @@ namespace Config {
 		float mouthDropHapticStrength = 0.5f;
 
 		float maxHandDistance = 0.7f;
-		float minDampedRequiredVelocityProportion = 0.5f;
-		float minVelocityToPotentiallyDamp = 1.0f;
-		float dampedLinearVelocityMultiplier = 0.2f;
-		float dampedLinearVelocityExponent = 0.8f;
-		float dampedAngularVelocityMultiplier = 0.2f;
 		float dampedCollisionHapticStrengthMultiplier = 0.4f;
 
 		float rolloverMinAlphaToShow = 0.4f;
@@ -118,8 +113,6 @@ namespace Config {
 		double shoulderDropHapticFadeTime = 0.2;
 		double mouthDropHapticFadeTime = 0.2;
 		double rolloverHideTime = 0.25;
-		double preDampVelocityTime = 0.1;
-		double tryLeaveDampedTime = 0.1;
 		double physicsGrabInitTime = 0.1;
 		double fingerAnimateEndTime = 0.8;
 		double fingerAnimateEndDoubleSpeedTime = 0.1;
@@ -136,8 +129,6 @@ namespace Config {
 
 		bool enableWeaponCollision = true;
 		bool forcePhysicsGrab = false;
-		bool disableDampedGrab = false;
-		bool disableDampedGrabForBodies = true;
 		bool disableGrabHair = true;
 		bool disableGrabGeometryWithVertexAlpha = true;
 		bool inheritTangentialVelocity = true;

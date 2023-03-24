@@ -252,8 +252,6 @@ namespace Config {
 		if (!RegisterDouble("ShoulderDropHapticFadeTime", options.shoulderDropHapticFadeTime)) success = false;
 		if (!RegisterDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) success = false;
 		if (!RegisterDouble("RolloverHideTime", options.rolloverHideTime)) success = false;
-		if (!RegisterDouble("PreDampVelocityTime", options.preDampVelocityTime)) success = false;
-		if (!RegisterDouble("TryLeaveDampedTime", options.tryLeaveDampedTime)) success = false;
 		if (!RegisterDouble("PhysicsGrabInitTime", options.physicsGrabInitTime)) success = false;
 
 		if (!RegisterDouble("FingerAnimateEndTime", options.fingerAnimateEndTime)) success = false;
@@ -340,11 +338,6 @@ namespace Config {
 		if (!RegisterFloat("PullDurationC", options.pullDurationC)) success = false;
 
 		if (!RegisterFloat("MaxHandDistance", options.maxHandDistance)) success = false;
-		if (!RegisterFloat("MinDampedRequiredVelocityProportion", options.minDampedRequiredVelocityProportion)) success = false;
-		if (!RegisterFloat("MinVelocityToPotentiallyDamp", options.minVelocityToPotentiallyDamp)) success = false;
-		if (!RegisterFloat("DampedLinearVelocityMultiplier", options.dampedLinearVelocityMultiplier)) success = false;
-		if (!RegisterFloat("DampedLinearVelocityExponent", options.dampedLinearVelocityExponent)) success = false;
-		if (!RegisterFloat("DampedAngularVelocityMultiplier", options.dampedAngularVelocityMultiplier)) success = false;
 		if (!RegisterFloat("DampedCollisionHapticStrengthMultiplier", options.dampedCollisionHapticStrengthMultiplier)) success = false;
 
 		if (!RegisterFloat("RolloverMinAlphaToShow", options.rolloverMinAlphaToShow)) success = false;
@@ -364,8 +357,6 @@ namespace Config {
 
 		if (!RegisterBool("EnableWeaponCollision", options.enableWeaponCollision)) success = false;
 		if (!RegisterBool("ForcePhysicsGrab", options.forcePhysicsGrab)) success = false;
-		if (!RegisterBool("DisableGrabDamping", options.disableDampedGrab)) success = false;
-		if (!RegisterBool("DisableGrabDampingForBodies", options.disableDampedGrabForBodies)) success = false;
 		if (!RegisterBool("DisableGrabHairGeometry", options.disableGrabHair)) success = false;
 		if (!RegisterBool("DisableGrabGeometryWithVertexAlpha", options.disableGrabGeometryWithVertexAlpha)) success = false;
 		if (!RegisterBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) success = false;

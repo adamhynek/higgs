@@ -1441,6 +1441,9 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
 
 			// TODO: Check for constraint violation of constraints on grabbed object (i.e. ragdoll)?
+			// TODO: We could reduce max force when the hand is trying to move the grabbed object into whatever it is in contact with, if that object is fixed.
+			//       This would lead to more stable behavior when moving the hand into walls and such.
+			//       20 and 250 seem like good starting values when colliding for angular max force and linear max force.
 
 			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
