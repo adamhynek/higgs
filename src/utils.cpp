@@ -392,15 +392,27 @@ void PrintQuat(const NiQuaternion &q)
 	_MESSAGE("%f, %f, %f, %f", q.m_fW, q.m_fX, q.m_fY, q.m_fZ);
 }
 
-std::set<std::string, std::less<>> SplitStringToSet(const std::string &s, char delim)
+std::vector<std::string> SplitString(const std::string &s, char delim)
 {
-	std::set<std::string, std::less<>> result;
+	std::vector<std::string> result;
 	std::stringstream ss(s);
 	std::string item;
 
 	while (getline(ss, item, delim)) {
 		trim(item);
-		result.insert(item);
+		result.push_back(item);
+	}
+
+	return result;
+}
+
+std::set<std::string, std::less<>> SplitStringToSet(const std::string &s, char delim)
+{
+	std::vector<std::string> split = SplitString(s, delim);
+
+	std::set<std::string, std::less<>> result;
+	for (auto &str : split) {
+		result.insert(str);
 	}
 
 	return result;

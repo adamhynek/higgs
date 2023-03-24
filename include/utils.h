@@ -80,6 +80,7 @@ inline void ltrim(std::string &s) { s.erase(s.begin(), std::find_if(s.begin(), s
 inline void rtrim(std::string &s) { s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !::isspace(ch); }).base(), s.end()); }
 inline void trim(std::string &s) { ltrim(s); rtrim(s); }
 std::set<std::string, std::less<>> SplitStringToSet(const std::string &s, char delim);
+std::vector<std::string> SplitString(const std::string &s, char delim);
 
 void PrintVector(const NiPoint3 &p);
 void PrintQuat(const NiQuaternion &q);

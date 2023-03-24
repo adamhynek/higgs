@@ -99,6 +99,30 @@ namespace Config {
 		return true;
 	}
 
+	bool ReadFloatMap(const std::string &name, std::map<float, float> &val)
+	{
+		std::string data = GetConfigOption("Settings", name.c_str());
+		if (data.empty()) {
+			_WARNING("Failed to read FloatMap config option: %s", name.c_str());
+			return false;
+		}
+
+		std::vector<std::string> pairs = SplitString(data, ',');
+		for (auto &pair : pairs) {
+			std::vector<std::string> kv = SplitString(pair, ':');
+			if (kv.size() != 2) {
+				_WARNING("Failed to read FloatMap entry %s for config option: %s", pair.c_str(), name.c_str());
+				return false;
+			}
+
+			float k = std::stof(kv[0]);
+			float v = std::stof(kv[1]);
+			val[k] = v;
+		}
+
+		return true;
+	}
+
 	bool RegisterFloat(const std::string& name, float& val)
 	{
 		if (!g_registrationComplete) floatMap[name] = &val;
@@ -378,6 +402,9 @@ namespace Config {
 		if (!RegisterFloat("grabConstraintLinearProportionalRecoveryVelocity", options.grabConstraintLinearProportionalRecoveryVelocity)) success = false;
 		if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
 		if (!RegisterFloat("grabConstraintLinearDamping", options.grabConstraintLinearDamping)) success = false;
+		
+		if (!ReadFloatMap("fpsToActorMaxForceMapLinear", options.fpsToActorMaxForceMapLinear)) success = false;
+		if (!ReadFloatMap("fpsToActorMaxForceMapAngular", options.fpsToActorMaxForceMapAngular)) success = false;
 
 		if (!RegisterFloat("grabConstraintLinearMaxForceAddedWhenSnapTurning", options.grabConstraintLinearMaxForceAddedWhenSnapTurning)) success = false;
 		if (!RegisterDouble("grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime", options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime)) success = false;

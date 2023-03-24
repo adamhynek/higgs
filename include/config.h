@@ -163,7 +163,6 @@ namespace Config {
 		int maxNumEntitiesPerSimulationIslandToCheck = 50;
 		float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
 
-		// TODO: Load test from config
 		std::map<float, float> fpsToActorMaxForceMapLinear = {
 			{ 72, 1750 },
 			{ 90, 2500 },
