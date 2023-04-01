@@ -155,6 +155,8 @@ bool Projectile_UpdateImpactFromCollector_Hook(Projectile *_this, hkpAllCdPointC
 		partNumberToRestore = GetPartNumber(rigidBodyToFakeBlockWith->hkBody->getCollisionFilterInfo());
 		SetPartNumber(rigidBodyToFakeBlockWith->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo, 18); // shield part number
 
+		SetProjectileFlags(_this, GetProjectileFlags(_this) | (1 << 27)); // blocked
+
 		g_overrideProjectileHitRigidBody = rigidBodyToFakeBlockWith;
 	}
 

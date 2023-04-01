@@ -116,6 +116,9 @@ void ModSpeedMult(Actor *actor, float amount);
 void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book);
 inline TESRace * Actor_GetRace(Actor *actor) { return *((TESRace **)((UInt64)actor + 0x1F0)); }
 
+inline void SetProjectileFlags(Projectile *projectile, UInt32 flags) { *((UInt32 *)((UInt64)projectile + 0x1cc)) = flags; }
+inline UInt32 GetProjectileFlags(Projectile *projectile) { return *((UInt32 *)((UInt64)projectile + 0x1cc)); }
+
 struct SnapTurnState
 {
 	bool isSnapTurning; // 00
