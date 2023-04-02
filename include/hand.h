@@ -181,7 +181,7 @@ struct Hand
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
 	NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, NiTransform *initialTransform);
 	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj,
-		NiTransform *initialTransform = nullptr, bool reuseTriangles = false, bool playSound = true);
+		NiTransform *initialTransform = nullptr, bool warpToHand = false, bool reuseTriangles = false, bool playSound = true);
 	void TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
 		float havokWorldScale, const NiTransform &handTransform, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
@@ -284,7 +284,6 @@ struct Hand
 
 	NiPoint3 pulledPointOffset{}; // Offset from the center of mass of the point we're pulling on the pulled object
 	NiPoint3 pullTarget{};
-	NiPoint3 initialGrabbedObjRelativePosition{};
 
 	NiPointer<bhkConstraint> grabConstraint = nullptr;
 

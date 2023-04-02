@@ -1197,7 +1197,7 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
 }
 
 
-void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool reuseTriangles, bool playSound)
+void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool warpToHand, bool reuseTriangles, bool playSound)
 {
 	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
@@ -1400,27 +1400,21 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
 		NiTransform inverseHand = InverseTransform(handNode->m_worldTransform);
 
-		if (usePhysicsGrab) {
-			// Sync up the collision's transform with the node's
-			hkVector4 hkPos = NiPointToHkVector(adjustedTransform.pos * havokWorldScale);
-			NiQuaternion nodeRotation = MatrixToQuaternion(adjustedTransform.rot);
-			hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
-			hkQuat.normalize();
-			selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
-		}
-		else {
-			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
-			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
-			selectedObject.savedRigidBodyFlags = selectedObject.rigidBody->flags;
-
-			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
-		}
-
 		NiTransform desiredNodeTransform = adjustedTransform;
 		desiredNodeTransform.pos += palmPos - ptPos;
 		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
 		if (usePhysicsGrab) {
+			if (warpToHand) {
+				// Teleport the object directly into our hand
+				NiTransform desiredTransformRigidBodyT = desiredNodeTransform * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
+				hkVector4 hkPos = NiPointToHkVector(desiredTransformRigidBodyT.pos * havokWorldScale);
+				NiQuaternion nodeRotation = MatrixToQuaternion(desiredTransformRigidBodyT.rot);
+				hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
+				hkQuat.normalize();
+				selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
+			}
+
 			hkVector4 hkPivotA = NiPointToHkVector(palmPos * havokWorldScale);
 			hkVector4 hkPivotB = NiPointToHkVector(ptPos * havokWorldScale);
 
@@ -1449,6 +1443,13 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 			bhkRigidBody_AddConstraintToArray(handBody, constraint);
 			bhkWorld_AddConstraint(&world, constraint->constraint);
 			grabConstraint = constraint;
+		}
+		else {
+			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
+			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
+			selectedObject.savedRigidBodyFlags = selectedObject.rigidBody->flags;
+
+			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 		}
 
 		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
@@ -1808,7 +1809,7 @@ void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selec
 		initialTransform = collidableNode->m_worldTransform;
 		initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
 	}
-	TransitionHeld(other, world, hkPalmPos / *g_havokWorldScale, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, &initialTransform);
+	TransitionHeld(other, world, hkPalmPos / *g_havokWorldScale, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, &initialTransform, true);
 
 	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
@@ -2108,11 +2109,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 			if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
 				NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
 				if (objRoot && objRoot->m_parent) {
-					NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot);
-					if (rigidBody) {
+					if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
 						hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
-						NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable);
-						if (collidableNode) {
+						if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable)) {
 							selectedObject.rigidBody = rigidBody;
 							selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
@@ -2491,10 +2490,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
 						if (state == State::SelectedFar) {
 							hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
 							NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
-							NiPoint3 relObjPos = hkObjPos - hkHandPos;
 
 							rolloverDisplayTime = g_currentFrameTime;
-							initialGrabbedObjRelativePosition = relObjPos;
 							pulledPointOffset = selectedObject.point - hkObjPos;
 
 							float hapticStrength = Config::options.selectionLockedStartHapticStrength;
@@ -2542,12 +2539,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 											state = State::GrabFromOtherHand;
 										}
 										else {
-											TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransformPtr, true);
+											TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransformPtr, false, true);
 										}
 									}
 									else {
 										// Node we chose based on geometry is the same as the one that was selected via collision
-										TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransformPtr, true);
+										TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransformPtr, false, true);
 									}
 								}
 							}
