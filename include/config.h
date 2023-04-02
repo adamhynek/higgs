@@ -113,7 +113,8 @@ namespace Config {
 		double shoulderDropHapticFadeTime = 0.2;
 		double mouthDropHapticFadeTime = 0.2;
 		double rolloverHideTime = 0.25;
-		double physicsGrabInitTime = 0.1;
+		double physicsGrabIgnoreHandDistanceTime = 0.2;
+		double physicsGrabLerpHandTime = 0.1;
 		double fingerAnimateEndTime = 0.8;
 		double fingerAnimateEndDoubleSpeedTime = 0.1;
 		double afterDropFingerAnimateTime = 0.3;

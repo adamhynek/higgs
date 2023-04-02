@@ -3389,14 +3389,14 @@ void Hand::Update(Hand &other, bhkWorld *world)
 				adjustedHandTransform = heldTransform * inverseDesired;
 
 				float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
-				if (g_currentFrameTime - heldTime > Config::options.physicsGrabInitTime && VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
+				if (g_currentFrameTime - heldTime > Config::options.physicsGrabIgnoreHandDistanceTime && VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
 					// Hand is too far from the actual hand's position in real life
 					idleDesired = true;
 					disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
 				}
 				else {
 					{
-						double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabInitTime;
+						double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabLerpHandTime;
 						if (elapsedTimeFraction < 1.0) {
 							adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
 						}

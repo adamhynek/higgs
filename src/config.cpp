@@ -252,7 +252,8 @@ namespace Config {
 		if (!RegisterDouble("ShoulderDropHapticFadeTime", options.shoulderDropHapticFadeTime)) success = false;
 		if (!RegisterDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) success = false;
 		if (!RegisterDouble("RolloverHideTime", options.rolloverHideTime)) success = false;
-		if (!RegisterDouble("PhysicsGrabInitTime", options.physicsGrabInitTime)) success = false;
+		if (!RegisterDouble("physicsGrabIgnoreHandDistanceTime", options.physicsGrabIgnoreHandDistanceTime)) success = false;
+		if (!RegisterDouble("physicsGrabLerpHandTime", options.physicsGrabLerpHandTime)) success = false;
 
 		if (!RegisterDouble("FingerAnimateEndTime", options.fingerAnimateEndTime)) success = false;
 		if (!RegisterDouble("FingerAnimateEndDoubleSpeedTime", options.fingerAnimateEndDoubleSpeedTime)) success = false;
