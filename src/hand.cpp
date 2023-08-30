@@ -1263,6 +1263,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
 		if (initialTransform) {
 			adjustedTransform = *initialTransform;
+			ptPos = adjustedTransform * InverseTransform(originalTransform) * ptPos;
 		}
 		else if (shouldMoveHandBack) {
 			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
@@ -1384,7 +1385,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 				if (curveVal < 0) {
 					// It's a negative angle - just open the hand
 					_MESSAGE("%d angle: %.2f", i, curveVal);
-					grabbedFingerValues[i] = 1.0f;
+					grabbedFingerValues[i] = 1.f;
 				}
 				else {
 					// Positive => it's a curve val
@@ -1397,6 +1398,11 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
 			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
 		}
+		else {
+			for (int i = 0; i < 5; i++) {
+				grabbedFingerValues[i] = 0.9f;
+			}
+		}
 
 		NiTransform inverseHand = InverseTransform(handNode->m_worldTransform);
 
@@ -1407,12 +1413,32 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 		if (usePhysicsGrab) {
 			if (warpToHand) {
 				// Teleport the object directly into our hand
-				NiTransform desiredTransformRigidBodyT = desiredNodeTransform * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
-				hkVector4 hkPos = NiPointToHkVector(desiredTransformRigidBodyT.pos * havokWorldScale);
-				NiQuaternion nodeRotation = MatrixToQuaternion(desiredTransformRigidBodyT.rot);
+
+				hkVector4 hkPos = NiPointToHkVector(desiredNodeTransform.pos * havokWorldScale);
+				NiQuaternion nodeRotation = MatrixToQuaternion(desiredNodeTransform.rot);
 				hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
 				hkQuat.normalize();
-				selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat);
+				selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat); // vfunc takes into account rigidBodyT local transforms
+
+				std::vector<NiPointer<bhkRigidBody>> havokObjects{};
+				CollectAllHavokObjects(objRoot, havokObjects);
+
+				// Now move all the other parts of the object reference by the same transform we moved the part we actually grabbed
+				for (NiPointer<bhkRigidBody> rigidBody : havokObjects) {
+					if (rigidBody == selectedObject.rigidBody) {
+						continue;
+					}
+
+					if (NiPointer<NiAVObject> node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+						NiTransform offsetFromGrabbedObject = InverseTransform(collidableNode->m_worldTransform) * node->m_worldTransform;
+						NiTransform newTransform = desiredNodeTransform * offsetFromGrabbedObject;
+						hkVector4 hkPos = NiPointToHkVector(newTransform.pos * havokWorldScale);
+						NiQuaternion nodeRotation = MatrixToQuaternion(newTransform.rot);
+						hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
+						hkQuat.normalize();
+						rigidBody->setPositionAndRotation(hkPos, hkQuat); // vfunc takes into account rigidBodyT local transforms
+					}
+				}
 			}
 
 			hkVector4 hkPivotA = NiPointToHkVector(palmPos * havokWorldScale);
@@ -1738,14 +1764,10 @@ UInt32 Hand::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffs
 {
 	UInt32 droppedObjHandle = *g_invalidRefHandle;
 
-	Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor);
-	if (actor) {
+	if (Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor)) {
 		// Drop the armor
-		TESForm *wornForm = selectedObject.hitForm;
-		BaseExtraList *wornExtraData = selectedObject.hitExtraList;
-		if (wornForm) {
-			TESBoundObject *item = DYNAMIC_CAST(wornForm, TESForm, TESBoundObject);
-			if (item) {
+		if (TESForm *wornForm = selectedObject.hitForm) {
+			if (TESBoundObject *item = DYNAMIC_CAST(wornForm, TESForm, TESBoundObject)) {
 				// pump armor form / extra data into actor->RemoveItem (vfunc 0x56)
 				// DropObject is vfunc 0xCD
 				// Actor::RemoveItem is at 0x607F60
@@ -1755,7 +1777,9 @@ UInt32 Hand::SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffs
 					count = selectedObject.hitFormCount; // Drop the whole quiver
 				}
 
-				UInt64 *vtbl = *((UInt64 **)actor);
+				BaseExtraList *wornExtraData = selectedObject.hitExtraList;
+
+				UInt64 *vtbl = get_vtbl(actor);
 				if (selectedObject.isDisconnected) {
 					// For dropped weapons/shields, make the drop pos / rot equal to where it was before
 					NiPoint3 dropLoc = selectedObject.hitNode->m_worldTransform.pos;
@@ -1801,7 +1825,7 @@ bool Hand::TransitionGrabExternal(TESObjectREFR *refr)
 
 void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selectedObj, NiNode *objRoot, NiAVObject *collidableNode, NiAVObject *handNode, float handSize, bhkSimpleShapePhantom *sphere, const NiPoint3 &hkPalmPos, const NiPoint3 &palmVector, float havokWorldScale)
 {
-	selectedObject.point = collidableNode->m_worldTransform.pos; // Fallback to the center of the object
+	selectedObject.point = collidableNode->m_worldTransform.pos * *g_havokWorldScale; // Fallback to the center of the object
 
 	NiTransform initialTransform;
 	if (!ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform)) {
@@ -3438,6 +3462,22 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					}
 
 					bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+
+					// Nothing to do with higgs, just for debugging occlusion culling
+					/*
+					if (NiNode *n = collidableNode->GetAsNiNode()) {
+						for (int i = 0; i < n->m_children.m_emptyRunStart; i++) {
+							if (NiAVObject *child = n->m_children.m_data[i]) {
+								if (BSGeometry *geom = DYNAMIC_CAST(child, NiAVObject, BSGeometry)) {
+									UInt32 *isOccluded = *(UInt32 **)&geom->unk128;
+									if (isOccluded) {
+										_MESSAGE("%p\t%d", geom, *isOccluded);
+									}
+								}
+							}
+						}
+					}
+					*/
 					
 					/*NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
 					NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
@@ -3807,6 +3847,18 @@ void Hand::LateMainThreadUpdate()
 	if (tpHandNode && tpWeaponNode) {
 		thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
 	}
+
+	// Testing frame-perfect held object visual updates (regardless of collision pos)
+	/*if (state == State::HeldBody) {
+		NiPointer<TESObjectREFR> heldRefr;
+		if (LookupREFRByHandle(selectedObject.handle, heldRefr) && heldRefr->GetNiNode()) {
+			if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
+				NiTransform desiredTransform = handTransform * desiredNodeTransformHandSpace;
+				UpdateNodeTransformLocal(collidableNode, desiredTransform);
+				RecalculateNodeTransform(collidableNode);
+			}
+		}
+	}*/
 }
 
 

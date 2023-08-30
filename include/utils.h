@@ -38,6 +38,7 @@ inline T get_vfunc(void *object, UInt64 index)
 NiAVObject * GetHighestParent(NiAVObject *node);
 NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform = false);
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);
+void RecalculateNodeTransform(NiAVObject *node);
 NiTransform GetRigidBodyTLocalTransform(bhkRigidBody *rigidBody);
 void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform);
 void UpdateBoneMatrices(NiAVObject *obj);
@@ -114,6 +115,7 @@ NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr);
 NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform);
 void ModSpeedMult(Actor *actor, float amount);
 void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book);
+void CollectAllHavokObjects(NiAVObject *root, std::vector<NiPointer<bhkRigidBody>> &out);
 inline TESRace * Actor_GetRace(Actor *actor) { return *((TESRace **)((UInt64)actor + 0x1F0)); }
 
 inline void SetProjectileFlags(Projectile *projectile, UInt32 flags) { *((UInt32 *)((UInt64)projectile + 0x1cc)) = flags; }

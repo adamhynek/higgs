@@ -145,7 +145,7 @@ bool HasGeometryChildren(NiAVObject *obj)
 	}
 
 	for (int i = 0; i < node->m_children.m_arrayBufLen; ++i) {
-		auto child = node->m_children.m_data[i];
+		NiAVObject *child = node->m_children.m_data[i];
 		if (child && child->GetAsBSGeometry()) {
 			return true;
 		}
@@ -228,6 +228,24 @@ void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransfor
 {
 	// Given world transform, set the necessary local transform
 	node->m_localTransform = GetLocalTransformForDesiredWorldTransform(node, worldTransform);
+}
+
+void RecalculateNodeTransform(NiAVObject *node)
+{
+	if (NiPointer<NiNode> parent = node->m_parent) {
+		node->m_worldTransform = parent->m_worldTransform * node->m_localTransform;
+	}
+	else {
+		node->m_worldTransform = node->m_localTransform;
+	}
+
+	if (NiNode *asNode = node->GetAsNiNode()) {
+		for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
+			if (NiAVObject *child = asNode->m_children.m_data[i]) {
+				RecalculateNodeTransform(child);
+			}
+		}
+	}
 }
 
 NiTransform GetRigidBodyTLocalTransform(bhkRigidBody *rigidBody)
@@ -418,25 +436,26 @@ std::set<std::string, std::less<>> SplitStringToSet(const std::string &s, char d
 	return result;
 }
 
-bool VisitNodes(NiAVObject  *parent, std::function<bool(NiAVObject*, int)> functor, int depth)
+bool VisitNodes(NiAVObject *parent, std::function<bool(NiAVObject*, int)> functor, int depth)
 {
 	if (!parent) return false;
-	NiNode * node = parent->GetAsNiNode();
-	if (node) {
-		if (functor(parent, depth))
-			return true;
 
-		auto children = &node->m_children;
-		for (UInt32 i = 0; i < children->m_emptyRunStart; i++) {
-			NiPointer<NiAVObject> object = children->m_data[i];
-			if (object) {
-				if (VisitNodes(object, functor, depth + 1))
+	if (NiNode *node = parent->GetAsNiNode()) {
+		if (functor(parent, depth)) {
+			return true;
+		}
+
+		for (UInt32 i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			if (NiPointer<NiAVObject> object = node->m_children.m_data[i]) {
+				if (VisitNodes(object, functor, depth + 1)) {
 					return true;
+				}
 			}
 		}
 	}
-	else if (functor(parent, depth))
+	else if (functor(parent, depth)) {
 		return true;
+	}
 
 	return false;
 }
@@ -956,8 +975,7 @@ void SetGeometryAlphaDownstream(NiAVObject *root, float alpha)
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
+			if (NiAVObject *child = node->m_children.m_data[i]) {
 				SetGeometryAlphaDownstream(child, alpha);
 			}
 		}
@@ -988,8 +1006,7 @@ NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root)
 	NiNode *node = root->GetAsNiNode();
 	if (node) {
 		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-			auto child = node->m_children.m_data[i];
-			if (child) {
+			if (NiAVObject *child = node->m_children.m_data[i]) {
 				return GetFlattenedBoneTree(child);
 			}
 		}
@@ -1044,6 +1061,25 @@ void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book)
 					BaseExtraList *extraList = entryData->extendDataList ? entryData->extendDataList->GetNthItem(0) : nullptr;
 					get_vfunc<Actor_RemoveItem>(player, 0x56)(player, &droppedObjHandle, book, 1, 0, extraList, nullptr, nullptr, nullptr);
 				}
+			}
+		}
+	}
+}
+
+void CollectAllHavokObjects(NiAVObject *root, std::vector<NiPointer<bhkRigidBody>> &out)
+{
+	if (!root) return;
+
+	if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root)) {
+		if (rigidBody->hkBody) {
+			out.push_back(rigidBody);
+		}
+	}
+
+	if (NiNode *node = root->GetAsNiNode()) {
+		for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+			if (NiAVObject *child = node->m_children.m_data[i]) {
+				CollectAllHavokObjects(child, out);
 			}
 		}
 	}

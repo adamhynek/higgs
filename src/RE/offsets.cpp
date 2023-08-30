@@ -53,6 +53,8 @@ RelocPtr<float> g_fMagicHandScale(0x1EAEAE8);
 
 RelocPtr<DWORD> g_havokMemoryRouterTlsIndex(0x30A8C04);
 
+RelocPtr<hkMemoryAllocator> g_hkContainerHeapAllocator(0x1EB59C8);
+
 RelocPtr<BGSImpactManager> g_impactManager(0x2FEBD60);
 
 // Used by NiCloningProcess...
@@ -61,6 +63,7 @@ RelocPtr<UInt64> unk_141E703B8(0x1E703B8);
 
 
 // Havok / Bethesda havok wrappers
+RelocAddr<_hkArrayUtil__reserveMore> hkArrayUtil__reserveMore(0xA02350);
 RelocAddr<_hkpWorld_getCurrentTime> hkpWorld_getCurrentTime(0xAB74F0);
 RelocAddr<_hkpWorld_CastRay> hkpWorld_CastRay(0x00AB5B20);
 RelocAddr<_hkpWorld_LinearCast> hkpWorld_LinearCast(0x00AB5EC0);
@@ -129,11 +132,13 @@ RelocAddr<_hkMatrix3_setMul> hkMatrix3_setMul(0xA09A10);
 RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ctor(0xAD62C0);
 RelocAddr<_bhkPositionConstraintMotor_ctor> bhkPositionConstraintMotor_ctor(0xE7A610);
 RelocAddr<_bhkCollisionObject_GetRigidBody> bhkCollisionObject_GetRigidBody(0x152EE0);
+RelocAddr<_hkpConvexVerticesShape_getOriginalVertices> hkpConvexVerticesShape_getOriginalVertices(0xB98F70);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);
 RelocAddr<_GetNodeFromCollidable> GetNodeFromCollidable(0xE01FE0);
-RelocAddr<_GetRefFromCollidable> GetRefFromCollidable(0x003B4940);
+RelocAddr<_GetRefFromCollidable> GetRefFromCollidable(0x3B4940);
+RelocAddr<_NiAVObject_CollectAllHavokObjects> NiAVObject_CollectAllHavokObjects(0xE03400);
 
 RelocAddr<_CreateDetectionEvent> CreateDetectionEvent(0x656140);
 RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList(0x12F89E0);

@@ -13,6 +13,7 @@
 #include "skse64/NiGeometry.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
+#include <Physics/Collide/Shape/Convex/ConvexVertices/hkpConvexVerticesShape.h>
 #include <Physics/Dynamics/Constraint/Bilateral/BallAndSocket/hkpBallAndSocketConstraintData.h>
 #include <Physics/Dynamics/Constraint/Motor/Position/hkpPositionConstraintMotor.h>
 #include <Physics/Utilities/Constraint/Keyframe/hkpKeyFrameUtility.h>
@@ -69,9 +70,13 @@ extern RelocPtr<float> g_fMagicHandRotateZ;
 extern RelocPtr<float> g_fMagicHandScale;
 
 extern RelocPtr<DWORD> g_havokMemoryRouterTlsIndex;
+extern RelocPtr<hkMemoryAllocator> g_hkContainerHeapAllocator;
 
 
 // Havok / Bethesda havok wrappers
+typedef void(*_hkArrayUtil__reserveMore)(hkMemoryAllocator *allocator, void *arr, int elemSize);
+extern RelocAddr<_hkArrayUtil__reserveMore> hkArrayUtil__reserveMore;
+
 typedef float(*_hkpWorld_getCurrentTime)(hkpWorld *world);
 extern RelocAddr<_hkpWorld_getCurrentTime> hkpWorld_getCurrentTime;
 
@@ -275,15 +280,21 @@ extern RelocAddr<_bhkPositionConstraintMotor_ctor> bhkPositionConstraintMotor_ct
 typedef bhkRigidBody *(*_bhkCollisionObject_GetRigidBody)(bhkCollisionObject *obj);
 extern RelocAddr<_bhkCollisionObject_GetRigidBody> bhkCollisionObject_GetRigidBody;
 
+typedef void(*_hkpConvexVerticesShape_getOriginalVertices)(hkpConvexVerticesShape *_this, hkArray<hkVector4> &vertices);
+extern RelocAddr<_hkpConvexVerticesShape_getOriginalVertices> hkpConvexVerticesShape_getOriginalVertices;
+
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);
 extern RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell;
 
-typedef NiAVObject * (*_GetNodeFromCollidable)(hkpCollidable * a_collidable);
+typedef NiAVObject * (*_GetNodeFromCollidable)(const hkpCollidable * a_collidable);
 extern RelocAddr<_GetNodeFromCollidable> GetNodeFromCollidable;
 
-typedef TESObjectREFR * (*_GetRefFromCollidable)(hkpCollidable * a_collidable);
+typedef TESObjectREFR * (*_GetRefFromCollidable)(const hkpCollidable * a_collidable);
 extern RelocAddr<_GetRefFromCollidable> GetRefFromCollidable;
+
+typedef void(*_NiAVObject_CollectAllHavokObjects)(NiAVObject *node, hkArray<hkpRigidBody *> *havokObjects);
+extern RelocAddr<_NiAVObject_CollectAllHavokObjects> NiAVObject_CollectAllHavokObjects;
 
 
 typedef NiTransform * (*_BSVRInterface_GetHandTransform)(BSOpenVR *_this, NiTransform *transformOut, BSVRInterface::BSControllerHand handForOpenVRDeviceIndex, BSVRInterface::BSControllerHand handForBSOpenVRTransform);

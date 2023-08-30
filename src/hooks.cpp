@@ -274,6 +274,58 @@ void PickLinearCastHook(hkpWorld *world, const hkpCollidable* collA, const hkpLi
 	}
 }
 
+// Some random code for debugging occlusion culling
+/*
+typedef bool(*_BSGeometryListCullingProcess_vf_sub_140DA1860)(BSCullingProcess *_this, BSGeometry *geom);
+_BSGeometryListCullingProcess_vf_sub_140DA1860 g_originalBSGeometryListCullingProcess_vf_sub_140DA1860 = nullptr;
+static RelocPtr<_BSGeometryListCullingProcess_vf_sub_140DA1860> BSGeometryListCullingProcess_vf_sub_140DA1860_vtbl(0x1621130);
+
+std::mutex g_occludedNodesLock;
+std::unordered_set<NiAVObject *> occludedNodes{};
+int g_frameId = 0;
+
+bool BSGeometryListCullingProcess_vf_sub_140DA1860_Hook(BSCullingProcess *_this, BSGeometry *node)
+{
+	if (false) {
+		std::scoped_lock lock(g_occludedNodesLock);
+
+		if (*g_currentFrameCounter != g_frameId) {
+			g_frameId = *g_currentFrameCounter;
+			//_MESSAGE("");
+		}
+
+		bool wasVisible = false;
+
+		auto it = occludedNodes.find(node);
+		if (it != occludedNodes.end()) {
+			wasVisible = true;
+		}
+
+		occludedNodes.erase(node);
+
+		bool isVisible = false;
+		if (BSGeometry *geom = DYNAMIC_CAST(node, NiAVObject, BSGeometry)) {
+			UInt32 *isVisiblePtr = *(UInt32 **)&geom->unk128;
+			if (isVisiblePtr) {
+				isVisible = *isVisiblePtr;
+				if (isVisible) {
+					occludedNodes.insert(geom);
+				}
+			}
+
+			if (!wasVisible && isVisible) {
+				_MESSAGE("On:\t%p\t%s", geom, geom->m_name);
+			}
+			else if (wasVisible && !isVisible) {
+				_MESSAGE("Off:\t%p\t%s", geom, geom->m_name);
+			}
+		}
+	}
+
+	return g_originalBSGeometryListCullingProcess_vf_sub_140DA1860(_this, node);
+}
+*/
+
 
 struct RefreshActivateButtonArtTask : UIDelegate_v1
 {

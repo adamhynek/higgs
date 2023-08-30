@@ -23,6 +23,40 @@
 #include "havok_ref_ptr.h"
 
 
+namespace RE
+{
+	template <typename T>
+	struct hkArray
+	{
+		enum
+		{
+			CAPACITY_MASK = int(0x3FFFFFFF),
+			FLAG_MASK = int(0xC0000000),
+			DONT_DEALLOCATE_FLAG = int(0x80000000), // Indicates that the storage is not the array's to delete
+			FORCE_SIGNED = -1
+		};
+
+		T *m_data = nullptr; // 00
+		int m_size = 0; // 08
+		int m_capacityAndFlags = 0; // 0C
+
+		inline int getCapacity() const
+		{
+			return (m_capacityAndFlags & static_cast<int>(CAPACITY_MASK));
+		}
+
+		inline ~hkArray()
+		{
+			clearAndDeallocate();
+		}
+
+		void clear();
+		void clearAndDeallocate();
+		void pushBack(const T &t);
+	};
+
+}
+
 enum class HavokProperty : hkUint32
 {
 	Node = 1, // NiAVObject

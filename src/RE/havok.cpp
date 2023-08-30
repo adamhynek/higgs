@@ -17,6 +17,41 @@ hkUFloat8 &hkUFloat8::operator=(const float &fv)
 	return *this;
 }
 
+namespace RE
+{
+	template <typename T>
+	void hkArray<T>::clear()
+	{
+		hkArrayUtil::destruct(m_data, m_size, typename hkIsPodType<T>::type());
+		m_size = 0;
+	}
+	template void hkArray<hkpRigidBody *>::clear();
+
+	template <typename T>
+	void hkArray<T>::clearAndDeallocate()
+	{
+		clear();
+		if ((m_capacityAndFlags & DONT_DEALLOCATE_FLAG) == 0)
+		{
+			g_hkContainerHeapAllocator->bufFree(m_data, getCapacity() * hkSizeOfTypeOrVoid<T>::val);
+		}
+		m_data = HK_NULL;
+		m_capacityAndFlags = DONT_DEALLOCATE_FLAG;
+	}
+	template void hkArray<hkpRigidBody *>::clearAndDeallocate();
+
+	template <typename T>
+	void hkArray<T>::pushBack(const T &t)
+	{
+		if (m_size == getCapacity()) {
+			hkArrayUtil__reserveMore(g_hkContainerHeapAllocator, this, sizeof(T));
+		}
+		m_data[m_size] = t;
+		++m_size;
+	}
+	template void hkArray<hkpRigidBody *>::pushBack(hkpRigidBody *const &t);
+}
+
 auto hkConstraintCinfo_vtbl = RelocAddr<void *>(0x161D218);
 hkConstraintCinfo::hkConstraintCinfo()
 {
