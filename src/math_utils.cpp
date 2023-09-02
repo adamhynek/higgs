@@ -1386,15 +1386,17 @@ bool IsHairGeometry(BSGeometry *geom)
 	return false;
 }
 
-bool IsBloodOrDecal(BSGeometry *geom)
+bool IsIgnorableGeometry(BSGeometry *geom)
 {
 	NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
 	if (geomProperty) {
 		BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
 		if (shaderProperty) {
-			if (shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Decal ||
-				shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Dynamic_Decal ||
-				shaderProperty->shaderFlags2 & BSShaderProperty::ShaderFlags2::kSLSF2_Weapon_Blood) {
+			if (
+				(Config::options.grabIgnoreDecal && (shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Decal || shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Dynamic_Decal)) ||
+				(Config::options.grabIgnoreBlood && shaderProperty->shaderFlags2 & BSShaderProperty::ShaderFlags2::kSLSF2_Weapon_Blood) ||
+				(Config::options.grabIgnoreSoftEffect && shaderProperty->shaderFlags1 & BSShaderProperty::ShaderFlags1::kSLSF1_Soft_Effect)
+			) {
 				return true;
 			}
 		}
@@ -1457,7 +1459,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 	NiSkinDataPtr skinData = skinInstance->m_spSkinData;
 	if (!skinData) return;
 
-	if (IsBloodOrDecal(geom)) return;
+	if (IsIgnorableGeometry(geom)) return;
 
 	if (Config::options.disableGrabHair && IsHairGeometry(geom)) {
 		// Don't skin hair - it gets in the way
@@ -1642,7 +1644,7 @@ void UpdateTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std
 		return;
 	}
 
-	if (IsBloodOrDecal(geom)) return;
+	if (IsIgnorableGeometry(geom)) return;
 
 	if (Config::options.disableGrabGeometryWithVertexAlpha && ShouldIgnoreBasedOnVertexAlpha(geom)) return;
 

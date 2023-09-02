@@ -423,6 +423,10 @@ namespace Config {
 		if (!RegisterBool("AllowTwoHandingWithSpellInOffhand", options.allowTwoHandingWithSpellInOffhand)) success = false;
 		if (!RegisterBool("AllowGrabCurrentHorse", options.allowGrabCurrentHorse)) success = false;
 
+		if (!RegisterBool("grabIgnoreBlood", options.grabIgnoreBlood)) success = false;
+		if (!RegisterBool("grabIgnoreDecal", options.grabIgnoreDecal)) success = false;
+		if (!RegisterBool("grabIgnoreSoftEffect", options.grabIgnoreSoftEffect)) success = false;
+
 		if (!RegisterBool("EnableTrigger", options.enableTrigger)) success = false;
 		if (!RegisterBool("EnableGrip", options.enableGrip)) success = false;
 

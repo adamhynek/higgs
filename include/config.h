@@ -207,6 +207,10 @@ namespace Config {
 		bool allowTwoHandingWithSpellInOffhand = true;
 		bool allowGrabCurrentHorse = false;
 
+		bool grabIgnoreBlood = true;
+		bool grabIgnoreDecal = true;
+		bool grabIgnoreSoftEffect = true;
+
 		bool useLoudSoundGrab = false;
 		bool useLoudSoundDrop = false;
 		bool useLoudSoundPull = true;
