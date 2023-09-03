@@ -535,14 +535,17 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 }
 
 
-hkTransform Hand::ComputeHandCollisionTransform(NiAVObject *handNode, bool isBeast)
+hkTransform Hand::ComputeHandCollisionTransform(bool isBeast, const NiTransform *a_handTransform)
 {
+	// handTransform must be where the hand is in real life, as the hand collision is what drives the grab constraint
+	const NiTransform &handTransformToUse = a_handTransform ? *a_handTransform : handTransform;
+
 	hkTransform transform;
 	NiPoint3 handCollisionBoxOffset = isBeast ? Config::options.handCollisionBoxOffsetBeast : Config::options.handCollisionBoxOffset;
 	if (isLeft) handCollisionBoxOffset.x *= -1;
 	float havokWorldScale = *g_havokWorldScale;
-	transform.m_translation = NiPointToHkVector((handTransform * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale);
-	NiMatrixToHkMatrix(handTransform.rot, transform.m_rotation);
+	transform.m_translation = NiPointToHkVector((handTransformToUse * (handCollisionBoxOffset / havokWorldScale)) * havokWorldScale);
+	NiMatrixToHkMatrix(handTransformToUse.rot, transform.m_rotation);
 
 	return transform;
 }
@@ -603,7 +606,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_maxAngularVelocity = 500.f;
 
 	if (NiPointer<NiAVObject> handNode = GetFirstPersonHandNode()) {
-		hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
+		hkTransform transform = ComputeHandCollisionTransform(isBeast, &handNode->m_worldTransform);
 		cInfo.hkCinfo.m_position = transform.m_translation;
 		cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
 	}
@@ -650,7 +653,7 @@ void Hand::RemoveHandCollisionFromCurrentWorld()
 }
 
 
-void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
+void Hand::UpdateHandCollision(bhkWorld *world)
 {
 	PlayerCharacter *player = *g_thePlayer;
 
@@ -686,7 +689,7 @@ void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
 	// Put our hand collision where we want it
-	hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
+	hkTransform transform = ComputeHandCollisionTransform(isBeast);
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
 	ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handBody);
@@ -3527,7 +3530,7 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
 	if (!handNode) return;
 
 	// Update these after stuff like two-handing hand updates
-	UpdateHandCollision(handNode, world);
+	UpdateHandCollision(world);
 	UpdateWeaponCollision();
 }
 

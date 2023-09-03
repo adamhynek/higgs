@@ -169,8 +169,8 @@ struct Hand
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
 	void RemoveHandCollisionFromCurrentWorld();
-	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);
-	hkTransform ComputeHandCollisionTransform(NiAVObject *handNode, bool isBeast);
+	void UpdateHandCollision(bhkWorld *world);
+	hkTransform ComputeHandCollisionTransform(bool isBeast, const NiTransform * a_handTransform = nullptr);
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
