@@ -228,7 +228,6 @@ struct Hand
 	float GetEffectiveHeldMass();
 	void Select(TESObjectREFR *obj);
 	void Deselect();
-	void RestoreHandTransform();
 	void PostVrikUpdate();
 	void LateMainThreadUpdate();
 	void EndPull();
