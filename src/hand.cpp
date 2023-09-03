@@ -559,6 +559,8 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 			thisFrameVrikHandTransform.scale = handSize;
 
 			NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * thirdPersonHandToWeaponTransform;
+			thisFrameWeaponTransform = thisFrameWeaponTransform * GetRigidBodyTLocalTransform(existingWeaponCollision);
+
 			transform = NiTransformTohkTransform(thisFrameWeaponTransform);
 		}
 	}
@@ -813,11 +815,11 @@ void Hand::UpdateWeaponCollision()
 		return;
 	}
 
-	bool isUnarmed = IsUnarmed(player->GetEquippedObject(*g_leftHandedMode != isLeft));
+	bool shouldNotHaveMeleeCollision = ShouldNotHaveMeleeCollision(player->GetEquippedObject(*g_leftHandedMode != isLeft));
 
 	if (clonedFromWeaponShape != (bhkShape *)rigidBody->hkBody->getCollidable()->getShape()->m_userData || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
 		RemoveWeaponCollisionFromCurrentWorld();
-		if (!isUnarmed) {
+		if (!shouldNotHaveMeleeCollision) {
 			if (NiPointer<bhkWorld> world = meleeData->world) {
 				BSWriteLocker lock(&world->worldLock);
 				CreateWeaponCollision(world);
@@ -825,7 +827,7 @@ void Hand::UpdateWeaponCollision()
 		}
 	}
 
-	if (isUnarmed) {
+	if (shouldNotHaveMeleeCollision) {
 		RemoveWeaponCollisionFromCurrentWorld();
 		return;
 	}

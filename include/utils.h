@@ -68,7 +68,7 @@ bool IsBow(const TESObjectWEAP *weap);
 TESObjectWEAP *GetEquippedWeapon(Actor *actor, bool isOffhand);
 TESObjectARMO *GetEquippedShield(Actor *actor, bool isOffhand);
 SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand);
-bool IsUnarmed(TESForm *equippedObject);
+bool ShouldNotHaveMeleeCollision(TESForm *equippedObject);
 
 bool IsBipedIndexHigherPriority(int indexInQuestion, int indexToBeat);
 std::tuple<EquipData, int> GetEquipDataForBipedObject(Actor *actor, Biped *bipedData, TESForm *matchForm, int bipedIndex);

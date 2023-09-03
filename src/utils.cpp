@@ -388,9 +388,11 @@ SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand)
 	return nullptr;
 }
 
-bool IsUnarmed(TESForm *equippedObject)
+bool ShouldNotHaveMeleeCollision(TESForm *equippedObject)
 {
 	if (!equippedObject) return true;
+
+	if (equippedObject->formType == kFormType_Spell) return true;
 
 	TESObjectWEAP *equippedWeapon = DYNAMIC_CAST(equippedObject, TESForm, TESObjectWEAP);
 	if (equippedWeapon && equippedWeapon->type() == TESObjectWEAP::GameData::kType_HandToHandMelee) {
