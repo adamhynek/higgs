@@ -535,7 +535,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 }
 
 
-hkTransform Hand::ComputeHandCollisionTransform(NiTransform &handTransform, bool isBeast)
+hkTransform Hand::ComputeHandCollisionTransform(NiAVObject *handNode, bool isBeast)
 {
 	hkTransform transform;
 	NiPoint3 handCollisionBoxOffset = isBeast ? Config::options.handCollisionBoxOffsetBeast : Config::options.handCollisionBoxOffset;
@@ -603,7 +603,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
 	cInfo.hkCinfo.m_maxAngularVelocity = 500.f;
 
 	if (NiPointer<NiAVObject> handNode = GetFirstPersonHandNode()) {
-		hkTransform transform = ComputeHandCollisionTransform(handNode->m_worldTransform, isBeast);
+		hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
 		cInfo.hkCinfo.m_position = transform.m_translation;
 		cInfo.hkCinfo.m_rotation.setFromRotationSimd(transform.m_rotation);
 	}
@@ -650,7 +650,7 @@ void Hand::RemoveHandCollisionFromCurrentWorld()
 }
 
 
-void Hand::UpdateHandCollision(bhkWorld *world, NiTransform &handTransform)
+void Hand::UpdateHandCollision(NiAVObject *handNode, bhkWorld *world)
 {
 	PlayerCharacter *player = *g_thePlayer;
 
@@ -686,7 +686,7 @@ void Hand::UpdateHandCollision(bhkWorld *world, NiTransform &handTransform)
 	handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
 	// Put our hand collision where we want it
-	hkTransform transform = ComputeHandCollisionTransform(handTransform, isBeast);
+	hkTransform transform = ComputeHandCollisionTransform(handNode, isBeast);
 	hkQuaternion desiredQuat;
 	desiredQuat.setFromRotationSimd(transform.m_rotation);
 	ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handBody);
@@ -3527,7 +3527,7 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
 	if (!handNode) return;
 
 	// Update these after stuff like two-handing hand updates
-	UpdateHandCollision(world, handNode->m_worldTransform);
+	UpdateHandCollision(handNode, world);
 	UpdateWeaponCollision();
 }
 
@@ -3767,6 +3767,57 @@ bool Hand::CanTwoHand() const
 	}
 
 	return false;
+}
+
+
+void Hand::RestoreHandTransform()
+{
+	if (state == State::HeldBody) {
+		PlayerCharacter *player = *g_thePlayer;
+
+		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+		if (!handNode) return;
+
+		NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (!clavicle) return;
+
+		UpdateNodeTransformLocal(clavicle, clavicleTransform);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateNode(clavicle, &ctx);
+
+		UpdateNodeTransformLocal(handNode, handTransform);
+		NiAVObject_UpdateNode(handNode, &ctx);
+	}
+	else if (state == State::HeldTwoHanded) {
+		PlayerCharacter *player = *g_thePlayer;
+
+		// Restore both this hand and the other hand
+		NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+		if (!handNode) return;
+
+		NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (!clavicle) return;
+
+		UpdateNodeTransformLocal(clavicle, clavicleTransform);
+		NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+		NiAVObject_UpdateNode(clavicle, &ctx);
+
+		UpdateNodeTransformLocal(handNode, handTransform);
+		NiAVObject_UpdateNode(handNode, &ctx);
+
+		Hand &other = isLeft ? *g_rightHand : *g_leftHand;
+		handNode = other.GetFirstPersonHandNode();
+		if (!handNode) return;
+
+		clavicle = other.isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
+		if (clavicle) return;
+
+		UpdateNodeTransformLocal(clavicle, other.clavicleTransform);
+		NiAVObject_UpdateNode(clavicle, &ctx);
+
+		UpdateNodeTransformLocal(handNode, other.handTransform);
+		NiAVObject_UpdateNode(handNode, &ctx);
+	}
 }
 
 

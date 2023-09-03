@@ -169,8 +169,8 @@ struct Hand
 	void CreateHandCollision(bhkWorld *world);
 	void RemoveHandCollision(bhkWorld *world);
 	void RemoveHandCollisionFromCurrentWorld();
-	void UpdateHandCollision(bhkWorld *world, NiTransform &handTransform);
-	hkTransform ComputeHandCollisionTransform(NiTransform &handTransform, bool isBeast);
+	void UpdateHandCollision(NiAVObject *handNode, bhkWorld *world);
+	hkTransform ComputeHandCollisionTransform(NiAVObject *handNode, bool isBeast);
 	hkTransform ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCollision);
 	void CreateWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollision(bhkWorld *world);
@@ -228,6 +228,7 @@ struct Hand
 	float GetEffectiveHeldMass();
 	void Select(TESObjectREFR *obj);
 	void Deselect();
+	void RestoreHandTransform();
 	void PostVrikUpdate();
 	void LateMainThreadUpdate();
 	void EndPull();
