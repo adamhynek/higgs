@@ -975,7 +975,7 @@ void Hand::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
-bool Hand::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
+std::optional<NiTransform> Hand::GetAttachTransform(const TESForm *baseForm)
 {
 	PlayerCharacter *player = *g_thePlayer;
 	bool isLeftHanded = *g_leftHandedMode;
@@ -996,7 +996,7 @@ bool Hand::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
 		}
 
 		NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, offsetNodeIndex);
-		if (!offsetNode) return false;
+		if (!offsetNode) return std::nullopt;
 
 		NiTransform offsetNodeTransform = offsetNode->m_worldTransform;
 
@@ -1011,37 +1011,43 @@ bool Hand::GetAttachTransform(const TESForm *baseForm, NiTransform &transform)
 			}
 		}
 
-		transform = offsetNodeTransform;
-		return true;
+		return offsetNodeTransform;
 	}
 
 	if (TESObjectLIGH *light = DYNAMIC_CAST(baseForm, TESForm, TESObjectLIGH)) {
 		// This is basically all because of torches
-		if (!(light->unkE0.unk0C & (1 << 1))) return false; // kCanCarry
+		if (!(light->unkE0.unk0C & (1 << 1))) return std::nullopt; // kCanCarry
 		NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, 2); // MeleeWeaponOffset
-		if (!offsetNode) return false;
+		if (!offsetNode) return std::nullopt;
 
-		transform = offsetNode->m_worldTransform;
-		return true;
+		return offsetNode->m_worldTransform;
 	}
 
-	return false;
+	return std::nullopt;
 }
 
 
-bool Hand::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &initialTransform)
+std::optional<NiTransform> Hand::ComputeInitialObjectTransform(TESObjectREFR *refr, const NiAVObject *handNode, NiAVObject *grabbedNode)
 {
-	if (!baseForm) return false;
+	if (!handNode || !grabbedNode) return std::nullopt;
 
-	bool haveTransform = GetAttachTransform(baseForm, initialTransform);
-	if (!haveTransform) return false;
+	// If higgs grab nodes are present in the mesh, those should get priority
+	if (std::optional<NiTransform> transformFromGrabNodes = GetInitialObjectTransformBasedOnGrabNodes(handNode, grabbedNode)) {
+		return transformFromGrabNodes;
+	}
 
-	// TODO: It needs to be the root of the object that's attached to the appropriate offset node, and we don't necessarily always grab the root
+	if (!refr) return std::nullopt;
 
-	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
-	if (!collidableNode) return false;
+	TESForm *baseForm = refr->baseForm;
+	if (!baseForm) return std::nullopt;
 
-	NiTransform &currentTransform = collidableNode->m_worldTransform;
+	// If the grabbed node is not the root of the object, it shouldn't get attached
+	if (grabbedNode != refr->GetNiNode()) return std::nullopt;
+
+	std::optional<NiTransform> attachTransform = GetAttachTransform(baseForm);
+	if (!attachTransform) return std::nullopt;
+
+	NiTransform &currentTransform = grabbedNode->m_worldTransform;
 
 	/*
 	NiQuaternion currentQuat, attachQuat;
@@ -1059,8 +1065,50 @@ bool Hand::ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &i
 	_MESSAGE("%.2f", deltaPos / maxExtent);
 	*/
 
-	initialTransform.scale = currentTransform.scale;
-	return true;
+	attachTransform->scale = currentTransform.scale;
+	return attachTransform;
+}
+
+
+std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode)
+{
+	static BSFixedString rightHandOnObjectNodeName("HIGGS:GrabR");
+	NiAVObject *palmOnObjectNode = grabbedNode->GetObjectByName(&rightHandOnObjectNodeName.data);
+	if (!palmOnObjectNode && !isLeft) {
+		return std::nullopt;
+	}
+
+	if (isLeft) {
+		static BSFixedString leftHandOnObjectNodeName("HIGGS:GrabL");
+		palmOnObjectNode = grabbedNode->GetObjectByName(&leftHandOnObjectNodeName.data);
+		if (!palmOnObjectNode) {
+			return std::nullopt;
+		}
+	}
+
+    NiTransform palmTransformOnObject = palmOnObjectNode->m_worldTransform;
+
+    // This is how we might mirror the hand to support a single point for both hands, but it's a futile effort
+    //if (isLeft) {
+    //	NiTransform rightToLeft{};
+    //	NiPoint3 euler = Config::options.rightToLeftPalmRotation;
+    //	euler *= (M_PI / 180.f);
+    //	rightToLeft.rot = NifskopeEulerToMatrix(euler);
+    //	palmTransformOnObject = palmTransformOnObject * rightToLeft;
+    //}
+
+    palmTransformOnObject.scale = 1.f;
+    NiTransform palmTransformCurrent{};
+    palmTransformCurrent.pos = GetPalmPositionWS(handNode->m_worldTransform);
+    palmTransformCurrent.rot = handNode->m_worldTransform.rot; // Use hand rot since we don't rotate by the palm rot in the nif
+
+#ifdef _DEBUG
+	RegisterDebugTransform(std::string_view("palmOnObject"), { palmTransformOnObject, {1.f, 1.f, 1.f, 1.f} });
+	RegisterDebugTransform(std::string_view("palmCurrent"), { palmTransformCurrent, {1.f, 1.f, 0.f, 1.f} });
+#endif // _DEBUG
+
+    NiTransform palmOnObjToObj = InverseTransform(palmTransformOnObject) * grabbedNode->m_worldTransform;
+    return palmTransformCurrent * palmOnObjToObj;
 }
 
 
@@ -1073,427 +1121,450 @@ bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node)
 }
 
 
-NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, NiTransform *initialTransform)
+NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const std::optional<NiTransform> &initialTransform, NiAVObject *handNode)
 {
 	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-	if (collidableNode && objRoot) {
-		NiTransform originalTransform = collidableNode->m_worldTransform;
-		NiTransform adjustedTransform = originalTransform;
-
-		// Determine if we're grabbing an object that we pulled
-		bool shouldMoveHandBack = selectedObject.handle == pulledObject.handle || selectedObject.handle == other.pulledObject.handle;
-
-		if (initialTransform) {
-			adjustedTransform = *initialTransform;
-		}
-		else if (shouldMoveHandBack) {
-			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / *g_havokWorldScale;
-		}
-
-		triangles.clear();
-		std::vector<TrianglePartitionData> trianglePartitions{};
-		std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionDataMap{};
-		double t = GetTime();
-		GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap);
-		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
-
-		std::vector<NiAVObject *> triangleNodes{};
-		t = GetTime();
-		GetTriangles(objRoot, triangles, triangleNodes);
-		_MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
-
-		// Transform triangles to the object's adjusted transform
-		NiTransform inverseCurrent = InverseTransform(originalTransform);
-		NiTransform localAdjustment = adjustedTransform * inverseCurrent;
-
-		for (TriangleData &triangle : triangles) {
-			triangle.ApplyTransform(localAdjustment);
-		}
-
-		NiPoint3 triPos, triNormal;
-		float closestDist = (std::numeric_limits<float>::max)();
-		int closestTriIndex = -1;
-		t = GetTime();
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
-
-		if (havePointOnGeometry) {
-			if (closestTriIndex >= trianglePartitions.size()) {
-				// It's not one of the skinned nodes
-				int triIndex = closestTriIndex - trianglePartitions.size();
-				NiPointer<NiAVObject> grabbedNode = triangleNodes[triIndex];
-				if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithCollision(grabbedNode)) {
-					if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
-						return rigidBody;
-					}
-				}
-			}
-			else {
-				// It's one of the skinned nodes
-				std::unordered_map<NiAVObject *, float> accumulatedBoneWeights{};
-
-				int triIndex = closestTriIndex;
-				TrianglePartitionData &trianglePartitionData = trianglePartitions[triIndex];
-				NiSkinPartition::Partition &partition = trianglePartitionData.partition;
-				const PartitionData &partitionData = partitionDataMap[&partition];
-				NiSkinInstance *skinInstance = partitionData.skinInstance;
-				Triangle &indices = trianglePartitionData.indices;
-				UInt16 numWeightsPerVertex = partition.m_usBonesPerVertex;
-
-				for (int i = 0; i < 3; i++) {
-					// The triangle indices are NOT the partition vert indices, they're the index into the shared vertex data for all partitions, so we need to map it back to the partition vert index
-					UInt16 vindex = indices.vertexIndices[i];
-					UInt16 v = partitionData.globalVertToPartVertMap[vindex];
-
-					// scale the contribution of each vertex by its distance to the actual grabbed position. This way far-away verts will have less influence than closer ones.
-					NiPoint3 vertPos = partitionData.verticesWS[v];
-					float distance = VectorLength(vertPos - triPos);
-					if (distance < 0.001f) distance = 0.001f;
-					float distanceWeight = 1.f / distance;
-
-					for (int w = 0; w < numWeightsPerVertex; w++) {
-						int offset = v * numWeightsPerVertex + w;
-						float weight = partition.m_pfWeights[offset];
-
-						if (weight > 0.f) {
-							UInt16 partBoneIndex = partition.m_pucBonePalette[offset];
-							UInt16 skinBoneIndex = partition.m_pusBones[partBoneIndex];
-
-							NiAVObject *bone = skinInstance->m_ppkBones[skinBoneIndex];
-							if (!bone) {
-								if (NiTransform *boneTransform = skinInstance->m_worldTransforms[skinBoneIndex]) {
-									if (NiPointer<BSFlattenedBoneTree> tree = GetFlattenedBoneTree(selectedObj)) {
-										if (NiAVObject *matchingBone = GetNodeMatchingBoneTreeTransform(tree, boneTransform)) {
-											bone = matchingBone;
-										}
-									}
-								}
-							}
-
-							if (bone) {
-								float weightedWeight = distanceWeight * weight;
-								accumulatedBoneWeights[bone] += weightedWeight;
-							}
-						}
-					}
-				}
-
-				float maxWeight = 0.f;
-				NiAVObject *maxBone = nullptr;
-				for (auto[bone, weight] : accumulatedBoneWeights) {
-					if (weight > maxWeight) {
-						maxWeight = weight;
-						maxBone = bone;
-					}
-				}
-
-				if (maxBone) {
-					if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithCollision(maxBone)) {
-						if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
-							return rigidBody;
-						}
-					}
-				}
-			}
-		}
+	if (!collidableNode || !objRoot) {
+		return nullptr;
 	}
 
-	return nullptr;
+    NiTransform originalTransform = collidableNode->m_worldTransform;
+    NiTransform adjustedTransform = originalTransform;
+
+    // Determine if we're grabbing an object that we pulled
+    bool shouldMoveHandBack = selectedObject.handle == pulledObject.handle || selectedObject.handle == other.pulledObject.handle;
+
+    if (initialTransform) {
+        adjustedTransform = *initialTransform;
+    }
+    else if (shouldMoveHandBack) {
+        adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / *g_havokWorldScale;
+    }
+
+    triangles.clear();
+    std::vector<TrianglePartitionData> trianglePartitions{};
+    std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionDataMap{};
+    double t = GetTime();
+    GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap);
+    _MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
+
+    std::vector<NiAVObject *> triangleNodes{};
+    t = GetTime();
+    GetTriangles(objRoot, triangles, triangleNodes);
+    _MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
+
+    // Transform triangles to the object's adjusted transform
+    NiTransform inverseCurrent = InverseTransform(originalTransform);
+    NiTransform localAdjustment = adjustedTransform * inverseCurrent;
+
+    for (TriangleData &triangle : triangles) {
+        triangle.ApplyTransform(localAdjustment);
+    }
+	rootTriangleTransform = adjustedTransform;
+
+    NiPoint3 triPos, triNormal;
+    float closestDist = (std::numeric_limits<float>::max)();
+    int closestTriIndex = -1;
+    t = GetTime();
+    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
+
+	if (!havePointOnGeometry) {
+		return nullptr;
+	}
+
+    if (closestTriIndex >= trianglePartitions.size()) {
+        // It's not one of the skinned nodes
+        int triIndex = closestTriIndex - trianglePartitions.size();
+        NiPointer<NiAVObject> grabbedNode = triangleNodes[triIndex];
+        if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithCollision(grabbedNode)) {
+            if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
+                return rigidBody;
+            }
+        }
+    }
+    else {
+        // It's one of the skinned nodes
+        std::unordered_map<NiAVObject *, float> accumulatedBoneWeights{};
+
+        int triIndex = closestTriIndex;
+        TrianglePartitionData &trianglePartitionData = trianglePartitions[triIndex];
+        NiSkinPartition::Partition &partition = trianglePartitionData.partition;
+        const PartitionData &partitionData = partitionDataMap[&partition];
+        NiSkinInstance *skinInstance = partitionData.skinInstance;
+        Triangle &indices = trianglePartitionData.indices;
+        UInt16 numWeightsPerVertex = partition.m_usBonesPerVertex;
+
+        for (int i = 0; i < 3; i++) {
+            // The triangle indices are NOT the partition vert indices, they're the index into the shared vertex data for all partitions, so we need to map it back to the partition vert index
+            UInt16 vindex = indices.vertexIndices[i];
+            UInt16 v = partitionData.globalVertToPartVertMap[vindex];
+
+            // scale the contribution of each vertex by its distance to the actual grabbed position. This way far-away verts will have less influence than closer ones.
+            NiPoint3 vertPos = partitionData.verticesWS[v];
+            float distance = VectorLength(vertPos - triPos);
+            if (distance < 0.001f) distance = 0.001f;
+            float distanceWeight = 1.f / distance;
+
+            for (int w = 0; w < numWeightsPerVertex; w++) {
+                int offset = v * numWeightsPerVertex + w;
+                float weight = partition.m_pfWeights[offset];
+
+                if (weight > 0.f) {
+                    UInt16 partBoneIndex = partition.m_pucBonePalette[offset];
+                    UInt16 skinBoneIndex = partition.m_pusBones[partBoneIndex];
+
+                    NiAVObject *bone = skinInstance->m_ppkBones[skinBoneIndex];
+                    if (!bone) {
+                        if (NiTransform *boneTransform = skinInstance->m_worldTransforms[skinBoneIndex]) {
+                            if (NiPointer<BSFlattenedBoneTree> tree = GetFlattenedBoneTree(selectedObj)) {
+                                if (NiAVObject *matchingBone = GetNodeMatchingBoneTreeTransform(tree, boneTransform)) {
+                                    bone = matchingBone;
+                                }
+                            }
+                        }
+                    }
+
+                    if (bone) {
+                        float weightedWeight = distanceWeight * weight;
+                        accumulatedBoneWeights[bone] += weightedWeight;
+                    }
+                }
+            }
+        }
+
+        float maxWeight = 0.f;
+        NiAVObject *maxBone = nullptr;
+        for (auto[bone, weight] : accumulatedBoneWeights) {
+            if (weight > maxWeight) {
+                maxWeight = weight;
+                maxBone = bone;
+            }
+        }
+
+        if (maxBone) {
+            if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithCollision(maxBone)) {
+                if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
+                    return rigidBody;
+                }
+            }
+        }
+    }
 }
 
 
-void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj, NiTransform *initialTransform, bool warpToHand, bool reuseTriangles, bool playSound)
+void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj, const std::optional<NiTransform> &initialTransform, bool warpToHand, bool reuseTriangles, bool playSound)
 {
 	NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
 	NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
-	if (collidableNode && objRoot) {
-		StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
-
-		float mass = NiAVObject_GetMass(collidableNode, 0);
-		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
-		haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.grabHapticFadeTime);
-
-		grabbedTime = g_currentFrameTime;
-		rolloverDisplayTime = g_currentFrameTime;
-
-		NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
-
-		// Cancel a collision reset from pulling if we're grabbing the object
-		bool shouldMoveHandBack = false;
-		if (pulledObject.handle == selectedObject.handle) {
-			shouldMoveHandBack = true;
-			EndPull();
-		}
-		else if (other.pulledObject.handle == selectedObject.handle) {
-			shouldMoveHandBack = true;
-			other.EndPull();
-		}
-
-		if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
-			if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
-				// Do not use selectedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
-				hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
-				// The filterinfo for impacted projectiles does not collide with much, so we need to change it
-				collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
-				// Projectiles have 'Fixed' motion type by default
-				bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
-			}
-		}
-
-		if (selectedObject.rigidBody->hkBody->m_motion.m_type == hkpMotion::MotionType::MOTION_KEYFRAMED) {
-			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
-		}
-
-		selectedObject.totalMass = NiAVObject_GetMass(objRoot, 0.f);
-
-		if (playSound) {
-			PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
-		}
-
-		if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
-			savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
-			g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
-		}
-
-		bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode);
-
-		StartNearbyDamping(world);
-
-		if (!selectedObject.isActor) {
-			CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, collisionMapState);
-		}
-
-		NiTransform originalTransform = collidableNode->m_worldTransform;
-		NiTransform adjustedTransform = originalTransform;
-
-		if (initialTransform) {
-			adjustedTransform = *initialTransform;
-			ptPos = adjustedTransform * InverseTransform(originalTransform) * ptPos;
-		}
-		else if (shouldMoveHandBack) {
-			adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
-		}
-
-		std::unordered_set<NiAVObject *> nodesToSkinTo;
-		bool skinToSpecificNodes = false;
-		if (selectedObject.isBook) {
-			// Skin only to nodes that are the collision node we grabbed or attached to it
-			// Only do this for objects we are sure will be okay. Sometimes bones don't exist, or don't appear in the skin instance, and so we can end up missing verts
-			GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
-			skinToSpecificNodes = true;
-		}
-
-		if (!reuseTriangles || skinToSpecificNodes) {
-			triangles.clear();
-			std::vector<TrianglePartitionData> trianglePartitions{};
-			std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionDataMap{};
-			double t = GetTime();
-			GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap, skinToSpecificNodes ? &nodesToSkinTo : nullptr);
-			_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
-
-			std::vector<NiAVObject *> triangleNodes{};
-			t = GetTime();
-			GetTriangles(objRoot, triangles, triangleNodes);
-			_MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
-
-			// Transform triangles to the object's adjusted transform
-			NiTransform inverseCurrent = InverseTransform(originalTransform);
-			NiTransform localAdjustment = adjustedTransform * inverseCurrent;
-
-			for (TriangleData &triangle : triangles) {
-				triangle.ApplyTransform(localAdjustment);
-			}
-		}
-
-		NiPoint3 triPos, triNormal;
-		float closestDist = (std::numeric_limits<float>::max)();
-		int closestTriIndex = -1;
-		double t = GetTime();
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
-
-		if (havePointOnGeometry) {
-			ptPos = triPos;
-
-			NiPoint3 palmToPoint = ptPos - palmPos;
-
-			float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
-
-			PlayerCharacter *player = *g_thePlayer;
-
-			NiPoint3 fingerNormalsWorldspace[6];
-			NiPoint3 fingerZeroAngleVecsWorldspace[6];
-			NiPoint3 fingerStartPositionsWorldspace[6];
-			for (int i = 0; i < 6; i++) {
-				NiPoint3 normalHandspace = g_fingerNormals[i];
-				NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
-				NiPoint3 startPos = g_fingerStartPositions[i];
-				if (isLeft) {
-					// x axis is flipped for left hand
-					zeroAngleVecHandspace.x *= -1;
-					startPos.x *= -1;
-
-					// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-					normalHandspace.y *= -1;
-					normalHandspace.z *= -1;
-				}
-				fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
-				fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
-				fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
-			}
-
-			auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &palmToPoint]
-			(int fingerIndex) -> float
-			{
-				NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-				NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
-				NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
-
-				startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
-
-				_DMESSAGE("finger %d", fingerIndex);
-
-				Intersection intersection;
-				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-					intersection);
-
-				if (intersects) {
-					return intersection.angle;
-				}
-
-				// No finger intersection, so just close it completely
-				return 0.0f; // 0 == closed
-			};
-
-			float fingerData[5];
-			for (int i = 0; i < std::size(fingerData); i++) {
-				fingerData[i] = FingerCheck(i);
-			}
-
-			// Doing a separate pass over all fingers here means we can print the final results all next to each other
-			useAlternateThumbCurve = false;
-			for (int i = 0; i < 5; i++) {
-				float curveVal = fingerData[i];
-
-				if (i == 0) {
-					// If standard sideways thumb misses or is negative, check the other thumb curve
-					if (curveVal <= 0.0f) {
-						// TODO: Still use the old curve for a small leeway for negative angles too?
-						float alternateCurveVal = FingerCheck(5); // 5 is the alternate thumb curve
-						if (alternateCurveVal > 0 || (alternateCurveVal == 0.0f && curveVal == 0.0f)) {
-							// Alternate curve intersected at a non-negative angle, or both curves missed completely
-							curveVal = alternateCurveVal;
-							useAlternateThumbCurve = true;
-						}
-					}
-				}
-
-				if (curveVal < 0) {
-					// It's a negative angle - just open the hand
-					_MESSAGE("%d angle: %.2f", i, curveVal);
-					grabbedFingerValues[i] = 1.f;
-				}
-				else {
-					// Positive => it's a curve val
-					_MESSAGE("%d curve val: %.2f", i, curveVal);
-					grabbedFingerValues[i] = curveVal;
-				}
-
-				grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
-			}
-
-			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
-		}
-		else {
-			for (int i = 0; i < 5; i++) {
-				grabbedFingerValues[i] = 0.9f;
-			}
-		}
-
-		NiTransform inverseHand = InverseTransform(handNode->m_worldTransform);
-
-		NiTransform desiredNodeTransform = adjustedTransform;
-		desiredNodeTransform.pos += palmPos - ptPos;
-		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
-
-		if (usePhysicsGrab) {
-			if (warpToHand) {
-				// Teleport the object directly into our hand
-
-				hkVector4 hkPos = NiPointToHkVector(desiredNodeTransform.pos * havokWorldScale);
-				NiQuaternion nodeRotation = MatrixToQuaternion(desiredNodeTransform.rot);
-				hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
-				hkQuat.normalize();
-				selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat); // vfunc takes into account rigidBodyT local transforms
-
-				std::vector<NiPointer<bhkRigidBody>> havokObjects{};
-				CollectAllHavokObjects(objRoot, havokObjects);
-
-				// Now move all the other parts of the object reference by the same transform we moved the part we actually grabbed
-				for (NiPointer<bhkRigidBody> rigidBody : havokObjects) {
-					if (rigidBody == selectedObject.rigidBody) {
-						continue;
-					}
-
-					if (NiPointer<NiAVObject> node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
-						NiTransform offsetFromGrabbedObject = InverseTransform(collidableNode->m_worldTransform) * node->m_worldTransform;
-						NiTransform newTransform = desiredNodeTransform * offsetFromGrabbedObject;
-						hkVector4 hkPos = NiPointToHkVector(newTransform.pos * havokWorldScale);
-						NiQuaternion nodeRotation = MatrixToQuaternion(newTransform.rot);
-						hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
-						hkQuat.normalize();
-						rigidBody->setPositionAndRotation(hkPos, hkQuat); // vfunc takes into account rigidBodyT local transforms
-					}
-				}
-			}
-
-			hkVector4 hkPivotA = NiPointToHkVector(palmPos * havokWorldScale);
-			hkVector4 hkPivotB = NiPointToHkVector(ptPos * havokWorldScale);
-
-			hkpRigidBody *bodyA = handBody->hkBody;
-			hkpRigidBody *bodyB = selectedObject.rigidBody->hkBody;
-			hkVector4 pivotA; hkVector4_setTransformedInversePos(pivotA, bodyA->getTransform(), hkPivotA);
-			hkVector4 pivotB; hkVector4_setTransformedInversePos(pivotB, bodyB->getTransform(), hkPivotB);
-
-			NiTransform handTransformHandSpace = NiTransform{};
-			handTransformHandSpace.pos = HkVectorToNiPoint(pivotA);
-
-			NiTransform desiredHavokTransformHandSpace = desiredNodeTransformHandSpace * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
-			NiTransform handTransformObjSpace = InverseTransform(desiredHavokTransformHandSpace);
-			handTransformObjSpace.pos = HkVectorToNiPoint(pivotB);
-
-			// Ideas:
-			// - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
-			// - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
-
-			// TODO: Check for constraint violation of constraints on grabbed object (i.e. ragdoll)?
-			// TODO: We could reduce max force when the hand is trying to move the grabbed object into whatever it is in contact with, if that object is fixed.
-			//       This would lead to more stable behavior when moving the hand into walls and such.
-			//       20 and 250 seem like good starting values when colliding for angular max force and linear max force.
-
-			bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
-			bhkRigidBody_AddConstraintToArray(handBody, constraint);
-			bhkWorld_AddConstraint(&world, constraint->constraint);
-			grabConstraint = constraint;
-		}
-		else {
-			selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
-			selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
-			selectedObject.savedRigidBodyFlags = selectedObject.rigidBody->flags;
-
-			bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
-		}
-
-		HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
-
-		state = usePhysicsGrab ? State::HeldBody : State::HeldInit;
-
-		if (state == State::HeldBody) {
-			heldTime = g_currentFrameTime; // we set this only when going into HeldBody and Held, not HeldInit
-		}
-	}
-	else {
+	if (!collidableNode || !objRoot) {
 		state = State::Idle;
+		return;
 	}
+
+    StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
+
+    float mass = NiAVObject_GetMass(collidableNode, 0);
+    float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+    haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.grabHapticFadeTime);
+
+    grabbedTime = g_currentFrameTime;
+    rolloverDisplayTime = g_currentFrameTime;
+
+    NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
+
+    // Cancel a collision reset from pulling if we're grabbing the object
+    bool shouldMoveHandBack = false;
+    if (pulledObject.handle == selectedObject.handle) {
+        shouldMoveHandBack = true;
+        EndPull();
+    }
+    else if (other.pulledObject.handle == selectedObject.handle) {
+        shouldMoveHandBack = true;
+        other.EndPull();
+    }
+
+    if (selectedObject.isImpactedProjectile) { // It's an embedded projectile, i.e. stuck in a wall etc.
+        if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
+            // Do not use selectedObject.collidable here, as sometimes we end up grabbing the phantom shape of the projectile instead of the 3D one
+            hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
+            // The filterinfo for impacted projectiles does not collide with much, so we need to change it
+            collidable->m_broadPhaseHandle.m_collisionFilterInfo = (((UInt32)playerCollisionGroup) << 16) | 5; // player collision group, 'weapon' collision layer
+            // Projectiles have 'Fixed' motion type by default
+            bhkRigidBody_setMotionType(rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+        }
+    }
+
+    if (selectedObject.rigidBody->hkBody->m_motion.m_type == hkpMotion::MotionType::MOTION_KEYFRAMED) {
+        bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+    }
+
+    selectedObject.totalMass = NiAVObject_GetMass(objRoot, 0.f);
+
+    if (playSound) {
+        PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
+    }
+
+    if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
+        savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
+        g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
+    }
+
+    bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode);
+
+    StartNearbyDamping(world);
+
+    if (!selectedObject.isActor) {
+        CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, collisionMapState);
+    }
+
+    NiTransform originalTransform = collidableNode->m_worldTransform;
+    NiTransform adjustedTransform = originalTransform;
+
+    if (initialTransform) {
+        adjustedTransform = *initialTransform;
+        ptPos = adjustedTransform * InverseTransform(originalTransform) * ptPos;
+    }
+    else if (shouldMoveHandBack) {
+        adjustedTransform.pos += (palmDirection * Config::options.pulledGrabHandAdjustDistance) / havokWorldScale;
+    }
+
+    std::unordered_set<NiAVObject *> nodesToSkinTo;
+    bool skinToSpecificNodes = false;
+    if (selectedObject.isBook) {
+        // Skin only to nodes that are the collision node we grabbed or attached to it
+        // Only do this for objects we are sure will be okay. Sometimes bones don't exist, or don't appear in the skin instance, and so we can end up missing verts
+        GetDownstreamNodesNoCollision(collidableNode, nodesToSkinTo);
+        skinToSpecificNodes = true;
+    }
+
+    if (!reuseTriangles || skinToSpecificNodes) {
+        triangles.clear();
+        std::vector<TrianglePartitionData> trianglePartitions{};
+        std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionDataMap{};
+        double t = GetTime();
+        GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap, skinToSpecificNodes ? &nodesToSkinTo : nullptr);
+        _MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
+
+        std::vector<NiAVObject *> triangleNodes{};
+        t = GetTime();
+        GetTriangles(objRoot, triangles, triangleNodes);
+        _MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
+
+        // Transform triangles to the object's adjusted transform
+        NiTransform inverseCurrent = InverseTransform(originalTransform);
+        NiTransform localAdjustment = adjustedTransform * inverseCurrent;
+
+        for (TriangleData &triangle : triangles) {
+            triangle.ApplyTransform(localAdjustment);
+        }
+        rootTriangleTransform = adjustedTransform;
+    }
+	else {
+		// Transform the triangles to the differnce between the transform they were last placed to and the one we're using now
+		NiTransform localAdjustment = adjustedTransform * InverseTransform(rootTriangleTransform);
+		for (TriangleData &triangle : triangles) {
+            triangle.ApplyTransform(localAdjustment);
+        }
+        rootTriangleTransform = adjustedTransform;
+	}
+
+    NiPoint3 triPos, triNormal;
+    float closestDist = (std::numeric_limits<float>::max)();
+    int closestTriIndex = -1;
+    double t = GetTime();
+    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
+
+    if (havePointOnGeometry) {
+        ptPos = triPos;
+
+        NiPoint3 palmToPoint = ptPos - palmPos;
+
+        float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
+
+        PlayerCharacter *player = *g_thePlayer;
+
+        NiPoint3 fingerNormalsWorldspace[6];
+        NiPoint3 fingerZeroAngleVecsWorldspace[6];
+        NiPoint3 fingerStartPositionsWorldspace[6];
+        for (int i = 0; i < 6; i++) {
+            NiPoint3 normalHandspace = g_fingerNormals[i];
+            NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+            NiPoint3 startPos = g_fingerStartPositions[i];
+            if (isLeft) {
+                // x axis is flipped for left hand
+                zeroAngleVecHandspace.x *= -1;
+                startPos.x *= -1;
+
+                // Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+                normalHandspace.y *= -1;
+                normalHandspace.z *= -1;
+            }
+            fingerNormalsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * normalHandspace);
+            fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handNode->m_worldTransform.rot * zeroAngleVecHandspace);
+            fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
+        }
+
+        auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &palmToPoint]
+        (int fingerIndex) -> float
+        {
+            NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+            NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+            NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
+
+            startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+
+            _DMESSAGE("finger %d", fingerIndex);
+
+            Intersection intersection;
+            bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+                intersection);
+
+            if (intersects) {
+                return intersection.angle;
+            }
+
+            // No finger intersection, so just close it completely
+            return 0.0f; // 0 == closed
+        };
+
+        float fingerData[5];
+        for (int i = 0; i < std::size(fingerData); i++) {
+            fingerData[i] = FingerCheck(i);
+        }
+
+        // Doing a separate pass over all fingers here means we can print the final results all next to each other
+        useAlternateThumbCurve = false;
+        for (int i = 0; i < 5; i++) {
+            float curveVal = fingerData[i];
+
+            if (i == 0) {
+                // If standard sideways thumb misses or is negative, check the other thumb curve
+                if (curveVal <= 0.0f) {
+                    // TODO: Still use the old curve for a small leeway for negative angles too?
+                    float alternateCurveVal = FingerCheck(5); // 5 is the alternate thumb curve
+                    if (alternateCurveVal > 0 || (alternateCurveVal == 0.0f && curveVal == 0.0f)) {
+                        // Alternate curve intersected at a non-negative angle, or both curves missed completely
+                        curveVal = alternateCurveVal;
+                        useAlternateThumbCurve = true;
+                    }
+                }
+            }
+
+            if (curveVal < 0) {
+                // It's a negative angle - just open the hand
+                _MESSAGE("%d angle: %.2f", i, curveVal);
+                grabbedFingerValues[i] = 1.f;
+            }
+            else {
+                // Positive => it's a curve val
+                _MESSAGE("%d curve val: %.2f", i, curveVal);
+                grabbedFingerValues[i] = curveVal;
+            }
+
+            grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
+        }
+
+        _MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
+    }
+    else {
+        for (int i = 0; i < 5; i++) {
+            grabbedFingerValues[i] = 0.9f;
+        }
+    }
+
+    NiTransform inverseHand = InverseTransform(handNode->m_worldTransform);
+
+    NiTransform desiredNodeTransform = adjustedTransform;
+    desiredNodeTransform.pos += palmPos - ptPos;
+    desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
+
+    if (usePhysicsGrab) {
+        if (warpToHand) {
+            // Teleport the object directly into our hand
+
+            hkVector4 hkPos = NiPointToHkVector(desiredNodeTransform.pos * havokWorldScale);
+            NiQuaternion nodeRotation = MatrixToQuaternion(desiredNodeTransform.rot);
+            hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
+            hkQuat.normalize();
+            selectedObject.rigidBody->setPositionAndRotation(hkPos, hkQuat); // vfunc takes into account rigidBodyT local transforms
+
+            std::vector<NiPointer<bhkRigidBody>> havokObjects{};
+            CollectAllHavokObjects(objRoot, havokObjects);
+
+            // Now move all the other parts of the object reference by the same transform we moved the part we actually grabbed
+            for (NiPointer<bhkRigidBody> rigidBody : havokObjects) {
+                if (rigidBody == selectedObject.rigidBody) {
+                    continue;
+                }
+
+                if (NiPointer<NiAVObject> node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+                    NiTransform offsetFromGrabbedObject = InverseTransform(collidableNode->m_worldTransform) * node->m_worldTransform;
+                    NiTransform newTransform = desiredNodeTransform * offsetFromGrabbedObject;
+                    hkVector4 hkPos = NiPointToHkVector(newTransform.pos * havokWorldScale);
+                    NiQuaternion nodeRotation = MatrixToQuaternion(newTransform.rot);
+                    hkQuaternion hkQuat = NiQuatToHkQuat(nodeRotation);
+                    hkQuat.normalize();
+                    rigidBody->setPositionAndRotation(hkPos, hkQuat); // vfunc takes into account rigidBodyT local transforms
+                }
+            }
+        }
+
+        hkVector4 hkPivotA = NiPointToHkVector(palmPos * havokWorldScale);
+        hkVector4 hkPivotB = NiPointToHkVector(ptPos * havokWorldScale);
+
+        hkpRigidBody *bodyA = handBody->hkBody;
+        hkpRigidBody *bodyB = selectedObject.rigidBody->hkBody;
+        hkVector4 pivotA; hkVector4_setTransformedInversePos(pivotA, bodyA->getTransform(), hkPivotA);
+        hkVector4 pivotB; hkVector4_setTransformedInversePos(pivotB, bodyB->getTransform(), hkPivotB);
+
+        NiTransform handTransformHandSpace = NiTransform{};
+        handTransformHandSpace.pos = HkVectorToNiPoint(pivotA);
+
+        NiTransform desiredHavokTransformHandSpace = desiredNodeTransformHandSpace * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
+        NiTransform handTransformObjSpace = InverseTransform(desiredHavokTransformHandSpace);
+        handTransformObjSpace.pos = HkVectorToNiPoint(pivotB);
+
+        // Ideas:
+        // - we could set the maxforce of this constraint based on stats like level or current stamina (less stamina -> more fatigued -> less grab strength)
+        // - if we use a similar technique for the actual weapons we hold, we could set the maxforce based on skill with that weapon (one handed, two handed)
+
+        // TODO: Check for constraint violation of constraints on grabbed object (i.e. ragdoll)?
+        // TODO: We could reduce max force when the hand is trying to move the grabbed object into whatever it is in contact with, if that object is fixed.
+        //       This would lead to more stable behavior when moving the hand into walls and such.
+        //       20 and 250 seem like good starting values when colliding for angular max force and linear max force.
+
+        bhkGroupConstraint *constraint = CreateGrabConstraint(bodyA, bodyB, handTransformHandSpace, handTransformObjSpace);
+        bhkRigidBody_AddConstraintToArray(handBody, constraint);
+        bhkWorld_AddConstraint(&world, constraint->constraint);
+        grabConstraint = constraint;
+    }
+    else {
+        selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
+        selectedObject.savedQuality = selectedObject.collidable->m_broadPhaseHandle.m_objectQualityType;
+        selectedObject.savedRigidBodyFlags = selectedObject.rigidBody->flags;
+
+        bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
+    }
+
+    { // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
+        NiTransform handTransformNodeSpace = InverseTransform(desiredNodeTransform) * handNode->m_worldTransform;
+        NiTransform palmTransformNodeSpace = handTransformNodeSpace;
+        palmTransformNodeSpace.pos = handTransformNodeSpace * palmPosHandspace;
+
+        _MESSAGE("Grab transform:");
+        PrintVector(palmTransformNodeSpace.pos);
+        PrintVector(NifskopeMatrixToEuler(palmTransformNodeSpace.rot) * 57.2958f);
+        _MESSAGE("%.2f", palmTransformNodeSpace.scale);
+    }
+
+    HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
+
+    state = usePhysicsGrab ? State::HeldBody : State::HeldInit;
+
+    if (state == State::HeldBody) {
+        heldTime = g_currentFrameTime; // we set this only when going into HeldBody and Held, not HeldInit
+    }
 }
 
 
@@ -1501,173 +1572,173 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 	float havokWorldScale, const NiTransform &handTransform, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon)
 {
 	// Copypasta
-	if (weaponNode) {
-		PlayerCharacter *player = *g_thePlayer;
-
-		NiPoint3 palmPos = hkPalmPos / havokWorldScale;
-
-		float mass = selectedObject.rigidBody->hkBody->getMassInv();
-		mass = mass > 0.0f ? 1.0f / mass : 9999999;
-		float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
-		haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.grabHapticFadeTime);
-
-		grabbedTime = g_currentFrameTime;
-		rolloverDisplayTime = g_currentFrameTime;
-
-		NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
-
-		PlayPhysicsSound(palmPos, false);
-
-		if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
-			savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
-			g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
-		}
-
-		triangles.clear();
-		std::vector<TrianglePartitionData> trianglePartitions{};
-		std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionData{};
-		double t = GetTime();
-		GetSkinnedTriangles(weaponNode, triangles, trianglePartitions, partitionData);
-		_MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
-
-		std::vector<NiAVObject *> triangleNodes{};
-		t = GetTime();
-		GetTriangles(weaponNode, triangles, triangleNodes);
-		_MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
-
-		NiPoint3 triPos, triNormal;
-		float closestDist = (std::numeric_limits<float>::max)();
-		int closestTriIndex = -1;
-		t = GetTime();
-		bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
-
-		if (havePointOnGeometry) {
-			ptPos = triPos;
-
-			NiPoint3 palmToPoint = ptPos - palmPos;
-
-			float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
-
-			NiPoint3 fingerNormalsWorldspace[6];
-			NiPoint3 fingerZeroAngleVecsWorldspace[6];
-			NiPoint3 fingerStartPositionsWorldspace[6];
-			for (int i = 0; i < 6; i++) {
-				NiPoint3 normalHandspace = g_fingerNormals[i];
-				NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
-				NiPoint3 startPos = g_fingerStartPositions[i];
-				if (isLeft) {
-					// x axis is flipped for left hand
-					zeroAngleVecHandspace.x *= -1;
-					startPos.x *= -1;
-
-					// Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
-					normalHandspace.y *= -1;
-					normalHandspace.z *= -1;
-				}
-				fingerNormalsWorldspace[i] = VectorNormalized(handTransform.rot * normalHandspace);
-				fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handTransform.rot * zeroAngleVecHandspace);
-				fingerStartPositionsWorldspace[i] = handTransform * startPos;
-			}
-
-			auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &palmToPoint]
-			(int fingerIndex) -> float
-			{
-				NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
-				NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
-				NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
-
-				startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
-
-				_DMESSAGE("finger %d", fingerIndex);
-
-				Intersection intersection;
-				bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
-					intersection);
-
-				if (intersects) {
-					return intersection.angle;
-				}
-
-				// No finger intersection, so just close it completely
-				return 0.0f; // 0 == closed
-			};
-
-			float fingerData[5];
-			for (int i = 0; i < std::size(fingerData); i++) {
-				fingerData[i] = FingerCheck(i);
-			}
-
-			// Doing a separate pass over all fingers here means we can print the final results all next to each other
-			useAlternateThumbCurve = false;
-			for (int i = 0; i < 5; i++) {
-				float curveVal = fingerData[i];
-
-				if (i == 0) {
-					// If standard sideways thumb misses or is negative, check the other thumb curve
-					if (curveVal <= 0.0f) {
-						// TODO: Still use the old curve for a small leeway for negative angles too?
-						float alternateCurveVal = FingerCheck(5); // 5 is the alternate thumb curve
-						if (alternateCurveVal > 0 || (alternateCurveVal == 0.0f && curveVal == 0.0f)) {
-							// Alternate curve intersected at a non-negative angle, or both curves missed completely
-							curveVal = alternateCurveVal;
-							useAlternateThumbCurve = true;
-						}
-					}
-				}
-
-				if (curveVal < 0) {
-					// It's a negative angle - just open the hand
-					_MESSAGE("%d angle: %.2f", i, curveVal);
-					grabbedFingerValues[i] = 1.0f;
-				}
-				else {
-					// Positive => it's a curve val
-					_MESSAGE("%d curve val: %.2f", i, curveVal);
-					grabbedFingerValues[i] = curveVal;
-				}
-
-				grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
-			}
-
-			_MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
-		}
-
-		NiTransform inverseHand = InverseTransform(handTransform);
-
-		NiTransform desiredNodeTransform = weaponNode->m_worldTransform;
-		desiredNodeTransform.pos += palmPos - ptPos;
-		desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
-
-		twoHandedState.prevFrameTwistAngle360 = 0;
-		twoHandedState.angleState = TwoHandedState::AngleState::None;
-
-		NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
-		NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
-
-		twoHandedState.weapon = otherHandWeapon;
-		twoHandedState.handToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
-		twoHandedState.prevWeaponTransform = weaponNode->m_worldTransform;
-
-		NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
-		twoHandedState.prevWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * weaponNode->m_worldTransform;
-
-		NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
-		NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
-		NiPointer<NiAVObject> wandNode = other.GetWandNode();
-		if (offsetNode && collisionOffsetNode && wandNode) {
-			twoHandedState.weaponOffsetNodeLocalTransform = offsetNode->m_localTransform;
-			twoHandedState.collisionOffsetNodeLocalTransform = collisionOffsetNode->m_localTransform;
-			twoHandedState.wandNodeLocalTransform = wandNode->m_localTransform;
-			twoHandedState.handToWand = inverseOtherHand * wandNode->m_worldTransform;
-		}
-
-		HiggsPluginAPI::TriggerStartTwoHandingCallbacks();
-
-		state = State::HeldTwoHanded;
-	}
-	else {
+	if (!weaponNode) {
 		state = State::Idle;
+		return;
 	}
+
+    PlayerCharacter *player = *g_thePlayer;
+
+    NiPoint3 palmPos = hkPalmPos / havokWorldScale;
+
+    float mass = selectedObject.rigidBody->hkBody->getMassInv();
+    mass = mass > 0.0f ? 1.0f / mass : 9999999;
+    float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
+    haptics.QueueHapticEvent(hapticStrength, hapticStrength, Config::options.grabHapticFadeTime);
+
+    grabbedTime = g_currentFrameTime;
+    rolloverDisplayTime = g_currentFrameTime;
+
+    NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
+
+    PlayPhysicsSound(palmPos, false);
+
+    if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
+        savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
+        g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
+    }
+
+    triangles.clear();
+    std::vector<TrianglePartitionData> trianglePartitions{};
+    std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionData{};
+    double t = GetTime();
+    GetSkinnedTriangles(weaponNode, triangles, trianglePartitions, partitionData);
+    _MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
+
+    std::vector<NiAVObject *> triangleNodes{};
+    t = GetTime();
+    GetTriangles(weaponNode, triangles, triangleNodes);
+    _MESSAGE("Time spent transforming triangles: %.3f ms", (GetTime() - t) * 1000);
+
+    NiPoint3 triPos, triNormal;
+    float closestDist = (std::numeric_limits<float>::max)();
+    int closestTriIndex = -1;
+    t = GetTime();
+    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
+
+    if (havePointOnGeometry) {
+        ptPos = triPos;
+
+        NiPoint3 palmToPoint = ptPos - palmPos;
+
+        float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size, and is the size the finger curves are generated at
+
+        NiPoint3 fingerNormalsWorldspace[6];
+        NiPoint3 fingerZeroAngleVecsWorldspace[6];
+        NiPoint3 fingerStartPositionsWorldspace[6];
+        for (int i = 0; i < 6; i++) {
+            NiPoint3 normalHandspace = g_fingerNormals[i];
+            NiPoint3 zeroAngleVecHandspace = g_fingerZeroAngleVecs[i];
+            NiPoint3 startPos = g_fingerStartPositions[i];
+            if (isLeft) {
+                // x axis is flipped for left hand
+                zeroAngleVecHandspace.x *= -1;
+                startPos.x *= -1;
+
+                // Flip the entire vector, then flip the x-axis. Equivalent: flip y/z
+                normalHandspace.y *= -1;
+                normalHandspace.z *= -1;
+            }
+            fingerNormalsWorldspace[i] = VectorNormalized(handTransform.rot * normalHandspace);
+            fingerZeroAngleVecsWorldspace[i] = VectorNormalized(handTransform.rot * zeroAngleVecHandspace);
+            fingerStartPositionsWorldspace[i] = handTransform * startPos;
+        }
+
+        auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &palmToPoint]
+        (int fingerIndex) -> float
+        {
+            NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
+            NiPoint3 normalWorldspace = fingerNormalsWorldspace[fingerIndex];
+            NiPoint3 startFingerPos = fingerStartPositionsWorldspace[fingerIndex];
+
+            startFingerPos += palmToPoint; // Move the finger up to where the hand would be if it was already holding the object
+
+            _DMESSAGE("finger %d", fingerIndex);
+
+            Intersection intersection;
+            bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+                intersection);
+
+            if (intersects) {
+                return intersection.angle;
+            }
+
+            // No finger intersection, so just close it completely
+            return 0.0f; // 0 == closed
+        };
+
+        float fingerData[5];
+        for (int i = 0; i < std::size(fingerData); i++) {
+            fingerData[i] = FingerCheck(i);
+        }
+
+        // Doing a separate pass over all fingers here means we can print the final results all next to each other
+        useAlternateThumbCurve = false;
+        for (int i = 0; i < 5; i++) {
+            float curveVal = fingerData[i];
+
+            if (i == 0) {
+                // If standard sideways thumb misses or is negative, check the other thumb curve
+                if (curveVal <= 0.0f) {
+                    // TODO: Still use the old curve for a small leeway for negative angles too?
+                    float alternateCurveVal = FingerCheck(5); // 5 is the alternate thumb curve
+                    if (alternateCurveVal > 0 || (alternateCurveVal == 0.0f && curveVal == 0.0f)) {
+                        // Alternate curve intersected at a non-negative angle, or both curves missed completely
+                        curveVal = alternateCurveVal;
+                        useAlternateThumbCurve = true;
+                    }
+                }
+            }
+
+            if (curveVal < 0) {
+                // It's a negative angle - just open the hand
+                _MESSAGE("%d angle: %.2f", i, curveVal);
+                grabbedFingerValues[i] = 1.0f;
+            }
+            else {
+                // Positive => it's a curve val
+                _MESSAGE("%d curve val: %.2f", i, curveVal);
+                grabbedFingerValues[i] = curveVal;
+            }
+
+            grabbedFingerValues[i] = max(0.2f, grabbedFingerValues[i]); // some min value to not overcurl the finger
+        }
+
+        _MESSAGE("Geometry processing time: %.3f ms", (GetTime() - t) * 1000);
+    }
+
+    NiTransform inverseHand = InverseTransform(handTransform);
+
+    NiTransform desiredNodeTransform = weaponNode->m_worldTransform;
+    desiredNodeTransform.pos += palmPos - ptPos;
+    desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
+
+    twoHandedState.prevFrameTwistAngle360 = 0;
+    twoHandedState.angleState = TwoHandedState::AngleState::None;
+
+    NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
+    NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
+
+    twoHandedState.weapon = otherHandWeapon;
+    twoHandedState.handToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
+    twoHandedState.prevWeaponTransform = weaponNode->m_worldTransform;
+
+    NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+    twoHandedState.prevWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * weaponNode->m_worldTransform;
+
+    NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
+    NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
+    NiPointer<NiAVObject> wandNode = other.GetWandNode();
+    if (offsetNode && collisionOffsetNode && wandNode) {
+        twoHandedState.weaponOffsetNodeLocalTransform = offsetNode->m_localTransform;
+        twoHandedState.collisionOffsetNodeLocalTransform = collisionOffsetNode->m_localTransform;
+        twoHandedState.wandNodeLocalTransform = wandNode->m_localTransform;
+        twoHandedState.handToWand = inverseOtherHand * wandNode->m_worldTransform;
+    }
+
+    HiggsPluginAPI::TriggerStartTwoHandingCallbacks();
+
+    state = State::HeldTwoHanded;
 }
 
 
@@ -1832,13 +1903,13 @@ void Hand::GrabExternalObject(Hand &other, bhkWorld &world, TESObjectREFR *selec
 {
 	selectedObject.point = collidableNode->m_worldTransform.pos * *g_havokWorldScale; // Fallback to the center of the object
 
-	NiTransform initialTransform;
-	if (!ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform)) {
+	std::optional<NiTransform> initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, collidableNode);
+	if (!initialTransform) {
 		// Position the object in the direction of the palm for better grab results
 		initialTransform = collidableNode->m_worldTransform;
-		initialTransform.pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
+		initialTransform->pos = (hkPalmPos + palmVector * 1.0f) / havokWorldScale;
 	}
-	TransitionHeld(other, world, hkPalmPos / *g_havokWorldScale, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, &initialTransform, true);
+	TransitionHeld(other, world, hkPalmPos / *g_havokWorldScale, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform, true);
 
 	if (state == State::HeldInit) {
 		// Set the transform here to kind of skip the HeldInit state
@@ -2550,11 +2621,14 @@ void Hand::Update(Hand &other, bhkWorld *world)
 								}
 								else {
 									// Grabbing a regular object, not from the other hand or off of a body
-									NiTransform initialTransform;
-									bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
 
-									NiTransform *initialTransformPtr = haveTransform ? &initialTransform : nullptr;
-									NiPointer<bhkRigidBody> desiredBody = GetRigidBodyToGrabBasedOnGeometry(other, selectedObj, palmPos, palmVector, initialTransformPtr);
+									// Deciding which node to grab based on geometry should happen before we apply any "standard" transforms like if it's a weapon or has higgs grab nodes on it
+									// Once we've decided, then we can proceed with checking for higgs nodes.
+									// For stuff like weapons, they should only be transformed into the hand if you grab the root node of the weapon.
+									// i.e. for a hypothetical flail-like weapon, if you grab the chain, it should not transform into the hand. It should do that only if you grab the root node, assuming the root is the handle.
+									// (which it should be since that's what would attach to your hand when you equip it).
+
+									NiPointer<bhkRigidBody> desiredBody = GetRigidBodyToGrabBasedOnGeometry(other, selectedObj, palmPos, palmVector, std::nullopt, handNode); // No initial transform yet
 									if (desiredBody && desiredBody != selectedObject.rigidBody) {
 										// Node we chose based on geometry is different from the one selected via collision
 										selectedObject.rigidBody = desiredBody;
@@ -2568,12 +2642,22 @@ void Hand::Update(Hand &other, bhkWorld *world)
 											state = State::GrabFromOtherHand;
 										}
 										else {
-											TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransformPtr, false, true);
+                                            std::optional<NiTransform> initialTransform = std::nullopt;
+                                            if (Config::options.useAttachPointForInitialGrab) {
+                                                initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
+                                            }
+
+											TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform, false, true);
 										}
 									}
 									else {
+                                        std::optional<NiTransform> initialTransform = std::nullopt;
+                                        if (Config::options.useAttachPointForInitialGrab) {
+                                            initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
+                                        }
+
 										// Node we chose based on geometry is the same as the one that was selected via collision
-										TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransformPtr, false, true);
+										TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform, false, true);
 									}
 								}
 							}
@@ -2902,9 +2986,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 					}
 					else {
 						// Grabbing a regular object, not from the other hand or off of a body
-						NiTransform initialTransform;
-						bool haveTransform = Config::options.useAttachPointForInitialGrab && ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
-						TransitionHeld(other, *world, palmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, handSize, selectedObj, haveTransform ? &initialTransform : nullptr);
+						std::optional<NiTransform> initialTransform = std::nullopt;
+						if (Config::options.useAttachPointForInitialGrab) {
+							initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
+						}
+						TransitionHeld(other, *world, palmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, handSize, selectedObj, initialTransform);
 					}
 				}
 
@@ -2993,9 +3079,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 								GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, handSize, sphere, hkPalmPos, palmVector, havokWorldScale);
 							}
 							else {
-								NiTransform initialTransform;
-								bool haveTransform = ComputeInitialObjectTransform(selectedObj->baseForm, initialTransform);
-								TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, haveTransform ? &initialTransform : nullptr);
+								std::optional<NiTransform> initialTransform = std::nullopt;
+								if (Config::options.useAttachPointForInitialGrab) {
+									initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, collidableNode);
+								}
+								TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform);
 							}
 						}
 					}

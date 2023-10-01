@@ -19,6 +19,7 @@
 #include "finger_curves.h"
 #include "menu_checker.h"
 #include "pluginapi.h"
+#include "draw.h"
 
 #include <Physics/Collide/Shape/Query/hkpShapeRayCastOutput.h>
 
@@ -603,6 +604,48 @@ void PlayerCharacter_Update_Hook(PlayerCharacter *_this, float delta)
 	}
 }
 
+
+#ifdef _DEBUG
+
+bool g_wasDrawingLastFrame = false;
+
+auto DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_HookLoc = RelocPtr<uintptr_t>(0x1323E3E);
+typedef void(*_NiCamera_FinishAccumulatingPostResolveDepth)(NiCamera *camera, void *shaderAccumulator, UInt32 flags);
+_NiCamera_FinishAccumulatingPostResolveDepth DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_Original = 0;
+void DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_Hook(NiCamera *camera, void *shaderAccumulator, UInt32 flags)
+{
+	bool draw = true;
+	if (draw) {
+		if (!g_wasDrawingLastFrame) {
+			_MESSAGE("Draw on");
+		}
+
+		Draw::StartDraw();
+		DebugDraw();
+
+	}
+	else if (g_wasDrawingLastFrame) {
+		_MESSAGE("Draw off");
+	}
+
+	g_wasDrawingLastFrame = draw;
+
+	DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_Original(camera, shaderAccumulator, flags);
+}
+
+#endif // _DEBUG
+
+
+std::uintptr_t Write5Call(std::uintptr_t a_src, std::uintptr_t a_dst)
+{
+	const auto disp = reinterpret_cast<std::int32_t *>(a_src + 1);
+	const auto nextOp = a_src + 5;
+	const auto func = nextOp + *disp;
+
+	g_branchTrampoline.Write5Call(a_src, a_dst);
+
+	return func;
+}
 
 void PerformHooks(void)
 {
@@ -1223,4 +1266,13 @@ void PerformHooks(void)
 		g_branchTrampoline.Write5Call(ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc.GetUIntPtr(), uintptr_t(ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_Hook));
 		_MESSAGE("ArrowProjectile::AddImpact bhkCollisionObject::GetRigidBody hook complete");
 	}
+
+#ifdef _DEBUG
+	{
+		std::uintptr_t originalFunc = Write5Call(DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_HookLoc.GetUIntPtr(), uintptr_t(DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_Hook));
+		DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_Original = (_NiCamera_FinishAccumulatingPostResolveDepth)originalFunc;
+		_MESSAGE("DoColorPass NiCamera::FinishAccumulatingPostResolveDepth hook complete");
+	}
+#endif // _DEBUG
 }
+

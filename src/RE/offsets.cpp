@@ -174,6 +174,7 @@ RelocAddr<_ContainerChanges_GetCount> ContainerChanges_GetCount(0x1F7ED0);
 RelocAddr<_EquipManager_EquipEntryData> EquipManager_EquipEntryData(0x641720);
 RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell(0x23B240);
 RelocAddr<_Actor_GetPickupPutdownSound> Actor_GetPickupPutdownSound(0x5D7F90);
+RelocAddr<_NiMatrixToYawPitchRollImpl> NiMatrixToYawPitchRollImpl(0xC9AAA0);
 RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion(0xCB4460);
 RelocAddr<_MatrixFromForwardVector> MatrixFromForwardVector(0xC4C1E0);
 RelocAddr<_EulerToNiMatrix> EulerToNiMatrix(0xC995A0);

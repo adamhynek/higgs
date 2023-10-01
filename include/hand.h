@@ -176,12 +176,13 @@ struct Hand
 	void RemoveWeaponCollision(bhkWorld *world);
 	void RemoveWeaponCollisionFromCurrentWorld();
 	void UpdateWeaponCollision();
-	bool GetAttachTransform(const TESForm *baseForm, NiTransform &transform);
-	bool ComputeInitialObjectTransform(const TESForm *baseForm, NiTransform &transform);
+	std::optional<NiTransform> GetAttachTransform(const TESForm *baseForm);
+	std::optional<NiTransform> ComputeInitialObjectTransform(TESObjectREFR *refr, const NiAVObject *handNode, NiAVObject *grabbedNode);
+	std::optional<NiTransform> GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode);
 	bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
-	NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, NiTransform *initialTransform);
+	NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const std::optional<NiTransform> &initialTransform, NiAVObject *handNode);
 	void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj,
-		NiTransform *initialTransform = nullptr, bool warpToHand = false, bool reuseTriangles = false, bool playSound = true);
+		const std::optional<NiTransform> &initialTransform = std::nullopt, bool warpToHand = false, bool reuseTriangles = false, bool playSound = true);
 	void TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint,
 		float havokWorldScale, const NiTransform &handTransform, float handSize, NiAVObject *weaponNode, TESObjectWEAP *otherHandWeapon);
 	void TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal = false);
@@ -201,7 +202,7 @@ struct Hand
 	void UpdateHandTransform(NiTransform &worldTransform);
 	NiTransform GetGrabTransform();
 	void SetGrabTransform(const NiTransform &transform);
-	inline NiPoint3 GetPalmPositionWS(NiTransform &handTransform) { return handTransform * palmPosHandspace; }
+	inline NiPoint3 GetPalmPositionWS(const NiTransform &handTransform) { return handTransform * palmPosHandspace; }
 	NiPoint3 GetPalmVectorWS(NiMatrix33 &handRotation);
 	NiPoint3 GetPointingVectorWS(NiMatrix33 &handRotation);
 	NiPoint3 GetHandVelocity();
@@ -300,6 +301,7 @@ struct Hand
 	NiPoint3 playerAcceleration{};
 
 	std::vector<TriangleData> triangles{}; // tris are in worldspace
+	NiTransform rootTriangleTransform{};
 
 	bool idleDesired = false;
 

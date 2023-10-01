@@ -40,6 +40,7 @@
 #include "physics.h"
 #include "main.h"
 #include "finger_curves.h"
+#include "draw.h"
 
 #include <Physics/Dynamics/World/Extensions/hkpWorldExtension.h>
 
@@ -384,6 +385,53 @@ void Update()
 	if (Config::options.slowMovementWhenObjectIsHeld) {
 		UpdateSpeedReduction();
 	}
+}
+
+void DebugDrawSphere(const NiTransform &transform, const NiColorA &color)
+{
+#ifdef _DEBUG
+    NiTransform axisX = transform;
+    axisX.pos += RightVector(axisX.rot) * axisX.scale;
+    axisX.scale = 0.2f;
+    NiTransform axisY = transform;
+    axisY.pos += ForwardVector(axisX.rot) * axisY.scale;
+    axisY.scale = 0.2f;
+    NiTransform axisZ = transform;
+    axisZ.pos += UpVector(axisX.rot) * axisZ.scale;
+    axisZ.scale = 0.2f;
+
+    NiTransform sphere = transform;
+    sphere.scale -= 0.2f;
+    Draw::DrawSphere(sphere, color);
+    Draw::DrawSphere(axisX, { 1.f, 0.f, 0.f, 1.f });
+    Draw::DrawSphere(axisY, { 0.f, 1.f, 0.f, 1.f });
+    Draw::DrawSphere(axisZ, { 0.f, 0.f, 1.f, 1.f });
+#endif // _DEBUG
+}
+
+std::unordered_map<std::string_view, DebugTransform> g_debugDrawTransforms{};
+
+void DebugDraw()
+{
+#ifdef _DEBUG
+	for (auto &pair : g_debugDrawTransforms) {
+		DebugDrawSphere(pair.second.transform, pair.second.color);
+	}
+#endif // _DEBUG
+}
+
+void RegisterDebugTransform(const std::string_view &name, const DebugTransform &transform)
+{
+#ifdef _DEBUG
+    g_debugDrawTransforms[name] = transform;
+#endif // _DEBUG
+}
+
+void UnregisterDebugTransform(const std::string_view &name)
+{
+#ifdef _DEBUG
+    g_debugDrawTransforms.erase(name);
+#endif // _DEBUG
 }
 
 

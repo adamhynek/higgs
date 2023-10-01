@@ -402,6 +402,9 @@ extern RelocAddr<_TESObjectBOOK_LearnSpell> TESObjectBOOK_LearnSpell;
 typedef BGSSoundDescriptorForm * (*_Actor_GetPickupPutdownSound)(Actor *_this, TESBoundObject *object, bool pickup, bool use);
 extern RelocAddr<_Actor_GetPickupPutdownSound> Actor_GetPickupPutdownSound;
 
+typedef NiMatrix33 *(*_NiMatrixToYawPitchRollImpl)(NiMatrix33 *mat, float *yaw, float *pitch, float *roll);
+extern RelocAddr<_NiMatrixToYawPitchRollImpl> NiMatrixToYawPitchRollImpl;
+
 typedef void(*_NiMatrixToNiQuaternion)(NiQuaternion &quatOut, const NiMatrix33 &matIn);
 extern RelocAddr<_NiMatrixToNiQuaternion> NiMatrixToNiQuaternion;
 

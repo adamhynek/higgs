@@ -251,6 +251,8 @@ namespace Config {
 		NiPoint3 rolloverOffsetLeft = { -7, -7, -3 };
 		NiPoint3 rolloverRotation = { 2.62, 0, -1.57 };
 
+		//NiPoint3 rightToLeftPalmRotation = { 120.f, 45.f, -155.f };
+
 		std::string grabString = "Grab";
 		std::string pullString = "Pull";
 		std::string lootString = "Loot";

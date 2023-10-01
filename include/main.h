@@ -4,6 +4,15 @@
 
 void Update();
 
+struct DebugTransform
+{
+    NiTransform transform;
+    NiColorA color;
+};
+void RegisterDebugTransform(const std::string_view &name, const DebugTransform &transform);
+void UnregisterDebugTransform(const std::string_view &name);
+void DebugDraw();
+
 extern SKSETaskInterface *g_taskInterface;
 extern bool g_isVrikPresent;
 extern SInt32 g_controllerType;

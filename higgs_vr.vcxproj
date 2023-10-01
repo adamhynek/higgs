@@ -133,7 +133,7 @@
       <ModuleDefinitionFile>exports.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies);winmm.lib;d3dcompiler.lib</AdditionalDependencies>
       <OutputFile>E:\Steam\steamapps\common\SkyrimVR\Data\SKSE\Plugins\$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
@@ -193,6 +193,7 @@
   <ItemGroup>
     <ClCompile Include="src\config.cpp" />
     <ClCompile Include="src\constraint.cpp" />
+    <ClCompile Include="src\draw.cpp" />
     <ClCompile Include="src\finger_animator.cpp" />
     <ClCompile Include="src\finger_curves.cpp" />
     <ClCompile Include="src\hand.cpp" />
@@ -213,6 +214,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\constraint.h" />
+    <ClInclude Include="include\draw.h" />
     <ClInclude Include="include\finger_animator.h" />
     <ClInclude Include="include\finger_curves.h" />
     <ClInclude Include="include\haptics.h" />

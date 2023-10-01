@@ -224,6 +224,8 @@ namespace Config {
 		if (!ReadVector("RolloverOffsetLeft", options.rolloverOffsetLeft)) success = false;
 		if (!ReadVector("RolloverRotation", options.rolloverRotation)) success = false;
 
+		//if (!ReadVector("rightToLeftPalmRotation", options.rightToLeftPalmRotation)) success = false;
+
 		if (!RegisterFloat("FarCastRadius", options.farCastRadius)) success = false;
 		if (!RegisterFloat("FarCastDistance", options.farCastDistance)) success = false;
 

@@ -139,8 +139,12 @@ NiPoint3 CrossProduct(const NiPoint3 &vec1, const NiPoint3 &vec2);
 NiMatrix33 MatrixFromAxisAngle(const NiPoint3 &axis, float theta);
 float RotationAngle(const NiMatrix33 &rot);
 std::pair<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q);
+NiPoint3 NiMatrixToYawPitchRoll(NiMatrix33 &mat);
+NiPoint3 NiMatrixToEuler(NiMatrix33 &mat);
 NiPoint3 MatrixToEuler(const NiMatrix33 &mat);
 NiMatrix33 EulerToMatrix(const NiPoint3 &euler);
+NiPoint3 NifskopeMatrixToEuler(const NiMatrix33 &in);
+NiMatrix33 NifskopeEulerToMatrix(const NiPoint3 &in);
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle);
 NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal);
 NiTransform RotateTransformAboutPoint(NiTransform &transform, NiPoint3 &point, NiMatrix33 &rotation);
@@ -161,6 +165,9 @@ inline NiTransform InverseTransform(const NiTransform &t) { NiTransform inverse;
 inline NiPoint3 RightVector(const NiMatrix33 &r) { return { r.data[0][0], r.data[1][0], r.data[2][0] }; }
 inline NiPoint3 ForwardVector(const NiMatrix33 &r) { return { r.data[0][1], r.data[1][1], r.data[2][1] }; }
 inline NiPoint3 UpVector(const NiMatrix33 &r) { return { r.data[0][2], r.data[1][2], r.data[2][2] }; }
+inline void SetRightVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][0] = v.x; r.data[1][0] = v.y; r.data[2][0] = v.z; }
+inline void SetForwardVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][1] = v.x; r.data[1][1] = v.y; r.data[2][1] = v.z; }
+inline void SetUpVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][2] = v.x; r.data[1][2] = v.y; r.data[2][2] = v.z; }
 NiQuaternion QuaternionIdentity();
 NiQuaternion QuaternionNormalized(const NiQuaternion &q);
 NiQuaternion QuaternionMultiply(const NiQuaternion &qa, const NiQuaternion &qb);

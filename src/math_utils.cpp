@@ -66,6 +66,20 @@ std::pair<NiPoint3, float> QuaternionToAxisAngle(const NiQuaternion &q)
 	return { axis, angle };
 }
 
+NiPoint3 NiMatrixToYawPitchRoll(NiMatrix33 &mat)
+{
+	NiPoint3 euler;
+	NiMatrixToYawPitchRollImpl(&mat, &euler.x, &euler.y, &euler.z);
+	return euler;
+}
+
+NiPoint3 NiMatrixToEuler(NiMatrix33 &mat)
+{
+	NiPoint3 euler;
+	NiMatrixToYawPitchRollImpl(&mat, &euler.z, &euler.x, &euler.y);
+	return euler;
+}
+
 NiPoint3 MatrixToEuler(const NiMatrix33 &mat)
 {
 	// Thanks DavidJCobb
@@ -123,6 +137,55 @@ NiMatrix33 EulerToMatrix(const NiPoint3 &euler)
 	//
 	return output;
 };
+
+NiPoint3 NifskopeMatrixToEuler(const NiMatrix33 &in)
+{
+	const float(&m)[3][3] = in.data;
+	NiPoint3 out;
+
+	if (m[0][2] < 1.0) {
+		if (m[0][2] > -1.0) {
+			out.x = atan2(-m[1][2], m[2][2]);
+			out.y = asin(m[0][2]);
+			out.z = atan2(-m[0][1], m[0][0]);
+		}
+		else {
+			out.x = -atan2(-m[1][0], m[1][1]);
+			out.y = -M_PI / 2;
+			out.z = 0.0;
+		}
+	}
+	else {
+		out.x = atan2(m[1][0], m[1][1]);
+		out.y = M_PI / 2;
+		out.z = 0.0;
+	}
+	return out;
+}
+
+NiMatrix33 NifskopeEulerToMatrix(const NiPoint3 &in)
+{
+	float sinX = sin(in.x);
+	float cosX = cos(in.x);
+	float sinY = sin(in.y);
+	float cosY = cos(in.y);
+	float sinZ = sin(in.z);
+	float cosZ = cos(in.z);
+
+	NiMatrix33 out;
+
+	out.data[0][0] = cosY * cosZ;
+	out.data[0][1] = -cosY * sinZ;
+	out.data[0][2] = sinY;
+	out.data[1][0] = sinX * sinY * cosZ + sinZ * cosX;
+	out.data[1][1] = cosX * cosZ - sinX * sinY * sinZ;
+	out.data[1][2] = -sinX * cosY;
+	out.data[2][0] = sinX * sinZ - cosX * sinY * cosZ;
+	out.data[2][1] = cosX * sinY * sinZ + sinX * cosZ;
+	out.data[2][2] = cosX * cosY;
+
+	return out;
+}
 
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle)
 {
