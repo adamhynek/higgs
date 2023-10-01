@@ -22,105 +22,105 @@ static const float g_minAllowedFingerAngle = 0;// 5 * 0.0174533; // 5 degrees
 
 struct Triangle
 {
-	UInt16 vertexIndices[3];
+    UInt16 vertexIndices[3];
 };
 static_assert(sizeof(Triangle) == 0x06);
 
 struct TriangleData
 {
-	inline TriangleData(Triangle tri, uintptr_t vertices, UInt32 posOffset, UInt8 vertexSize) {
-		uintptr_t vert = (vertices + tri.vertexIndices[0] * vertexSize);
-		v0 = *(NiPoint3 *)(vert + posOffset);
-		vert = (vertices + tri.vertexIndices[1] * vertexSize);
-		v1 = *(NiPoint3 *)(vert + posOffset);
-		vert = (vertices + tri.vertexIndices[2] * vertexSize);
-		v2 = *(NiPoint3 *)(vert + posOffset);
-	}
+    inline TriangleData(Triangle tri, uintptr_t vertices, UInt32 posOffset, UInt8 vertexSize) {
+        uintptr_t vert = (vertices + tri.vertexIndices[0] * vertexSize);
+        v0 = *(NiPoint3 *)(vert + posOffset);
+        vert = (vertices + tri.vertexIndices[1] * vertexSize);
+        v1 = *(NiPoint3 *)(vert + posOffset);
+        vert = (vertices + tri.vertexIndices[2] * vertexSize);
+        v2 = *(NiPoint3 *)(vert + posOffset);
+    }
 
-	inline TriangleData(Triangle tri, const std::vector<NiPoint3> &vertices) {
-		v0 = vertices[tri.vertexIndices[0]];
-		v1 = vertices[tri.vertexIndices[1]];
-		v2 = vertices[tri.vertexIndices[2]];
-	}
+    inline TriangleData(Triangle tri, const std::vector<NiPoint3> &vertices) {
+        v0 = vertices[tri.vertexIndices[0]];
+        v1 = vertices[tri.vertexIndices[1]];
+        v2 = vertices[tri.vertexIndices[2]];
+    }
 
-	TriangleData() : v0(), v1(), v2() {}
+    TriangleData() : v0(), v1(), v2() {}
 
-	inline void ApplyTransform(NiTransform &transform) {
-		v0 = transform * v0;
-		v1 = transform * v1;
-		v2 = transform * v2;
-	}
+    inline void ApplyTransform(NiTransform &transform) {
+        v0 = transform * v0;
+        v1 = transform * v1;
+        v2 = transform * v2;
+    }
 
-	NiPoint3 v0;
-	NiPoint3 v1;
-	NiPoint3 v2;
+    NiPoint3 v0;
+    NiPoint3 v1;
+    NiPoint3 v2;
 };
 
 struct PartitionData
 {
-	PartitionData() {};
-	PartitionData(NiSkinInstance *skinInstance, uintptr_t vertexData) : skinInstance(skinInstance), vertexData(vertexData) {}
+    PartitionData() {};
+    PartitionData(NiSkinInstance *skinInstance, uintptr_t vertexData) : skinInstance(skinInstance), vertexData(vertexData) {}
 
-	std::vector<NiPoint3> verticesWS{};
-	std::vector<UInt16> globalVertToPartVertMap{};
-	uintptr_t vertexData = 0;
-	NiSkinInstance *skinInstance = nullptr;
+    std::vector<NiPoint3> verticesWS{};
+    std::vector<UInt16> globalVertToPartVertMap{};
+    uintptr_t vertexData = 0;
+    NiSkinInstance *skinInstance = nullptr;
 };
 
 struct TrianglePartitionData
 {
-	NiSkinPartition::Partition &partition;
-	Triangle indices;
+    NiSkinPartition::Partition &partition;
+    Triangle indices;
 };
 
 struct Intersection
 {
-	float angle; // angle of the fingertip at intersection pt
-	SInt32 triangleIndex; // the index within the array of triangles that was intersected
+    float angle; // angle of the fingertip at intersection pt
+    SInt32 triangleIndex; // the index within the array of triangles that was intersected
 };
 
 struct OldIntersection
 {
-	BSTriShape *node; // the trishape where the intersected triangle resides
-	Triangle tri; // triangle that was intersected
-	float angle; // angle of the fingertip at intersection pt
+    BSTriShape *node; // the trishape where the intersected triangle resides
+    Triangle tri; // triangle that was intersected
+    float angle; // angle of the fingertip at intersection pt
 };
 
 struct Point2
 {
-	float x;
-	float y;
+    float x;
+    float y;
 
-	Point2();
-	Point2(float X, float Y) : x(X), y(Y) { };
+    Point2();
+    Point2(float X, float Y) : x(X), y(Y) { };
 
-	Point2 Point2::operator- () const;
-	Point2 Point2::operator+ (const Point2& pt) const;
+    Point2 Point2::operator- () const;
+    Point2 Point2::operator+ (const Point2& pt) const;
 
-	Point2 Point2::operator- (const Point2& pt) const;
+    Point2 Point2::operator- (const Point2& pt) const;
 
-	Point2& Point2::operator+= (const Point2& pt);
-	Point2& Point2::operator-= (const Point2& pt);
+    Point2& Point2::operator+= (const Point2& pt);
+    Point2& Point2::operator-= (const Point2& pt);
 
-	// Scalar operations
-	Point2 Point2::operator* (float scalar) const;
-	Point2 Point2::operator/ (float scalar) const;
+    // Scalar operations
+    Point2 Point2::operator* (float scalar) const;
+    Point2 Point2::operator/ (float scalar) const;
 
-	Point2& Point2::operator*= (float scalar);
-	Point2& Point2::operator/= (float scalar);
+    Point2& Point2::operator*= (float scalar);
+    Point2& Point2::operator/= (float scalar);
 };
 
 namespace MathUtils
 {
-	struct Result
-	{
-		float sqrDistance;
-		// barycentric coordinates for triangle.v[3]
-		float parameter[3];
-		NiPoint3 closest;
-	};
+    struct Result
+    {
+        float sqrDistance;
+        // barycentric coordinates for triangle.v[3]
+        float parameter[3];
+        NiPoint3 closest;
+    };
 
-	Result GetClosestPointOnTriangle(const NiPoint3 &point, const TriangleData &triangle);
+    Result GetClosestPointOnTriangle(const NiPoint3 &point, const TriangleData &triangle);
 }
 
 inline float VectorLengthSquared(const NiPoint3 &vec) { return vec.x*vec.x + vec.y*vec.y + vec.z*vec.z; }
@@ -193,10 +193,10 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<NiAVObject *> &triangleNodes);
 
 bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,
-	Intersection &outIntersection);
+    Intersection &outIntersection);
 void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipIntersections, std::vector<Intersection> &outerIntersections, std::vector<Intersection> &innerIntersections,
-	const std::vector<TriangleData> &triangles,
-	int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);
+    const std::vector<TriangleData> &triangles,
+    int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector);
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
 bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &triangles, const NiPoint3 &point, const NiPoint3 &direction,
-	NiPoint3 &closestPos, NiPoint3 &closestNormal, int &closestIndex, float &closestDistanceSoFar);
+    NiPoint3 &closestPos, NiPoint3 &closestNormal, int &closestIndex, float &closestDistanceSoFar);

@@ -19,487 +19,487 @@ NiPoint3 g_fingerOffsetsInner[] = { {0, -0.935, 0.85}, {0, -0.81, 0}, {0, -0.675
 
 struct FingerCurveData
 {
-	enum class State : UInt8
-	{
-		Inactive,
-		Init,
-		Step,
-		Skip,
-		Finish,
-	};
+    enum class State : UInt8
+    {
+        Inactive,
+        Init,
+        Step,
+        Skip,
+        Finish,
+    };
 
-	FingerCurveData(bool isLeft, float handScale)
-	{
-		this->isLeft = isLeft;
-		this->handScale = handScale;
+    FingerCurveData(bool isLeft, float handScale)
+    {
+        this->isLeft = isLeft;
+        this->handScale = handScale;
 
-		frameCount = 0;
-		state = State::Init;
+        frameCount = 0;
+        state = State::Init;
 
-		for (int i = 0; i < 5; i++) {
-			fingerOffsetsTip[i] = g_fingerOffsetsTip[i] * handScale;
-			fingerOffsetsOuter[i] = g_fingerOffsetsOuter[i] * handScale;
-			fingerOffsetsInner[i] = g_fingerOffsetsInner[i] * handScale;
-		}
-	}
+        for (int i = 0; i < 5; i++) {
+            fingerOffsetsTip[i] = g_fingerOffsetsTip[i] * handScale;
+            fingerOffsetsOuter[i] = g_fingerOffsetsOuter[i] * handScale;
+            fingerOffsetsInner[i] = g_fingerOffsetsInner[i] * handScale;
+        }
+    }
 
-	NiPoint3 fingerOffsetsTip[5];
-	NiPoint3 fingerOffsetsOuter[5];
-	NiPoint3 fingerOffsetsInner[5];
+    NiPoint3 fingerOffsetsTip[5];
+    NiPoint3 fingerOffsetsOuter[5];
+    NiPoint3 fingerOffsetsInner[5];
 
-	std::vector<std::pair<float, std::pair<float, float>>> fingerInnerVals[5]; // array of open/closed value, [angle, length]
-	std::vector<std::pair<float, std::pair<float, float>>> fingerOuterVals[5]; // array of open/closed value, [angle, length]
-	std::vector<std::pair<float, std::pair<float, float>>> fingerTipVals[5]; // array of open/closed value, [angle, length]
+    std::vector<std::pair<float, std::pair<float, float>>> fingerInnerVals[5]; // array of open/closed value, [angle, length]
+    std::vector<std::pair<float, std::pair<float, float>>> fingerOuterVals[5]; // array of open/closed value, [angle, length]
+    std::vector<std::pair<float, std::pair<float, float>>> fingerTipVals[5]; // array of open/closed value, [angle, length]
 
-	NiPoint3 zeroAngleVector[5]; // handspace
-	NiPoint3 fingerNormal[5]; // handspace
-	NiPoint3 fingerStartPos[5]; // handspace
+    NiPoint3 zeroAngleVector[5]; // handspace
+    NiPoint3 fingerNormal[5]; // handspace
+    NiPoint3 fingerStartPos[5]; // handspace
 
-	NiTransform openFingerTransforms[5][3];
-	NiTransform closedFingerTransforms[5][3];
+    NiTransform openFingerTransforms[5][3];
+    NiTransform closedFingerTransforms[5][3];
 
-	float currentRangeVal;
+    float currentRangeVal;
 
-	float handScale = 0.85f;
-	int frameCount = 0;
-	bool isLeft;
-	State state = State::Inactive;
+    float handScale = 0.85f;
+    int frameCount = 0;
+    bool isLeft;
+    State state = State::Inactive;
 };
 
 std::unique_ptr<FingerCurveData> g_fingerCurveData = nullptr;
 void StartGenerateFingerCurve(bool isLeft)
 {
-	double handSize = g_vrikInterface->getSettingDouble("handSize");
-	float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size
+    double handSize = g_vrikInterface->getSettingDouble("handSize");
+    float handScale = handSize / 0.85f; // 0.85 is the vrik default hand size
 
-	g_fingerCurveData = std::make_unique<FingerCurveData>(isLeft, handScale);
+    g_fingerCurveData = std::make_unique<FingerCurveData>(isLeft, handScale);
 }
 
 void StopGenerateFingerCurve()
 {
-	g_fingerCurveData = nullptr;
+    g_fingerCurveData = nullptr;
 }
 
 std::string VectorToString(NiPoint3 vector)
 {
-	std::stringstream ss;
-	ss << vector.x << ", " << vector.y << ", " << vector.z;
-	return ss.str();
+    std::stringstream ss;
+    ss << vector.x << ", " << vector.y << ", " << vector.z;
+    return ss.str();
 }
 
 void DumpFingerCurve(FingerCurveData *fingerCurve)
 {
-	for (int i = 0; i < 5; i++) {
-		std::ofstream file;
-		file.open(std::string("fingerCurve") + std::to_string(i) + ".txt");
+    for (int i = 0; i < 5; i++) {
+        std::ofstream file;
+        file.open(std::string("fingerCurve") + std::to_string(i) + ".txt");
 
-		file << "Zero Angle Vector" << '\n';
-		file << VectorToString(fingerCurve->zeroAngleVector[i]) << '\n';
+        file << "Zero Angle Vector" << '\n';
+        file << VectorToString(fingerCurve->zeroAngleVector[i]) << '\n';
 
-		file << "Normal Vector" << '\n';
-		file << VectorToString(fingerCurve->fingerNormal[i]) << '\n';
+        file << "Normal Vector" << '\n';
+        file << VectorToString(fingerCurve->fingerNormal[i]) << '\n';
 
-		file << "Finger Start" << '\n';
-		file << VectorToString(fingerCurve->fingerStartPos[i]) << '\n';
+        file << "Finger Start" << '\n';
+        file << VectorToString(fingerCurve->fingerStartPos[i]) << '\n';
 
-		file << "Tip Values" << '\n';
-		for (int j = 0; j < std::size(fingerCurve->fingerTipVals[i]); j++) {
-			if (j == 1) continue;
-			auto &entry = fingerCurve->fingerTipVals[i][j];
-			float val = entry.first;
-			float angle = entry.second.first;
-			float length = entry.second.second;
-			file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
-		}
+        file << "Tip Values" << '\n';
+        for (int j = 0; j < std::size(fingerCurve->fingerTipVals[i]); j++) {
+            if (j == 1) continue;
+            auto &entry = fingerCurve->fingerTipVals[i][j];
+            float val = entry.first;
+            float angle = entry.second.first;
+            float length = entry.second.second;
+            file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
+        }
 
-		file << "Outer Values" << '\n';
-		for (int j = 0; j < std::size(fingerCurve->fingerOuterVals[i]); j++) {
-			if (j == 1) continue;
-			auto &entry = fingerCurve->fingerOuterVals[i][j];
-			float val = entry.first;
-			float angle = entry.second.first;
-			float length = entry.second.second;
-			file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
-		}
+        file << "Outer Values" << '\n';
+        for (int j = 0; j < std::size(fingerCurve->fingerOuterVals[i]); j++) {
+            if (j == 1) continue;
+            auto &entry = fingerCurve->fingerOuterVals[i][j];
+            float val = entry.first;
+            float angle = entry.second.first;
+            float length = entry.second.second;
+            file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
+        }
 
-		file << "Inner Values" << '\n';
-		for (int j = 0; j < std::size(fingerCurve->fingerInnerVals[i]); j++) {
-			if (j == 1) continue;
-			auto &entry = fingerCurve->fingerInnerVals[i][j];
-			float val = entry.first;
-			float angle = entry.second.first;
-			float length = entry.second.second;
-			file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
-		}
+        file << "Inner Values" << '\n';
+        for (int j = 0; j < std::size(fingerCurve->fingerInnerVals[i]); j++) {
+            if (j == 1) continue;
+            auto &entry = fingerCurve->fingerInnerVals[i][j];
+            float val = entry.first;
+            float angle = entry.second.first;
+            float length = entry.second.second;
+            file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
+        }
 
-		file.close();
-	}
+        file.close();
+    }
 
-	std::ofstream file;
-	file.open("fingerCurves.txt");
+    std::ofstream file;
+    file.open("fingerCurves.txt");
 
-	file << "Zero Angle Vectors" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{ " << VectorToString(fingerCurve->zeroAngleVector[i]) << " }," << '\n';
-	}
-	file << "};\n";
+    file << "Zero Angle Vectors" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{ " << VectorToString(fingerCurve->zeroAngleVector[i]) << " }," << '\n';
+    }
+    file << "};\n";
 
-	file << "Normal Vectors" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{ " << VectorToString(fingerCurve->fingerNormal[i]) << " }," << '\n';
-	}
-	file << "};\n";
+    file << "Normal Vectors" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{ " << VectorToString(fingerCurve->fingerNormal[i]) << " }," << '\n';
+    }
+    file << "};\n";
 
-	file << "Finger Start Positions" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{ " << VectorToString(fingerCurve->fingerStartPos[i]) << " }," << '\n';
-	}
-	file << "};\n";
+    file << "Finger Start Positions" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{ " << VectorToString(fingerCurve->fingerStartPos[i]) << " }," << '\n';
+    }
+    file << "};\n";
 
-	file << "Tip Values" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < std::size(fingerCurve->fingerTipVals[i]); j++) {
-			if (j == 1) continue;
-			auto &entry = fingerCurve->fingerTipVals[i][j];
-			float val = entry.first;
-			float angle = entry.second.first;
-			float length = entry.second.second;
-			file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Tip Values" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < std::size(fingerCurve->fingerTipVals[i]); j++) {
+            if (j == 1) continue;
+            auto &entry = fingerCurve->fingerTipVals[i][j];
+            float val = entry.first;
+            float angle = entry.second.first;
+            float length = entry.second.second;
+            file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file << "Outer Values" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < std::size(fingerCurve->fingerOuterVals[i]); j++) {
-			if (j == 1) continue;
-			auto &entry = fingerCurve->fingerOuterVals[i][j];
-			float val = entry.first;
-			float angle = entry.second.first;
-			float length = entry.second.second;
-			file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Outer Values" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < std::size(fingerCurve->fingerOuterVals[i]); j++) {
+            if (j == 1) continue;
+            auto &entry = fingerCurve->fingerOuterVals[i][j];
+            float val = entry.first;
+            float angle = entry.second.first;
+            float length = entry.second.second;
+            file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file << "Inner Values" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < std::size(fingerCurve->fingerInnerVals[i]); j++) {
-			if (j == 1) continue;
-			auto &entry = fingerCurve->fingerInnerVals[i][j];
-			float val = entry.first;
-			float angle = entry.second.first;
-			float length = entry.second.second;
-			file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Inner Values" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < std::size(fingerCurve->fingerInnerVals[i]); j++) {
+            if (j == 1) continue;
+            auto &entry = fingerCurve->fingerInnerVals[i][j];
+            float val = entry.first;
+            float angle = entry.second.first;
+            float length = entry.second.second;
+            file << "{ " << val << ", " << angle << ", " << length << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file.close();
+    file.close();
 }
 
 void DumpFingerPoses(FingerCurveData *fingerCurve)
 {
-	std::ofstream file;
-	file.open("fingerPoses.txt");
+    std::ofstream file;
+    file.open("fingerPoses.txt");
 
-	file << "Open Positions" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < 3; j++) {
-			NiPoint3 pos = fingerCurve->openFingerTransforms[i][j].pos;
-			file << "{ " << pos.x << ", " << pos.y << ", " << pos.z << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Open Positions" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < 3; j++) {
+            NiPoint3 pos = fingerCurve->openFingerTransforms[i][j].pos;
+            file << "{ " << pos.x << ", " << pos.y << ", " << pos.z << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file << "Closed Positions" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < 3; j++) {
-			NiPoint3 pos = fingerCurve->closedFingerTransforms[i][j].pos;
-			file << "{ " << pos.x << ", " << pos.y << ", " << pos.z << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Closed Positions" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < 3; j++) {
+            NiPoint3 pos = fingerCurve->closedFingerTransforms[i][j].pos;
+            file << "{ " << pos.x << ", " << pos.y << ", " << pos.z << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file << "Open Rotations" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < 3; j++) {
-			NiMatrix33 &rot = fingerCurve->openFingerTransforms[i][j].rot;
-			NiQuaternion quat = MatrixToQuaternion(rot);
-			file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Open Rotations" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < 3; j++) {
+            NiMatrix33 &rot = fingerCurve->openFingerTransforms[i][j].rot;
+            NiQuaternion quat = MatrixToQuaternion(rot);
+            file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file << "Closed Rotations" << '\n';
-	file << "{\n";
-	for (int i = 0; i < 5; i++) {
-		file << "{\n";
-		for (int j = 0; j < 3; j++) {
-			NiMatrix33 &rot = fingerCurve->closedFingerTransforms[i][j].rot;
-			NiQuaternion quat = MatrixToQuaternion(rot);
-			file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
-		}
-		file << "},\n";
-	}
-	file << "};\n";
+    file << "Closed Rotations" << '\n';
+    file << "{\n";
+    for (int i = 0; i < 5; i++) {
+        file << "{\n";
+        for (int j = 0; j < 3; j++) {
+            NiMatrix33 &rot = fingerCurve->closedFingerTransforms[i][j].rot;
+            NiQuaternion quat = MatrixToQuaternion(rot);
+            file << "{ " << quat.m_fW << ", " << quat.m_fX << ", " << quat.m_fY << ", " << quat.m_fZ << " }," << '\n';
+        }
+        file << "},\n";
+    }
+    file << "};\n";
 
-	file.close();
+    file.close();
 }
 
 void UpdateGenerateFingerCurve(BSFixedString &handNodeName, BSFixedString fingerNodeNames[5][3])
 {
-	if (g_fingerCurveData && g_fingerCurveData->state != FingerCurveData::State::Inactive) {
-		bool isLeft = g_fingerCurveData->isLeft;
+    if (g_fingerCurveData && g_fingerCurveData->state != FingerCurveData::State::Inactive) {
+        bool isLeft = g_fingerCurveData->isLeft;
 
-		PlayerCharacter *player = *g_thePlayer;
+        PlayerCharacter *player = *g_thePlayer;
 
 
-		NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
-		NiAVObject *handNode3rd = player->GetNiRootNode(0)->GetObjectByName(&handNodeName.data);
+        NiAVObject *handNode = player->GetNiRootNode(1)->GetObjectByName(&handNodeName.data);
+        NiAVObject *handNode3rd = player->GetNiRootNode(0)->GetObjectByName(&handNodeName.data);
 
-		if (handNode && handNode3rd) {
-			if (g_fingerCurveData->state == FingerCurveData::State::Init) {
-				if (g_fingerCurveData->frameCount < 100) {
-					g_fingerCurveData->currentRangeVal = 1.0f;
-					g_rightHand->fingerAnimator.SetFingerValues(1.0f, 100.0f, 1000.0f);
-				}
-				else {
-					// Extract zero angle vector from whatever the vector is at this point
+        if (handNode && handNode3rd) {
+            if (g_fingerCurveData->state == FingerCurveData::State::Init) {
+                if (g_fingerCurveData->frameCount < 100) {
+                    g_fingerCurveData->currentRangeVal = 1.0f;
+                    g_rightHand->fingerAnimator.SetFingerValues(1.0f, 100.0f, 1000.0f);
+                }
+                else {
+                    // Extract zero angle vector from whatever the vector is at this point
 
-					NiTransform inverseHandNode3rd = InverseTransform(handNode3rd->m_oldWorldTransform);
+                    NiTransform inverseHandNode3rd = InverseTransform(handNode3rd->m_oldWorldTransform);
 
-					for (int i = 0; i < 5; i++) {
-						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
-						NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
-						NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
-						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                    for (int i = 0; i < 5; i++) {
+                        NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
+                        NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
+                        NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
+                        NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						g_fingerCurveData->zeroAngleVector[i] = VectorNormalized(handNode3rd->m_oldWorldTransform.rot.Transpose() * VectorNormalized(startToEnd));
-						g_fingerCurveData->fingerStartPos[i] = inverseHandNode3rd * fingerStart3rd->m_oldWorldTransform.pos;
+                        g_fingerCurveData->zeroAngleVector[i] = VectorNormalized(handNode3rd->m_oldWorldTransform.rot.Transpose() * VectorNormalized(startToEnd));
+                        g_fingerCurveData->fingerStartPos[i] = inverseHandNode3rd * fingerStart3rd->m_oldWorldTransform.pos;
 
-						g_fingerCurveData->openFingerTransforms[i][0] = GetLocalTransformForDesiredWorldTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->openFingerTransforms[i][1] = GetLocalTransformForDesiredWorldTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->openFingerTransforms[i][2] = GetLocalTransformForDesiredWorldTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
-					}
+                        g_fingerCurveData->openFingerTransforms[i][0] = GetLocalTransformForDesiredWorldTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
+                        g_fingerCurveData->openFingerTransforms[i][1] = GetLocalTransformForDesiredWorldTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
+                        g_fingerCurveData->openFingerTransforms[i][2] = GetLocalTransformForDesiredWorldTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
+                    }
 
-					g_fingerCurveData->frameCount = 0;
-					g_fingerCurveData->state = FingerCurveData::State::Step;
-				}
-			}
-			if (g_fingerCurveData->state == FingerCurveData::State::Step) {
-				if (g_fingerCurveData->frameCount < 8000) {
-					float val = max(0, 1.0f - (g_fingerCurveData->frameCount / 8000.0f));
-					g_fingerCurveData->currentRangeVal = val;
-					g_rightHand->fingerAnimator.SetFingerValues(val, 100.0f, 1000.0f);
-					g_fingerCurveData->state = FingerCurveData::State::Skip;
-				}
-				else {
-					g_fingerCurveData->frameCount = 0;
-					g_fingerCurveData->state = FingerCurveData::State::Finish;
-				}
-			}
-			if (g_fingerCurveData->state == FingerCurveData::State::Skip) {
-				float val = max(0, 1.0f - (g_fingerCurveData->frameCount / 8000.0f));
-				g_fingerCurveData->currentRangeVal = val;
-				g_rightHand->fingerAnimator.SetFingerValues(val, 100.0f, 1000.0f);
+                    g_fingerCurveData->frameCount = 0;
+                    g_fingerCurveData->state = FingerCurveData::State::Step;
+                }
+            }
+            if (g_fingerCurveData->state == FingerCurveData::State::Step) {
+                if (g_fingerCurveData->frameCount < 8000) {
+                    float val = max(0, 1.0f - (g_fingerCurveData->frameCount / 8000.0f));
+                    g_fingerCurveData->currentRangeVal = val;
+                    g_rightHand->fingerAnimator.SetFingerValues(val, 100.0f, 1000.0f);
+                    g_fingerCurveData->state = FingerCurveData::State::Skip;
+                }
+                else {
+                    g_fingerCurveData->frameCount = 0;
+                    g_fingerCurveData->state = FingerCurveData::State::Finish;
+                }
+            }
+            if (g_fingerCurveData->state == FingerCurveData::State::Skip) {
+                float val = max(0, 1.0f - (g_fingerCurveData->frameCount / 8000.0f));
+                g_fingerCurveData->currentRangeVal = val;
+                g_rightHand->fingerAnimator.SetFingerValues(val, 100.0f, 1000.0f);
 
-				if (g_fingerCurveData->frameCount % 40 == 0) {
-					// Only step once every few frames
+                if (g_fingerCurveData->frameCount % 40 == 0) {
+                    // Only step once every few frames
 
-					for (int i = 0; i < 5; i++) {
-						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
-						NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
-						NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
+                    for (int i = 0; i < 5; i++) {
+                        NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
+                        NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
+                        NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
 
-						NiPoint3 startToEnd;
+                        NiPoint3 startToEnd;
 
-						// Tip
-						startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        // Tip
+                        startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						float angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
-						g_fingerCurveData->fingerTipVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+                        float angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
+                        g_fingerCurveData->fingerTipVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
 
-						// Outer front
-						startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerMiddle3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsOuter[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        // Outer front
+                        startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerMiddle3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsOuter[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
-						g_fingerCurveData->fingerOuterVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+                        angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
+                        g_fingerCurveData->fingerOuterVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
 
-						// Inner front
-						startToEnd = fingerMiddle3rd->m_oldWorldTransform.pos + fingerStart3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsInner[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        // Inner front
+                        startToEnd = fingerMiddle3rd->m_oldWorldTransform.pos + fingerStart3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsInner[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
-						g_fingerCurveData->fingerInnerVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
-					}
+                        angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
+                        g_fingerCurveData->fingerInnerVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+                    }
 
-					g_fingerCurveData->state = FingerCurveData::State::Step;
-				}
+                    g_fingerCurveData->state = FingerCurveData::State::Step;
+                }
 
-				if (g_fingerCurveData->frameCount == 4000) {
-					// Save normal to the finger curve
-					for (int i = 0; i < 5; i++) {
-						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
-						NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
+                if (g_fingerCurveData->frameCount == 4000) {
+                    // Save normal to the finger curve
+                    for (int i = 0; i < 5; i++) {
+                        NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
+                        NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
 
-						NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        NiPoint3 startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						NiPoint3 normal = VectorNormalized(CrossProduct(g_fingerCurveData->zeroAngleVector[i], handNode3rd->m_oldWorldTransform.rot.Transpose() * startToEnd));
-						g_fingerCurveData->fingerNormal[i] = normal;
-					}
-				}
-			}
-			if (g_fingerCurveData->state == FingerCurveData::State::Finish) {
-				if (g_fingerCurveData->frameCount < 100) {
-					g_fingerCurveData->currentRangeVal = 0.0f;
-					g_rightHand->fingerAnimator.SetFingerValues(0.0f, 100.0f, 1000.0f);
-				}
-				else {
-					for (int i = 0; i < 5; i++) {
-						NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
-						NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
-						NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
+                        NiPoint3 normal = VectorNormalized(CrossProduct(g_fingerCurveData->zeroAngleVector[i], handNode3rd->m_oldWorldTransform.rot.Transpose() * startToEnd));
+                        g_fingerCurveData->fingerNormal[i] = normal;
+                    }
+                }
+            }
+            if (g_fingerCurveData->state == FingerCurveData::State::Finish) {
+                if (g_fingerCurveData->frameCount < 100) {
+                    g_fingerCurveData->currentRangeVal = 0.0f;
+                    g_rightHand->fingerAnimator.SetFingerValues(0.0f, 100.0f, 1000.0f);
+                }
+                else {
+                    for (int i = 0; i < 5; i++) {
+                        NiAVObject *fingerStart3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][0].data);
+                        NiAVObject *fingerMiddle3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][1].data);
+                        NiAVObject *fingerEnd3rd = player->GetNiRootNode(0)->GetObjectByName(&fingerNodeNames[i][2].data);
 
-						NiPoint3 startToEnd;
+                        NiPoint3 startToEnd;
 
-						// Tip
-						startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        // Tip
+                        startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerEnd3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsTip[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						float angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
-						g_fingerCurveData->fingerTipVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+                        float angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
+                        g_fingerCurveData->fingerTipVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
 
-						// Outer front
-						startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerMiddle3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsOuter[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        // Outer front
+                        startToEnd = fingerEnd3rd->m_oldWorldTransform.pos + fingerMiddle3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsOuter[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
-						g_fingerCurveData->fingerOuterVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+                        angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
+                        g_fingerCurveData->fingerOuterVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
 
-						// Inner front
-						startToEnd = fingerMiddle3rd->m_oldWorldTransform.pos + fingerStart3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsInner[i] - fingerStart3rd->m_oldWorldTransform.pos;
+                        // Inner front
+                        startToEnd = fingerMiddle3rd->m_oldWorldTransform.pos + fingerStart3rd->m_oldWorldTransform.rot * g_fingerCurveData->fingerOffsetsInner[i] - fingerStart3rd->m_oldWorldTransform.pos;
 
-						angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
-						g_fingerCurveData->fingerInnerVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
+                        angle = acosf(DotProduct(VectorNormalized(startToEnd), VectorNormalized(handNode3rd->m_oldWorldTransform.rot * g_fingerCurveData->zeroAngleVector[i])));
+                        g_fingerCurveData->fingerInnerVals[i].push_back(std::make_pair(g_fingerCurveData->currentRangeVal, std::make_pair(angle, VectorLength(startToEnd))));
 
-						g_fingerCurveData->closedFingerTransforms[i][0] = GetLocalTransformForDesiredWorldTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->closedFingerTransforms[i][1] = GetLocalTransformForDesiredWorldTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
-						g_fingerCurveData->closedFingerTransforms[i][2] = GetLocalTransformForDesiredWorldTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
-					}
+                        g_fingerCurveData->closedFingerTransforms[i][0] = GetLocalTransformForDesiredWorldTransform(fingerStart3rd, fingerStart3rd->m_oldWorldTransform, true);
+                        g_fingerCurveData->closedFingerTransforms[i][1] = GetLocalTransformForDesiredWorldTransform(fingerMiddle3rd, fingerMiddle3rd->m_oldWorldTransform, true);
+                        g_fingerCurveData->closedFingerTransforms[i][2] = GetLocalTransformForDesiredWorldTransform(fingerEnd3rd, fingerEnd3rd->m_oldWorldTransform, true);
+                    }
 
-					// Dump results to file
-					DumpFingerCurve(g_fingerCurveData.get());
-					DumpFingerPoses(g_fingerCurveData.get());
+                    // Dump results to file
+                    DumpFingerCurve(g_fingerCurveData.get());
+                    DumpFingerPoses(g_fingerCurveData.get());
 
-					g_fingerCurveData->state = FingerCurveData::State::Inactive;
-				}
-			}
+                    g_fingerCurveData->state = FingerCurveData::State::Inactive;
+                }
+            }
 
-			g_fingerCurveData->frameCount++;
-		}
-	}
+            g_fingerCurveData->frameCount++;
+        }
+    }
 }
 
 int _LookupFingerByAngle(int fingerIndex, float desiredAngle, SavedFingerData *out)
 {
-	auto &fingerVals = g_fingerTipVals[fingerIndex];
-	size_t size = std::size(fingerVals);
-	int left = 0;
-	int right = size - 1;
+    auto &fingerVals = g_fingerTipVals[fingerIndex];
+    size_t size = std::size(fingerVals);
+    int left = 0;
+    int right = size - 1;
 
-	if (desiredAngle < fingerVals[left].angle) {
-		// Clamp to lowest angle
-		*out = fingerVals[left];
-		return left;
-	}
+    if (desiredAngle < fingerVals[left].angle) {
+        // Clamp to lowest angle
+        *out = fingerVals[left];
+        return left;
+    }
 
-	if (desiredAngle > fingerVals[right].angle) {
-		// Clamp to highest angle
-		*out = fingerVals[right];
-		return right;
-	}
+    if (desiredAngle > fingerVals[right].angle) {
+        // Clamp to highest angle
+        *out = fingerVals[right];
+        return right;
+    }
 
-	// Binary search
-	while (left <= right) {
-		int middle = floor((left + right) / 2.0f);
+    // Binary search
+    while (left <= right) {
+        int middle = floor((left + right) / 2.0f);
 
-		if (middle == size - 1) {
-			*out = fingerVals[middle];
-			return middle;
-		}
+        if (middle == size - 1) {
+            *out = fingerVals[middle];
+            return middle;
+        }
 
-		float angle = fingerVals[middle].angle;
-		float nextAngle = fingerVals[middle + 1].angle;
+        float angle = fingerVals[middle].angle;
+        float nextAngle = fingerVals[middle + 1].angle;
 
-		if (desiredAngle >= angle && desiredAngle < nextAngle) {
-			*out = fingerVals[middle];
-			return middle;
-		}
+        if (desiredAngle >= angle && desiredAngle < nextAngle) {
+            *out = fingerVals[middle];
+            return middle;
+        }
 
-		if (angle < desiredAngle) {
-			left = middle + 1;
-		}
-		else if (angle > desiredAngle) {
-			right = middle - 1;
-		}
-	}
+        if (angle < desiredAngle) {
+            left = middle + 1;
+        }
+        else if (angle > desiredAngle) {
+            right = middle - 1;
+        }
+    }
 
-	return -1;
+    return -1;
 }
 
 int LookupFingerByAngle(SavedFingerData fingerVals[], float desiredAngle, SavedFingerData *out)
 {
-	int size = g_numFingerVals;
+    int size = g_numFingerVals;
 
-	if (desiredAngle < fingerVals[0].angle) {
-		// Clamp to lowest angle
-		*out = fingerVals[0];
-		return 0;
-	}
+    if (desiredAngle < fingerVals[0].angle) {
+        // Clamp to lowest angle
+        *out = fingerVals[0];
+        return 0;
+    }
 
-	// TODO: Ensure monotonic increase in angle for finger curves. Then we can go back to binary search
-	/*int last = size - 1;
-	if (desiredAngle > fingerVals[last][1]) {
-		// Clamp to highest angle
-		*out = { fingerVals[last][0], fingerVals[last][1], fingerVals[last][2] };
-		return last;
-	}*/
+    // TODO: Ensure monotonic increase in angle for finger curves. Then we can go back to binary search
+    /*int last = size - 1;
+    if (desiredAngle > fingerVals[last][1]) {
+        // Clamp to highest angle
+        *out = { fingerVals[last][0], fingerVals[last][1], fingerVals[last][2] };
+        return last;
+    }*/
 
-	for (int i = 0; i < size; i++) {
-		if (i == size - 1) {
-			*out = fingerVals[i];
-			return i;
-		}
+    for (int i = 0; i < size; i++) {
+        if (i == size - 1) {
+            *out = fingerVals[i];
+            return i;
+        }
 
-		float angle = fingerVals[i].angle;
-		float nextAngle = fingerVals[i + 1].angle;
+        float angle = fingerVals[i].angle;
+        float nextAngle = fingerVals[i + 1].angle;
 
-		if (desiredAngle >= angle && desiredAngle < nextAngle) {
-			*out = fingerVals[i];
-			return i;
-		}
-	}
+        if (desiredAngle >= angle && desiredAngle < nextAngle) {
+            *out = fingerVals[i];
+            return i;
+        }
+    }
 
-	return -1;
+    return -1;
 }
 
 /*

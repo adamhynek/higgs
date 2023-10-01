@@ -24,15 +24,15 @@ inline UInt64 * get_vtbl(void *object) { return *((UInt64 **)object); }
 
 inline void set_vfunc(void *object, UInt64 index, std::uintptr_t vfunc)
 {
-	UInt64 *vtbl = get_vtbl(object);
-	vtbl[index] = vfunc;
+    UInt64 *vtbl = get_vtbl(object);
+    vtbl[index] = vfunc;
 }
 
 template<class T>
 inline T get_vfunc(void *object, UInt64 index)
 {
-	UInt64 *vtbl = get_vtbl(object);
-	return (T)(vtbl[index]);
+    UInt64 *vtbl = get_vtbl(object);
+    return (T)(vtbl[index]);
 }
 
 NiAVObject * GetHighestParent(NiAVObject *node);
@@ -50,12 +50,12 @@ NiPointer<NiAVObject> GetTorsoNode(Actor *actor);
 UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower);
 
 inline bool IsMotionTypeMoveable(UInt8 motionType) {
-	return (
-		motionType == hkpMotion::MotionType::MOTION_DYNAMIC ||
-		motionType == hkpMotion::MotionType::MOTION_SPHERE_INERTIA ||
-		motionType == hkpMotion::MotionType::MOTION_BOX_INERTIA ||
-		motionType == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
-		);
+    return (
+        motionType == hkpMotion::MotionType::MOTION_DYNAMIC ||
+        motionType == hkpMotion::MotionType::MOTION_SPHERE_INERTIA ||
+        motionType == hkpMotion::MotionType::MOTION_BOX_INERTIA ||
+        motionType == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
+        );
 }
 bool IsMoveableEntity(hkpEntity *entity);
 bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref);
@@ -123,24 +123,24 @@ inline UInt32 GetProjectileFlags(Projectile *projectile) { return *((UInt32 *)((
 
 struct SnapTurnState
 {
-	bool isSnapTurning; // 00
-	float targetAngle; // 04
-	float currentAngle; // 08
-	UInt32 currentFrame; // 0C
-	float turningSpeed; // 10
+    bool isSnapTurning; // 00
+    float targetAngle; // 04
+    float currentAngle; // 08
+    UInt32 currentFrame; // 0C
+    float turningSpeed; // 10
 };
 inline SnapTurnState &PlayerCharacter_GetSnapTurnState(PlayerCharacter *player) { return *(SnapTurnState *)((UInt64)player + 0x970); }
 
 inline UInt32 GetCollisionLayer(UInt32 collisionFilterInfo) { return collisionFilterInfo & 0x7f; }
 inline void SetCollisionLayer(hkUint32 &collisionFilterInfo, UInt32 layer) {
-	collisionFilterInfo &= ~(0x7f); // zero out layer
-	collisionFilterInfo |= (layer & 0x7f); // set layer
+    collisionFilterInfo &= ~(0x7f); // zero out layer
+    collisionFilterInfo |= (layer & 0x7f); // set layer
 }
 inline UInt32 GetCollisionLayer(hkpRigidBody *rigidBody) { return GetCollisionLayer(rigidBody->getCollisionFilterInfo()); }
 inline void SetCollisionLayer(hkpRigidBody *rigidBody, UInt32 layer) { return SetCollisionLayer(rigidBody->getCollidableRw()->getBroadPhaseHandle()->m_collisionFilterInfo, layer); }
 
 inline UInt32 GetPartNumber(UInt32 collisionFilterInfo) { return (collisionFilterInfo >> 8) & 0x1f; }
 inline void SetPartNumber(hkUint32 &collisionFilterInfo, UInt32 partNumber) {
-	collisionFilterInfo &= ~(0x1f00); // zero out part number
-	collisionFilterInfo |= (partNumber & 0x1f) << 8; // set part number
+    collisionFilterInfo &= ~(0x1f00); // zero out part number
+    collisionFilterInfo |= (partNumber & 0x1f) << 8; // set part number
 }

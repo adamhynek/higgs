@@ -8,9 +8,9 @@
 
 struct SavedFingerData
 {
-	float curveVal; // open/closed value. 1 == open, 0 == closed
-	float angle; // rad
-	float fingerLength;
+    float curveVal; // open/closed value. 1 == open, 0 == closed
+    float angle; // rad
+    float fingerLength;
 };
 
 void StartGenerateFingerCurve(bool isLeft);
