@@ -681,8 +681,8 @@ extern "C" {
             },
         };
 
-        g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
-        g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
+        g_rightHand = new Hand(false, "R", "NPC R Hand [RHnd]", "RightWandNode", "HIGGS:GrabR", rightFingerNames, rightPalm, Config::options.rolloverOffsetRight, Config::options.delayRightGripInput);
+        g_leftHand = new Hand(true, "L", "NPC L Hand [LHnd]", "LeftWandNode", "HIGGS:GrabL", leftFingerNames, leftPalm, Config::options.rolloverOffsetLeft, Config::options.delayLeftGripInput);
 
         if (!g_rightHand || !g_leftHand) {
             ShowErrorBoxAndTerminate("[CRITICAL] Couldn't allocate memory");

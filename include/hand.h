@@ -132,12 +132,13 @@ struct Hand
         Force
     };
 
-    Hand(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
+    Hand(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString grabNodeOnObjectName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
         isLeft(isLeft),
         collisionMapState(isLeft ? CollisionInfo::State::HeldLeft : CollisionInfo::State::HeldRight),
         name(name),
         handNodeName(handNodeName),
         wandNodeName(wandNodeName),
+        grabNodeOnObjectName(grabNodeOnObjectName),
         palmPosHandspace(palmPosHandspace),
         rolloverOffset(rolloverOffset),
         delayGripInput(delayGripInput),
@@ -258,6 +259,7 @@ struct Hand
     BSFixedString name{}; // Used for logging
     BSFixedString handNodeName{};
     BSFixedString wandNodeName{};
+    BSFixedString grabNodeOnObjectName{};
 
     std::mutex deselectLock{};
 

@@ -1072,18 +1072,9 @@ std::optional<NiTransform> Hand::ComputeInitialObjectTransform(TESObjectREFR *re
 
 std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode)
 {
-    static BSFixedString rightHandOnObjectNodeName("HIGGS:GrabR");
-    NiAVObject *palmOnObjectNode = grabbedNode->GetObjectByName(&rightHandOnObjectNodeName.data);
-    if (!palmOnObjectNode && !isLeft) {
+    NiAVObject *palmOnObjectNode = grabbedNode->GetObjectByName(&grabNodeOnObjectName.data);
+    if (!palmOnObjectNode) {
         return std::nullopt;
-    }
-
-    if (isLeft) {
-        static BSFixedString leftHandOnObjectNodeName("HIGGS:GrabL");
-        palmOnObjectNode = grabbedNode->GetObjectByName(&leftHandOnObjectNodeName.data);
-        if (!palmOnObjectNode) {
-            return std::nullopt;
-        }
     }
 
     NiTransform palmTransformOnObject = palmOnObjectNode->m_worldTransform;
@@ -1554,10 +1545,15 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         NiTransform palmTransformNodeSpace = handTransformNodeSpace;
         palmTransformNodeSpace.pos = handTransformNodeSpace * palmPosHandspace;
 
-        _MESSAGE("Grab transform:");
+        _MESSAGE("");
+        _MESSAGE("HIGGS grab node information");
+        _MESSAGE("Name:");
+        _MESSAGE(grabNodeOnObjectName.data);
+        _MESSAGE("Translation:");
         PrintVector(palmTransformNodeSpace.pos);
+        _MESSAGE("Rotation:");
         PrintVector(NifskopeMatrixToEuler(palmTransformNodeSpace.rot) * 57.2958f);
-        _MESSAGE("%.2f", palmTransformNodeSpace.scale);
+        _MESSAGE("");
     }
 
     HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
