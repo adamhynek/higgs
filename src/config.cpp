@@ -438,6 +438,9 @@ namespace Config {
 
         if (!RegisterBool("dontAnimateFingersWhenBeast", options.dontAnimateFingersWhenBeast)) success = false;
 
+        if (!RegisterBool("enableHiggsGrabNodes", options.enableHiggsGrabNodes)) success = false;
+        if (!RegisterBool("printHiggsGrabNodeInfo", options.printHiggsGrabNodeInfo)) success = false;
+
         if (!RegisterBool("DelayRightGripInput", options.delayRightGripInput)) success = false;
         if (!RegisterBool("DelayLeftGripInput", options.delayLeftGripInput)) success = false;
 

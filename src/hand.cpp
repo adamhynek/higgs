@@ -1072,6 +1072,8 @@ std::optional<NiTransform> Hand::ComputeInitialObjectTransform(TESObjectREFR *re
 
 std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode)
 {
+    if (!Config::options.enableHiggsGrabNodes) return std::nullopt;
+
     NiAVObject *palmOnObjectNode = grabbedNode->GetObjectByName(&grabNodeOnObjectName.data);
     if (!palmOnObjectNode) {
         return std::nullopt;
@@ -1540,7 +1542,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
     }
 
-    { // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
+    if (Config::options.printHiggsGrabNodeInfo) {
+     // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
         NiTransform handTransformNodeSpace = InverseTransform(desiredNodeTransform) * handNode->m_worldTransform;
         NiTransform palmTransformNodeSpace = handTransformNodeSpace;
         palmTransformNodeSpace.pos = handTransformNodeSpace * palmPosHandspace;

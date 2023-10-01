@@ -226,6 +226,9 @@ namespace Config {
 
         bool dontAnimateFingersWhenBeast = true;
 
+        bool enableHiggsGrabNodes = true;
+        bool printHiggsGrabNodeInfo = true;
+
         NiPoint3 palmVector = { -0.018, -0.965, 0.261 };
         NiPoint3 pointingVector = { 0, 0, 1 };
         NiPoint3 palmPosition = { 0, -2.4, 6 }; // in handspace, skyrim units
