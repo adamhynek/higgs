@@ -303,7 +303,7 @@ struct Hand
     NiPoint3 playerAcceleration{};
 
     std::vector<TriangleData> triangles{}; // tris are in worldspace
-    NiTransform rootTriangleTransform{};
+    NiTransform previousTriangleAdjustment{};
 
     bool idleDesired = false;
 

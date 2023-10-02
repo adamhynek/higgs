@@ -1154,7 +1154,7 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
     for (TriangleData &triangle : triangles) {
         triangle.ApplyTransform(localAdjustment);
     }
-    rootTriangleTransform = adjustedTransform;
+    previousTriangleAdjustment = localAdjustment;
 
     NiPoint3 triPos, triNormal;
     float closestDist = (std::numeric_limits<float>::max)();
@@ -1353,15 +1353,18 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         for (TriangleData &triangle : triangles) {
             triangle.ApplyTransform(localAdjustment);
         }
-        rootTriangleTransform = adjustedTransform;
+        previousTriangleAdjustment = localAdjustment;
     }
     else {
-        // Transform the triangles to the differnce between the transform they were last placed to and the one we're using now
-        NiTransform localAdjustment = adjustedTransform * InverseTransform(rootTriangleTransform);
+        // First undo the previous adjustment, then apply the new local adjustment
+        NiTransform inverseCurrent = InverseTransform(originalTransform);
+        NiTransform localAdjustment = adjustedTransform * inverseCurrent;
+        NiTransform totalAdjustment = localAdjustment * InverseTransform(previousTriangleAdjustment);
+
         for (TriangleData &triangle : triangles) {
-            triangle.ApplyTransform(localAdjustment);
+            triangle.ApplyTransform(totalAdjustment);
         }
-        rootTriangleTransform = adjustedTransform;
+        previousTriangleAdjustment = totalAdjustment;
     }
 
     NiPoint3 triPos, triNormal;
@@ -1543,7 +1546,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
     }
 
     if (Config::options.printHiggsGrabNodeInfo) {
-     // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
+        // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
         NiTransform handTransformNodeSpace = InverseTransform(desiredNodeTransform) * handNode->m_worldTransform;
         NiTransform palmTransformNodeSpace = handTransformNodeSpace;
         palmTransformNodeSpace.pos = handTransformNodeSpace * palmPosHandspace;
@@ -1552,6 +1555,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         _MESSAGE("HIGGS grab node information");
         _MESSAGE("Name:");
         _MESSAGE(grabNodeOnObjectName.data);
+        _MESSAGE("Parent:");
+        _MESSAGE(collidableNode->m_name);
         _MESSAGE("Translation:");
         PrintVector(palmTransformNodeSpace.pos);
         _MESSAGE("Rotation:");
