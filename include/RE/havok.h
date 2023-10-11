@@ -453,3 +453,5 @@ bhkGroupConstraint *CreateGrabConstraint(hkpRigidBody *rigidBodyA, hkpRigidBody 
 NiPointer<bhkCharacterController> GetCharacterController(Actor *actor);
 NiPointer<bhkCharRigidBodyController> GetCharRigidBodyController(Actor *actor);
 NiPointer<bhkCharProxyController> GetCharProxyController(Actor *actor);
+void hkpEntity_removeContactListener(hkpEntity *_this, hkpContactListener *contactListener);
+

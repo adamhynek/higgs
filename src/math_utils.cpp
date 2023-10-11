@@ -422,6 +422,25 @@ NiTransform lerp(NiTransform& a, NiTransform& b, double t)
     return lerped;
 }
 
+float AdvanceFloat(float current, float target, float speed)
+{
+    float delta = target - current;
+    if (abs(delta) > speed * *g_deltaTime) {
+        return current + speed * *g_deltaTime * (delta > 0 ? 1 : -1);
+    }
+    return target;
+}
+
+NiPoint3 AdvancePosition(const NiPoint3 &currentPos, const NiPoint3 &targetPos, float speed)
+{
+    NiPoint3 deltaDir = VectorNormalized(targetPos - currentPos);
+    NiPoint3 deltaPos = deltaDir * speed * *g_deltaTime;
+    if (VectorLengthSquared(deltaPos) < VectorLengthSquared(targetPos - currentPos)) {
+        return currentPos + deltaPos;
+    }
+    return targetPos;
+}
+
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed)
 {
     NiQuaternion currentQuat = MatrixToQuaternion(currentTransform.rot);

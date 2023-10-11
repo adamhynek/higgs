@@ -179,6 +179,8 @@ inline NiPoint3 lerp(const NiPoint3 &a, const NiPoint3 &b, float t) { return a *
 inline float lerp(float a, float b, float t) { return a * (1.0f - t) + b * t; }
 NiTransform lerp(NiTransform& a, NiTransform& b, double t);
 inline float logistic(float x, float k, float midpoint) { return 1.0f / (1.0f + expf(-k * (x - midpoint))); };
+float AdvanceFloat(float current, float target, float speed);
+NiPoint3 AdvancePosition(const NiPoint3 &currentPos, const NiPoint3 &targetPos, float speed);
 std::optional<NiTransform> AdvanceTransform(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeed, float rotSpeed);
 std::optional<NiTransform> AdvanceTransformSpeedMultiplied(const NiTransform &currentTransform, const NiTransform &targetTransform, float posSpeedMult, float rotSpeedMult);
 float Determinant33(const NiMatrix33 &m);

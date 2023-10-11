@@ -169,18 +169,28 @@ namespace Config {
             { 144, 60 },
         };
 
-        float grabConstraintAngularTau = 0.3f;
+        float grabConstraintAngularTau = 0.03f;
         float grabConstraintAngularMaxForce = 200.f;
         float grabConstraintAngularProportionalRecoveryVelocity = 2.f;
         float grabConstraintAngularConstantRecoveryVelocity = 1.f;
         float grabConstraintAngularDamping = 0.8f;
 
-        float grabConstraintLinearTau = 0.8f;
+        float grabConstraintLinearTau = 0.03f;
         float grabConstraintLinearMaxForce = 2000.f;
         float grabConstraintLinearMaxForcePerPlayerAcceleration = 50.f;
         float grabConstraintLinearProportionalRecoveryVelocity = 2.f;
         float grabConstraintLinearConstantRecoveryVelocity = 1.f;
         float grabConstraintLinearDamping = 0.8f;
+
+        float grabConstraintAngularTauActor = 0.65f;
+        float grabConstraintLinearTauActor = 0.8f;
+
+        float grabConstraintCollidingAngularTau = 0.01f;
+        float grabConstraintCollidingLinearTau = 0.01f;
+        float grabConstraintTauLerpSpeed = 0.5f;
+
+        float grabConstraintMaxForceToMassRatio = 500.f;
+        float grabConstraintAngularToLinearForceRatio = 12.5f;
 
         float grabConstraintLinearMaxForceAddedWhenSnapTurning = 2000.f;
         double grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime = 0.2;

@@ -1536,6 +1536,21 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkRigidBody_AddConstraintToArray(handBody, constraint);
         bhkWorld_AddConstraint(&world, constraint->constraint);
         grabConstraint = constraint;
+
+        connectedRigidBodies.clear();
+        CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+        for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
+            hkpEntity_addContactListener(connectedBody->hkBody, isLeft ? &g_leftEntityCollisionListener : &g_rightEntityCollisionListener);
+            // Check if the other hand is already handling this connected component
+            if (auto it = other.selectedObject.savedContactPointCallbackDelays.find(connectedBody); it != other.selectedObject.savedContactPointCallbackDelays.end()) {
+                // We save the same value that the other hand already has
+                selectedObject.savedContactPointCallbackDelays[connectedBody] = it->second;
+            }
+            else {
+                selectedObject.savedContactPointCallbackDelays[connectedBody] = connectedBody->hkBody->getContactPointCallbackDelay();
+                connectedBody->hkBody->setContactPointCallbackDelay(0);
+            }
+        }
     }
     else {
         selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -1553,10 +1568,10 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
         _MESSAGE("");
         _MESSAGE("HIGGS grab node information");
-        _MESSAGE("Name:");
-        _MESSAGE(grabNodeOnObjectName.data);
         _MESSAGE("Parent:");
         _MESSAGE(collidableNode->m_name);
+        _MESSAGE("Name:");
+        _MESSAGE(grabNodeOnObjectName.data);
         _MESSAGE("Translation:");
         PrintVector(palmTransformNodeSpace.pos);
         _MESSAGE("Rotation:");
@@ -2771,6 +2786,19 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 grabConstraint->RemoveFromCurrentWorld();
                                 bhkRigidBody_RemoveConstraintFromArray(handBody, grabConstraint);
                                 grabConstraint = nullptr;
+
+                                connectedRigidBodies.clear();
+                                CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+                                for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
+                                    hkpEntity_removeContactListener(connectedBody->hkBody, isLeft ? &g_leftEntityCollisionListener : &g_rightEntityCollisionListener);
+                                    if (auto it = selectedObject.savedContactPointCallbackDelays.find(connectedBody); it != selectedObject.savedContactPointCallbackDelays.end()) {
+                                        // Check if the other hand is still holding this connected component as well. If it is, let the other hand restore it when it lets go
+                                        if (other.selectedObject.savedContactPointCallbackDelays.find(connectedBody) == other.selectedObject.savedContactPointCallbackDelays.end()) {
+                                            connectedBody->hkBody->setContactPointCallbackDelay(it->second);
+                                        }
+                                    }
+                                }
+                                selectedObject.savedContactPointCallbackDelays.clear();
                             }
                         }
                         else if (state == State::Held || state == State::HeldInit) {
@@ -3539,24 +3567,53 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         NiPoint3 newPivotB = (desiredHandTransformHavokObjSpace * palmPosHandspace) * collidableNode->m_worldTransform.scale * havokWorldScale;
                         constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
 
+                        hkpPositionConstraintMotor *linearMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
+                        hkpPositionConstraintMotor *angularMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
+                        
                         float physicsFPS = 1.f / *g_physicsDeltaTime;
 
                         { // set max force of the linear constraint proportional to the player acceleration
-                            hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
                             float playerAccelerationAmount = VectorLength(playerAcceleration);
 
-                            motor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear) : Config::options.grabConstraintLinearMaxForce;
+                            linearMotor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear) : Config::options.grabConstraintLinearMaxForce;
 
-                            motor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
+                            linearMotor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
 
                             if (g_currentFrameTime - lastWasSnapTurningTime < Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime) {
-                                motor->m_maxForce += Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurning;
+                                linearMotor->m_maxForce += Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurning;
                             }
                         }
 
                         { // set max force of the angular constraint based on what's grabbed
-                            hkpLimitedForceConstraintMotor *motor = (hkpLimitedForceConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
-                            motor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular) : Config::options.grabConstraintAngularMaxForce;
+                            angularMotor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular) : Config::options.grabConstraintAngularMaxForce;
+                        }
+
+                        angularMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintAngularProportionalRecoveryVelocity;
+                        angularMotor->m_constantRecoveryVelocity = Config::options.grabConstraintAngularConstantRecoveryVelocity;
+                        angularMotor->m_damping = Config::options.grabConstraintAngularDamping;
+
+                        linearMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintLinearProportionalRecoveryVelocity;
+                        linearMotor->m_constantRecoveryVelocity = Config::options.grabConstraintLinearConstantRecoveryVelocity;
+                        linearMotor->m_damping = Config::options.grabConstraintLinearDamping;
+
+                        if (selectedObject.isActor) {
+                            angularMotor->m_tau = Config::options.grabConstraintAngularTauActor;
+                            linearMotor->m_tau = Config::options.grabConstraintLinearTauActor;
+                        }
+                        else {
+                            float mass = selectedObject.rigidBody->hkBody->getMassInv();
+                            mass = mass > 0.f ? 1.f / mass : 0.f;
+                            linearMotor->m_maxForce = std::clamp(linearMotor->m_maxForce, 0.f, mass * Config::options.grabConstraintMaxForceToMassRatio);
+                            angularMotor->m_maxForce = linearMotor->m_maxForce / Config::options.grabConstraintAngularToLinearForceRatio;
+
+                            // Technically this is true even if the object is colliding with another part of itself, ex. one half of a book with the other (the book is closed)
+                            bool isColliding = (isLeft ? g_leftEntityCollisionListener : g_rightEntityCollisionListener).IsColliding();
+
+                            float angularTauTarget = isColliding ? Config::options.grabConstraintCollidingAngularTau : Config::options.grabConstraintAngularTau;
+                            float linearTauTarget = isColliding ? Config::options.grabConstraintCollidingLinearTau : Config::options.grabConstraintLinearTau;
+
+                            angularMotor->m_tau = AdvanceFloat(angularMotor->m_tau, angularTauTarget, Config::options.grabConstraintTauLerpSpeed);
+                            linearMotor->m_tau = AdvanceFloat(linearMotor->m_tau, linearTauTarget, Config::options.grabConstraintTauLerpSpeed);
                         }
                     }
 

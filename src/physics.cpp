@@ -68,6 +68,25 @@ void SpecificPointCollector::addCdPoint(const hkpCdPoint& point)
     }
 }
 
+AnyPointCollector::AnyPointCollector()
+{
+    reset();
+}
+
+void AnyPointCollector::reset()
+{
+    m_earlyOutDistance = 1.0f;
+    m_anyHits = false;
+}
+
+void AnyPointCollector::addCdPoint(const hkpCdPoint &point)
+{
+    if (point.getContact().getDistance() > maxDistance) return;
+
+    m_anyHits = true;
+    m_earlyOutDistance = 0.f;
+}
+
 CdBodyPairCollector::CdBodyPairCollector()
 {
     reset();
@@ -121,6 +140,23 @@ void SpecificPairCollector::addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBod
         m_foundTarget = true;
         m_earlyOut = true;
     }
+}
+
+AnyPairCollector::AnyPairCollector()
+{
+    reset();
+}
+
+void AnyPairCollector::reset()
+{
+    m_earlyOut = false;
+    m_anyHits = false;
+}
+
+void AnyPairCollector::addCdBodyPair(const hkpCdBody &bodyA, const hkpCdBody &bodyB)
+{
+    m_anyHits = true;
+    m_earlyOut = true;
 }
 
 RayHitCollector::RayHitCollector()
@@ -487,6 +523,59 @@ void PhysicsListener::postSimulationCallback(hkpWorld* world)
             }
         }
     }
+
+    g_rightEntityCollisionListener.PostSimulationUpdate();
+    g_leftEntityCollisionListener.PostSimulationUpdate();
+}
+
+
+EntityCollisionListener g_rightEntityCollisionListener(false);
+EntityCollisionListener g_leftEntityCollisionListener(true);
+
+void EntityCollisionListener::RegisterCollision(hkpRigidBody *body)
+{
+    if (auto it = collidedBodies.find(body); it == collidedBodies.end()) {
+        // It's not in the map yet
+        std::unique_lock lock(collisionLock);
+        collidedBodies[body] = *g_currentFrameCounter;
+    }
+    else {
+        // It's already in the map, so just update the collided frame
+        it->second = *g_currentFrameCounter;
+    }
+}
+
+void EntityCollisionListener::contactPointCallback(const hkpContactPointEvent &evnt)
+{
+    if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
+        // Early out
+        return;
+    }
+
+    if (evnt.m_contactPointProperties->wasUsed() && evnt.m_contactPoint->getDistance() < Config::options.collisionMaxInitialContactPointDistance) {
+        RegisterCollision(evnt.m_source == hkpContactPointEvent::SOURCE_A ? evnt.m_bodies[0] : evnt.m_bodies[1]);
+    }
+}
+
+void EntityCollisionListener::PostSimulationUpdate()
+{
+    for (auto it = collidedBodies.begin(); it != collidedBodies.end();) {
+        auto [body, collidedFrame] = *it;
+
+        if (*g_currentFrameCounter - collidedFrame > Config::options.collisionMaxInactiveFramesToConsiderActive) {
+            // Collision is inactive
+            it = collidedBodies.erase(it);
+        }
+        else {
+            // Collision is active
+            ++it;
+        }
+    }
+}
+
+bool EntityCollisionListener::IsColliding()
+{
+    return collidedBodies.size() > 0;
 }
 
 
@@ -999,3 +1088,19 @@ float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_th
         return hkpSimpleContactConstraintUtil_calculateSeparatingVelocity(_this.m_bodies[0], _this.m_bodies[1], _this.m_bodies[0]->getCenterOfMassInWorld(), _this.m_bodies[1]->getCenterOfMassInWorld(), _this.m_contactPoint);
     }
 }
+
+bool IsColliding(const hkpRigidBody *rigidBody, float tolerance)
+{
+    hkpWorld *world = rigidBody->getWorld();
+    if (!world) return false;
+
+    const hkpCollidable *collidable = rigidBody->getCollidable();
+
+    static AnyPointCollector collector{};
+    collector.reset();
+    collector.maxDistance = tolerance;
+
+    hkpWorld_GetClosestPoints(world, collidable, world->getCollisionInput(), &collector);
+    return collector.m_anyHits;
+}
+

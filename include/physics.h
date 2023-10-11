@@ -59,6 +59,16 @@ struct SpecificPointCollector : public hkpCdPointCollector
     bool m_foundTarget = false;
 };
 
+struct AnyPointCollector : public hkpCdPointCollector
+{
+    AnyPointCollector();
+    void addCdPoint(const hkpCdPoint& point) override;
+    void reset() override;
+
+    float maxDistance = 0.f;
+    bool m_anyHits = false;
+};
+
 struct CdBodyPairCollector : public hkpCdBodyPairCollector
 {
     CdBodyPairCollector();
@@ -77,6 +87,15 @@ struct SpecificPairCollector : public hkpCdBodyPairCollector
     hkpCdBody *m_target = nullptr;
     bool m_foundTarget = false;
 };
+
+struct AnyPairCollector : public hkpCdBodyPairCollector
+{
+    AnyPairCollector();
+    void addCdBodyPair(const hkpCdBody& bodyA, const hkpCdBody& bodyB) override;
+    void reset() override;
+
+    bool m_anyHits = false;
+};;
 
 struct IslandDeactivationListener : public hkpIslandActivationListener
 {
@@ -108,6 +127,23 @@ struct PhysicsListener : public hkpContactListener, hkpWorldPostSimulationListen
 
     NiPointer<bhkWorld> world = nullptr;
 };
+
+struct EntityCollisionListener : public hkpContactListener
+{
+    EntityCollisionListener(bool isLeft) : isLeft(isLeft) {}
+
+    void contactPointCallback(const hkpContactPointEvent& evnt) override;
+
+    void PostSimulationUpdate();
+    void RegisterCollision(hkpRigidBody *body);
+    bool IsColliding();
+
+    bool isLeft;
+    std::mutex collisionLock;
+    std::unordered_map<hkpRigidBody *, int> collidedBodies{};
+};
+extern EntityCollisionListener g_rightEntityCollisionListener;
+extern EntityCollisionListener g_leftEntityCollisionListener;
 
 namespace CollisionInfo
 {
@@ -156,3 +192,6 @@ void ApplyHardKeyframeDownstream(NiAVObject *obj, hkVector4 pos, hkQuaternion ro
 
 void hkpWorld_removeContactListener(hkpWorld *_this, hkpContactListener* worldListener);
 float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_this);
+
+bool IsColliding(const hkpRigidBody *rigidBody, float tolerance = 0.005f);
+

@@ -396,6 +396,16 @@ namespace Config {
         if (!RegisterFloat("grabConstraintLinearProportionalRecoveryVelocity", options.grabConstraintLinearProportionalRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintLinearDamping", options.grabConstraintLinearDamping)) success = false;
+
+        if (!RegisterFloat("grabConstraintAngularTauActor", options.grabConstraintAngularTauActor)) success = false;
+        if (!RegisterFloat("grabConstraintLinearTauActor", options.grabConstraintLinearTauActor)) success = false;
+
+        if (!RegisterFloat("grabConstraintCollidingAngularTau", options.grabConstraintCollidingAngularTau)) success = false;
+        if (!RegisterFloat("grabConstraintCollidingLinearTau", options.grabConstraintCollidingLinearTau)) success = false;
+        if (!RegisterFloat("grabConstraintTauLerpSpeed", options.grabConstraintTauLerpSpeed)) success = false;
+
+        if (!RegisterFloat("grabConstraintMaxForceToMassRatio", options.grabConstraintMaxForceToMassRatio)) success = false;
+        if (!RegisterFloat("grabConstraintAngularToLinearForceRatio", options.grabConstraintAngularToLinearForceRatio)) success = false;
         
         if (!ReadFloatMap("fpsToActorMaxForceMapLinear", options.fpsToActorMaxForceMapLinear)) success = false;
         if (!ReadFloatMap("fpsToActorMaxForceMapAngular", options.fpsToActorMaxForceMapAngular)) success = false;

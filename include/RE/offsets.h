@@ -158,9 +158,6 @@ extern RelocAddr<_hkpEntity_getNumConstraints> hkpEntity_getNumConstraints;
 typedef void* (*_hkpEntity_addContactListener)(hkpEntity *_this, hkpContactListener* cl);
 extern RelocAddr<_hkpEntity_addContactListener> hkpEntity_addContactListener;
 
-typedef void* (*_hkpEntity_removeContactListener)(hkpEntity *_this, hkpContactListener* cl);
-extern RelocAddr<_hkpEntity_removeContactListener> hkpEntity_removeContactListener;
-
 typedef void(*_hkpRigidBody_ctor)(hkpRigidBody *_this, hkpRigidBodyCinfo *info);
 extern RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor;
 

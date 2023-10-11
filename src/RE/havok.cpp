@@ -174,3 +174,17 @@ NiPointer<bhkCharProxyController> GetCharProxyController(Actor *actor)
 
     return DYNAMIC_CAST(controller, bhkCharacterController, bhkCharProxyController);
 }
+
+void hkpEntity_removeContactListener(hkpEntity *_this, hkpContactListener *contactListener)
+{
+    hkSmallArray<hkpContactListener *> &listeners = _this->m_contactListeners;
+
+    for (int i = 0; i < listeners.getSize(); i++) {
+        hkpContactListener *listener = listeners[i];
+        if (listener == contactListener) {
+            listeners[i] = nullptr;
+            return;
+        }
+    }
+}
+

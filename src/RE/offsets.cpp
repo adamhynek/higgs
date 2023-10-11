@@ -91,7 +91,6 @@ RelocAddr<_hkpRigidBody_setPosition> hkpRigidBody_setPosition(0xAA8FD0);
 RelocAddr<_hkpRigidBody_setRotation> hkpRigidBody_setRotation(0xAA9000);
 RelocAddr<_hkpEntity_setTransform> hkpEntity_setTransform(0xAA9060);
 RelocAddr<_hkpEntity_getNumConstraints> hkpEntity_getNumConstraints(0xAA73B0);
-RelocAddr<_hkpEntity_removeContactListener> hkpEntity_removeContactListener(0xAA7080);
 RelocAddr<_hkpRigidBody_ctor> hkpRigidBody_ctor(0xAA89C0);
 RelocAddr<_hkpRigidBodyCinfo_ctor> hkpRigidBodyCinfo_ctor(0xAC5FE0);
 RelocAddr<_hkpBoxShape_ctor> hkpBoxShape_ctor(0xA93600);
