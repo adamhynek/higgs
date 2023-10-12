@@ -1537,6 +1537,9 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkWorld_AddConstraint(&world, constraint->constraint);
         grabConstraint = constraint;
 
+        // If the object needs to sync a lot (a custom transform was provided), we wanto to fade in the forces gradually
+        fadeInGrabConstraint = initialTransform.has_value();
+
         connectedRigidBodies.clear();
         CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
         for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
@@ -3570,41 +3573,23 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         hkpPositionConstraintMotor *linearMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
                         hkpPositionConstraintMotor *angularMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
                         
-                        float physicsFPS = 1.f / *g_physicsDeltaTime;
-
-                        { // set max force of the linear constraint proportional to the player acceleration
-                            float playerAccelerationAmount = VectorLength(playerAcceleration);
-
-                            linearMotor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear) : Config::options.grabConstraintLinearMaxForce;
-
-                            linearMotor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
-
-                            if (g_currentFrameTime - lastWasSnapTurningTime < Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime) {
-                                linearMotor->m_maxForce += Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurning;
-                            }
+                        float angularToLinearForceRatio = Config::options.grabConstraintAngularToLinearForceRatio;
+                        if (fadeInGrabConstraint) {
+                            double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.grabConstraintFadeInTime;
+                            angularToLinearForceRatio = lerp(Config::options.grabConstraintFadeInStartAngularMaxForceRatio, Config::options.grabConstraintAngularToLinearForceRatio, min(1.0, elapsedTimeFraction));
                         }
-
-                        { // set max force of the angular constraint based on what's grabbed
-                            angularMotor->m_maxForce = selectedObject.isActor ? GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular) : Config::options.grabConstraintAngularMaxForce;
-                        }
-
-                        angularMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintAngularProportionalRecoveryVelocity;
-                        angularMotor->m_constantRecoveryVelocity = Config::options.grabConstraintAngularConstantRecoveryVelocity;
-                        angularMotor->m_damping = Config::options.grabConstraintAngularDamping;
-
-                        linearMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintLinearProportionalRecoveryVelocity;
-                        linearMotor->m_constantRecoveryVelocity = Config::options.grabConstraintLinearConstantRecoveryVelocity;
-                        linearMotor->m_damping = Config::options.grabConstraintLinearDamping;
 
                         if (selectedObject.isActor) {
+                            float physicsFPS = 1.f / *g_physicsDeltaTime;
+                            linearMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear);
+                            angularMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular);
+
                             angularMotor->m_tau = Config::options.grabConstraintAngularTauActor;
                             linearMotor->m_tau = Config::options.grabConstraintLinearTauActor;
                         }
                         else {
-                            float mass = selectedObject.rigidBody->hkBody->getMassInv();
-                            mass = mass > 0.f ? 1.f / mass : 0.f;
-                            linearMotor->m_maxForce = std::clamp(linearMotor->m_maxForce, 0.f, mass * Config::options.grabConstraintMaxForceToMassRatio);
-                            angularMotor->m_maxForce = linearMotor->m_maxForce / Config::options.grabConstraintAngularToLinearForceRatio;
+                            linearMotor->m_maxForce = Config::options.grabConstraintLinearMaxForce;
+                            angularMotor->m_maxForce = linearMotor->m_maxForce / angularToLinearForceRatio;
 
                             // Technically this is true even if the object is colliding with another part of itself, ex. one half of a book with the other (the book is closed)
                             bool isColliding = (isLeft ? g_leftEntityCollisionListener : g_rightEntityCollisionListener).IsColliding();
@@ -3615,6 +3600,34 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             angularMotor->m_tau = AdvanceFloat(angularMotor->m_tau, angularTauTarget, Config::options.grabConstraintTauLerpSpeed);
                             linearMotor->m_tau = AdvanceFloat(linearMotor->m_tau, linearTauTarget, Config::options.grabConstraintTauLerpSpeed);
                         }
+
+                        // Set max force of the linear constraint with respect to player acceleration or snap turning
+                        float playerAccelerationAmount = VectorLength(playerAcceleration);
+                        linearMotor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
+
+                        if (g_currentFrameTime - lastWasSnapTurningTime < Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime) {
+                            linearMotor->m_maxForce += Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurning;
+                        }
+
+                        if (!selectedObject.isActor) {
+                            // Limit the final values of the max forces
+                            float mass = selectedObject.rigidBody->hkBody->getMassInv();
+                            mass = mass > 0.f ? 1.f / mass : 0.f;
+                            linearMotor->m_maxForce = min(linearMotor->m_maxForce, mass * Config::options.grabConstraintMaxForceToMassRatio);
+                            angularMotor->m_maxForce = min(angularMotor->m_maxForce, linearMotor->m_maxForce / angularToLinearForceRatio);
+                        }
+
+                        // Ensure max/min forces match
+                        linearMotor->m_minForce = -linearMotor->m_maxForce;
+                        angularMotor->m_minForce = -angularMotor->m_maxForce;
+
+                        angularMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintAngularProportionalRecoveryVelocity;
+                        angularMotor->m_constantRecoveryVelocity = Config::options.grabConstraintAngularConstantRecoveryVelocity;
+                        angularMotor->m_damping = Config::options.grabConstraintAngularDamping;
+
+                        linearMotor->m_proportionalRecoveryVelocity = Config::options.grabConstraintLinearProportionalRecoveryVelocity;
+                        linearMotor->m_constantRecoveryVelocity = Config::options.grabConstraintLinearConstantRecoveryVelocity;
+                        linearMotor->m_damping = Config::options.grabConstraintLinearDamping;
                     }
 
                     bhkRigidBody_setActivated(selectedObject.rigidBody, true);

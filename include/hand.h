@@ -289,6 +289,7 @@ struct Hand
     NiPoint3 pullTarget{};
 
     NiPointer<bhkConstraint> grabConstraint = nullptr;
+    bool fadeInGrabConstraint = false;
 
     NiTransform desiredNodeTransformHandSpace{};
 

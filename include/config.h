@@ -170,7 +170,6 @@ namespace Config {
         };
 
         float grabConstraintAngularTau = 0.03f;
-        float grabConstraintAngularMaxForce = 200.f;
         float grabConstraintAngularProportionalRecoveryVelocity = 2.f;
         float grabConstraintAngularConstantRecoveryVelocity = 1.f;
         float grabConstraintAngularDamping = 0.8f;
@@ -191,6 +190,9 @@ namespace Config {
 
         float grabConstraintMaxForceToMassRatio = 500.f;
         float grabConstraintAngularToLinearForceRatio = 12.5f;
+
+        float grabConstraintFadeInStartAngularMaxForceRatio = 100.f;
+        double grabConstraintFadeInTime = 0.1;
 
         float grabConstraintLinearMaxForceAddedWhenSnapTurning = 2000.f;
         double grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime = 0.2;

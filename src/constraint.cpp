@@ -26,7 +26,8 @@ GrabConstraintData::GrabConstraintData() : hkpConstraintData() {
     hkpPositionConstraintMotor_ctor(motor);
 
     motor->m_tau = Config::options.grabConstraintAngularTau;
-    motor->setMaxForce(Config::options.grabConstraintAngularMaxForce);
+
+    motor->setMaxForce(Config::options.grabConstraintLinearMaxForce / Config::options.grabConstraintAngularToLinearForceRatio);
     motor->m_proportionalRecoveryVelocity = Config::options.grabConstraintAngularProportionalRecoveryVelocity;
     motor->m_constantRecoveryVelocity = Config::options.grabConstraintAngularConstantRecoveryVelocity;
     motor->m_damping = Config::options.grabConstraintAngularDamping;

@@ -385,7 +385,6 @@ namespace Config {
         if (!RegisterFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) success = false;
 
         if (!RegisterFloat("grabConstraintAngularTau", options.grabConstraintAngularTau)) success = false;
-        if (!RegisterFloat("grabConstraintAngularMaxForce", options.grabConstraintAngularMaxForce)) success = false;
         if (!RegisterFloat("grabConstraintAngularProportionalRecoveryVelocity", options.grabConstraintAngularProportionalRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintAngularConstantRecoveryVelocity", options.grabConstraintAngularConstantRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintAngularDamping", options.grabConstraintAngularDamping)) success = false;
@@ -406,6 +405,9 @@ namespace Config {
 
         if (!RegisterFloat("grabConstraintMaxForceToMassRatio", options.grabConstraintMaxForceToMassRatio)) success = false;
         if (!RegisterFloat("grabConstraintAngularToLinearForceRatio", options.grabConstraintAngularToLinearForceRatio)) success = false;
+
+        if (!RegisterFloat("grabConstraintFadeInStartAngularMaxForceRatio", options.grabConstraintFadeInStartAngularMaxForceRatio)) success = false;
+        if (!RegisterDouble("grabConstraintFadeInTime", options.grabConstraintFadeInTime)) success = false;
         
         if (!ReadFloatMap("fpsToActorMaxForceMapLinear", options.fpsToActorMaxForceMapLinear)) success = false;
         if (!ReadFloatMap("fpsToActorMaxForceMapAngular", options.fpsToActorMaxForceMapAngular)) success = false;
