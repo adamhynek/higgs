@@ -181,6 +181,13 @@ namespace Config {
         float grabConstraintLinearConstantRecoveryVelocity = 1.f;
         float grabConstraintLinearDamping = 0.8f;
 
+        float grabConstraintAngularTauBody = 0.65f;
+        float grabConstraintAngularTauBodyStart = 0.01f;
+        float grabConstraintLinearTauBody = 0.8f;
+        float grabConstraintLinearTauBodyStart = 0.01f;
+
+        double physicsGrabLerpTauTimeBody = 0.1;
+
         float grabConstraintAngularTauActor = 0.65f;
         float grabConstraintLinearTauActor = 0.8f;
 

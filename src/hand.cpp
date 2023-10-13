@@ -3584,8 +3584,27 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             linearMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear);
                             angularMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular);
 
-                            angularMotor->m_tau = Config::options.grabConstraintAngularTauActor;
-                            linearMotor->m_tau = Config::options.grabConstraintLinearTauActor;
+                            bool isInRagdollState = false;
+                            if (Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor)) {
+                                isInRagdollState = Actor_IsInRagdollState(actor);
+                            }
+
+                            if (isInRagdollState) {
+                                angularMotor->m_tau = Config::options.grabConstraintAngularTauBody;
+                                linearMotor->m_tau = Config::options.grabConstraintLinearTauBody;
+
+                                {
+                                    double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabLerpTauTimeBody;
+                                    if (elapsedTimeFraction < 1.0) {
+                                        angularMotor->m_tau = lerp(Config::options.grabConstraintAngularTauBodyStart, Config::options.grabConstraintAngularTauBody, elapsedTimeFraction);
+                                        linearMotor->m_tau = lerp(Config::options.grabConstraintLinearTauBodyStart, Config::options.grabConstraintLinearTauBody, elapsedTimeFraction);
+                                    }
+                                }
+                            }
+                            else {
+                                angularMotor->m_tau = Config::options.grabConstraintAngularTauActor;
+                                linearMotor->m_tau = Config::options.grabConstraintLinearTauActor;
+                            }
                         }
                         else {
                             linearMotor->m_maxForce = Config::options.grabConstraintLinearMaxForce;

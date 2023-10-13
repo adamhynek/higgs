@@ -396,6 +396,13 @@ namespace Config {
         if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintLinearDamping", options.grabConstraintLinearDamping)) success = false;
 
+        if (!RegisterFloat("grabConstraintAngularTauBody", options.grabConstraintAngularTauBody)) success = false;
+        if (!RegisterFloat("grabConstraintAngularTauBodyStart", options.grabConstraintAngularTauBodyStart)) success = false;
+        if (!RegisterFloat("grabConstraintLinearTauBody", options.grabConstraintLinearTauBody)) success = false;
+        if (!RegisterFloat("grabConstraintLinearTauBodyStart", options.grabConstraintLinearTauBodyStart)) success = false;
+
+        if (!RegisterDouble("physicsGrabLerpTauTimeBody", options.physicsGrabLerpTauTimeBody)) success = false;
+
         if (!RegisterFloat("grabConstraintAngularTauActor", options.grabConstraintAngularTauActor)) success = false;
         if (!RegisterFloat("grabConstraintLinearTauActor", options.grabConstraintLinearTauActor)) success = false;
 
