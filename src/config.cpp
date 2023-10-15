@@ -374,6 +374,10 @@ namespace Config {
         if (!RegisterFloat("slowMovementMaxReduction", options.slowMovementMaxReduction)) success = false;
         if (!RegisterDouble("slowMovementFadeOutTime", options.slowMovementFadeOutTime)) success = false;
 
+        if (!RegisterFloat("jumpHeightMassProportion", options.jumpHeightMassProportion)) success = false;
+        if (!RegisterFloat("jumpHeightMassExponent", options.jumpHeightMassExponent)) success = false;
+        if (!RegisterFloat("jumpHeightMaxReduction", options.jumpHeightMaxReduction)) success = false;
+
         if (!RegisterBool("EnableHavokFix", options.enableHavokFix)) success = false;
         if (!RegisterFloat("HavokMaxTimeComplexMultiplier", options.havokMaxTimeComplexMultiplier)) success = false;
         if (!RegisterFloat("minPhysicsFrameRate", options.minPhysicsFrameRate)) success = false;

@@ -145,6 +145,10 @@ namespace Config {
         float slowMovementMaxReduction = 75.f;
         double slowMovementFadeOutTime = 5.0;
 
+        float jumpHeightMassProportion = 1.f;
+        float jumpHeightMassExponent = 1.f;
+        float jumpHeightMaxReduction = 0.65f;
+
         bool enableHavokFix = true;
         float havokMaxTimeComplexMultiplier = 1.0f;
         float minPhysicsFrameRate = 70.f;

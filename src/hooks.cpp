@@ -605,6 +605,49 @@ void PlayerCharacter_Update_Hook(PlayerCharacter *_this, float delta)
 }
 
 
+std::optional<float> GetJumpMultiplier()
+{
+    bool rightHasHeld = g_rightHand->HasHeldObject();
+    bool leftHasHeld = g_leftHand->HasHeldObject();
+    int numHeld = int(rightHasHeld) + int(leftHasHeld);
+
+    float speedReduction = 0.f;
+    if (numHeld > 0) {
+        // We are holding at least 1 object
+        float mass = 0.f;
+        if (rightHasHeld && leftHasHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
+            // Both hands are holding the same refr (ex. different limbs of the same body). We don't want to double up on the slowdown.
+            mass += g_rightHand->GetEffectiveHeldMass();
+        }
+        else {
+            if (rightHasHeld) {
+                mass += g_rightHand->GetEffectiveHeldMass();
+            }
+            if (leftHasHeld) {
+                mass += g_leftHand->GetEffectiveHeldMass();
+            }
+        }
+
+        speedReduction = min(Config::options.jumpHeightMaxReduction, powf(mass, Config::options.jumpHeightMassExponent) * Config::options.jumpHeightMassProportion);
+        return (100.f - speedReduction) / 100.f;
+    }
+
+    return {};
+}
+
+auto Actor_Jump_bhkCharacterController_SetJumping_HookLoc = RelocPtr<uintptr_t>(0x5DA6FB);
+typedef void(*_Actor_Jump_bhkCharacterController_SetJumping)(bhkCharacterController *_this, float a_jumpHeight);
+_Actor_Jump_bhkCharacterController_SetJumping Actor_Jump_bhkCharacterController_SetJumping_Original = 0;
+void Actor_Jump_bhkCharacterController_SetJumping_Hook(bhkCharacterController *_this, float a_jumpHeight)
+{
+    if (std::optional<float> jumpMultiplier = GetJumpMultiplier()) {
+        a_jumpHeight *= *jumpMultiplier;
+    }
+
+    Actor_Jump_bhkCharacterController_SetJumping_Original(_this, a_jumpHeight);
+}
+
+
 #ifdef _DEBUG
 
 bool g_wasDrawingLastFrame = false;
@@ -1265,6 +1308,12 @@ void PerformHooks(void)
     {
         g_branchTrampoline.Write5Call(ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc.GetUIntPtr(), uintptr_t(ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_Hook));
         _MESSAGE("ArrowProjectile::AddImpact bhkCollisionObject::GetRigidBody hook complete");
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(Actor_Jump_bhkCharacterController_SetJumping_HookLoc.GetUIntPtr(), uintptr_t(Actor_Jump_bhkCharacterController_SetJumping_Hook));
+        Actor_Jump_bhkCharacterController_SetJumping_Original = (_Actor_Jump_bhkCharacterController_SetJumping)originalFunc;
+        _MESSAGE("Actor::Jump bhkCharacterController::SetJumping hook complete");
     }
 
 #ifdef _DEBUG
