@@ -267,7 +267,7 @@ NiMatrix33 HkMatrixToNiMatrix(const hkMatrix3 &hkMat)
     return out;
 }
 
-NiTransform hkTransformToNiTransform(hkTransform &t, float scale, bool useHavokScale)
+NiTransform hkTransformToNiTransform(const hkTransform &t, float scale, bool useHavokScale)
 {
     NiTransform out;
     out.pos = HkVectorToNiPoint(t.m_translation) * (useHavokScale ? *g_inverseHavokWorldScale : 1.f);
@@ -276,7 +276,7 @@ NiTransform hkTransformToNiTransform(hkTransform &t, float scale, bool useHavokS
     return out;
 }
 
-hkTransform NiTransformTohkTransform(NiTransform &t, bool useHavokScale)
+hkTransform NiTransformTohkTransform(const NiTransform &t, bool useHavokScale)
 {
     hkTransform out;
     out.m_translation = NiPointToHkVector(t.pos * (useHavokScale ? *g_havokWorldScale : 1.f));

@@ -2666,7 +2666,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                             state = State::GrabFromOtherHand;
                                         }
                                         else {
-                                            std::optional<NiTransform> initialTransform = std::nullopt;
+                                            std::optional<NiTransform> initialTransform = {};
                                             if (Config::options.useAttachPointForInitialGrab) {
                                                 initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
                                             }
@@ -2675,7 +2675,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                         }
                                     }
                                     else {
-                                        std::optional<NiTransform> initialTransform = std::nullopt;
+                                        std::optional<NiTransform> initialTransform = {};
                                         if (Config::options.useAttachPointForInitialGrab) {
                                             initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
                                         }
@@ -3023,7 +3023,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     }
                     else {
                         // Grabbing a regular object, not from the other hand or off of a body
-                        std::optional<NiTransform> initialTransform = std::nullopt;
+                        std::optional<NiTransform> initialTransform = {};
                         if (Config::options.useAttachPointForInitialGrab) {
                             initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
                         }
@@ -3116,7 +3116,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 GrabExternalObject(other, *world, selectedObj, objRoot, collidableNode, handNode, handSize, sphere, hkPalmPos, palmVector, havokWorldScale);
                             }
                             else {
-                                std::optional<NiTransform> initialTransform = std::nullopt;
+                                std::optional<NiTransform> initialTransform = {};
                                 if (Config::options.useAttachPointForInitialGrab) {
                                     initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, collidableNode);
                                 }
