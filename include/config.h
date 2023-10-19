@@ -208,6 +208,8 @@ namespace Config {
         float grabConstraintLinearMaxForceAddedWhenSnapTurning = 2000.f;
         double grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime = 0.2;
 
+        bool doPhysicsGrabPlayerMovementCompensation = true;
+
         bool disableHeadBobbingWhileGrabbed = true;
         bool disableShaders = false;
         bool disableSelectionBeam = false;

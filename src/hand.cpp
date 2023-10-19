@@ -3536,6 +3536,24 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
+                // If the player is moving, add the player's change in position to the object's position
+                NiPoint3 playerDeltaPos = player->pos - prevPlayerPosWorldspace;
+                if (Config::options.doPhysicsGrabPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
+                    // Set object position
+                    NiPoint3 currentPos = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getPosition());
+                    NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
+                    bhkEntity_setPositionAndRotation(selectedObject.rigidBody, NiPointToHkVector(newPos), selectedObject.rigidBody->hkBody->getRotation());
+
+                    // Set hand position too
+                    NiPoint3 currentHandPos = HkVectorToNiPoint(handBody->hkBody->getPosition());
+                    NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * havokWorldScale);
+                    bhkEntity_setPositionAndRotation(handBody, NiPointToHkVector(newHandPos), handBody->hkBody->getRotation());
+
+                    // Make sure node transform is up to date with latest collision now that we've updated it
+                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                    NiAVObject_UpdateNode(collidableNode, &ctx);
+                }
+
                 // Update the hand to match the object
                 NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
 
