@@ -187,6 +187,13 @@ NiMatrix33 NifskopeEulerToMatrix(const NiPoint3 &in)
     return out;
 }
 
+NiMatrix33 MatrixFromForwardVector(NiPoint3 &forward, NiPoint3 &world)
+{
+    NiMatrix33 rot;
+    NiMatrixFromForwardVector(&rot, &forward, &world);
+    return rot;
+}
+
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle)
 {
     // Rodrigues' rotation formula

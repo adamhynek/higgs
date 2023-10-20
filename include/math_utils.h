@@ -145,6 +145,7 @@ NiPoint3 MatrixToEuler(const NiMatrix33 &mat);
 NiMatrix33 EulerToMatrix(const NiPoint3 &euler);
 NiPoint3 NifskopeMatrixToEuler(const NiMatrix33 &in);
 NiMatrix33 NifskopeEulerToMatrix(const NiPoint3 &in);
+NiMatrix33 MatrixFromForwardVector(NiPoint3 &forward, NiPoint3 &world);
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle);
 NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal);
 NiTransform RotateTransformAboutPoint(NiTransform &transform, NiPoint3 &point, NiMatrix33 &rotation);

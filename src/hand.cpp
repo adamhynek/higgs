@@ -2785,6 +2785,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
                             }
 
+                            if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
+                                bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+                                NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
+                                selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
+                            }
+
                             if (grabConstraint) {
                                 grabConstraint->RemoveFromCurrentWorld();
                                 bhkRigidBody_RemoveConstraintFromArray(handBody, grabConstraint);
@@ -4379,10 +4385,7 @@ void Hand::SetupSelectionBeam(NiNode *spellOrigin)
         stretcher.data[1][1] = distance * Config::options.selectionBeamStretch.y; // stretches y (forward) vector
         stretcher.data[2][2] = Config::options.selectionBeamStretch.z;
 
-        NiMatrix33 rot;
-        NiPoint3 worldUp = { 0, 0, 1 };
-        MatrixFromForwardVector(&rot, &destToOriginNormalized, &worldUp);
-
+        NiMatrix33 rot = MatrixFromForwardVector(destToOriginNormalized, NiPoint3{ 0.f, 0.f, 1.f });
         rot = rot * stretcher;
 
         spellOrigin->m_localTransform.pos = dest;
