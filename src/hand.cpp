@@ -2782,6 +2782,15 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         if (state == State::HeldBody) {
                             if (!selectedObject.isActor) {
+                                // First enable collision with the hand, so that ResetCollisionInfoDownstream() can enable or disable collision of the object with the hand as it chooses
+                                hkpRigidBody *handCollBody = handBody->hkBody;
+                                bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
+                                handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+                                if (wasCollisionDisabled) {
+                                    BSWriteLocker lock(&world->worldLock);
+                                    hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                                }
+
                                 ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
                             }
 

@@ -614,15 +614,15 @@ namespace CollisionInfo
                         collisionInfoIdMap[entityId] = { savedInfo, State::HeldBoth };
 
                         bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                        world->worldLock.LockForWrite();
+                        {
+                            BSWriteLocker lock(&world->worldLock);
 
-                        UInt8 ragdollBits = (UInt8)RagdollLayer::SkipBoth;
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+                            UInt8 ragdollBits = (UInt8)RagdollLayer::SkipBoth;
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
-                        hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                        world->worldLock.UnlockWrite();
+                            hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                        }
                     }
                     else if (savedState == State::Unheld && (reason == State::HeldLeft || reason == State::HeldRight)) {
                         // No hand holds it -> one hand holds it
@@ -631,19 +631,19 @@ namespace CollisionInfo
                         collisionInfoIdMap[entityId] = { savedInfo, reason };
 
                         bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                        world->worldLock.LockForWrite();
+                        {
+                            BSWriteLocker lock(&world->worldLock);
 
-                        // We don't set the layer when pulling, so now that we're grabbing the object we need to set it.
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+                            // We don't set the layer when pulling, so now that we're grabbing the object we need to set it.
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
 
-                        UInt8 ragdollBits = (UInt8)(reason == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+                            UInt8 ragdollBits = (UInt8)(reason == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
-                        hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                        world->worldLock.UnlockWrite();
+                            hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                        }
                     }
                 }
                 else {
@@ -652,34 +652,34 @@ namespace CollisionInfo
                     collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, reason };
 
                     bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                    world->worldLock.LockForWrite();
+                    {
+                        BSWriteLocker lock(&world->worldLock);
 
-                    collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-                    collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
+                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
+                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
 
-                    // set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
-                    collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
+                        // set bit 15. This way it won't collide with the player, but _will_ collide with other objects that also have bit 15 set (i.e. other things we pick up).
+                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 15); // Why bit 15? It's just the way the collision works.
 
-                    if (reason == State::HeldLeft || reason == State::HeldRight) {
-                        // Our collision layer negates collisions with other characters
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
+                        if (reason == State::HeldLeft || reason == State::HeldRight) {
+                            // Our collision layer negates collisions with other characters
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7F; // clear out layer
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= 56; // our custom layer
 
-                        UInt8 ragdollBits = (UInt8)(reason == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+                            UInt8 ragdollBits = (UInt8)(reason == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+                        }
+                        else if (reason == State::Unheld) {
+                            // When pulling, don't set the layer yet. This way it will still collide with other characters.
+
+                            UInt8 ragdollBits = (UInt8)RagdollLayer::SkipNone;
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+                        }
+
+                        hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
                     }
-                    else if (reason == State::Unheld) {
-                        // When pulling, don't set the layer yet. This way it will still collide with other characters.
-
-                        UInt8 ragdollBits = (UInt8)RagdollLayer::SkipNone;
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
-                    }
-
-                    hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                    world->worldLock.UnlockWrite();
                 }
             }
         }
@@ -726,14 +726,14 @@ namespace CollisionInfo
                     collisionInfoIdMap[entityId] = { collidable->m_broadPhaseHandle.m_collisionFilterInfo, reason };
 
                     bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                    world->worldLock.LockForWrite();
+                    {
+                        BSWriteLocker lock(&world->worldLock);
 
-                    collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
-                    collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
+                        collidable->m_broadPhaseHandle.m_collisionFilterInfo &= 0x0000FFFF;
+                        collidable->m_broadPhaseHandle.m_collisionFilterInfo |= collisionGroup << 16;
 
-                    hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                    world->worldLock.UnlockWrite();
+                        hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                    }
                 }
             }
         }
@@ -824,15 +824,15 @@ namespace CollisionInfo
                             collisionInfoIdMap[entityId] = { savedInfo, otherHand };
 
                             bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                            world->worldLock.LockForWrite();
+                            {
+                                BSWriteLocker lock(&world->worldLock);
 
-                            UInt8 ragdollBits = (UInt8)(otherHand == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
-                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
+                                UInt8 ragdollBits = (UInt8)(otherHand == State::HeldLeft ? RagdollLayer::SkipLeft : RagdollLayer::SkipRight);
+                                collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                                collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (ragdollBits << 8);
 
-                            hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                            world->worldLock.UnlockWrite();
+                                hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                            }
                         }
                         else if ((savedState == State::HeldLeft && reason == State::HeldLeft) ||
                             (savedState == State::HeldRight && reason == State::HeldRight) ||
@@ -843,28 +843,28 @@ namespace CollisionInfo
                             collisionInfoIdMap.erase(entityId);
 
                             bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                            world->worldLock.LockForWrite();
+                            {
+                                BSWriteLocker lock(&world->worldLock);
 
-                            // Restore only the original layer and ragdoll bits first, so it collides with everything except the player (but still the hands)
-                            collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
-                            collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
+                                // Restore only the original layer and ragdoll bits first, so it collides with everything except the player (but still the hands)
+                                collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~0x7f;
+                                collidable->m_broadPhaseHandle.m_collisionFilterInfo |= (savedInfo & 0x7f);
 
-                            if (collideAll) {
-                                collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                                collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+                                if (collideAll) {
+                                    collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                                    collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipNone << 8);
+                                }
+                                else if (collideNone) {
+                                    collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
+                                    collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipBoth << 8);
+                                }
+
+                                hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+
+                                // Do not do a full check. What that means is it won't colide with the player until they stop colliding.
+                                collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
+                                hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
                             }
-                            else if (collideNone) {
-                                collidable->m_broadPhaseHandle.m_collisionFilterInfo &= ~(0x1f << 8);
-                                collidable->m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt8)RagdollLayer::SkipBoth << 8);
-                            }
-
-                            hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                            // Do not do a full check. What that means is it won't colide with the player until they stop colliding.
-                            collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
-                            hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                            world->worldLock.UnlockWrite();
                         }
                     }
                 }
@@ -909,13 +909,13 @@ namespace CollisionInfo
                             collisionInfoIdMap.erase(entityId);
 
                             bhkWorld *world = (bhkWorld *)static_cast<ahkpWorld *>(entity->m_world)->m_userData;
-                            world->worldLock.LockForWrite();
+                            {
+                                BSWriteLocker lock(&world->worldLock);
 
-                            // Do not do a full check. What that means is it won't colide with the player until they stop colliding.
-                            collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
-                            hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
-
-                            world->worldLock.UnlockWrite();
+                                // Do not do a full check. What that means is it won't colide with the player until they stop colliding.
+                                collidable->m_broadPhaseHandle.m_collisionFilterInfo = savedInfo;
+                                hkpWorld_UpdateCollisionFilterOnEntity(entity->m_world, entity, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                            }
                         }
                     }
                 }
