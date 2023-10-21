@@ -2785,10 +2785,22 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
                             }
 
+                            connectedRigidBodies.clear();
+                            CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+
                             if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
-                                bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-                                NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
-                                selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
+                                if (selectedObject.isActor) {
+                                    bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+                                    NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
+                                    selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
+                                }
+                                else {
+                                    for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
+                                        bhkRigidBody_setActivated(connectedBody, true);
+                                        NiPoint3 currentVelocity = HkVectorToNiPoint(connectedBody->hkBody->m_motion.m_linearVelocity);
+                                        connectedBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
+                                    }
+                                }
                             }
 
                             if (grabConstraint) {
@@ -2796,8 +2808,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 bhkRigidBody_RemoveConstraintFromArray(handBody, grabConstraint);
                                 grabConstraint = nullptr;
 
-                                connectedRigidBodies.clear();
-                                CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
                                 for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
                                     hkpEntity_removeContactListener(connectedBody->hkBody, isLeft ? &g_leftEntityCollisionListener : &g_rightEntityCollisionListener);
                                     if (auto it = selectedObject.savedContactPointCallbackDelays.find(connectedBody); it != selectedObject.savedContactPointCallbackDelays.end()) {
@@ -3545,19 +3555,37 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 // If the player is moving, add the player's change in position to the object's position
                 NiPoint3 playerDeltaPos = player->pos - prevPlayerPosWorldspace;
                 if (Config::options.doPhysicsGrabPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
-                    // Set object position
-                    NiPoint3 currentPos = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getPosition());
-                    NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
-                    bhkEntity_setPositionAndRotation(selectedObject.rigidBody, NiPointToHkVector(newPos), selectedObject.rigidBody->hkBody->getRotation());
+                    if (selectedObject.isActor) {
+                        // Set object position
+                        NiPoint3 currentPos = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getPosition());
+                        NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
+                        bhkEntity_setPositionAndRotation(selectedObject.rigidBody, NiPointToHkVector(newPos), selectedObject.rigidBody->hkBody->getRotation());
+
+                        // Make sure node transform is up to date with latest collision now that we've updated it
+                        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                        NiAVObject_UpdateNode(collidableNode, &ctx);
+                    }
+                    else {
+                        if (NiPointer<NiAVObject> objRoot = selectedObj->GetNiNode()) {
+                            connectedRigidBodies.clear();
+                            CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+                            for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
+                                NiPoint3 currentPos = HkVectorToNiPoint(connectedBody->hkBody->getPosition());
+                                NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
+                                bhkEntity_setPositionAndRotation(connectedBody, NiPointToHkVector(newPos), connectedBody->hkBody->getRotation());
+
+                                if (NiPointer<NiAVObject> node = GetNodeFromCollidable(connectedBody->hkBody->getCollidable())) {
+                                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                                    NiAVObject_UpdateNode(node, &ctx);
+                                }
+                            }
+                        }
+                    }
 
                     // Set hand position too
                     NiPoint3 currentHandPos = HkVectorToNiPoint(handBody->hkBody->getPosition());
                     NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * havokWorldScale);
                     bhkEntity_setPositionAndRotation(handBody, NiPointToHkVector(newHandPos), handBody->hkBody->getRotation());
-
-                    // Make sure node transform is up to date with latest collision now that we've updated it
-                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                    NiAVObject_UpdateNode(collidableNode, &ctx);
                 }
 
                 // Update the hand to match the object
