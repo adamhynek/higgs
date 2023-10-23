@@ -2052,8 +2052,6 @@ NiPoint3 GetMaxVelocity(const std::deque<NiPoint3> &velocities)
         }
     }
 
-    _MESSAGE("%d", largestIndex);
-
     if (largestIndex == 0) {
         // Max is the first value
         return velocities[0];
