@@ -2039,12 +2039,12 @@ float Hand::GetHandSize()
 }
 
 
-NiPoint3 Hand::GetHandVelocity()
+NiPoint3 GetMaxVelocity(const std::deque<NiPoint3> &velocities)
 {
     float largestSpeed = -1;
     int largestIndex = -1;
-    for (int i = 0; i < controllerData.linearVelocities.size(); i++) {
-        const NiPoint3 &velocity = controllerData.linearVelocities[i];
+    for (int i = 0; i < velocities.size(); i++) {
+        const NiPoint3 &velocity = velocities[i];
         float speed = VectorLength(velocity);
         if (speed > largestSpeed) {
             largestSpeed = speed;
@@ -2052,18 +2052,25 @@ NiPoint3 Hand::GetHandVelocity()
         }
     }
 
+    _MESSAGE("%d", largestIndex);
+
     if (largestIndex == 0) {
         // Max is the first value
-        return controllerData.linearVelocities[0];
+        return velocities[0];
     }
-    else if (largestIndex == controllerData.linearVelocities.size() - 1) {
+    else if (largestIndex == velocities.size() - 1) {
         // Max is the last value
-        return controllerData.linearVelocities[largestIndex];
+        return velocities[largestIndex];
     }
     else {
         // Regular case - avg 3 values centered at the peak
-        return (controllerData.linearVelocities[largestIndex - 1] + controllerData.linearVelocities[largestIndex] + controllerData.linearVelocities[largestIndex + 1]) / 3;
+        return (velocities[largestIndex - 1] + velocities[largestIndex] + velocities[largestIndex + 1]) / 3;
     }
+}
+
+NiPoint3 Hand::GetHandVelocity()
+{
+    return GetMaxVelocity(controllerData.linearVelocities);
 }
 
 
@@ -2797,16 +2804,24 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             connectedRigidBodies.clear();
                             CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
 
+                            // Set velocity of the held object more precisely than just using its current velocity
+                            NiPoint3 velocityObjectComponent = GetMaxVelocity(selectedObject.linearVelocities);
+                            if (VectorLength(velocityObjectComponent) > Config::options.throwVelocityThreshold) {
+                                velocityObjectComponent *= Config::options.throwVelocityBoostFactor;
+                            }
+                            selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityObjectComponent);
+
                             if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
+                                // Add the player's velocity to all held objects
                                 if (selectedObject.isActor) {
                                     bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-                                    NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity);
+                                    NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getLinearVelocity());
                                     selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
                                 }
                                 else {
                                     for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
                                         bhkRigidBody_setActivated(connectedBody, true);
-                                        NiPoint3 currentVelocity = HkVectorToNiPoint(connectedBody->hkBody->m_motion.m_linearVelocity);
+                                        NiPoint3 currentVelocity = HkVectorToNiPoint(connectedBody->hkBody->getLinearVelocity());
                                         connectedBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
                                     }
                                 }
@@ -3578,7 +3593,21 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         if (NiPointer<NiAVObject> objRoot = selectedObj->GetNiNode()) {
                             connectedRigidBodies.clear();
                             CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
-                            for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
+
+                            // Check if any of the connected bodies is a fixed body. If so, we don't want to set position of everything
+                            for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                                if (!IsMoveableEntity(connectedBody->hkBody)) {
+                                    connectedRigidBodies.clear();
+                                    break;
+                                }
+                            }
+
+                            for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                                if (other.playerPositionUpdatedRigidBodies.count(connectedBody)) {
+                                    // We don't want to do this twice if both hands are holding the same connected component...
+                                    continue;
+                                }
+
                                 NiPoint3 currentPos = HkVectorToNiPoint(connectedBody->hkBody->getPosition());
                                 NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
                                 bhkEntity_setPositionAndRotation(connectedBody, NiPointToHkVector(newPos), connectedBody->hkBody->getRotation());
@@ -3587,6 +3616,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
                                     NiAVObject_UpdateNode(node, &ctx);
                                 }
+
+                                playerPositionUpdatedRigidBodies.insert(connectedBody);
                             }
                         }
                     }
@@ -3602,6 +3633,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 NiTransform inverseDesired = InverseTransform(desiredNodeTransformHandSpace);
                 adjustedHandTransform = heldTransform * inverseDesired;
+
+
+                // These are actually local velocities of the object to the player, since we set position directly when the player is moving
+                NiPoint3 linearVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getLinearVelocity());
+                selectedObject.linearVelocities.pop_back();
+                selectedObject.linearVelocities.push_front(linearVelocity);
+
 
                 float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
                 if (g_currentFrameTime - heldTime > Config::options.physicsGrabIgnoreHandDistanceTime && VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
@@ -3767,6 +3805,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 void Hand::PostUpdate(Hand &other, bhkWorld *world)
 {
+    playerPositionUpdatedRigidBodies.clear();
+
     PlayerCharacter *player = *g_thePlayer;
     if (!player->GetNiNode()) return;
 

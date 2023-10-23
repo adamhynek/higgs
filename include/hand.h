@@ -29,6 +29,7 @@ struct Hand
         NiPointer<NiAVObject> shaderNode;
         NiPointer<NiAVObject> hitNode;
         std::unordered_map<bhkRigidBody *, hkInt16> savedContactPointCallbackDelays;
+        std::deque<NiPoint3> linearVelocities{ 5, NiPoint3() };
         NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
         UInt32 handle = 0;
         float totalMass = 0.f;
@@ -308,6 +309,7 @@ struct Hand
     NiTransform previousTriangleAdjustment{};
 
     std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
+    std::unordered_set<const bhkRigidBody *> playerPositionUpdatedRigidBodies{};
 
     bool idleDesired = false;
 
