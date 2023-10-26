@@ -1566,9 +1566,9 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
             // Limit each axis' inertia to 1/10th of the max inertia
             float minInvInertia = min(invInertia.x, min(invInertia.y, invInertia.z));
-            invInertia.x = min(invInertia.x, minInvInertia * 10.f);
-            invInertia.y = min(invInertia.y, minInvInertia * 10.f);
-            invInertia.z = min(invInertia.z, minInvInertia * 10.f);
+            invInertia.x = min(invInertia.x, minInvInertia * Config::options.grabbedObjectMaxInertiaRatio);
+            invInertia.y = min(invInertia.y, minInvInertia * Config::options.grabbedObjectMaxInertiaRatio);
+            invInertia.z = min(invInertia.z, minInvInertia * Config::options.grabbedObjectMaxInertiaRatio);
             motion->m_inertiaAndMassInv = NiPointToHkVector(invInertia, motion->m_inertiaAndMassInv(3));
         }
     }
