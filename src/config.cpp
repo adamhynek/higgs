@@ -442,6 +442,7 @@ namespace Config {
         if (!RegisterBool("AlwaysShowHands", options.alwaysShowHands)) success = false;
         if (!RegisterBool("DisableVanillaGrab", options.disableVanillaGrab)) success = false;
         if (!RegisterBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) success = false;
+        if (!RegisterBool("convertDebrisToMoving", options.convertDebrisToMoving)) success = false;
 
         if (!RegisterBool("treatHandCollisionAsBelongingToPlayer", options.treatHandCollisionAsBelongingToPlayer)) success = false;
         if (!RegisterBool("allowAllPlayerCollisionForTriggers", options.allowAllPlayerCollisionForTriggers)) success = false;

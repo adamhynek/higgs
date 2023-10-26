@@ -1294,6 +1294,12 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
     }
 
+    if (Config::options.convertDebrisToMoving) {
+        if (selectedObject.rigidBody->hkBody->getQualityType() == HK_COLLIDABLE_QUALITY_DEBRIS || selectedObject.rigidBody->hkBody->getQualityType() == HK_COLLIDABLE_QUALITY_DEBRIS_SIMPLE_TOI) {
+            selectedObject.rigidBody->hkBody->setQualityType(HK_COLLIDABLE_QUALITY_MOVING);
+        }
+    }
+
     selectedObject.totalMass = NiAVObject_GetMass(objRoot, 0.f);
 
     if (playSound) {
@@ -3051,6 +3057,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                             if (motion->m_type == hkpMotion::MotionType::MOTION_KEYFRAMED) {
                                 bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_DYNAMIC, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK);
+                            }
+
+                            if (Config::options.convertDebrisToMoving) {
+                                if (selectedObject.rigidBody->hkBody->getQualityType() == HK_COLLIDABLE_QUALITY_DEBRIS || selectedObject.rigidBody->hkBody->getQualityType() == HK_COLLIDABLE_QUALITY_DEBRIS_SIMPLE_TOI) {
+                                    selectedObject.rigidBody->hkBody->setQualityType(HK_COLLIDABLE_QUALITY_MOVING);
+                                }
                             }
 
                             CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, CollisionInfo::State::Unheld);

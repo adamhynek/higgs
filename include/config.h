@@ -212,6 +212,7 @@ namespace Config {
 
         bool doPhysicsGrabPlayerMovementCompensation = true;
 
+        bool convertDebrisToMoving = true;
         bool disableHeadBobbingWhileGrabbed = true;
         bool disableShaders = false;
         bool disableSelectionBeam = false;
