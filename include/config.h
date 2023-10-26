@@ -208,6 +208,7 @@ namespace Config {
         float grabConstraintLinearMaxForceAddedWhenSnapTurning = 2000.f;
         double grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime = 0.2;
 
+        float grabbedObjectMinInertia = 0.01f;
         float grabbedObjectMaxInertiaRatio = 10.f;
 
         bool doPhysicsGrabPlayerMovementCompensation = true;

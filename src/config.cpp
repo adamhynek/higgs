@@ -426,6 +426,7 @@ namespace Config {
         if (!RegisterFloat("grabConstraintLinearMaxForceAddedWhenSnapTurning", options.grabConstraintLinearMaxForceAddedWhenSnapTurning)) success = false;
         if (!RegisterDouble("grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime", options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime)) success = false;
 
+        if (!RegisterFloat("grabbedObjectMinInertia", options.grabbedObjectMinInertia)) success = false;
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;
 
         if (!RegisterBool("doPhysicsGrabPlayerMovementCompensation", options.doPhysicsGrabPlayerMovementCompensation)) success = false;
