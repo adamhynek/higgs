@@ -1553,6 +1553,23 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
                 selectedObject.savedContactPointCallbackDelays[connectedBody] = connectedBody->hkBody->getContactPointCallbackDelay();
                 connectedBody->hkBody->setContactPointCallbackDelay(0);
             }
+
+            hkpMotion *motion = connectedBody->hkBody->getMotion();
+            NiPoint3 invInertia = HkVectorToNiPoint(motion->m_inertiaAndMassInv);
+            if (auto it = other.selectedObject.savedInverseInertias.find(connectedBody); it != other.selectedObject.savedInverseInertias.end()) {
+                // We save the same value that the other hand already has
+                selectedObject.savedInverseInertias[connectedBody] = it->second;
+            }
+            else {
+                selectedObject.savedInverseInertias[connectedBody] = invInertia;
+            }
+
+            // Limit each axis' inertia to 1/10th of the max inertia
+            float minInvInertia = min(invInertia.x, min(invInertia.y, invInertia.z));
+            invInertia.x = min(invInertia.x, minInvInertia * 10.f);
+            invInertia.y = min(invInertia.y, minInvInertia * 10.f);
+            invInertia.z = min(invInertia.z, minInvInertia * 10.f);
+            motion->m_inertiaAndMassInv = NiPointToHkVector(invInertia, motion->m_inertiaAndMassInv(3));
         }
     }
     else {
@@ -2838,8 +2855,16 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                             connectedBody->hkBody->setContactPointCallbackDelay(it->second);
                                         }
                                     }
+
+                                    if (auto it = selectedObject.savedInverseInertias.find(connectedBody); it != selectedObject.savedInverseInertias.end()) {
+                                        // Check if the other hand is still holding this connected component as well. If it is, let the other hand restore it when it lets go
+                                        if (other.selectedObject.savedInverseInertias.find(connectedBody) == other.selectedObject.savedInverseInertias.end()) {
+                                            connectedBody->hkBody->getMotion()->m_inertiaAndMassInv = NiPointToHkVector(it->second, connectedBody->hkBody->getMotion()->m_inertiaAndMassInv(3));
+                                        }
+                                    }
                                 }
                                 selectedObject.savedContactPointCallbackDelays.clear();
+                                selectedObject.savedInverseInertias.clear();
                             }
                         }
                         else if (state == State::Held || state == State::HeldInit) {

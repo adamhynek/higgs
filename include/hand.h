@@ -29,6 +29,7 @@ struct Hand
         NiPointer<NiAVObject> shaderNode;
         NiPointer<NiAVObject> hitNode;
         std::unordered_map<bhkRigidBody *, hkInt16> savedContactPointCallbackDelays;
+        std::unordered_map<bhkRigidBody *, NiPoint3> savedInverseInertias;
         std::deque<NiPoint3> linearVelocities{ 5, NiPoint3() };
         NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
         UInt32 handle = 0;
