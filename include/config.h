@@ -216,6 +216,8 @@ namespace Config {
         float physicsGrabLerpHandMinDistance = 0.1f;
         float physicsGrabLerpHandMaxDistance = 0.2f;
 
+        double sneakUnsneakIgnoreHandDistanceTime = 0.1;
+
         bool doPhysicsGrabPlayerMovementCompensation = true;
 
         bool convertDebrisToMoving = true;

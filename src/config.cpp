@@ -431,6 +431,8 @@ namespace Config {
         if (!RegisterFloat("physicsGrabLerpHandMinDistance", options.physicsGrabLerpHandMinDistance)) success = false;
         if (!RegisterFloat("physicsGrabLerpHandMaxDistance", options.physicsGrabLerpHandMaxDistance)) success = false;
 
+        if (!RegisterDouble("sneakUnsneakIgnoreHandDistanceTime", options.sneakUnsneakIgnoreHandDistanceTime)) success = false;
+
         if (!RegisterFloat("grabbedObjectMinInertia", options.grabbedObjectMinInertia)) success = false;
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;
 

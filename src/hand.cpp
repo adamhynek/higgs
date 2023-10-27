@@ -2224,6 +2224,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
         lastWasSnapTurningTime = g_currentFrameTime;
     }
 
+    bool wasSneaking = isSneaking;
+    isSneaking = Actor_IsSneaking(player);
+    if (isSneaking != wasSneaking) {
+        sneakUnsneakTime = g_currentFrameTime;
+    }
+
 
     //if (!isLeft) {
     //	UpdateGenerateFingerCurve(handNodeName, fingerNodeNames);
@@ -3713,8 +3719,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 handDeviations.push_front(handDeviation);
                 float avgHandDeviation = std::accumulate(handDeviations.begin(), handDeviations.end(), 0.f) / handDeviations.size();
 
-                float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
-                if (g_currentFrameTime - heldTime > Config::options.physicsGrabIgnoreHandDistanceTime && avgHandDeviation > maxHandDistance) {
+                bool shouldIgnoreHandDistance = (g_currentFrameTime - heldTime <= Config::options.physicsGrabIgnoreHandDistanceTime) || (g_currentFrameTime - sneakUnsneakTime <= Config::options.sneakUnsneakIgnoreHandDistanceTime);
+
+                if (!shouldIgnoreHandDistance && avgHandDeviation > (Config::options.maxHandDistance / havokWorldScale)) {
                     // Hand is too far from the actual hand's position in real life
                     idleDesired = true;
                     disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
