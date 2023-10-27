@@ -1546,6 +1546,16 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         // If the object needs to sync a lot (a custom transform was provided), we wanto to fade in the forces gradually
         fadeInGrabConstraint = initialTransform.has_value();
 
+        {
+            // For hand sync lerp purposes, if we are warping straight to the hand, we are fine with the sortest lerp time. Otherwise, we need to transform the pt into where the object originally was since the adjusted transform might be different.
+            NiPoint3 ptPosInOriginalSpace = warpToHand ? ptPos : originalTransform * InverseTransform(adjustedTransform) * ptPos;
+
+            float handSyncDistance = VectorLength(palmPos - ptPosInOriginalSpace) * havokWorldScale;
+            float lerpAmount = (handSyncDistance - Config::options.physicsGrabLerpHandMinDistance) / (Config::options.physicsGrabLerpHandMaxDistance - Config::options.physicsGrabLerpHandMinDistance);
+            startGrabLerpHandDuration = lerp(Config::options.physicsGrabLerpHandTimeMin, Config::options.physicsGrabLerpHandTimeMax, lerpAmount);
+            startGrabLerpHandDuration = std::clamp(startGrabLerpHandDuration, Config::options.physicsGrabLerpHandTimeMin, Config::options.physicsGrabLerpHandTimeMax);
+        }
+
         connectedRigidBodies.clear();
         CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
         for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
@@ -3681,6 +3691,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 selectedObject.linearVelocities.pop_back();
                 selectedObject.linearVelocities.push_front(linearVelocity);
 
+                {
+                    double elapsedTimeFraction = (g_currentFrameTime - heldTime) / startGrabLerpHandDuration;
+                    if (elapsedTimeFraction < 1.0) {
+                        adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
+                    }
+                }
 
                 float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
                 if (g_currentFrameTime - heldTime > Config::options.physicsGrabIgnoreHandDistanceTime && VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
@@ -3689,13 +3705,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
                 }
                 else {
-                    {
-                        double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.physicsGrabLerpHandTime;
-                        if (elapsedTimeFraction < 1.0) {
-                            adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
-                        }
-                    }
-
                     // Not too far away. Update hand to object and update constraint params to match the current grab transform.
                     UpdateHandTransform(adjustedHandTransform);
 

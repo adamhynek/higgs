@@ -255,7 +255,6 @@ namespace Config {
         if (!RegisterDouble("MouthDropHapticFadeTime", options.mouthDropHapticFadeTime)) success = false;
         if (!RegisterDouble("RolloverHideTime", options.rolloverHideTime)) success = false;
         if (!RegisterDouble("physicsGrabIgnoreHandDistanceTime", options.physicsGrabIgnoreHandDistanceTime)) success = false;
-        if (!RegisterDouble("physicsGrabLerpHandTime", options.physicsGrabLerpHandTime)) success = false;
 
         if (!RegisterDouble("FingerAnimateEndTime", options.fingerAnimateEndTime)) success = false;
         if (!RegisterDouble("FingerAnimateEndDoubleSpeedTime", options.fingerAnimateEndDoubleSpeedTime)) success = false;
@@ -426,6 +425,11 @@ namespace Config {
 
         if (!RegisterFloat("grabConstraintLinearMaxForceAddedWhenSnapTurning", options.grabConstraintLinearMaxForceAddedWhenSnapTurning)) success = false;
         if (!RegisterDouble("grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime", options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime)) success = false;
+
+        if (!RegisterDouble("physicsGrabLerpHandTimeMin", options.physicsGrabLerpHandTimeMin)) success = false;
+        if (!RegisterDouble("physicsGrabLerpHandTimeMax", options.physicsGrabLerpHandTimeMax)) success = false;
+        if (!RegisterFloat("physicsGrabLerpHandMinDistance", options.physicsGrabLerpHandMinDistance)) success = false;
+        if (!RegisterFloat("physicsGrabLerpHandMaxDistance", options.physicsGrabLerpHandMaxDistance)) success = false;
 
         if (!RegisterFloat("grabbedObjectMinInertia", options.grabbedObjectMinInertia)) success = false;
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;

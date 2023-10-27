@@ -114,7 +114,6 @@ namespace Config {
         double mouthDropHapticFadeTime = 0.2;
         double rolloverHideTime = 0.25;
         double physicsGrabIgnoreHandDistanceTime = 0.2;
-        double physicsGrabLerpHandTime = 0.1;
         double fingerAnimateEndTime = 0.8;
         double fingerAnimateEndDoubleSpeedTime = 0.1;
         double afterDropFingerAnimateTime = 0.3;
@@ -211,6 +210,11 @@ namespace Config {
 
         float grabbedObjectMinInertia = 0.01f;
         float grabbedObjectMaxInertiaRatio = 10.f;
+
+        double physicsGrabLerpHandTimeMin = 0.1;
+        double physicsGrabLerpHandTimeMax = 0.2;
+        float physicsGrabLerpHandMinDistance = 0.1f;
+        float physicsGrabLerpHandMaxDistance = 0.2f;
 
         bool doPhysicsGrabPlayerMovementCompensation = true;
 
