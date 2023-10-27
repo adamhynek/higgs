@@ -1556,6 +1556,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
             startGrabLerpHandDuration = std::clamp(startGrabLerpHandDuration, Config::options.physicsGrabLerpHandTimeMin, Config::options.physicsGrabLerpHandTimeMax);
         }
 
+        handDeviations.assign(handDeviations.size(), 0.f);
+
         connectedRigidBodies.clear();
         CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
         for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
@@ -3698,8 +3700,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     }
                 }
 
+                float handDeviation = VectorLength(adjustedHandTransform.pos - handTransform.pos);
+                handDeviations.pop_back();
+                handDeviations.push_front(handDeviation);
+                float avgHandDeviation = std::accumulate(handDeviations.begin(), handDeviations.end(), 0.f) / handDeviations.size();
+
                 float maxHandDistance = Config::options.maxHandDistance / havokWorldScale;
-                if (g_currentFrameTime - heldTime > Config::options.physicsGrabIgnoreHandDistanceTime && VectorLength(adjustedHandTransform.pos - handTransform.pos) > maxHandDistance) {
+                if (g_currentFrameTime - heldTime > Config::options.physicsGrabIgnoreHandDistanceTime && avgHandDeviation > maxHandDistance) {
                     // Hand is too far from the actual hand's position in real life
                     idleDesired = true;
                     disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this

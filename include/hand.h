@@ -312,6 +312,8 @@ struct Hand
     std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
     std::unordered_set<const bhkRigidBody *> playerPositionUpdatedRigidBodies{};
 
+    std::deque<float> handDeviations{ 7, 0.f };
+
     bool idleDesired = false;
 
     bool isExternalGrab = false;
