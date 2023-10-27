@@ -3747,7 +3747,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             }
                         }
                         else {
-                            linearMotor->m_maxForce = Config::options.grabConstraintLinearMaxForce;
+                            TESForm *baseForm = selectedObj->baseForm;
+                            bool isWeapon = baseForm->formType == kFormType_Weapon;
+
+                            linearMotor->m_maxForce = isWeapon ? Config::options.grabConstraintLinearMaxForceWeapon : Config::options.grabConstraintLinearMaxForce;
                             angularMotor->m_maxForce = linearMotor->m_maxForce / angularToLinearForceRatio;
 
                             // Technically this is true even if the object is colliding with another part of itself, ex. one half of a book with the other (the book is closed)

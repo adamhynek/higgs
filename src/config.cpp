@@ -395,6 +395,7 @@ namespace Config {
 
         if (!RegisterFloat("grabConstraintLinearTau", options.grabConstraintLinearTau)) success = false;
         if (!RegisterFloat("grabConstraintLinearMaxForce", options.grabConstraintLinearMaxForce)) success = false;
+        if (!RegisterFloat("grabConstraintLinearMaxForceWeapon", options.grabConstraintLinearMaxForceWeapon)) success = false;
         if (!RegisterFloat("grabConstraintLinearMaxForcePerPlayerAcceleration", options.grabConstraintLinearMaxForcePerPlayerAcceleration)) success = false;
         if (!RegisterFloat("grabConstraintLinearProportionalRecoveryVelocity", options.grabConstraintLinearProportionalRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
