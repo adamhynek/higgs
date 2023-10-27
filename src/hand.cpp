@@ -1300,7 +1300,17 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         }
     }
 
-    selectedObject.totalMass = NiAVObject_GetMass(objRoot, 0.f);
+    connectedRigidBodies.clear();
+    CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+
+    float totalMass = 0.f;
+    for (bhkRigidBody *rigidBody : connectedRigidBodies) {
+        float massInv = rigidBody->hkBody->getMassInv();
+        if (massInv != 0.f) {
+            totalMass += 1.f / massInv;
+        }
+    }
+    selectedObject.totalMass = totalMass;
 
     if (playSound) {
         PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
@@ -1558,8 +1568,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
         handDeviations.assign(handDeviations.size(), 0.f);
 
-        connectedRigidBodies.clear();
-        CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
         for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
             hkpEntity_addContactListener(connectedBody->hkBody, isLeft ? &g_leftEntityCollisionListener : &g_rightEntityCollisionListener);
             // Check if the other hand is already handling this connected component
