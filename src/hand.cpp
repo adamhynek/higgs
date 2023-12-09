@@ -365,7 +365,7 @@ bool Hand::FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &s
 
     // Process result of cast
     float closestDistance = (std::numeric_limits<float>::max)();
-    for (auto pair : cdPointCollector.m_hits) {
+    for (auto &pair : cdPointCollector.m_hits) {
         hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
         hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
         if (!rigidBody || !rigidBody->m_userData) {
@@ -480,7 +480,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 
     // Process result of cast
     float closestDistance = (std::numeric_limits<float>::max)();
-    for (auto pair : cdPointCollector.m_hits) {
+    for (auto &pair : cdPointCollector.m_hits) {
         hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
         if (other.HasExclusiveObject() && collidable == other.selectedObject.collidable) {
             continue;
@@ -3643,9 +3643,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
+                //bool isColliding = (isLeft ? g_leftEntityCollisionListener : g_rightEntityCollisionListener).IsColliding();
+                //bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation && !isColliding;
+                bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation;
+
                 // If the player is moving, add the player's change in position to the object's position
                 NiPoint3 playerDeltaPos = player->pos - prevPlayerPosWorldspace;
-                if (Config::options.doPhysicsGrabPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
+                if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
                     if (selectedObject.isActor) {
                         // Set object position
                         NiPoint3 currentPos = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getPosition());
@@ -3686,6 +3690,55 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                                 playerPositionUpdatedRigidBodies.insert(connectedBody);
                             }
+
+                            /*{
+                                BSWriteLocker lock(&world->worldLock);
+
+                                static std::unordered_set<bhkRigidBody *> containedBodies;
+                                containedBodies.clear();
+
+                                static CdPointCollector collector;
+                                collector.reset();
+                                hkpWorld_GetClosestPoints(world->world, selectedObject.collidable, world->world->getCollisionInput(), &collector);
+                                for (auto &pair : collector.m_hits) {
+                                    hkContactPoint &contactPoint = pair.second;
+                                    if (contactPoint.getDistance() > 0.05f) {
+                                        continue;
+                                    }
+
+                                    hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
+                                    hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+                                    if (!rigidBody || !rigidBody->m_userData) {
+                                        continue;
+                                    }
+
+                                    if (!IsMoveableEntity(rigidBody)) {
+                                        continue;
+                                    }
+
+                                    bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
+                                    if (!wrapper) continue;
+
+                                    containedBodies.insert(wrapper);
+                                }
+
+                                for (bhkRigidBody *body : containedBodies) {
+                                    if (other.playerPositionUpdatedRigidBodies.count(body) || playerPositionUpdatedRigidBodies.count(body)) {
+                                        continue;
+                                    }
+
+                                    NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
+                                    NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
+                                    bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation());
+
+                                    if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
+                                        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                                        NiAVObject_UpdateNode(node, &ctx);
+                                    }
+
+                                    playerPositionUpdatedRigidBodies.insert(body);
+                                }
+                            }*/
                         }
                     }
 
