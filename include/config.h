@@ -218,6 +218,8 @@ namespace Config {
 
         double sneakUnsneakIgnoreHandDistanceTime = 0.1;
 
+        float grabFromOtherHandMaxDistance = 100.f;
+
         bool doPhysicsGrabPlayerMovementCompensation = true;
 
         bool convertDebrisToMoving = true;

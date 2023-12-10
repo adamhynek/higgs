@@ -2684,7 +2684,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             state = State::SelectionLocked;
                         }
                         else if (state == State::SelectedClose) {
-                            if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
+                            NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
+                            NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand->m_worldTransform);
+                            float palmToPalmDistance = VectorLength(palmPos - otherPalmPos);
+                            bool shouldConsiderGrabbingFromOtherHand = palmToPalmDistance < Config::options.grabFromOtherHandMaxDistance && other.CanOtherGrab();
+
+                            if (shouldConsiderGrabbingFromOtherHand && selectedObject.rigidBody == other.selectedObject.rigidBody) {
                                 if (selectedObject.isActor && selectedObject.hitForm) {
                                     rolloverDisplayTime = g_currentFrameTime;
 
@@ -2718,7 +2723,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                         selectedObject.rigidBody = desiredBody;
                                         selectedObject.collidable = &desiredBody->hkBody->m_collidable;
 
-                                        if (selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab()) {
+                                        if (shouldConsiderGrabbingFromOtherHand && selectedObject.rigidBody == other.selectedObject.rigidBody) {
                                             // Grabbing the object from the other hand - make the other hand drop it and wait
                                             other.disableDropEvents = true;
                                             other.idleDesired = true;
@@ -2789,6 +2794,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
         if (idleDesired) {
             idleDesired = false;
+
+            if (other.HasHeldObject() && selectedObject.rigidBody == other.selectedObject.rigidBody && !other.disableDropEvents) {
+                // Don't trigger drop events if the other hand is still holding the same object
+                disableDropEvents = true;
+            }
 
             NiPointer<TESObjectREFR> selectedObj;
             if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
@@ -3898,10 +3908,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
                     desiredPos += playerHkVelocity * *g_deltaTime;*/
 
-                    if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
+                    bool doesOtherHandHoldSameRigidBody = other.HasHeldObject() && other.selectedObject.rigidBody == selectedObject.rigidBody;
+                    if (IsObjectConsumable(selectedObj, hmdNode, palmPos) && !doesOtherHandHoldSameRigidBody) {
                         haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
                     }
-                    else if (IsObjectDepositable(selectedObj, hmdNode, handPos)) {
+                    else if (IsObjectDepositable(selectedObj, hmdNode, handPos) && !doesOtherHandHoldSameRigidBody) {
                         haptics.QueueHapticPulse(Config::options.shoulderConstantHapticStrength);
                     }
                 }

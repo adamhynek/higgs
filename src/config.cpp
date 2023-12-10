@@ -433,6 +433,8 @@ namespace Config {
 
         if (!RegisterDouble("sneakUnsneakIgnoreHandDistanceTime", options.sneakUnsneakIgnoreHandDistanceTime)) success = false;
 
+        if (!RegisterFloat("grabFromOtherHandMaxDistance", options.grabFromOtherHandMaxDistance)) success = false;
+
         if (!RegisterFloat("grabbedObjectMinInertia", options.grabbedObjectMinInertia)) success = false;
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;
 
