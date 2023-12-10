@@ -103,11 +103,18 @@ struct IslandDeactivationListener : public hkpIslandActivationListener
     void islandDeactivatedCallback(hkpSimulationIsland* island) override;
 };
 
+enum class HandIndex : UInt32 {
+    Right = 0,
+    Left = 1,
+    Both = 2
+};
+
 struct PhysicsListener : public hkpContactListener, hkpWorldPostSimulationListener
 {
     void contactPointCallback(const hkpContactPointEvent& evnt) override;
     void postSimulationCallback(hkpWorld* world) override;
 
+    void RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, HandIndex handIndex);
     void RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, bool isLeft);
 
     struct HandCollisionData

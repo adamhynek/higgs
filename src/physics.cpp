@@ -322,6 +322,13 @@ inline bool IsLeftRigidBody(hkpRigidBody *rigidBody)
     return wrapper == g_leftHand->handBody || wrapper == g_leftHand->weaponBody || (g_leftHand->HasHeldObject() && wrapper == g_leftHand->selectedObject.rigidBody);
 }
 
+inline bool IsRightRigidBody(hkpRigidBody *rigidBody)
+{
+    bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
+    if (!wrapper) return false;
+    return wrapper == g_rightHand->handBody || wrapper == g_rightHand->weaponBody || (g_rightHand->HasHeldObject() && wrapper == g_rightHand->selectedObject.rigidBody);
+}
+
 inline bool IsWeaponRigidBody(hkpRigidBody *rigidBody)
 {
     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
@@ -354,25 +361,26 @@ inline bool IsHiggsRigidBody(hkpRigidBody *rigidBody)
 
 std::mutex PhysicsListener::handLocks[2]{};
 
-void TriggerCollisionHaptics(float inverseMass, float speed, bool isLeft) {
+void TriggerCollisionHaptics(float inverseMass, float speed, HandIndex handIndex) {
     float mass = inverseMass ? 1.0f / inverseMass : 10000.0f;
 
     if (g_rightHand->IsTwoHanding() || g_leftHand->IsTwoHanding()) {
-        // Both hands are holding an equipped weapon - play haptics for both
+        handIndex = HandIndex::Both;
+    }
+
+    if (handIndex == HandIndex::Both) {
         g_leftHand->TriggerCollisionHaptics(mass, speed);
         g_rightHand->TriggerCollisionHaptics(mass, speed);
         HiggsPluginAPI::TriggerCollisionCallbacks(true, mass, speed);
         HiggsPluginAPI::TriggerCollisionCallbacks(false, mass, speed);
     }
+    else if (handIndex == HandIndex::Left) {
+        g_leftHand->TriggerCollisionHaptics(mass, speed);
+        HiggsPluginAPI::TriggerCollisionCallbacks(true, mass, speed);
+    }
     else {
-        if (isLeft) {
-            g_leftHand->TriggerCollisionHaptics(mass, speed);
-        }
-        else {
-            g_rightHand->TriggerCollisionHaptics(mass, speed);
-        }
-
-        HiggsPluginAPI::TriggerCollisionCallbacks(isLeft, mass, speed);
+        g_rightHand->TriggerCollisionHaptics(mass, speed);
+        HiggsPluginAPI::TriggerCollisionCallbacks(false, mass, speed);
     }
 };
 
@@ -401,6 +409,13 @@ void TriggerCollisionHapticsUsingHandSpeed(float inverseMass, bool isLeft) {
     }
 }
 
+HandIndex GetRigidBodyHandIndex(hkpRigidBody *rigidBody)
+{
+    bool isLeft = IsLeftRigidBody(rigidBody);
+    bool isRight = IsRightRigidBody(rigidBody);
+    return (isLeft && isRight) ? HandIndex::Both : (isLeft ? HandIndex::Left : HandIndex::Right);
+}
+
 void PhysicsListener::RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, bool isLeft)
 {
     auto &collidedBodies = handData[isLeft].collidedBodies;
@@ -420,6 +435,16 @@ void PhysicsListener::RegisterHandCollision(hkpRigidBody *body, float separating
     }
 }
 
+void PhysicsListener::RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, HandIndex handIndex)
+{
+    int startIndex = handIndex == HandIndex::Both ? 0 : (handIndex == HandIndex::Left ? 1 : 0);
+    int endIndex = handIndex == HandIndex::Both ? 1 : (handIndex == HandIndex::Left ? 1 : 0);
+
+    for (int isLeft = startIndex; isLeft <= endIndex; isLeft++) {
+        RegisterHandCollision(body, separatingVelocity, isLeft);
+    }
+}
+
 void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
 {
     if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
@@ -430,8 +455,8 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
     hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
     hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
 
-    UInt32 layerA = rigidBodyA->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
-    UInt32 layerB = rigidBodyB->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo & 0x7f;
+    UInt32 layerA = GetCollisionLayer(rigidBodyA);
+    UInt32 layerB = GetCollisionLayer(rigidBodyB);
     if (layerA != 56 && layerB != 56) return; // Every collision we care about involves a body with our custom layer (hand, held object...)
 
     // Ensure full manifold callbacks for any higgs collisions
@@ -441,11 +466,11 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
 
     if (evnt.m_contactPointProperties->wasUsed() && evnt.m_contactPoint->getDistance() < Config::options.collisionMaxInitialContactPointDistance) {
         if (IsHiggsRigidBody(rigidBodyA)) {
-            RegisterHandCollision(rigidBodyB, separatingVelocity, IsLeftRigidBody(rigidBodyA));
+            RegisterHandCollision(rigidBodyB, separatingVelocity, GetRigidBodyHandIndex(rigidBodyA));
         }
 
         if (IsHiggsRigidBody(rigidBodyB)) {
-            RegisterHandCollision(rigidBodyA, separatingVelocity, IsLeftRigidBody(rigidBodyB));
+            RegisterHandCollision(rigidBodyB, separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
 
@@ -455,13 +480,11 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
         }
 
         if (IsHiggsRigidBody(rigidBodyA)) {
-            bool isLeft = IsLeftRigidBody(rigidBodyA);
-            TriggerCollisionHaptics(rigidBodyB->getMassInv(), separatingVelocity, isLeft);
+            TriggerCollisionHaptics(rigidBodyB->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyA));
         }
 
         if (IsHiggsRigidBody(rigidBodyB)) {
-            bool isLeft = IsLeftRigidBody(rigidBodyB);
-            TriggerCollisionHaptics(rigidBodyA->getMassInv(), separatingVelocity, isLeft);
+            TriggerCollisionHaptics(rigidBodyB->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
 
@@ -494,7 +517,7 @@ void PhysicsListener::postSimulationCallback(hkpWorld* world)
                 if (!previousCollidedBodies.count(body)) {
                     previousCollidedBodies.insert(body);
                     // No used contact points for this body last frame, but yes this frame
-                    TriggerCollisionHaptics(collisionData.inverseMass, collisionData.velocity, isLeft);
+                    TriggerCollisionHaptics(collisionData.inverseMass, collisionData.velocity, HandIndex(isLeft));
                 }
             }
             else {
