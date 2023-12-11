@@ -203,6 +203,7 @@ struct Hand
     inline NiPointer<NiAVObject> GetMagicAimNode() { return (*g_leftHandedMode != isLeft) ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_SecondaryMagicAimNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_PrimaryMagicAimNode]; }
     NiPointer<NiAVObject> GetMagicNode(bool thirdPerson);
     float GetHandSize();
+    Hand & GetOtherHand();
     void UpdateHandTransform(NiTransform &worldTransform);
     NiTransform GetGrabTransform();
     void SetGrabTransform(const NiTransform &transform);

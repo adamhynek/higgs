@@ -975,6 +975,12 @@ void Hand::PlayPhysicsSound(const NiPoint3 &location, bool loud)
 }
 
 
+Hand & Hand::GetOtherHand()
+{
+    return isLeft ? *g_rightHand : *g_leftHand;
+}
+
+
 std::optional<NiTransform> Hand::GetAttachTransform(const TESForm *baseForm)
 {
     PlayerCharacter *player = *g_thePlayer;
@@ -996,7 +1002,7 @@ std::optional<NiTransform> Hand::GetAttachTransform(const TESForm *baseForm)
         }
 
         NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, offsetNodeIndex);
-        if (!offsetNode) return std::nullopt;
+        if (!offsetNode) return {};
 
         NiTransform offsetNodeTransform = offsetNode->m_worldTransform;
 
@@ -1016,36 +1022,44 @@ std::optional<NiTransform> Hand::GetAttachTransform(const TESForm *baseForm)
 
     if (TESObjectLIGH *light = DYNAMIC_CAST(baseForm, TESForm, TESObjectLIGH)) {
         // This is basically all because of torches
-        if (!(light->unkE0.unk0C & (1 << 1))) return std::nullopt; // kCanCarry
+        if (!(light->unkE0.unk0C & (1 << 1))) return {}; // kCanCarry
         NiPointer<NiAVObject> offsetNode = PlayerCharacter_GetOffsetNodeForWeaponIndex(player, leftToPass, 2); // MeleeWeaponOffset
-        if (!offsetNode) return std::nullopt;
+        if (!offsetNode) return {};
 
         return offsetNode->m_worldTransform;
     }
 
-    return std::nullopt;
+    return {};
 }
 
 
 std::optional<NiTransform> Hand::ComputeInitialObjectTransform(TESObjectREFR *refr, const NiAVObject *handNode, NiAVObject *grabbedNode)
 {
-    if (!handNode || !grabbedNode) return std::nullopt;
+    if (!handNode || !grabbedNode) return {};
+
+    // If the grabbed rigidbody is already held by the other hand, don't grab it at the attach point
+    if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(grabbedNode)) {
+        Hand &other = GetOtherHand();
+        if (other.HasHeldObject() && other.selectedObject.rigidBody == selectedObject.rigidBody) {
+            return {};
+        }
+    }
 
     // If higgs grab nodes are present in the mesh, those should get priority
     if (std::optional<NiTransform> transformFromGrabNodes = GetInitialObjectTransformBasedOnGrabNodes(handNode, grabbedNode)) {
         return transformFromGrabNodes;
     }
 
-    if (!refr) return std::nullopt;
+    if (!refr) return {};
 
     TESForm *baseForm = refr->baseForm;
-    if (!baseForm) return std::nullopt;
+    if (!baseForm) return {};
 
     // If the grabbed node is not the root of the object, it shouldn't get attached
-    if (grabbedNode != refr->GetNiNode()) return std::nullopt;
+    if (grabbedNode != refr->GetNiNode()) return {};
 
     std::optional<NiTransform> attachTransform = GetAttachTransform(baseForm);
-    if (!attachTransform) return std::nullopt;
+    if (!attachTransform) return {};
 
     NiTransform &currentTransform = grabbedNode->m_worldTransform;
 
@@ -1072,11 +1086,11 @@ std::optional<NiTransform> Hand::ComputeInitialObjectTransform(TESObjectREFR *re
 
 std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode)
 {
-    if (!Config::options.enableHiggsGrabNodes) return std::nullopt;
+    if (!Config::options.enableHiggsGrabNodes) return {};
 
     NiAVObject *palmOnObjectNode = grabbedNode->GetObjectByName(&grabNodeOnObjectName.data);
     if (!palmOnObjectNode) {
-        return std::nullopt;
+        return {};
     }
 
     NiTransform palmTransformOnObject = palmOnObjectNode->m_worldTransform;
@@ -2686,8 +2700,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         else if (state == State::SelectedClose) {
                             NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
                             NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand->m_worldTransform);
-                            float palmToPalmDistance = VectorLength(palmPos - otherPalmPos);
-                            bool shouldConsiderGrabbingFromOtherHand = palmToPalmDistance < Config::options.grabFromOtherHandMaxDistance && other.CanOtherGrab();
+                            float pointToOtherPalmDistance = VectorLength(selectedObject.point * *g_inverseHavokWorldScale - otherPalmPos);
+                            bool shouldConsiderGrabbingFromOtherHand = pointToOtherPalmDistance < Config::options.grabFromOtherHandMaxDistance && other.CanOtherGrab();
 
                             if (shouldConsiderGrabbingFromOtherHand && selectedObject.rigidBody == other.selectedObject.rigidBody) {
                                 if (selectedObject.isActor && selectedObject.hitForm) {
