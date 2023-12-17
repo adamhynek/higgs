@@ -647,6 +647,17 @@ void Actor_Jump_bhkCharacterController_SetJumping_Hook(bhkCharacterController *_
     Actor_Jump_bhkCharacterController_SetJumping_Original(_this, a_jumpHeight);
 }
 
+auto PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_HookLoc = RelocPtr<uintptr_t>(0x6ABCAF);
+typedef void(*_PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands)(PlayerCharacter *_this, float deltaGameTime);
+_PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Original = 0;
+void PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Hook(PlayerCharacter *_this, float deltaGameTime)
+{
+    g_rightHand->PreUpdateHandsUpdate();
+    g_leftHand->PreUpdateHandsUpdate();
+
+    PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Original(_this, deltaGameTime);
+}
+
 
 #ifdef _DEBUG
 
@@ -1314,6 +1325,12 @@ void PerformHooks(void)
         std::uintptr_t originalFunc = Write5Call(Actor_Jump_bhkCharacterController_SetJumping_HookLoc.GetUIntPtr(), uintptr_t(Actor_Jump_bhkCharacterController_SetJumping_Hook));
         Actor_Jump_bhkCharacterController_SetJumping_Original = (_Actor_Jump_bhkCharacterController_SetJumping)originalFunc;
         _MESSAGE("Actor::Jump bhkCharacterController::SetJumping hook complete");
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_HookLoc.GetUIntPtr(), uintptr_t(PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Hook));
+        PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Original = (_PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands)originalFunc;
+        _MESSAGE("PlayerCharacter::VRUpdate PlayerCharacter::UpdateHands hook complete");
     }
 
 #ifdef _DEBUG

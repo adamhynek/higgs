@@ -2604,6 +2604,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             selectedObject.rigidBody = closestRigidBody;
             selectedObject.collidable = &closestRigidBody->hkBody->m_collidable;
             rolloverDisplayTime = g_currentFrameTime; // Not actually for displaying the rollover, but for the finger animation speed
+            wasSelectedTwoHandLerping = false;
             state = State::SelectedTwoHand;
         }
 
@@ -2616,6 +2617,34 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
             else {
                 rolloverDisplayTime = g_currentFrameTime;
+            }
+
+            if (Config::options.doSelectedTwoHandedLerp) {
+                if (NiPointer<NiAVObject> fpOtherWeapon = other.GetWeaponNode(false)) {
+                    NiTransform animWeaponToHand = InverseTransform(other.fpAnimWeaponTransform) * fpAnimHandTransform;
+                    NiTransform handOnWeaponBasedOnAnim = fpOtherWeapon->m_worldTransform * animWeaponToHand;
+                    handOnWeaponBasedOnAnim.scale = handNode->m_worldTransform.scale;
+
+                    NiPoint3 palmOnWeaponBasedOnAnim = GetPalmPositionWS(handOnWeaponBasedOnAnim);
+
+                    if (VectorLength(palmPos - palmOnWeaponBasedOnAnim) < Config::options.twoHandedHandNearAnimPosLerpStartDistance) {
+                        if (!wasSelectedTwoHandLerping) {
+                            selectedTwoHandTime = g_currentFrameTime;
+                            wasSelectedTwoHandLerping = true;
+                        }
+
+                        NiPoint3 finalHandPos = handTransform.pos + (palmOnWeaponBasedOnAnim - palmPos);
+
+                        double elapsedTimeFraction = (g_currentFrameTime - selectedTwoHandTime) / Config::options.twoHandedHandPosLerpSpeed;
+                        NiTransform newHandTransform = handTransform;
+                        newHandTransform.pos = lerp(handTransform.pos, finalHandPos, std::clamp(elapsedTimeFraction, 0.0, 1.0));
+
+                        UpdateHandTransform(newHandTransform);
+                    }
+                    else {
+                        wasSelectedTwoHandLerping = false;
+                    }
+                }
             }
 
             if (!isTwoHandedOffhand || closestRigidBody != other.weaponBody) {
@@ -3362,10 +3391,23 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
     if (state == State::HeldTwoHanded) {
         if (otherHandEquippedWeap == twoHandedState.weapon && player->actorState.IsWeaponDrawn()) {
-            double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
-            float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
-            float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
-            fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+            {
+                double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
+                float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
+                float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
+                fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
+            }
+
+            bool offhandAffectsTwoHandedRotation = Config::options.offhandAffectsTwoHandedRotation;
+            float twoHandedHandToHandAlignmentFactor = Config::options.twoHandedHandToHandAlignmentFactor;
+            float twoHandedHandToHandShiftFactor = Config::options.twoHandedHandToHandShiftFactor;
+            float twoHandedHandToHandRotationFactor = Config::options.twoHandedHandToHandRotationFactor;
+            if (otherHandEquippedWeap->type() == TESObjectWEAP::GameData::kType_CrossBow) {
+                offhandAffectsTwoHandedRotation = Config::options.offhandAffectsTwoHandedRotationCrossbow;
+                twoHandedHandToHandAlignmentFactor = Config::options.twoHandedHandToHandAlignmentFactorCrossbow;
+                twoHandedHandToHandShiftFactor = Config::options.twoHandedHandToHandShiftFactorCrossbow;
+                twoHandedHandToHandRotationFactor = Config::options.twoHandedHandToHandRotationFactorCrossbow;
+            }
 
             NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
 
@@ -3390,15 +3432,15 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
             float snapAngle = acosf(DotProductSafe(otherPalmToThisPalmNormalized, otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized));
             NiPoint3 snapAxis = VectorNormalized(CrossProduct(otherPalmToWhereThisPalmWouldBeOnTheWeaponNormalized, otherPalmToThisPalmNormalized));
-            NiMatrix33 snapRotation = MatrixFromAxisAngle(snapAxis, snapAngle * Config::options.twoHandedHandToHandAlignmentFactor);
+            NiMatrix33 snapRotation = MatrixFromAxisAngle(snapAxis, snapAngle * twoHandedHandToHandAlignmentFactor);
             desiredTransform = RotateTransformAboutPoint(desiredTransform, otherPalmPos, snapRotation);
 
             // Now move the weapon along the palm->palm axis such that each hand on the weapon is equidistant from where it is in real life
             thisHandFromWeapon = desiredTransform * weaponToThisHand;
             palmPosOnWeapon = GetPalmPositionWS(thisHandFromWeapon);
-            desiredTransform.pos += (palmPos - palmPosOnWeapon) * Config::options.twoHandedHandToHandShiftFactor;
+            desiredTransform.pos += (palmPos - palmPosOnWeapon) * twoHandedHandToHandShiftFactor;
 
-            if (Config::options.offhandAffectsTwoHandedRotation) {
+            if (offhandAffectsTwoHandedRotation) {
                 // Compute the angle in the palm-palm plane of the offhand's palm vector
                 thisHandFromWeapon = desiredTransform * weaponToThisHand;
 
@@ -3443,7 +3485,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     crosses41 = true;
                 }
 
-                float twistAngle = twistAngle180 * Config::options.twoHandedHandToHandRotationFactor;
+                float twistAngle = twistAngle180 * twoHandedHandToHandRotationFactor;
                 if (twoHandedState.angleState == TwoHandedState::AngleState::None) {
                     if (crosses23) {
                         twoHandedState.angleState = TwoHandedState::AngleState::CrossPi;
@@ -3457,7 +3499,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         twoHandedState.angleState = TwoHandedState::AngleState::None;
                     }
                     else {
-                        twistAngle = twistAngle360 * Config::options.twoHandedHandToHandRotationFactor; // continue same rotation past pi
+                        twistAngle = twistAngle360 * twoHandedHandToHandRotationFactor; // continue same rotation past pi
                     }
                 }
                 if (twoHandedState.angleState == TwoHandedState::AngleState::CrossNegativePi) {
@@ -3465,7 +3507,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         twoHandedState.angleState = TwoHandedState::AngleState::None;
                     }
                     else {
-                        twistAngle = ConstrainAngleNegative360(twistAngle180) * Config::options.twoHandedHandToHandRotationFactor; // continue same rotation past -pi
+                        twistAngle = ConstrainAngleNegative360(twistAngle180) * twoHandedHandToHandRotationFactor; // continue same rotation past -pi
                     }
                 }
                 twistAngle *= palmDirectionOnWeaponOrthogonality;
@@ -4250,6 +4292,18 @@ void Hand::LateMainThreadUpdate()
             }
         }
     }*/
+}
+
+
+void Hand::PreUpdateHandsUpdate()
+{
+    if (NiPointer<NiAVObject> fpHandNode = GetFirstPersonHandNode()) {
+        fpAnimHandTransform = fpHandNode->m_worldTransform;
+    }
+
+    if (NiPointer<NiAVObject> fpWeaponNode = GetWeaponNode(false)) {
+        fpAnimWeaponTransform = fpWeaponNode->m_worldTransform;
+    }
 }
 
 

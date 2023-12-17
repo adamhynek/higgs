@@ -289,9 +289,16 @@ namespace Config {
         if (!RegisterFloat("AngularVelocityMultiplier", options.angularVelocityMultiplier)) success = false;
         if (!RegisterFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) success = false;
         if (!RegisterFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) success = false;
+
+        if (!RegisterBool("offhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) success = false;
         if (!RegisterFloat("twoHandedHandToHandAlignmentFactor", options.twoHandedHandToHandAlignmentFactor)) success = false;
         if (!RegisterFloat("twoHandedHandToHandShiftFactor", options.twoHandedHandToHandShiftFactor)) success = false;
         if (!RegisterFloat("twoHandedHandToHandRotationFactor", options.twoHandedHandToHandRotationFactor)) success = false;
+
+        if (!RegisterBool("offhandAffectsTwoHandedRotationCrossbow", options.offhandAffectsTwoHandedRotationCrossbow)) success = false;
+        if (!RegisterFloat("twoHandedHandToHandAlignmentFactorCrossbow", options.twoHandedHandToHandAlignmentFactorCrossbow)) success = false;
+        if (!RegisterFloat("twoHandedHandToHandShiftFactorCrossbow", options.twoHandedHandToHandShiftFactorCrossbow)) success = false;
+        if (!RegisterFloat("twoHandedHandToHandRotationFactorCrossbow", options.twoHandedHandToHandRotationFactorCrossbow)) success = false;
 
         if (!RegisterFloat("SelectedCloseFingerAnimMaxHandSpeed", options.selectedCloseFingerAnimMaxHandSpeed)) success = false;
         if (!RegisterFloat("SelectedCloseFingerAnimValue", options.selectedCloseFingerAnimValue)) success = false;
@@ -362,7 +369,6 @@ namespace Config {
         if (!RegisterBool("DisableGrabHairGeometry", options.disableGrabHair)) success = false;
         if (!RegisterBool("DisableGrabGeometryWithVertexAlpha", options.disableGrabGeometryWithVertexAlpha)) success = false;
         if (!RegisterBool("InheritTangentialVelocity", options.inheritTangentialVelocity)) success = false;
-        if (!RegisterBool("OffhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) success = false;
 
         if (!RegisterBool("useVrikWeaponTransform", options.useVrikWeaponTransform)) success = false;
         if (!RegisterFloat("weaponCollisionScale", options.weaponCollisionScale)) success = false;

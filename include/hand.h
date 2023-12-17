@@ -236,6 +236,7 @@ struct Hand
     void Deselect();
     void PostVrikUpdate();
     void LateMainThreadUpdate();
+    void PreUpdateHandsUpdate();
     void EndPull();
     void PlayPhysicsSound(const NiPoint3 &location, bool loud = false);
     void TriggerCollisionHaptics(float mass, float speed);
@@ -303,6 +304,9 @@ struct Hand
     NiTransform adjustedHandTransform{};
     NiTransform thirdPersonHandToWeaponTransform{};
 
+    NiTransform fpAnimHandTransform{};
+    NiTransform fpAnimWeaponTransform{};
+
     NiPoint3 prevPlayerPosWorldspace{};
     NiPoint3 prevPlayerVelocityWorldspace{};
     NiPoint3 playerAcceleration{};
@@ -341,6 +345,9 @@ struct Hand
     double rolloverAlphaSetTime = 0;
     double lastWasSnapTurningTime = 0;
     double startGrabLerpHandDuration = 0;
+
+    double selectedTwoHandTime = 0;
+    bool wasSelectedTwoHandLerping = false;
 
     float handSize = 1.f;
 

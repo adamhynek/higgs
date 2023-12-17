@@ -617,10 +617,8 @@ namespace CollisionInfo
 
     void SetCollisionInfoDownstream(NiAVObject *obj, UInt32 collisionGroup, State reason)
     {
-        auto rigidBody = GetRigidBody(obj);
-        if (rigidBody) {
-            hkpRigidBody *entity = rigidBody->hkBody;
-            if (entity->m_world) {
+        if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(obj)) {
+            if (hkpRigidBody *entity = rigidBody->hkBody) {
                 hkpCollidable *collidable = &entity->m_collidable;
 
                 // Save collisionfilterinfo by entity id

@@ -39,9 +39,20 @@ namespace Config {
         float angularVelocityMultiplier = 0.6f;
         float tangentialVelocityLimit = 5.0f;
         float twoHandedRotationSnapSpeed = 1200.0f;
+
+        bool offhandAffectsTwoHandedRotation = true;
         float twoHandedHandToHandAlignmentFactor = 1.f;
         float twoHandedHandToHandShiftFactor = 0.5f;
         float twoHandedHandToHandRotationFactor = 0.5f;
+
+        bool offhandAffectsTwoHandedRotationCrossbow = true;
+        float twoHandedHandToHandAlignmentFactorCrossbow = 1.f;
+        float twoHandedHandToHandShiftFactorCrossbow = 0.5f;
+        float twoHandedHandToHandRotationFactorCrossbow = 0.5f;
+
+        bool doSelectedTwoHandedLerp = false;
+        float twoHandedHandPosLerpSpeed = 0.5f;
+        float twoHandedHandNearAnimPosLerpStartDistance = 0.1f;
 
         float selectedCloseFingerAnimMaxHandSpeed = 0.9f;
         float selectedCloseFingerAnimValue = 0.9f;
@@ -132,7 +143,6 @@ namespace Config {
         bool disableGrabHair = true;
         bool disableGrabGeometryWithVertexAlpha = true;
         bool inheritTangentialVelocity = true;
-        bool offhandAffectsTwoHandedRotation = true;
 
         bool updateHandsToMatchWeaponCollisionTransform = false;
         bool useVrikWeaponTransform = true;
