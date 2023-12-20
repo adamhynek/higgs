@@ -117,6 +117,9 @@ struct PhysicsListener : public hkpContactListener, hkpWorldPostSimulationListen
     void RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, HandIndex handIndex);
     void RegisterHandCollision(hkpRigidBody *body, float separatingVelocity, bool isLeft);
 
+    void DisableContactsTemporarily(hkpRigidBody *bodyA, hkpRigidBody *bodyB, double duration);
+    void HandleIgnoredContact(const hkpContactPointEvent &evnt);
+
     struct HandCollisionData
     {
         struct RigidBodyCollisionData {
@@ -133,7 +136,15 @@ struct PhysicsListener : public hkpContactListener, hkpWorldPostSimulationListen
     HandCollisionData handData[2];
 
     NiPointer<bhkWorld> world = nullptr;
+
+    struct IgnoreContactPointData {
+        hkpRigidBody *body;
+        double startTime;
+        double ignoreTime;
+    };
+    std::unordered_map<hkpRigidBody *, IgnoreContactPointData> ignoreContactPointData{};
 };
+extern PhysicsListener g_physicsListener;
 
 struct EntityCollisionListener : public hkpContactListener
 {

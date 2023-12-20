@@ -93,11 +93,11 @@ auto shaderCheckFlagsHookLoc = RelocAddr<uintptr_t>(0x229243);
 
 auto prePhysicsStepHookLoc = RelocAddr<uintptr_t>(0xDFB709);
 
-auto GetRefFromCollidable_GetNodeFromCollidable_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x3B495B);
+auto GetRefFromCollidable_GetNodeFromCollidable_HookLoc = RelocPtr<uintptr_t>(0x3B495B);
 
-auto TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x3B6E23);
+auto TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_HookLoc = RelocPtr<uintptr_t>(0x3B6E23);
 
-auto ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc = RelocPtr<_GetNodeFromCollidable>(0x75CF10);
+auto ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc = RelocPtr<uintptr_t>(0x75CF10);
 
 
 // Hook right when the Projectiles process the output of the projectile linear cast
@@ -352,8 +352,7 @@ void PostWandUpdateHook()
 {
     PlayerCharacter *player = *g_thePlayer;
 
-    g_rightHand->LateMainThreadUpdate();
-    g_leftHand->LateMainThreadUpdate();
+    LateMainThreadUpdate();
 
     static BSFixedString rolloverNodeStr("WSActivateRollover");
     NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
@@ -656,6 +655,18 @@ void PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Hook(PlayerCharacter *
     g_leftHand->PreUpdateHandsUpdate();
 
     PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Original(_this, deltaGameTime);
+}
+
+auto Actor_ApplyMovementDelta_HookLoc = RelocPtr<uintptr_t>(0x5E0890);
+typedef void(*_Actor_ApplyMovementDelta)(Actor *_this, float a_delta);
+_Actor_ApplyMovementDelta Actor_ApplyMovementDelta_Original = 0;
+void Actor_ApplyMovementDelta_Hook(Actor *_this, float a_delta)
+{
+    Actor_ApplyMovementDelta_Original(_this, a_delta);
+
+    if (_this == *g_thePlayer) {
+        PlayerPostApplyMovementDeltaUpdate();
+    }
 }
 
 
@@ -1331,6 +1342,12 @@ void PerformHooks(void)
         std::uintptr_t originalFunc = Write5Call(PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_HookLoc.GetUIntPtr(), uintptr_t(PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Hook));
         PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Original = (_PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands)originalFunc;
         _MESSAGE("PlayerCharacter::VRUpdate PlayerCharacter::UpdateHands hook complete");
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(Actor_ApplyMovementDelta_HookLoc.GetUIntPtr(), uintptr_t(Actor_ApplyMovementDelta_Hook));
+        Actor_ApplyMovementDelta_Original = (_Actor_ApplyMovementDelta)originalFunc;
+        _MESSAGE("Actor::ApplyMovementDelta hook complete");
     }
 
 #ifdef _DEBUG

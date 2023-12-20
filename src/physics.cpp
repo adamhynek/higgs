@@ -445,6 +445,24 @@ void PhysicsListener::RegisterHandCollision(hkpRigidBody *body, float separating
     }
 }
 
+void PhysicsListener::DisableContactsTemporarily(hkpRigidBody *bodyA, hkpRigidBody *bodyB, double duration)
+{
+    ignoreContactPointData[bodyA] = { bodyB, g_currentFrameTime, duration };
+    ignoreContactPointData[bodyB] = { bodyA, g_currentFrameTime, duration };
+}
+
+void PhysicsListener::HandleIgnoredContact(const hkpContactPointEvent &evnt)
+{
+    // Only need to check one direction, since we add both directions to the map
+    auto it = ignoreContactPointData.find(evnt.m_bodies[0]);
+    if (it != ignoreContactPointData.end()) {
+        if (g_currentFrameTime - it->second.startTime < it->second.ignoreTime) {
+            evnt.m_contactPointProperties->m_flags |= hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED;
+            return;
+        }
+    }
+}
+
 void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
 {
     if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
@@ -458,6 +476,11 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
     UInt32 layerA = GetCollisionLayer(rigidBodyA);
     UInt32 layerB = GetCollisionLayer(rigidBodyB);
     if (layerA != 56 && layerB != 56) return; // Every collision we care about involves a body with our custom layer (hand, held object...)
+
+    HandleIgnoredContact(evnt);
+    if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
+        return;
+    }
 
     // Ensure full manifold callbacks for any higgs collisions
     evnt.m_contactMgr->m_contactPointCallbackDelay = 0;
@@ -549,6 +572,16 @@ void PhysicsListener::postSimulationCallback(hkpWorld* world)
 
     g_rightEntityCollisionListener.PostSimulationUpdate();
     g_leftEntityCollisionListener.PostSimulationUpdate();
+
+    // Clear out old ignore contact point data
+    for (auto it = ignoreContactPointData.begin(); it != ignoreContactPointData.end();) {
+        if (g_currentFrameTime - it->second.startTime > it->second.ignoreTime + 1.0) {
+            it = ignoreContactPointData.erase(it);
+        }
+        else {
+            ++it;
+        }
+    }
 }
 
 

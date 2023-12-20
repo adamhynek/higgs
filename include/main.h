@@ -3,6 +3,8 @@
 #include "skse64/PluginAPI.h"
 
 void Update();
+void LateMainThreadUpdate();
+void PlayerPostApplyMovementDeltaUpdate();
 
 struct DebugTransform
 {

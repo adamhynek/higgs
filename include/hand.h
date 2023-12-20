@@ -49,6 +49,7 @@ struct Hand
         NiPointer<bhkRigidBody> rigidBody;
         UInt32 handle = 0;
         hkHalf savedAngularDamping;
+        UInt32 collisionGroup = 0;
     };
 
     struct TwoHandedState
@@ -227,6 +228,8 @@ struct Hand
     bool CanOtherGrab() const;
     bool HasHeldKeyframed() const;
     bool HasHeldConstrained() const;
+    bool HasIgnorableCollision() const;
+    bool ShouldIgnoreCollisionGroup(UInt32 collisionGroup) const;
     bool GetActivateText(std::string &str);
     bool GetActivateButton(std::string &str);
     void SetupRollover(NiAVObject *rolloverNode);

@@ -29,8 +29,6 @@ namespace Config {
         float grabStartAngularSpeed = 360.0f; // deg/s
         float grabLateralWeight = 0.6f;
         float grabDirectionalWeight = 0.4f;
-        float throwVelocityThreshold = 1.0f; // m/s
-        float throwVelocityBoostFactor = 1.0f;
         float shoulderVelocityThreshold = 2.0f; // m/s
         float mouthVelocityThreshold = 2.0f; // m/s
         float pullDestinationZOffset = 0.01f; // in meters, z offset above the palm at which to target the pulled object
@@ -39,6 +37,10 @@ namespace Config {
         float angularVelocityMultiplier = 0.6f;
         float tangentialVelocityLimit = 5.0f;
         float twoHandedRotationSnapSpeed = 1200.0f;
+
+        float throwVelocityThreshold = 1.0f; // m/s
+        float throwVelocityBoostFactor = 1.0f;
+        double throwIgnoreHandCollisionTime = 0.1; // in s, amount of time to ignore hand collisions after throwing
 
         bool offhandAffectsTwoHandedRotation = true;
         float twoHandedHandToHandAlignmentFactor = 1.f;
@@ -276,6 +278,8 @@ namespace Config {
 
         bool enableHiggsGrabNodes = true;
         bool printHiggsGrabNodeInfo = true;
+
+        bool cleanupIgnoredCollisionGroups = true;
 
         NiPoint3 palmVector = { -0.018, -0.965, 0.261 };
         NiPoint3 pointingVector = { 0, 0, 1 };

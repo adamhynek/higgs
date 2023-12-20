@@ -520,6 +520,33 @@ public:
 };
 HitEventHandler hitEventHandler;
 
+std::unordered_map<UInt32, int> g_ignoredCollisionGroups{};
+std::mutex g_ignoredCollisionGroupsLock{};
+
+void LateMainThreadUpdate()
+{
+    g_rightHand->LateMainThreadUpdate();
+    g_leftHand->LateMainThreadUpdate();
+}
+
+void PlayerPostApplyMovementDeltaUpdate()
+{
+    // Clear out old ignored collision groups.
+    // We do this here because this is the same thread that will be doing the character controller integrate() calls that will be using the ignored collision groups.
+    if (Config::options.cleanupIgnoredCollisionGroups) {
+        std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+
+        for (auto it = g_ignoredCollisionGroups.begin(); it != g_ignoredCollisionGroups.end();) {
+            if (*g_currentFrameCounter - it->second > 5) {
+                it = g_ignoredCollisionGroups.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+    }
+}
+
 using CollisionFilterComparisonResult = HiggsPluginAPI::IHiggsInterface001::CollisionFilterComparisonResult;
 CollisionFilterComparisonResult CollisionFilterComparisonCallback(void *filter, UInt32 filterInfoA, UInt32 filterInfoB)
 {
@@ -552,14 +579,27 @@ CollisionFilterComparisonResult CollisionFilterComparisonCallback(void *filter, 
     UInt16 otherGroup = otherFilter >> 16;
 
     if (otherGroup != g_rightHand->playerCollisionGroup) {
-        if (otherLayer == BGSCollisionLayer::kCollisionLayer_DeadBip) {
-            // Ignore the body if we're grabbing it
-            if ((g_rightHand->HasHeldConstrained() && otherGroup == g_rightHand->selectedObject.collisionGroup) ||
-                (g_leftHand->HasHeldConstrained() && otherGroup == g_leftHand->selectedObject.collisionGroup)) {
-                return CollisionFilterComparisonResult::Ignore;
-            }
-            return CollisionFilterComparisonResult::Continue;
+        // Ignore objects that we're holding or pulling
+        if (g_rightHand->ShouldIgnoreCollisionGroup(otherGroup) || g_leftHand->ShouldIgnoreCollisionGroup(otherGroup)) {
+            std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+
+            g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
+            return CollisionFilterComparisonResult::Ignore;
         }
+        else {
+            std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+
+            auto it = g_ignoredCollisionGroups.find(otherGroup);
+            if (it != g_ignoredCollisionGroups.end()) {
+                if (*g_currentFrameCounter - it->second <= 1) {
+                    // We were ignoring this group last frame, so continue ignoring it. 
+                    // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
+                    g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
+                    return CollisionFilterComparisonResult::Ignore;
+                }
+            }
+        }
+        return CollisionFilterComparisonResult::Continue;
     }
 
     return CollisionFilterComparisonResult::Continue;

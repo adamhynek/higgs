@@ -1339,10 +1339,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
     StartNearbyDamping(world);
 
-    if (!selectedObject.isActor) {
-        CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, collisionMapState);
-    }
-
     NiTransform originalTransform = collidableNode->m_worldTransform;
     NiTransform adjustedTransform = originalTransform;
 
@@ -2895,16 +2891,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         if (state == State::HeldBody) {
                             if (!selectedObject.isActor) {
-                                // First enable collision with the hand, so that ResetCollisionInfoDownstream() can enable or disable collision of the object with the hand as it chooses
-                                hkpRigidBody *handCollBody = handBody->hkBody;
-                                bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
-                                handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
-                                if (wasCollisionDisabled) {
-                                    BSWriteLocker lock(&world->worldLock);
-                                    hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+                                if (!collideWithHandWhenLettingGo) {
+                                    g_physicsListener.DisableContactsTemporarily(handBody->hkBody, selectedObject.rigidBody->hkBody, Config::options.throwIgnoreHandCollisionTime);
                                 }
-
-                                ResetCollisionInfoDownstream(objRoot, collisionMapState, nullptr, collideWithHandWhenLettingGo);
                             }
 
                             connectedRigidBodies.clear();
@@ -3126,6 +3115,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                             pulledObject.handle = selectedObject.handle;
                             pulledObject.rigidBody = selectedObject.rigidBody;
+                            pulledObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
                             pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
                             motion->m_motionState.m_angularDamping = hkHalf(Config::options.pulledAngularDamping);
 
@@ -3149,8 +3139,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     selectedObject.rigidBody->hkBody->setQualityType(HK_COLLIDABLE_QUALITY_MOVING);
                                 }
                             }
-
-                            CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, CollisionInfo::State::Unheld);
                         }
 
                         float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength);
@@ -3312,11 +3300,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         pulledObject.handle = selectedObject.handle;
                         pulledObject.rigidBody = selectedObject.rigidBody;
+                        pulledObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
                         hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
                         pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
                         motion->m_motionState.m_angularDamping = hkHalf(Config::options.pulledAngularDamping);
-                        CollisionInfo::SetCollisionInfoDownstream(objRoot, playerCollisionGroup, CollisionInfo::State::Unheld);
 
                         pulledTime = g_currentFrameTime;
 
@@ -4313,12 +4301,12 @@ void Hand::EndPull()
     if (LookupREFRByHandle(pulledObject.handle, pulledObj)) {
         NiPointer<NiNode> objRoot = pulledObj->GetNiNode();
         if (objRoot) {
-            CollisionInfo::ResetCollisionInfoDownstream(objRoot, CollisionInfo::State::Unheld);
             pulledObject.rigidBody->hkBody->m_motion.m_motionState.m_angularDamping = pulledObject.savedAngularDamping;
         }
     }
     pulledObject.handle = *g_invalidRefHandle;
     pulledObject.rigidBody = nullptr;
+    pulledObject.collisionGroup = 0;
 }
 
 
@@ -4372,6 +4360,28 @@ bool Hand::HasHeldConstrained() const
     return state == State::HeldBody;
 }
 
+bool Hand::HasIgnorableCollision() const
+{
+    bool isPulling = pulledObject.handle != *g_invalidRefHandle;
+    bool isHolding = HasHeldConstrained();
+    return isPulling || isHolding;
+}
+
+bool Hand::ShouldIgnoreCollisionGroup(UInt32 collisionGroup) const
+{
+    bool isPulling = pulledObject.handle != *g_invalidRefHandle;
+    if (isPulling) {
+        return collisionGroup == pulledObject.collisionGroup;
+    }
+
+    bool isHolding = HasHeldConstrained();
+    if (isHolding) {
+        return collisionGroup == selectedObject.collisionGroup;
+    }
+
+    return false;
+}
+
 bool Hand::IsTwoHanding() const
 {
     return state == State::HeldTwoHanded;
@@ -4401,7 +4411,7 @@ bool Hand::IsSafeToClearSavedCollision() const
     return (
         (state == State::Idle || state == State::SelectedFar || state == State::SelectedClose)
         && pulledObject.handle == *g_invalidRefHandle
-        );
+    );
 }
 
 const char *GetMotionButtonName()

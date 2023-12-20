@@ -279,6 +279,7 @@ namespace Config {
 
         if (!RegisterFloat("ThrowVelocityThreshold", options.throwVelocityThreshold)) success = false;
         if (!RegisterFloat("ThrowVelocityBoostFactor", options.throwVelocityBoostFactor)) success = false;
+        if (!RegisterDouble("throwIgnoreHandCollisionTime", options.throwIgnoreHandCollisionTime)) success = false;
 
         if (!RegisterFloat("ShoulderVelocityThreshold", options.shoulderVelocityThreshold)) success = false;
         if (!RegisterFloat("MouthVelocityThreshold", options.mouthVelocityThreshold)) success = false;
@@ -484,6 +485,8 @@ namespace Config {
 
         if (!RegisterBool("enableHiggsGrabNodes", options.enableHiggsGrabNodes)) success = false;
         if (!RegisterBool("printHiggsGrabNodeInfo", options.printHiggsGrabNodeInfo)) success = false;
+
+        if (!RegisterBool("cleanupIgnoredCollisionGroups", options.cleanupIgnoredCollisionGroups)) success = false;
 
         if (!RegisterBool("DelayRightGripInput", options.delayRightGripInput)) success = false;
         if (!RegisterBool("DelayLeftGripInput", options.delayLeftGripInput)) success = false;
