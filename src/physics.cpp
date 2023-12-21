@@ -498,7 +498,7 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
         }
 
         if (isBHiggs) {
-            RegisterHandCollision(rigidBodyB, separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
+            RegisterHandCollision(rigidBodyA, separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
 
@@ -512,7 +512,7 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
         }
 
         if (isBHiggs) {
-            TriggerCollisionHaptics(rigidBodyB->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
+            TriggerCollisionHaptics(rigidBodyA->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
 
