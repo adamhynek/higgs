@@ -377,11 +377,6 @@ void Update()
     firstHandToUpdate->PostUpdate(*lastHandToUpdate, world);
     lastHandToUpdate->PostUpdate(*firstHandToUpdate, world);
 
-    if (g_rightHand->IsSafeToClearSavedCollision() && g_leftHand->IsSafeToClearSavedCollision()) {
-        // cleanup the collision id map to prevent mem leaks when an item is destroyed (i.e. 'activated', etc.) while holding / pulling it
-        CollisionInfo::ClearCollisionMap();
-    }
-
     if (Config::options.slowMovementWhenObjectIsHeld) {
         UpdateSpeedReduction();
     }

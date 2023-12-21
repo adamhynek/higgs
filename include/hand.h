@@ -138,7 +138,6 @@ struct Hand
 
     Hand(bool isLeft, BSFixedString name, BSFixedString handNodeName, BSFixedString wandNodeName, BSFixedString grabNodeOnObjectName, BSFixedString fingerNodeNames[5][3], NiPoint3 palmPosHandspace, NiPoint3 rolloverOffset, bool delayGripInput) :
         isLeft(isLeft),
-        collisionMapState(isLeft ? CollisionInfo::State::HeldLeft : CollisionInfo::State::HeldRight),
         name(name),
         handNodeName(handNodeName),
         wandNodeName(wandNodeName),
@@ -217,7 +216,6 @@ struct Hand
     bool IsTwoHanding() const;
     UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
     bool ShouldDisplayRollover(Hand &other);
-    bool IsSafeToClearSavedCollision() const;
     bool IsObjectPullable();
     bool HasExclusiveObject() const;
     bool IsInGrabbableState() const;
@@ -261,7 +259,6 @@ struct Hand
 
     const bool isLeft = false;
     const bool delayGripInput = false;
-    const CollisionInfo::State collisionMapState = CollisionInfo::State::HeldRight;
     const NiPoint3 palmPosHandspace{};
     BSFixedString fingerNodeNames[5][3]{}; // 5 fingers, 3 joints
     BSFixedString name{}; // Used for logging

@@ -2949,8 +2949,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         }
                         else if (state == State::Held || state == State::HeldInit) {
                             selectedObject.rigidBody->flags = selectedObject.savedRigidBodyFlags;
-                            ResetCollisionInfoDownstream(objRoot, collisionMapState, selectedObject.collidable, collideWithHandWhenLettingGo); // skip the node we grabbed, we handle that below
-                            ResetCollisionInfoKeyframed(selectedObject.rigidBody, selectedObject.savedMotionType, selectedObject.savedQuality, collisionMapState, collideWithHandWhenLettingGo);
+
+                            if (!collideWithHandWhenLettingGo) {
+                                g_physicsListener.DisableContactsTemporarily(handBody->hkBody, selectedObject.rigidBody->hkBody, Config::options.throwIgnoreHandCollisionTime);
+                            }
+
+                            selectedObject.rigidBody->hkBody->m_collidable.m_broadPhaseHandle.m_objectQualityType = selectedObject.savedQuality;
+                            bhkRigidBody_setMotionType(selectedObject.rigidBody, selectedObject.savedMotionType, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
 
                             /* This should work to get inertia about the rotation axis, but I don't know if there's a good thing to do with it
                             hkMatrix3 hkInertiaTensor;
@@ -4363,7 +4368,7 @@ bool Hand::HasHeldConstrained() const
 bool Hand::HasIgnorableCollision() const
 {
     bool isPulling = pulledObject.handle != *g_invalidRefHandle;
-    bool isHolding = HasHeldConstrained();
+    bool isHolding = HasHeldObject();
     return isPulling || isHolding;
 }
 
@@ -4374,7 +4379,7 @@ bool Hand::ShouldIgnoreCollisionGroup(UInt32 collisionGroup) const
         return collisionGroup == pulledObject.collisionGroup;
     }
 
-    bool isHolding = HasHeldConstrained();
+    bool isHolding = HasHeldObject();
     if (isHolding) {
         return collisionGroup == selectedObject.collisionGroup;
     }
@@ -4405,14 +4410,6 @@ bool Hand::ShouldDisplayRollover(Hand &other)
     return false;
 }
 
-
-bool Hand::IsSafeToClearSavedCollision() const
-{
-    return (
-        (state == State::Idle || state == State::SelectedFar || state == State::SelectedClose)
-        && pulledObject.handle == *g_invalidRefHandle
-    );
-}
 
 const char *GetMotionButtonName()
 {
