@@ -347,16 +347,20 @@ inline bool IsHeldRigidBody(hkpRigidBody *rigidBody)
 {
     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
     if (!wrapper) return false;
-    return (g_leftHand->HasHeldObject() && wrapper == g_leftHand->selectedObject.rigidBody) ||
-        (g_rightHand->HasHeldObject() && wrapper == g_rightHand->selectedObject.rigidBody);
+    return (
+        (g_leftHand->HasHeldObject() && wrapper == g_leftHand->selectedObject.rigidBody) ||
+        (g_rightHand->HasHeldObject() && wrapper == g_rightHand->selectedObject.rigidBody)
+    );
 }
 
 inline bool IsHiggsRigidBody(hkpRigidBody *rigidBody)
 {
-    if ((rigidBody->getCollidable()->getBroadPhaseHandle()->getCollisionFilterInfo() & 0x7f) != 56) {
+    UInt32 collisionLayer = GetCollisionLayer(rigidBody);
+    bool isHeld = IsHeldRigidBody(rigidBody);
+    if (collisionLayer != 56 && !isHeld) {
         return false;
     }
-    return IsHandRigidBody(rigidBody) || IsWeaponRigidBody(rigidBody) || IsHeldRigidBody(rigidBody);
+    return IsHandRigidBody(rigidBody) || IsWeaponRigidBody(rigidBody) || isHeld;
 }
 
 std::mutex PhysicsListener::handLocks[2]{};
@@ -473,9 +477,10 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
     hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
     hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
 
-    UInt32 layerA = GetCollisionLayer(rigidBodyA);
-    UInt32 layerB = GetCollisionLayer(rigidBodyB);
-    if (layerA != 56 && layerB != 56) return; // Every collision we care about involves a body with our custom layer (hand, held object...)
+    bool isAHiggs = IsHiggsRigidBody(rigidBodyA);
+    bool isBHiggs = IsHiggsRigidBody(rigidBodyB);
+
+    if (!isAHiggs && !isBHiggs) return; // Neither body is a higgs body, so we don't care about this collision
 
     HandleIgnoredContact(evnt);
     if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
@@ -488,11 +493,11 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
     float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));
 
     if (evnt.m_contactPointProperties->wasUsed() && evnt.m_contactPoint->getDistance() < Config::options.collisionMaxInitialContactPointDistance) {
-        if (IsHiggsRigidBody(rigidBodyA)) {
+        if (isAHiggs) {
             RegisterHandCollision(rigidBodyB, separatingVelocity, GetRigidBodyHandIndex(rigidBodyA));
         }
 
-        if (IsHiggsRigidBody(rigidBodyB)) {
+        if (isBHiggs) {
             RegisterHandCollision(rigidBodyB, separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
@@ -502,11 +507,11 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
             return;
         }
 
-        if (IsHiggsRigidBody(rigidBodyA)) {
+        if (isAHiggs) {
             TriggerCollisionHaptics(rigidBodyB->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyA));
         }
 
-        if (IsHiggsRigidBody(rigidBodyB)) {
+        if (isBHiggs) {
             TriggerCollisionHaptics(rigidBodyB->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
