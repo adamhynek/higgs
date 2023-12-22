@@ -274,6 +274,9 @@ namespace Config {
         if (!RegisterFloat("GrabStartAngularSpeed", options.grabStartAngularSpeed)) success = false;
 
         if (!RegisterFloat("PullSpeedThreshold", options.pullSpeedThreshold)) success = false;
+        if (!RegisterFloat("lootSpeedThreshold", options.lootSpeedThreshold)) success = false;
+        if (!RegisterFloat("lootToGrabSpeedThreshold", options.lootToGrabSpeedThreshold)) success = false;
+        if (!RegisterDouble("lootToGrabLeewayTime", options.lootToGrabLeewayTime)) success = false;
 
         if (!RegisterFloat("RolloverScale", options.rolloverScale)) success = false;
 
@@ -440,7 +443,7 @@ namespace Config {
 
         if (!RegisterDouble("sneakUnsneakIgnoreHandDistanceTime", options.sneakUnsneakIgnoreHandDistanceTime)) success = false;
 
-        if (!RegisterFloat("grabFromOtherHandMaxDistance", options.grabFromOtherHandMaxDistance)) success = false;
+        if (!RegisterBool("enableTwoHandedGrabbing", options.enableTwoHandedGrabbing)) success = false;
 
         if (!RegisterFloat("grabbedObjectMinInertia", options.grabbedObjectMinInertia)) success = false;
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;

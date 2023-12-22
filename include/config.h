@@ -38,6 +38,10 @@ namespace Config {
         float tangentialVelocityLimit = 5.0f;
         float twoHandedRotationSnapSpeed = 1200.0f;
 
+        float lootSpeedThreshold = 1.2f;
+        float lootToGrabSpeedThreshold = 0.5f;
+        double lootToGrabLeewayTime = 0.1;
+
         float throwVelocityThreshold = 1.0f; // m/s
         float throwVelocityBoostFactor = 1.0f;
         double throwIgnoreHandCollisionTime = 0.1; // in s, amount of time to ignore hand collisions after throwing
@@ -230,7 +234,7 @@ namespace Config {
 
         double sneakUnsneakIgnoreHandDistanceTime = 0.1;
 
-        float grabFromOtherHandMaxDistance = 100.f;
+        bool enableTwoHandedGrabbing = true;
 
         bool doPhysicsGrabPlayerMovementCompensation = true;
 

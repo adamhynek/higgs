@@ -1119,12 +1119,18 @@ std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const
 }
 
 
-bool Hand::ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node)
+bool Hand::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, bhkRigidBody *rigidBody)
 {
     if (Config::options.forcePhysicsGrab) return true;
 
-    // Ragdolls and other objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) should use physics based motion
-    return selectedObject.isActor || DoesNodeHaveConstraint(root, node);
+    if (NiPointer<NiAVObject> node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+        if (NiPointer<NiNode> root = refr->GetNiNode()) {
+            // Ragdolls and other objects with constraints (books, skulls with jaws, wagons with wheels, etc. - physics goes crazy when keyframed) should use physics based motion
+            return selectedObject.isActor || DoesNodeHaveConstraint(root, node);
+        }
+    }
+
+    return false;
 }
 
 
@@ -1335,7 +1341,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
     }
 
-    bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(objRoot, collidableNode);
+    bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(selectedObj, selectedObject.rigidBody);
 
     StartNearbyDamping(world);
 
@@ -2683,6 +2689,18 @@ void Hand::Update(Hand &other, bhkWorld *world)
         if (state == State::SelectedClose || state == State::SelectedFar) {
             NiPointer<TESObjectREFR> selectedObj;
             if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+#ifdef _DEBUG
+                NiTransform t;
+                t.pos = selectedObject.point / havokWorldScale;
+                t.scale = 1.f;
+                if (isLeft) {
+                    RegisterDebugTransform("SelectedPointL", { t, { 1, 0, 0, 1 } });
+                }
+                else {
+                    RegisterDebugTransform("SelectedPointR", { t, { 0, 0, 1, 1 } });
+                }
+#endif // _DEBUG
+
                 if (state == State::SelectedClose) {
                     if (controllerData.avgSpeed < Config::options.selectedCloseFingerAnimMaxHandSpeed) {
                         double elapsedTimeFraction = 1 + (g_currentFrameTime - rolloverDisplayTime) / Config::options.fingerAnimateStartDoubleSpeedTime;
@@ -2723,24 +2741,20 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             state = State::SelectionLocked;
                         }
                         else if (state == State::SelectedClose) {
-                            NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
-                            NiPoint3 otherPalmPos = other.GetPalmPositionWS(otherHand->m_worldTransform);
-                            float pointToOtherPalmDistance = VectorLength(selectedObject.point * *g_inverseHavokWorldScale - otherPalmPos);
-                            bool shouldConsiderGrabbingFromOtherHand = pointToOtherPalmDistance < Config::options.grabFromOtherHandMaxDistance && other.CanOtherGrab();
+                            bool isGrabbingOtherHandsHeldObject = selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab();
+                            bool isLootCandidate = selectedObject.isActor && selectedObject.hitForm;
+                            bool considerTwoHanding = Config::options.enableTwoHandedGrabbing && ShouldUsePhysicsBasedGrab(selectedObj, selectedObject.rigidBody); // Don't allow two-handing with the legacy grab
 
-                            if (shouldConsiderGrabbingFromOtherHand && selectedObject.rigidBody == other.selectedObject.rigidBody) {
-                                if (selectedObject.isActor && selectedObject.hitForm) {
-                                    rolloverDisplayTime = g_currentFrameTime;
-
-                                    state = State::LootOtherHand;
-                                }
-                                else {
-                                    // Grabbing the object from the other hand - make the other hand drop it and wait
-                                    other.disableDropEvents = true;
-                                    other.idleDesired = true;
-                                    grabbedTime = g_currentFrameTime;
-                                    state = State::GrabFromOtherHand;
-                                }
+                            if (isGrabbingOtherHandsHeldObject && isLootCandidate) {
+                                rolloverDisplayTime = g_currentFrameTime;
+                                state = State::LootOtherHand;
+                            }
+                            else if (isGrabbingOtherHandsHeldObject && !considerTwoHanding) {
+                                // Grabbing the object from the other hand - make the other hand drop it and wait
+                                other.disableDropEvents = true;
+                                other.idleDesired = true;
+                                grabbedTime = g_currentFrameTime;
+                                state = State::GrabFromOtherHand;
                             }
                             else {
                                 if (selectedObject.hitForm && selectedObject.isDisconnected) {
@@ -2759,10 +2773,15 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     NiPointer<bhkRigidBody> desiredBody = GetRigidBodyToGrabBasedOnGeometry(other, selectedObj, palmPos, palmVector, std::nullopt, handNode); // No initial transform yet
                                     if (desiredBody && desiredBody != selectedObject.rigidBody) {
                                         // Node we chose based on geometry is different from the one selected via collision
+
                                         selectedObject.rigidBody = desiredBody;
                                         selectedObject.collidable = &desiredBody->hkBody->m_collidable;
 
-                                        if (shouldConsiderGrabbingFromOtherHand && selectedObject.rigidBody == other.selectedObject.rigidBody) {
+                                        // Re-compute this with the newly selected rigidbody
+                                        isGrabbingOtherHandsHeldObject = selectedObject.rigidBody == other.selectedObject.rigidBody && other.CanOtherGrab();
+                                        considerTwoHanding = Config::options.enableTwoHandedGrabbing && ShouldUsePhysicsBasedGrab(selectedObj, selectedObject.rigidBody); // Don't allow two-handing with the legacy grab
+
+                                        if (isGrabbingOtherHandsHeldObject && !considerTwoHanding) {
                                             // Grabbing the object from the other hand - make the other hand drop it and wait
                                             other.disableDropEvents = true;
                                             other.idleDesired = true;
@@ -2779,12 +2798,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                         }
                                     }
                                     else {
+                                        // Node we chose based on geometry is the same as the one that was selected via collision
+
                                         std::optional<NiTransform> initialTransform = {};
                                         if (Config::options.useAttachPointForInitialGrab) {
                                             initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
                                         }
 
-                                        // Node we chose based on geometry is the same as the one that was selected via collision
                                         TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform, false, true);
                                     }
                                 }
@@ -3185,14 +3205,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
 
                 if (!isSelectedNear) {
-                    hkVector4 translation = motion->m_motionState.m_transform.m_translation;
-                    NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
-                    NiPoint3 relObjPos = hkObjPos - hkHandPos;
-
                     NiPoint3 controllerVelocity = controllerData.linearVelocities[0];
-                    float controllerSpeedDirectionalized = DotProduct(controllerVelocity, VectorNormalized(-relObjPos));
 
-                    if (controllerSpeedDirectionalized > Config::options.pullSpeedThreshold) {
+                    NiPoint3 selectedPointToHand = hkHandPos - selectedObject.point;
+                    float controllerSpeedTowardsHand = DotProduct(controllerVelocity, VectorNormalized(selectedPointToHand));
+
+                    if (controllerSpeedTowardsHand > Config::options.pullSpeedThreshold) {
                         if (IsObjectPullable()) {
                             TransitionPulled();
                         }
@@ -3215,19 +3233,25 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 if (other.HasHeldObject() && other.selectedObject.rigidBody == selectedObject.rigidBody) {
                     // Other hand is still holding this object
 
-                    hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
-
                     NiPoint3 controllerVelocity = controllerData.linearVelocities[0];
-                    float controllerSpeed = VectorLength(controllerVelocity);
 
-                    if (controllerSpeed > Config::options.pullSpeedThreshold) {
+                    NiPoint3 selectedPointToHand = hkHandPos - selectedObject.point;
+                    float controllerSpeedTowardsHand = DotProduct(controllerVelocity, VectorNormalized(selectedPointToHand));
+
+                    if (controllerSpeedTowardsHand > Config::options.lootSpeedThreshold) {
+                        // Pulling away from the object - loot it
+
                         float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength);
                         haptics.QueueHapticEvent(hapticStrength, 0, Config::options.pullHapticFadeTime);
 
                         TransitionPreGrab(selectedObj, true);
                     }
+                    else if (-controllerSpeedTowardsHand > Config::options.lootToGrabSpeedThreshold && g_currentFrameTime - rolloverDisplayTime >= Config::options.lootToGrabLeewayTime) {
+                        // Pushing towards the object - grab it
+                        TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj);
+                    }
                     else {
-                        float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeed / Config::options.pullSpeedThreshold)));
+                        float hapticStrength = min(1.0f, Config::options.selectionLockedBaseHapticStrength + Config::options.selectionLockedProportionalHapticStrength * max(0, (controllerSpeedTowardsHand / Config::options.lootSpeedThreshold)));
                         haptics.QueueHapticPulse(hapticStrength);
                     }
                 }

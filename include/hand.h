@@ -183,7 +183,7 @@ struct Hand
     std::optional<NiTransform> GetAttachTransform(const TESForm *baseForm);
     std::optional<NiTransform> ComputeInitialObjectTransform(TESObjectREFR *refr, const NiAVObject *handNode, NiAVObject *grabbedNode);
     std::optional<NiTransform> GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode);
-    bool ShouldUsePhysicsBasedGrab(NiNode *root, NiAVObject *node);
+    bool ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, bhkRigidBody *rigidBody);
     NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const std::optional<NiTransform> &initialTransform, NiAVObject *handNode);
     void TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj,
         const std::optional<NiTransform> &initialTransform = std::nullopt, bool warpToHand = false, bool reuseTriangles = false, bool playSound = true);
