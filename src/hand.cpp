@@ -2912,6 +2912,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         if (state == State::HeldBody) {
                             if (!selectedObject.isActor) {
                                 if (!collideWithHandWhenLettingGo) {
+                                    BSWriteLocker lock(&world->worldLock);
                                     g_physicsListener.DisableContactsTemporarily(handBody->hkBody, selectedObject.rigidBody->hkBody, Config::options.throwIgnoreHandCollisionTime);
                                 }
                             }
@@ -2971,6 +2972,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             selectedObject.rigidBody->flags = selectedObject.savedRigidBodyFlags;
 
                             if (!collideWithHandWhenLettingGo) {
+                                BSWriteLocker lock(&world->worldLock);
                                 g_physicsListener.DisableContactsTemporarily(handBody->hkBody, selectedObject.rigidBody->hkBody, Config::options.throwIgnoreHandCollisionTime);
                             }
 

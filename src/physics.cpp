@@ -457,6 +457,8 @@ void PhysicsListener::DisableContactsTemporarily(hkpRigidBody *bodyA, hkpRigidBo
 
 void PhysicsListener::HandleIgnoredContact(const hkpContactPointEvent &evnt)
 {
+    if (ignoreContactPointData.size() == 0) return; // quick check first
+
     // Only need to check one direction, since we add both directions to the map
     auto it = ignoreContactPointData.find(evnt.m_bodies[0]);
     if (it != ignoreContactPointData.end()) {
