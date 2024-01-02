@@ -529,7 +529,7 @@ void PlayerPostApplyMovementDeltaUpdate()
 {
     // Clear out old ignored collision groups.
     // We do this here because this is the same thread that will be doing the character controller integrate() calls that will be using the ignored collision groups.
-    if (Config::options.cleanupIgnoredCollisionGroups && g_ignoredCollisionGroups.size() > 0) { // quick check without locking first
+    if (g_ignoredCollisionGroups.size() > 0) { // quick check without locking first
         std::scoped_lock lock(g_ignoredCollisionGroupsLock);
 
         for (auto it = g_ignoredCollisionGroups.begin(); it != g_ignoredCollisionGroups.end();) {
