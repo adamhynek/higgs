@@ -59,10 +59,12 @@ namespace RE
 
 enum class HavokProperty : hkUint32
 {
+    RootNode = 0, // NiNode - set for charcontroller rigidbodies
     Node = 1, // NiAVObject
     CollisionObject = 2, // bhkCollisionObject
     Character = 1000, // Character
     CharacterController = 1002, // bhkCharacterController
+    CharacterProxy = 4864, // hkpCharacterProxy
     TelekinesisDamageMult = 314159,
     TelekinesisMass = 314160,
 };

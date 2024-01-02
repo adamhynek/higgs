@@ -5,6 +5,7 @@
 void Update();
 void LateMainThreadUpdate();
 void PlayerPostApplyMovementDeltaUpdate();
+void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector);
 
 struct DebugTransform
 {

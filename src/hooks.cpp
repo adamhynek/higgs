@@ -99,6 +99,9 @@ auto TriggerEntry_RegisterOverLap_Actor_IsInRagdollState_HookLoc = RelocPtr<uint
 
 auto ArrowProjectile_AddImpact_bhkCollisionObject_GetRigidBody_HookLoc = RelocPtr<uintptr_t>(0x75CF10);
 
+auto hkpCharacterProxy_integrateImplementation_setPositionAndLinearCastHookLoc1 = RelocPtr<uintptr_t>(0xAFAC34);
+auto hkpCharacterProxy_integrateImplementation_setPositionAndLinearCastHookLoc2 = RelocPtr<uintptr_t>(0xAFB511);
+
 
 // Hook right when the Projectiles process the output of the projectile linear cast
 _Projectile_UpdateImpactFromCollector g_originalMissileProjectileUpdateImpactFromCollector = nullptr;
@@ -666,6 +669,33 @@ void Actor_ApplyMovementDelta_Hook(Actor *_this, float a_delta)
 
     if (_this == *g_thePlayer) {
         PlayerPostApplyMovementDeltaUpdate();
+    }
+}
+
+
+typedef void (*_hkpShapePhantom_setPositionAndLinearCast)(hkpShapePhantom *_this, const hkVector4 &position, const hkpLinearCastInput &input, hkpCdPointCollector *castCollector, hkpCdPointCollector *startCollector);
+_hkpShapePhantom_setPositionAndLinearCast g_original_hkpCachingShapePhantom_setPositionAndLinearCast = nullptr;
+RelocPtr<_hkpShapePhantom_setPositionAndLinearCast> hkpCachingShapePhantom_setPositionAndLinearCast_vtbl(0x17B6890);
+void hkpCachingShapePhantom_setPositionAndLinearCast_Hook(hkpShapePhantom *phantom, const hkVector4 &position, const hkpLinearCastInput &input, hkpCdPointCollector *castCollector, hkpCdPointCollector *startCollector)
+{
+    g_original_hkpCachingShapePhantom_setPositionAndLinearCast(phantom, position, input, castCollector, startCollector);
+
+    hkpPropertyValue characterProperty = phantom->getProperty(hkUint32(HavokProperty::Character));
+    if (!characterProperty.getPtr() || characterProperty.getPtr() != *g_thePlayer) {
+        // If it's not the player, we don't care
+        return;
+    }
+
+    if (castCollector) {
+        if (hkpAllCdPointCollector *castCollectorAll = DYNAMIC_CAST(castCollector, hkpCdPointCollector, hkpAllCdPointCollector)) {
+            ProcessPlayerProxyCastCollector(castCollectorAll);
+        }
+    }
+
+    if (startCollector) {
+        if (hkpAllCdPointCollector *startCollectorAll = DYNAMIC_CAST(startCollector, hkpCdPointCollector, hkpAllCdPointCollector)) {
+            ProcessPlayerProxyCastCollector(startCollectorAll);
+        }
     }
 }
 
@@ -1348,6 +1378,11 @@ void PerformHooks(void)
         std::uintptr_t originalFunc = Write5Call(Actor_ApplyMovementDelta_HookLoc.GetUIntPtr(), uintptr_t(Actor_ApplyMovementDelta_Hook));
         Actor_ApplyMovementDelta_Original = (_Actor_ApplyMovementDelta)originalFunc;
         _MESSAGE("Actor::ApplyMovementDelta hook complete");
+    }
+
+    {
+        g_original_hkpCachingShapePhantom_setPositionAndLinearCast = *hkpCachingShapePhantom_setPositionAndLinearCast_vtbl;
+        SafeWrite64(hkpCachingShapePhantom_setPositionAndLinearCast_vtbl.GetUIntPtr(), uintptr_t(hkpCachingShapePhantom_setPositionAndLinearCast_Hook));
     }
 
 #ifdef _DEBUG

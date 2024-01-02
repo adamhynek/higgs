@@ -518,6 +518,7 @@ HitEventHandler hitEventHandler;
 std::unordered_map<UInt32, int> g_ignoredCollisionGroups{};
 std::mutex g_ignoredCollisionGroupsLock{};
 
+
 void LateMainThreadUpdate()
 {
     g_rightHand->LateMainThreadUpdate();
@@ -528,7 +529,7 @@ void PlayerPostApplyMovementDeltaUpdate()
 {
     // Clear out old ignored collision groups.
     // We do this here because this is the same thread that will be doing the character controller integrate() calls that will be using the ignored collision groups.
-    if (Config::options.cleanupIgnoredCollisionGroups) {
+    if (Config::options.cleanupIgnoredCollisionGroups && g_ignoredCollisionGroups.size() > 0) { // quick check without locking first
         std::scoped_lock lock(g_ignoredCollisionGroupsLock);
 
         for (auto it = g_ignoredCollisionGroups.begin(); it != g_ignoredCollisionGroups.end();) {
@@ -542,62 +543,43 @@ void PlayerPostApplyMovementDeltaUpdate()
     }
 }
 
-using CollisionFilterComparisonResult = HiggsPluginAPI::IHiggsInterface001::CollisionFilterComparisonResult;
-CollisionFilterComparisonResult CollisionFilterComparisonCallback(void *filter, UInt32 filterInfoA, UInt32 filterInfoB)
+
+void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
 {
-    UInt32 layerA = filterInfoA & 0x7f;
-    UInt32 layerB = filterInfoB & 0x7f;
+    UInt32 playerCollisionGroup = g_rightHand->playerCollisionGroup;
 
-    if (layerA != BGSCollisionLayer::kCollisionLayer_CharController && layerB != BGSCollisionLayer::kCollisionLayer_CharController) {
-        // Neither collidee is a character controller
-        return CollisionFilterComparisonResult::Continue;
-    }
+    for (int i = 0; i < collector->getNumHits(); i++) {
+        hkpRootCdPoint &hit = collector->getHits()[i];
+        UInt32 collisionGroupA = hit.m_rootCollidableA->getCollisionFilterInfo() >> 16;
+        UInt32 collisionGroupB = hit.m_rootCollidableB->getCollisionFilterInfo() >> 16;
 
-    if (layerA == BGSCollisionLayer::kCollisionLayer_CharController && layerB == BGSCollisionLayer::kCollisionLayer_CharController) {
-        // Both collidees are character controllers
-        return CollisionFilterComparisonResult::Continue;
-    }
+        UInt32 otherGroup = collisionGroupA == playerCollisionGroup ? collisionGroupB : collisionGroupA;
 
-    // One of the collidees is a character controller
-
-    UInt32 charControllerFilter = layerA == BGSCollisionLayer::kCollisionLayer_CharController ? filterInfoA : filterInfoB;
-    UInt16 group = charControllerFilter >> 16;
-    if (group != g_rightHand->playerCollisionGroup) {
-        // It's not the player
-        return CollisionFilterComparisonResult::Continue;
-    }
-
-    // The character controller belongs to the player
-
-    UInt32 otherFilter = charControllerFilter == filterInfoA ? filterInfoB : filterInfoA;
-    UInt32 otherLayer = otherFilter & 0x7f;
-    UInt16 otherGroup = otherFilter >> 16;
-
-    if (otherGroup != g_rightHand->playerCollisionGroup) {
-        // Ignore objects that we're holding or pulling
         if (g_rightHand->ShouldIgnoreCollisionGroup(otherGroup) || g_leftHand->ShouldIgnoreCollisionGroup(otherGroup)) {
             std::scoped_lock lock(g_ignoredCollisionGroupsLock);
 
             g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
-            return CollisionFilterComparisonResult::Ignore;
+
+            // remove the hit by moving the last hit into its place
+            collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+            collector->getHits().m_size -= 1;
+            i -= 1;
         }
         else {
             std::scoped_lock lock(g_ignoredCollisionGroupsLock);
 
-            auto it = g_ignoredCollisionGroups.find(otherGroup);
-            if (it != g_ignoredCollisionGroups.end()) {
-                if (*g_currentFrameCounter - it->second <= 1) {
-                    // We were ignoring this group last frame, so continue ignoring it. 
-                    // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
-                    g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
-                    return CollisionFilterComparisonResult::Ignore;
-                }
+            if (auto it = g_ignoredCollisionGroups.find(otherGroup); it != g_ignoredCollisionGroups.end() && *g_currentFrameCounter - it->second <= 1) {
+                // We were ignoring this group last frame, so continue ignoring it. 
+                // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
+                it->second = *g_currentFrameCounter;
+
+                // remove the hit by moving the last hit into its place
+                collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                collector->getHits().m_size -= 1;
+                i -= 1;
             }
         }
-        return CollisionFilterComparisonResult::Continue;
     }
-
-    return CollisionFilterComparisonResult::Continue;
 }
 
 
@@ -791,8 +773,6 @@ extern "C" {
                 OnDataLoaded();
             }
             else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
-                g_interface001.AddCollisionFilterComparisonCallback(CollisionFilterComparisonCallback);
-
                 // Register our own mod api listener
                 g_messaging->RegisterListener(g_pluginHandle, nullptr, HiggsPluginAPI::ModMessageHandler);
             }
