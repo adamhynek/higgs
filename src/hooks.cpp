@@ -699,6 +699,30 @@ void hkpCachingShapePhantom_setPositionAndLinearCast_Hook(hkpShapePhantom *phant
     }
 }
 
+auto bhkLinearCaster_linearCast_hkpWorld_linearCast_HookLoc = RelocPtr<uintptr_t>(0x3AFD84);
+_hkpWorld_LinearCast g_original_bhkLinearCaster_linearCast_hkpWorld_linearCast = nullptr;
+void bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook(hkpWorld *world, const hkpCollidable *collA, const hkpLinearCastInput *input, hkpCdPointCollector *castCollector, hkpCdPointCollector *startCollector)
+{
+    g_original_bhkLinearCaster_linearCast_hkpWorld_linearCast(world, collA, input, castCollector, startCollector);
+
+    if (collA->getCollisionFilterInfo() >> 16 != g_rightHand->playerCollisionGroup) {
+        // If it's the player, we don't care
+        return;
+    }
+
+    if (castCollector) {
+        if (hkpAllCdPointCollector *castCollectorAll = DYNAMIC_CAST(castCollector, hkpCdPointCollector, hkpAllCdPointCollector)) {
+            ProcessPlayerProxyCastCollector(castCollectorAll);
+        }
+    }
+
+    if (startCollector) {
+        if (hkpAllCdPointCollector *startCollectorAll = DYNAMIC_CAST(startCollector, hkpCdPointCollector, hkpAllCdPointCollector)) {
+            ProcessPlayerProxyCastCollector(startCollectorAll);
+        }
+    }
+}
+
 
 #ifdef _DEBUG
 
@@ -1378,6 +1402,12 @@ void PerformHooks(void)
         std::uintptr_t originalFunc = Write5Call(Actor_ApplyMovementDelta_HookLoc.GetUIntPtr(), uintptr_t(Actor_ApplyMovementDelta_Hook));
         Actor_ApplyMovementDelta_Original = (_Actor_ApplyMovementDelta)originalFunc;
         _MESSAGE("Actor::ApplyMovementDelta hook complete");
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(bhkLinearCaster_linearCast_hkpWorld_linearCast_HookLoc.GetUIntPtr(), uintptr_t(bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook));
+        g_original_bhkLinearCaster_linearCast_hkpWorld_linearCast = (_hkpWorld_LinearCast)originalFunc;
+        _MESSAGE("bhkLinearCaster::linearCast hkpWorld::linearCast hook complete");
     }
 
     {
