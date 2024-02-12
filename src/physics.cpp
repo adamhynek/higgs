@@ -484,6 +484,17 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
 
     if (!isAHiggs && !isBHiggs) return; // Neither body is a higgs body, so we don't care about this collision
 
+    bool isAHeld = IsHeldRigidBody(rigidBodyA);
+    bool isBHeld = IsHeldRigidBody(rigidBodyB);
+    if ((isAHeld && !isBHiggs) || (isBHeld && !isAHiggs)) {
+        hkpRigidBody *nonHeldBody = isAHeld ? rigidBodyB : rigidBodyA;
+        UInt32 collisionGroup = nonHeldBody->getCollisionFilterInfo() >> 16;
+        if (collisionGroup == g_rightHand->playerCollisionGroup) {
+            evnt.m_contactPointProperties->m_flags |= hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED;
+            return;
+        }
+    }
+
     HandleIgnoredContact(evnt);
     if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
         return;

@@ -706,7 +706,7 @@ void bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook(hkpWorld *world, const 
     g_original_bhkLinearCaster_linearCast_hkpWorld_linearCast(world, collA, input, castCollector, startCollector);
 
     if (collA->getCollisionFilterInfo() >> 16 != g_rightHand->playerCollisionGroup) {
-        // If it's the player, we don't care
+        // If it's not the player, we don't care
         return;
     }
 
