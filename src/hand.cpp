@@ -689,6 +689,15 @@ void Hand::UpdateHandCollision(bhkWorld *world)
     handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
     // Put our hand collision where we want it
+
+    // First, apply the player pos delta before we apply velocity
+    bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation;
+    if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
+        NiPoint3 currentHandPos = HkVectorToNiPoint(handBody->hkBody->getPosition());
+        NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * *g_havokWorldScale);
+        bhkEntity_setPositionAndRotation(handBody, NiPointToHkVector(newHandPos), handBody->hkBody->getRotation());
+    }
+
     hkTransform transform = ComputeHandCollisionTransform(isBeast);
     hkQuaternion desiredQuat;
     desiredQuat.setFromRotationSimd(transform.m_rotation);
@@ -862,6 +871,13 @@ void Hand::UpdateWeaponCollision()
     // Set collision group for the weapon collision every frame. The player collision changes sometimes, e.g. when getting on/off a horse
     weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
     weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
+
+    bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation;
+    if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
+        NiPoint3 currentHandPos = HkVectorToNiPoint(weaponBody->hkBody->getPosition());
+        NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * *g_havokWorldScale);
+        bhkEntity_setPositionAndRotation(weaponBody, NiPointToHkVector(newHandPos), weaponBody->hkBody->getRotation());
+    }
 
     hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
 
@@ -2245,6 +2261,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
     if (isSneaking != wasSneaking) {
         sneakUnsneakTime = g_currentFrameTime;
     }
+
+    playerDeltaPos = player->pos - prevPlayerPosWorldspace;
 
 
     //if (!isLeft) {
@@ -3733,7 +3751,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation;
 
                 // If the player is moving, add the player's change in position to the object's position
-                NiPoint3 playerDeltaPos = player->pos - prevPlayerPosWorldspace;
                 if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
                     if (selectedObject.isActor) {
                         // Set object position
@@ -3826,11 +3843,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             }*/
                         }
                     }
-
-                    // Set hand position too
-                    NiPoint3 currentHandPos = HkVectorToNiPoint(handBody->hkBody->getPosition());
-                    NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * havokWorldScale);
-                    bhkEntity_setPositionAndRotation(handBody, NiPointToHkVector(newHandPos), handBody->hkBody->getRotation());
                 }
 
                 // Update the hand to match the object
