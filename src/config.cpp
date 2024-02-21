@@ -486,6 +486,8 @@ namespace Config {
 
         if (!RegisterBool("dontAnimateFingersWhenBeast", options.dontAnimateFingersWhenBeast)) success = false;
 
+        if (!RegisterBool("doContainerPhysics", options.doContainerPhysics)) success = false;
+
         if (!RegisterBool("enableHiggsGrabNodes", options.enableHiggsGrabNodes)) success = false;
         if (!RegisterBool("printHiggsGrabNodeInfo", options.printHiggsGrabNodeInfo)) success = false;
 

@@ -280,6 +280,8 @@ namespace Config {
 
         bool dontAnimateFingersWhenBeast = true;
 
+        bool doContainerPhysics = true;
+
         bool enableHiggsGrabNodes = true;
         bool printHiggsGrabNodeInfo = true;
 

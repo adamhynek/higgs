@@ -1635,6 +1635,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
             motion->m_inertiaAndMassInv = NiPointToHkVector(invInertia, motion->m_inertiaAndMassInv(3));
         }
+
+        prevContainedBodies.clear();
     }
     else {
         selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -3793,21 +3795,29 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 playerPositionUpdatedRigidBodies.insert(connectedBody);
                             }
 
-                            /*{
+                            if (Config::options.doContainerPhysics) {
+                                // TODO:
+                                // - Figure out why objects moved this way still rotate
+                                //  - This is somewhat mitigated by setting angular damping, but this is hacky
+                                //  - It's worse than just rotating, they will straight up rotate and phase through the bottom of the container
+                                //  - Could try enforcing a minimum inertia like we do for grabbed objects
+                                //  - Should probably hook the havok addTorque function or whatever that the solver uses and see why it is applying rotation (and only rotation, not translation)
+                                //  - An idea: We could try applying the player velocity to the held object + contained objects instead of applying the position delta
+                                //   - Combine this with updating the VISUALS of those objects with the position, but the physics objects would have velocity applied
+                                //   - This would be kind of like how keyframed objects work, where the node is updated with the new position and the physics object is updated with a velocity of (newPos - oldPos) / dt
+                                //    - We would differ though by ADDING position / velocity instead of SETTING it
+                                // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
+                                //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
+
                                 BSWriteLocker lock(&world->worldLock);
 
-                                static std::unordered_set<bhkRigidBody *> containedBodies;
+                                static std::set<NiPointer<bhkRigidBody>> containedBodies;
                                 containedBodies.clear();
 
                                 static CdPointCollector collector;
                                 collector.reset();
                                 hkpWorld_GetClosestPoints(world->world, selectedObject.collidable, world->world->getCollisionInput(), &collector);
                                 for (auto &pair : collector.m_hits) {
-                                    hkContactPoint &contactPoint = pair.second;
-                                    if (contactPoint.getDistance() > 0.05f) {
-                                        continue;
-                                    }
-
                                     hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
                                     hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
                                     if (!rigidBody || !rigidBody->m_userData) {
@@ -3824,6 +3834,44 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     containedBodies.insert(wrapper);
                                 }
 
+                                {
+                                    std::vector<NiPointer<bhkRigidBody>> containedBodiesEntered, containedBodiesExited;
+                                    std::set_difference(containedBodies.begin(), containedBodies.end(), prevContainedBodies.begin(), prevContainedBodies.end(), std::inserter(containedBodiesEntered, containedBodiesEntered.begin()));
+                                    std::set_difference(prevContainedBodies.begin(), prevContainedBodies.end(), containedBodies.begin(), containedBodies.end(), std::inserter(containedBodiesExited, containedBodiesExited.begin()));
+
+                                    prevContainedBodies = containedBodies;
+
+                                    for (bhkRigidBody *rigidBody : containedBodiesEntered) {
+                                        if (!rigidBody->hkBody->isAddedToWorld()) {
+                                            continue;
+                                        }
+
+                                        // Subtract the player velocity when the object enters the container
+                                        if (!other.playerPositionUpdatedRigidBodies.count(rigidBody) && !playerPositionUpdatedRigidBodies.count(rigidBody)) {
+                                            NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
+
+                                            bhkRigidBody_setActivated(rigidBody, true);
+                                            NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
+                                            rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity - velocityPlayerComponent);
+                                        }
+                                    }
+
+                                    for (bhkRigidBody *rigidBody : containedBodiesExited) {
+                                        if (!rigidBody->hkBody->isAddedToWorld()) {
+                                            continue;
+                                        }
+
+                                        // Add the player velocity when the object leaves the container
+                                        if (!other.playerPositionUpdatedRigidBodies.count(rigidBody) && !playerPositionUpdatedRigidBodies.count(rigidBody)) {
+                                            NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
+
+                                            bhkRigidBody_setActivated(rigidBody, true);
+                                            NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
+                                            rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
+                                        }
+                                    }
+                                }
+
                                 for (bhkRigidBody *body : containedBodies) {
                                     if (other.playerPositionUpdatedRigidBodies.count(body) || playerPositionUpdatedRigidBodies.count(body)) {
                                         continue;
@@ -3833,6 +3881,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
                                     bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation());
 
+                                    //body->hkBody->setAngularDamping(Config::options.pulledAngularDamping);
+
                                     if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
                                         NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
                                         NiAVObject_UpdateNode(node, &ctx);
@@ -3840,7 +3890,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                                     playerPositionUpdatedRigidBodies.insert(body);
                                 }
-                            }*/
+                            }
                         }
                     }
                 }

@@ -317,6 +317,7 @@ struct Hand
 
     std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
     std::unordered_set<const bhkRigidBody *> playerPositionUpdatedRigidBodies{};
+    std::set<NiPointer<bhkRigidBody>> prevContainedBodies{};
 
     std::deque<float> handDeviations{ 5, 0.f };
     bool isSneaking = false;
