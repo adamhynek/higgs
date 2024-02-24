@@ -462,7 +462,7 @@ void PhysicsListener::HandleIgnoredContact(const hkpContactPointEvent &evnt)
     // Only need to check one direction, since we add both directions to the map
     auto it = ignoreContactPointData.find(evnt.m_bodies[0]);
     if (it != ignoreContactPointData.end()) {
-        if (g_currentFrameTime - it->second.startTime < it->second.ignoreTime) {
+        if (it->second.body == evnt.m_bodies[1] && g_currentFrameTime - it->second.startTime < it->second.ignoreTime) {
             evnt.m_contactPointProperties->m_flags |= hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED;
             return;
         }
