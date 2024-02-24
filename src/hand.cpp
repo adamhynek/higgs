@@ -30,6 +30,7 @@
 #include <Physics/Collide/Query/CastUtil/hkpWorldRayCastInput.h>
 #include <Physics/Collide/Agent3/Machine/Nn/hkpLinkedCollidable.h>
 #include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
+#include <Physics/Dynamics/World/Simulation/hkpSimulation.h>
 
 
 int isHeadBobbingSavedCount = 0;
@@ -3907,6 +3908,18 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                                     playerPositionUpdatedRigidBodies.insert(body);
                                 }
+
+                                // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
+                                // TODO: Potentially we could just do narrow phase here, collideEntitiesDiscrete() does both broad and narrow phase (and broadphase should already be handled by setPositionAndRotation().
+                                // TODO: We may have to do this after both hands have updated, so perhaps move this to PostUpdate()
+                                // TODO: Bringing a held object from the right hand towards a container in the left hand causes objects contained in the container to freak out. Only happens for that hand order.
+                                // TODO: Letting go of an object while in the container still causes it to fly forwards, but only for the left hand (right hand seems fine other than falling through the container).
+                                // TODO: Should we include the container itself in this as well? Right now it's just the contained bodies
+                                std::vector<hkpEntity *> containedHavokBodies;
+                                for (bhkRigidBody *body : containedBodies) {
+                                    containedHavokBodies.push_back(body->hkBody);
+                                }
+                                world->world->m_simulation->collideEntitiesDiscrete(containedHavokBodies.data(), containedHavokBodies.size(), world->world, world->world->m_dynamicsStepInfo.m_stepInfo, hkpSimulation::FindContacts::FIND_CONTACTS_DEFAULT);
                             }
                         }
                     }
