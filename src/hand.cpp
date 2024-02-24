@@ -595,6 +595,8 @@ void Hand::CreateHandCollision(bhkWorld *world)
     UInt8 ragdollBits = (UInt8)(isLeft ? CollisionInfo::RagdollLayer::LeftHand : CollisionInfo::RagdollLayer::RightHand);
     filterInfo |= (ragdollBits << 8);
 
+    filterInfo |= (1 << 14); // Initially, turn collision off - we turn it on in the Update() if needed but don't spawn it in enabled
+
     cInfo.collisionFilterInfo = filterInfo;
     cInfo.hkCinfo.m_collisionFilterInfo = filterInfo;
     cInfo.shape = handShape->shape;
@@ -623,6 +625,7 @@ void Hand::CreateHandCollision(bhkWorld *world)
         handBody = handRigidBody;
         handCollidable = handBody->hkBody->getCollidableRw();
         wasBeastWhenHandCollisionCreated = isBeast;
+        handCollisionCreatedTime = g_currentFrameTime;
     }
 }
 
@@ -677,10 +680,12 @@ void Hand::UpdateHandCollision(bhkWorld *world)
         }
     }
     else {
-        handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
-        if (wasCollisionDisabled) {
-            BSWriteLocker lock(&world->worldLock);
-            hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+        if (g_currentFrameTime - handCollisionCreatedTime > Config::options.handWeaponCollisionEnableDelay) {
+            handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+            if (wasCollisionDisabled) {
+                BSWriteLocker lock(&world->worldLock);
+                hkpWorld_UpdateCollisionFilterOnEntity(world->world, handCollBody, HK_UPDATE_FILTER_ON_ENTITY_FULL_CHECK, HK_UPDATE_COLLECTION_FILTER_PROCESS_SHAPE_COLLECTIONS);
+            }
         }
     }
 
@@ -774,6 +779,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
         clonedFromWeaponShape = shapeWrapper;
         weaponBody = clonedBody;
         weaponCollidable = weaponBody->hkBody->getCollidableRw();
+        weaponCollisionCreatedTime = g_currentFrameTime;
     }
 }
 
@@ -862,9 +868,11 @@ void Hand::UpdateWeaponCollision()
         }
     }
     else {
-        if (wasCollisionDisabled) {
-            weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
-            bhkWorldObject_UpdateCollisionFilter(weaponBody);
+        if (g_currentFrameTime - weaponCollisionCreatedTime > Config::options.handWeaponCollisionEnableDelay) {
+            if (wasCollisionDisabled) {
+                weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= ~(1 << 14);
+                bhkWorldObject_UpdateCollisionFilter(weaponBody);
+            }
         }
     }
 
@@ -3811,6 +3819,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 //    - We would differ though by ADDING position / velocity instead of SETTING it
                                 // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
                                 //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
+
+                                // TODO: Perhaps worry about bhkRigidBodyT when doing setPositionAndRotation()
 
                                 // TODO: Even though we fixed the velocity when dropping from the other hand into the container, it does fall through the bottom of the container of we drop it close to the bottom.
                                 //        - It could be because the positions of the rigidbodies are actually a bit offset while we are moving or something?

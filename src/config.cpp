@@ -442,6 +442,7 @@ namespace Config {
         if (!RegisterFloat("physicsGrabLerpHandMaxDistance", options.physicsGrabLerpHandMaxDistance)) success = false;
 
         if (!RegisterDouble("sneakUnsneakIgnoreHandDistanceTime", options.sneakUnsneakIgnoreHandDistanceTime)) success = false;
+        if (!RegisterDouble("handWeaponCollisionEnableDelay", options.handWeaponCollisionEnableDelay)) success = false;
 
         if (!RegisterBool("enableTwoHandedGrabbing", options.enableTwoHandedGrabbing)) success = false;
 

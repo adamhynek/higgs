@@ -233,6 +233,7 @@ namespace Config {
         float physicsGrabLerpHandMaxDistance = 0.2f;
 
         double sneakUnsneakIgnoreHandDistanceTime = 0.1;
+        double handWeaponCollisionEnableDelay = 0.1;
 
         bool enableTwoHandedGrabbing = true;
 

@@ -250,11 +250,13 @@ struct Hand
 
     NiPointer<bhkRigidBody> handBody = nullptr;
     hkpCollidable *handCollidable = nullptr; // read only
+    double handCollisionCreatedTime = 0.0;
     bool wasBeastWhenHandCollisionCreated = false;
 
     NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
     hkpCollidable *weaponCollidable = nullptr; // read only
     const bhkShape *clonedFromWeaponShape = nullptr; // the shape of the collision object we cloned to create ours
+    double weaponCollisionCreatedTime = 0.0;
     float weaponBodyHandSize = 1.f;
 
     const bool isLeft = false;
