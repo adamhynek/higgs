@@ -132,6 +132,7 @@ RelocAddr<_hkpPositionConstraintMotor_ctor> hkpPositionConstraintMotor_ctor(0xAD
 RelocAddr<_bhkPositionConstraintMotor_ctor> bhkPositionConstraintMotor_ctor(0xE7A610);
 RelocAddr<_bhkCollisionObject_GetRigidBody> bhkCollisionObject_GetRigidBody(0x152EE0);
 RelocAddr<_hkpConvexVerticesShape_getOriginalVertices> hkpConvexVerticesShape_getOriginalVertices(0xB98F70);
+RelocAddr<_hkpWorld_reintegrateAndRecollideEntities> hkpWorld_reintegrateAndRecollideEntities(0xAB4040);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);

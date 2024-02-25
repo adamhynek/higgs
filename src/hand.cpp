@@ -699,9 +699,8 @@ void Hand::UpdateHandCollision(bhkWorld *world)
     // First, apply the player pos delta before we apply velocity
     bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation;
     if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
-        NiPoint3 currentHandPos = HkVectorToNiPoint(handBody->hkBody->getPosition());
-        NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * *g_havokWorldScale);
-        bhkEntity_setPositionAndRotation(handBody, NiPointToHkVector(newHandPos), handBody->hkBody->getRotation());
+        ApplyPlayerDeltaPos(handBody, playerDeltaPos);
+        g_playerSpaceBodies.insert(handBody);
     }
 
     hkTransform transform = ComputeHandCollisionTransform(isBeast);
@@ -883,9 +882,8 @@ void Hand::UpdateWeaponCollision()
 
     bool doPlayerMovementCompensation = Config::options.doPhysicsGrabPlayerMovementCompensation;
     if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
-        NiPoint3 currentHandPos = HkVectorToNiPoint(weaponBody->hkBody->getPosition());
-        NiPoint3 newHandPos = currentHandPos + (playerDeltaPos * *g_havokWorldScale);
-        bhkEntity_setPositionAndRotation(weaponBody, NiPointToHkVector(newHandPos), weaponBody->hkBody->getRotation());
+        ApplyPlayerDeltaPos(weaponBody, playerDeltaPos);
+        g_playerSpaceBodies.insert(weaponBody);
     }
 
     hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
@@ -1644,8 +1642,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
             motion->m_inertiaAndMassInv = NiPointToHkVector(invInertia, motion->m_inertiaAndMassInv(3));
         }
-
-        prevContainedBodies.clear();
     }
     else {
         selectedObject.savedMotionType = selectedObject.rigidBody->hkBody->m_motion.m_type;
@@ -2954,27 +2950,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             if (VectorLength(velocityObjectComponent) > Config::options.throwVelocityThreshold) {
                                 velocityObjectComponent *= Config::options.throwVelocityBoostFactor;
                             }
-                            selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityObjectComponent);
 
-                            if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
-                                // Add the player's velocity to all held objects
-                                if (selectedObject.isActor) {
-                                    if (!other.playerPositionUpdatedRigidBodies.count(selectedObject.rigidBody)) {
-                                        bhkRigidBody_setActivated(selectedObject.rigidBody, true);
-                                        NiPoint3 currentVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getLinearVelocity());
-                                        selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
-                                    }
-                                }
-                                else {
-                                    for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
-                                        if (!other.playerPositionUpdatedRigidBodies.count(connectedBody)) {
-                                            bhkRigidBody_setActivated(connectedBody, true);
-                                            NiPoint3 currentVelocity = HkVectorToNiPoint(connectedBody->hkBody->getLinearVelocity());
-                                            connectedBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
-                                        }
-                                    }
-                                }
-                            }
+                            bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+                            selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityObjectComponent);
 
                             if (grabConstraint) {
                                 grabConstraint->RemoveFromCurrentWorld();
@@ -3768,14 +3746,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 // If the player is moving, add the player's change in position to the object's position
                 if (doPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
                     if (selectedObject.isActor) {
-                        // Set object position
-                        NiPoint3 currentPos = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getPosition());
-                        NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
-                        bhkEntity_setPositionAndRotation(selectedObject.rigidBody, NiPointToHkVector(newPos), selectedObject.rigidBody->hkBody->getRotation());
-
-                        // Make sure node transform is up to date with latest collision now that we've updated it
-                        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                        NiAVObject_UpdateNode(collidableNode, &ctx);
+                        ApplyPlayerDeltaPos(selectedObject.rigidBody, playerDeltaPos);
+                        g_playerSpaceBodies.insert(selectedObject.rigidBody);
                     }
                     else {
                         if (NiPointer<NiAVObject> objRoot = selectedObj->GetNiNode()) {
@@ -3791,21 +3763,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             }
 
                             for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                                if (other.playerPositionUpdatedRigidBodies.count(connectedBody)) {
-                                    // We don't want to do this twice if both hands are holding the same connected component...
-                                    continue;
-                                }
-
-                                NiPoint3 currentPos = HkVectorToNiPoint(connectedBody->hkBody->getPosition());
-                                NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
-                                bhkEntity_setPositionAndRotation(connectedBody, NiPointToHkVector(newPos), connectedBody->hkBody->getRotation());
-
-                                if (NiPointer<NiAVObject> node = GetNodeFromCollidable(connectedBody->hkBody->getCollidable())) {
-                                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                                    NiAVObject_UpdateNode(node, &ctx);
-                                }
-
-                                playerPositionUpdatedRigidBodies.insert(connectedBody);
+                                ApplyPlayerDeltaPos(connectedBody, playerDeltaPos);
+                                g_playerSpaceBodies.insert(connectedBody);
                             }
 
                             if (Config::options.doContainerPhysics) {
@@ -3823,14 +3782,14 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                                 // TODO: Perhaps worry about bhkRigidBodyT when doing setPositionAndRotation()
 
+                                // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?
+
                                 // TODO: Even though we fixed the velocity when dropping from the other hand into the container, it does fall through the bottom of the container of we drop it close to the bottom.
                                 //        - It could be because the positions of the rigidbodies are actually a bit offset while we are moving or something?
                                 //        - I do still feel haptics when it falls through so, so it does appear to be colliding. But it does not stop the object from moving downwards through the container for some reason.
+                                //        - This appears to be due to DisableContactsTemporarily() for some reason
 
-                                BSWriteLocker lock(&world->worldLock);
-
-                                static std::set<NiPointer<bhkRigidBody>> containedBodies;
-                                containedBodies.clear();
+                                BSWriteLocker lock(&world->worldLock); // Need a write lock here because we are setting positions of objects and would deadlock with a read lock only
 
                                 static CdPointCollector collector;
                                 collector.reset();
@@ -3849,77 +3808,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
                                     if (!wrapper) continue;
 
-                                    containedBodies.insert(wrapper);
+                                    ApplyPlayerDeltaPos(wrapper, playerDeltaPos);
+                                    g_playerSpaceBodies.insert(wrapper);
                                 }
-
-                                {
-                                    std::vector<NiPointer<bhkRigidBody>> containedBodiesEntered, containedBodiesExited;
-                                    std::set_difference(containedBodies.begin(), containedBodies.end(), prevContainedBodies.begin(), prevContainedBodies.end(), std::inserter(containedBodiesEntered, containedBodiesEntered.begin()));
-                                    std::set_difference(prevContainedBodies.begin(), prevContainedBodies.end(), containedBodies.begin(), containedBodies.end(), std::inserter(containedBodiesExited, containedBodiesExited.begin()));
-
-                                    prevContainedBodies = containedBodies;
-
-                                    for (bhkRigidBody *rigidBody : containedBodiesEntered) {
-                                        if (!rigidBody->hkBody->isAddedToWorld()) {
-                                            continue;
-                                        }
-
-                                        // Subtract the player velocity when the object enters the container
-                                        if (!other.playerPositionUpdatedRigidBodies.count(rigidBody) && !playerPositionUpdatedRigidBodies.count(rigidBody)) {
-                                            NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
-
-                                            bhkRigidBody_setActivated(rigidBody, true);
-                                            NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
-                                            rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity - velocityPlayerComponent);
-                                        }
-                                    }
-
-                                    for (bhkRigidBody *rigidBody : containedBodiesExited) {
-                                        if (!rigidBody->hkBody->isAddedToWorld()) {
-                                            continue;
-                                        }
-
-                                        // Add the player velocity when the object leaves the container
-                                        if (!other.playerPositionUpdatedRigidBodies.count(rigidBody) && !playerPositionUpdatedRigidBodies.count(rigidBody)) {
-                                            NiPoint3 velocityPlayerComponent = avgPlayerVelocityWorldspace * havokWorldScale;
-
-                                            bhkRigidBody_setActivated(rigidBody, true);
-                                            NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
-                                            rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + velocityPlayerComponent);
-                                        }
-                                    }
-                                }
-
-                                for (bhkRigidBody *body : containedBodies) {
-                                    if (other.playerPositionUpdatedRigidBodies.count(body) || playerPositionUpdatedRigidBodies.count(body)) {
-                                        continue;
-                                    }
-
-                                    NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
-                                    NiPoint3 newPos = currentPos + (playerDeltaPos * havokWorldScale);
-                                    bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation());
-
-                                    //body->hkBody->setAngularDamping(Config::options.pulledAngularDamping);
-
-                                    if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
-                                        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                                        NiAVObject_UpdateNode(node, &ctx);
-                                    }
-
-                                    playerPositionUpdatedRigidBodies.insert(body);
-                                }
-
-                                // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
-                                // TODO: Potentially we could just do narrow phase here, collideEntitiesDiscrete() does both broad and narrow phase (and broadphase should already be handled by setPositionAndRotation().
-                                // TODO: We may have to do this after both hands have updated, so perhaps move this to PostUpdate()
-                                // TODO: Bringing a held object from the right hand towards a container in the left hand causes objects contained in the container to freak out. Only happens for that hand order.
-                                // TODO: Letting go of an object while in the container still causes it to fly forwards, but only for the left hand (right hand seems fine other than falling through the container).
-                                // TODO: Should we include the container itself in this as well? Right now it's just the contained bodies
-                                std::vector<hkpEntity *> containedHavokBodies;
-                                for (bhkRigidBody *body : containedBodies) {
-                                    containedHavokBodies.push_back(body->hkBody);
-                                }
-                                world->world->m_simulation->collideEntitiesDiscrete(containedHavokBodies.data(), containedHavokBodies.size(), world->world, world->world->m_dynamicsStepInfo.m_stepInfo, hkpSimulation::FindContacts::FIND_CONTACTS_DEFAULT);
                             }
                         }
                     }
@@ -4111,8 +4002,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
 void Hand::PostUpdate(Hand &other, bhkWorld *world)
 {
-    playerPositionUpdatedRigidBodies.clear();
-
     PlayerCharacter *player = *g_thePlayer;
     if (!player->GetNiNode()) return;
 

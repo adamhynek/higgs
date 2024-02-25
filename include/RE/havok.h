@@ -173,7 +173,7 @@ struct bhkRigidBody : bhkEntity
     virtual hkVector4 & getRotation(hkQuaternion &rotation); // 34
     virtual void setPosition(hkVector4 &position); // 35
     virtual void setRotation(hkQuaternion &rotation); // 36
-    virtual void setPositionAndRotation(hkVector4 &pos, hkQuaternion &rot); // 37
+    virtual void setPositionAndRotation(const hkVector4 &pos, const hkQuaternion &rot); // 37
     virtual hkVector4 & getCenterOfMassLocal(hkVector4 &centerOfMassLocal); // 38
     virtual hkVector4 & getCenterOfMassInWorld(hkVector4 &centerOfMassWorld); // 39
     virtual hkTransform & getTransform(hkTransform &transform); // 3A

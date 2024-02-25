@@ -23,3 +23,7 @@ extern bool g_isActivateBoundToGrip;
 extern int g_savedShadowUpdateFrameDelay;
 extern int g_shadowUpdateFrame;
 extern int g_numShadowUpdates;
+
+extern std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies;
+void ApplyPlayerDeltaPos(bhkRigidBody *body, const NiPoint3 &playerDeltaPos);
+

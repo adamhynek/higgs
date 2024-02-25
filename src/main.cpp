@@ -268,6 +268,91 @@ void UpdateSpeedReduction()
     }
 }
 
+
+std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
+std::set<NiPointer<bhkRigidBody>> g_prevPlayerSpaceBodies{};
+
+std::unordered_set<bhkRigidBody *> g_thisFrameDeltaPosUpdatedBodies{};
+
+void ApplyPlayerDeltaPos(bhkRigidBody *body, const NiPoint3 &playerDeltaPos)
+{
+    if (g_thisFrameDeltaPosUpdatedBodies.contains(body)) return;
+
+    g_thisFrameDeltaPosUpdatedBodies.insert(body);
+
+    NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
+    NiPoint3 newPos = currentPos + (playerDeltaPos * *g_havokWorldScale);
+    bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation()); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
+
+    if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
+        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+        NiAVObject_UpdateNode(node, &ctx);
+    }
+}
+
+void SimulatePlayerSpace(bhkWorld *world)
+{
+    float havokWorldScale = *g_havokWorldScale;
+    NiPoint3 playerDeltaPos = g_rightHand->playerDeltaPos; // TODO: Don't use right hand's data for these, probably keep track of it ourselves here
+    NiPoint3 playerVelocity = g_rightHand->avgPlayerVelocityWorldspace * havokWorldScale;
+
+    if (VectorLength(playerDeltaPos) > 0.f) {
+        BSWriteLocker lock(&world->worldLock);
+
+        // There is potential for a body to be removed from the world between frames, or between being added to g_playerSpaceBodies and this call.
+        std::erase_if(g_playerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
+            return !body->hkBody->isAddedToWorld();
+        });
+        std::erase_if(g_prevPlayerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
+            return !body->hkBody->isAddedToWorld();
+        });
+
+        {
+            std::vector<NiPointer<bhkRigidBody>> bodiesEntered, bodiesExited;
+            std::set_difference(g_playerSpaceBodies.begin(), g_playerSpaceBodies.end(), g_prevPlayerSpaceBodies.begin(), g_prevPlayerSpaceBodies.end(), std::inserter(bodiesEntered, bodiesEntered.begin()));
+            std::set_difference(g_prevPlayerSpaceBodies.begin(), g_prevPlayerSpaceBodies.end(), g_playerSpaceBodies.begin(), g_playerSpaceBodies.end(), std::inserter(bodiesExited, bodiesExited.begin()));
+
+            for (bhkRigidBody *rigidBody : bodiesEntered) {
+                // Subtract the player velocity when the object enters the container
+                bhkRigidBody_setActivated(rigidBody, true);
+                NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
+                rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity - playerVelocity);
+            }
+
+            for (bhkRigidBody *rigidBody : bodiesExited) {
+                // Add the player velocity when the object leaves the container
+                bhkRigidBody_setActivated(rigidBody, true);
+                NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
+                rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + playerVelocity);
+            }
+        }
+
+        //for (bhkRigidBody *body : g_playerSpaceBodies) {
+        //    ApplyPlayerDeltaPos(body, playerDeltaPos);
+        //}
+
+        // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
+        // TODO: Potentially we could just do narrow phase here, collideEntitiesDiscrete() does both broad and narrow phase (and broadphase should already be handled by setPositionAndRotation().
+        // TODO: We may have to do this after both hands have updated, so perhaps move this to PostUpdate()
+        // TODO: Bringing a held object from the right hand towards a container in the left hand causes objects contained in the container to freak out. Only happens for that hand order.
+        // TODO: Letting go of an object while in the container still causes it to fly forwards, but only for the left hand (right hand seems fine other than falling through the container).
+        // TODO: Should we include the container itself in this as well? Right now it's just the contained bodies
+        // TODO: The hands and weapons are a frame behind the held objects (I guess because they move through keyframes?) It would be nice to have them all synchronized somehow.
+        std::vector<hkpEntity *> recollideBodies;
+        for (bhkRigidBody *body : g_playerSpaceBodies) {
+            recollideBodies.push_back(body->hkBody);
+        }
+        hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_RECOLLIDE_NARROWPHASE);
+        //hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_ALL);
+    }
+
+    g_prevPlayerSpaceBodies = g_playerSpaceBodies; // copy
+    g_playerSpaceBodies.clear();
+
+    g_thisFrameDeltaPosUpdatedBodies.clear();
+}
+
+
 void Update()
 {
     UpdateShadowDelay();
@@ -376,6 +461,9 @@ void Update()
 
     firstHandToUpdate->PostUpdate(*lastHandToUpdate, world);
     lastHandToUpdate->PostUpdate(*firstHandToUpdate, world);
+
+    SimulatePlayerSpace(world);
+
 
     if (Config::options.slowMovementWhenObjectIsHeld) {
         UpdateSpeedReduction();
