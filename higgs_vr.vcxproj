@@ -125,9 +125,10 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <ForcedIncludeFiles>common/IPrefix.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <MinimalRebuild>false</MinimalRebuild>
+      <ConformanceMode>false</ConformanceMode>
     </ClCompile>
     <Link>
       <ModuleDefinitionFile>exports.def</ModuleDefinitionFile>
@@ -174,8 +175,9 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ForcedIncludeFiles>common/IPrefix.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
+      <ConformanceMode>false</ConformanceMode>
     </ClCompile>
     <Link>
       <ModuleDefinitionFile>exports.def</ModuleDefinitionFile>
