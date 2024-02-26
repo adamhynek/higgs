@@ -235,6 +235,8 @@ namespace Config {
         double sneakUnsneakIgnoreHandDistanceTime = 0.1;
         double handWeaponCollisionEnableDelay = 0.1;
 
+        float minCollideClutterMass = 0.f;
+
         bool enableTwoHandedGrabbing = true;
 
         bool doPhysicsGrabPlayerMovementCompensation = true;

@@ -3769,25 +3769,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                             if (Config::options.doContainerPhysics) {
                                 // TODO:
-                                // - Figure out why objects moved this way still rotate
-                                //  - This is somewhat mitigated by setting angular damping, but this is hacky
-                                //  - It's worse than just rotating, they will straight up rotate and phase through the bottom of the container
-                                //  - Should probably hook the havok addTorque function or whatever that the solver uses and see why it is applying rotation (and only rotation, not translation)
-                                //  - An idea: We could try applying the player velocity to the held object + contained objects instead of applying the position delta
-                                //   - Combine this with updating the VISUALS of those objects with the position, but the physics objects would have velocity applied
-                                //   - This would be kind of like how keyframed objects work, where the node is updated with the new position and the physics object is updated with a velocity of (newPos - oldPos) / dt
-                                //    - We would differ though by ADDING position / velocity instead of SETTING it
                                 // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
                                 //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
-
-                                // TODO: Perhaps worry about bhkRigidBodyT when doing setPositionAndRotation()
-
                                 // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?
-
-                                // TODO: Even though we fixed the velocity when dropping from the other hand into the container, it does fall through the bottom of the container of we drop it close to the bottom.
-                                //        - It could be because the positions of the rigidbodies are actually a bit offset while we are moving or something?
-                                //        - I do still feel haptics when it falls through so, so it does appear to be colliding. But it does not stop the object from moving downwards through the container for some reason.
-                                //        - This appears to be due to DisableContactsTemporarily() for some reason
 
                                 BSWriteLocker lock(&world->worldLock); // Need a write lock here because we are setting positions of objects and would deadlock with a read lock only
 

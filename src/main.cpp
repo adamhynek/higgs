@@ -268,7 +268,6 @@ void UpdateSpeedReduction()
     }
 }
 
-
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
 std::set<NiPointer<bhkRigidBody>> g_prevPlayerSpaceBodies{};
 
@@ -279,6 +278,8 @@ void ApplyPlayerDeltaPos(bhkRigidBody *body, const NiPoint3 &playerDeltaPos)
     if (g_thisFrameDeltaPosUpdatedBodies.contains(body)) return;
 
     g_thisFrameDeltaPosUpdatedBodies.insert(body);
+
+    bhkRigidBody_setActivated(body, true);
 
     NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
     NiPoint3 newPos = currentPos + (playerDeltaPos * *g_havokWorldScale);
@@ -333,11 +334,9 @@ void SimulatePlayerSpace(bhkWorld *world)
 
         // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
         // TODO: Potentially we could just do narrow phase here, collideEntitiesDiscrete() does both broad and narrow phase (and broadphase should already be handled by setPositionAndRotation().
-        // TODO: We may have to do this after both hands have updated, so perhaps move this to PostUpdate()
-        // TODO: Bringing a held object from the right hand towards a container in the left hand causes objects contained in the container to freak out. Only happens for that hand order.
-        // TODO: Letting go of an object while in the container still causes it to fly forwards, but only for the left hand (right hand seems fine other than falling through the container).
-        // TODO: Should we include the container itself in this as well? Right now it's just the contained bodies
-        // TODO: The hands and weapons are a frame behind the held objects (I guess because they move through keyframes?) It would be nice to have them all synchronized somehow.
+        // TODO: Should we extend the "container" system to stuff touching the hands / weapons? e.g. placing an object on top of your hand and moving
+        // TODO: Ideally we can handle "containers" that are several bodies connected by constraints, like books
+        //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
         std::vector<hkpEntity *> recollideBodies;
         for (bhkRigidBody *body : g_playerSpaceBodies) {
             recollideBodies.push_back(body->hkBody);
@@ -654,17 +653,38 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
             i -= 1;
         }
         else {
-            std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+            {
+                std::scoped_lock lock(g_ignoredCollisionGroupsLock);
 
-            if (auto it = g_ignoredCollisionGroups.find(otherGroup); it != g_ignoredCollisionGroups.end() && *g_currentFrameCounter - it->second <= 1) {
-                // We were ignoring this group last frame, so continue ignoring it. 
-                // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
-                it->second = *g_currentFrameCounter;
+                if (auto it = g_ignoredCollisionGroups.find(otherGroup); it != g_ignoredCollisionGroups.end() && *g_currentFrameCounter - it->second <= 1) {
+                    // We were ignoring this group last frame, so continue ignoring it. 
+                    // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
+                    it->second = *g_currentFrameCounter;
 
-                // remove the hit by moving the last hit into its place
-                collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
-                collector->getHits().m_size -= 1;
-                i -= 1;
+                    // remove the hit by moving the last hit into its place
+                    collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                    collector->getHits().m_size -= 1;
+                    i -= 1;
+
+                    continue;
+                }
+            }
+
+            // Everything else
+
+            const hkpCollidable *otherCollidable = collisionGroupA == playerCollisionGroup ? hit.m_rootCollidableB : hit.m_rootCollidableA;
+            if (hkpRigidBody *rigidBody = hkpGetRigidBody(otherCollidable)) {
+                UInt32 otherLayer = otherCollidable->getCollisionFilterInfo() & 0x7f;
+                if (otherLayer == BGSCollisionLayer::kCollisionLayer_Clutter || otherLayer == BGSCollisionLayer::kCollisionLayer_Weapon) {
+                    float massInv = rigidBody->getMassInv();
+                    float mass = massInv != 0 ? 1.f / massInv : (std::numeric_limits<float>::max)();
+                    if (mass < Config::options.minCollideClutterMass) {
+                        // remove the hit by moving the last hit into its place
+                        collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                        collector->getHits().m_size -= 1;
+                        i -= 1;
+                    }
+                }
             }
         }
     }
