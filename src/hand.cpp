@@ -32,6 +32,8 @@
 #include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
 #include <Physics/Dynamics/World/Simulation/hkpSimulation.h>
 #include <Physics/Collide/Agent/Query/hkpLinearCastCollisionInput.h>
+#include <Physics/Collide/BroadPhase/hkpBroadPhase.h>
+#include <Physics/Collide/Dispatch/BroadPhase/hkpTypedBroadPhaseHandlePair.h>
 
 
 int isHeadBobbingSavedCount = 0;
@@ -3780,12 +3782,19 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 static std::unordered_set<bhkRigidBody *> s_containedBodies;
                                 s_containedBodies.clear();
 
-                                // TODO: This is not an efficient way to essentially just query the AABB
-                                static CdPointCollector collector;
-                                collector.reset();
-                                hkpWorld_GetClosestPoints(world->world, selectedObject.collidable, world->world->getCollisionInput(), &collector);
-                                for (auto &pair : collector.m_hits) {
-                                    hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.first);
+                                static hkArray<hkpBroadPhaseHandlePair> pairs{};
+                                pairs.clear();
+
+                                hkAabb aabb; selectedObject.collidable->getShape()->getAabb(selectedObject.rigidBody->hkBody->getTransform(), world->world->m_collisionInput->m_tolerance, aabb);
+                                world->world->m_broadPhase->querySingleAabb(aabb, pairs);
+                                for (int i = 0; i < pairs.getSize(); i++) {
+                                    hkpTypedBroadPhaseHandlePair &pair = static_cast<hkpTypedBroadPhaseHandlePair &>(pairs[i]);
+                                    hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.getElementB()->getOwner());
+
+                                    if (!world->world->m_collisionFilter->isCollisionEnabled(*collidable, *selectedObject.collidable)) {
+                                        continue;
+                                    }
+
                                     hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
                                     if (!rigidBody || !rigidBody->m_userData) {
                                         continue;
