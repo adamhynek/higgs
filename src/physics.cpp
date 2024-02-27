@@ -68,20 +68,39 @@ void SpecificPointCollector::addCdPoint(const hkpCdPoint& point)
     }
 }
 
-AnyPointCollector::AnyPointCollector()
+AnyPointWithinDistanceCollector::AnyPointWithinDistanceCollector()
 {
     reset();
 }
 
-void AnyPointCollector::reset()
+void AnyPointWithinDistanceCollector::reset()
 {
     m_earlyOutDistance = 1.0f;
     m_anyHits = false;
 }
 
-void AnyPointCollector::addCdPoint(const hkpCdPoint &point)
+void AnyPointWithinDistanceCollector::addCdPoint(const hkpCdPoint &point)
 {
     if (point.getContact().getDistance() > maxDistance) return;
+
+    m_anyHits = true;
+    m_earlyOutDistance = 0.f;
+}
+
+AnyUpwardNormalCollector::AnyUpwardNormalCollector()
+{
+    reset();
+}
+
+void AnyUpwardNormalCollector::reset()
+{
+    m_earlyOutDistance = 1.0f;
+    m_anyHits = false;
+}
+
+void AnyUpwardNormalCollector::addCdPoint(const hkpCdPoint &point)
+{
+    if (point.getContact().getNormal()(2) < 0.f) return;
 
     m_anyHits = true;
     m_earlyOutDistance = 0.f;
@@ -813,7 +832,7 @@ bool IsColliding(const hkpRigidBody *rigidBody, float tolerance)
 
     const hkpCollidable *collidable = rigidBody->getCollidable();
 
-    static AnyPointCollector collector{};
+    static AnyPointWithinDistanceCollector collector{};
     collector.reset();
     collector.maxDistance = tolerance;
 

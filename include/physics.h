@@ -59,10 +59,20 @@ struct SpecificPointCollector : public hkpCdPointCollector
     bool m_foundTarget = false;
 };
 
-struct AnyPointCollector : public hkpCdPointCollector
+struct AnyPointWithinDistanceCollector : public hkpCdPointCollector
 {
-    AnyPointCollector();
+    AnyPointWithinDistanceCollector();
     void addCdPoint(const hkpCdPoint& point) override;
+    void reset() override;
+
+    float maxDistance = 0.f;
+    bool m_anyHits = false;
+};
+
+struct AnyUpwardNormalCollector : public hkpCdPointCollector
+{
+    AnyUpwardNormalCollector();
+    void addCdPoint(const hkpCdPoint &point) override;
     void reset() override;
 
     float maxDistance = 0.f;

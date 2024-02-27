@@ -31,6 +31,7 @@
 #include <Physics/Collide/Agent3/Machine/Nn/hkpLinkedCollidable.h>
 #include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
 #include <Physics/Dynamics/World/Simulation/hkpSimulation.h>
+#include <Physics/Collide/Agent/Query/hkpLinearCastCollisionInput.h>
 
 
 int isHeadBobbingSavedCount = 0;
@@ -3762,19 +3763,24 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 }
                             }
 
-                            for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                                ApplyPlayerDeltaPos(connectedBody, playerDeltaPos);
-                                g_playerSpaceBodies.insert(connectedBody);
-                            }
-
                             if (Config::options.doContainerPhysics) {
                                 // TODO:
                                 // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
                                 //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
-                                // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?
+                                //  - We can additionally check if the center of mass of the contained shape is within the AABB. This should handle cases like a really long object barely touching the container getting affected.
+                                // - Deal with sneaking and unskeaning, it's kind of bad right now
+                                // - Deal with jumping, it's ok but not great
+                                // - We could make it so that an object is still player-space even after it stops being "above" (based on linearcast) the container, but is still in the AABB
+                                // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?        // TODO: Should we extend the "container" system to stuff touching the hands / weapons? e.g. placing an object on top of your hand and moving
+                                // TODO: Ideally we can handle "containers" that are several bodies connected by constraints, like books
+                                //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
 
                                 BSWriteLocker lock(&world->worldLock); // Need a write lock here because we are setting positions of objects and would deadlock with a read lock only
 
+                                static std::unordered_set<bhkRigidBody *> s_containedBodies;
+                                s_containedBodies.clear();
+
+                                // TODO: This is not an efficient way to essentially just query the AABB
                                 static CdPointCollector collector;
                                 collector.reset();
                                 hkpWorld_GetClosestPoints(world->world, selectedObject.collidable, world->world->getCollisionInput(), &collector);
@@ -3792,9 +3798,42 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
                                     if (!wrapper) continue;
 
-                                    ApplyPlayerDeltaPos(wrapper, playerDeltaPos);
-                                    g_playerSpaceBodies.insert(wrapper);
+                                    s_containedBodies.insert(wrapper);
                                 }
+
+                                for (bhkRigidBody *wrapper : s_containedBodies) {
+                                    hkpRigidBody *rigidBody = wrapper->hkBody;
+                                    hkpCollidable *collidable = &rigidBody->m_collidable;
+
+                                    // Now do a linear cast of the shape downwards against the held object's shape only
+                                    if (hkpCollisionDispatcher::LinearCastFunc linearCastFunc = world->world->m_collisionDispatcher->getLinearCastFunc(collidable->m_shape->getType(), selectedObject.collidable->m_shape->getType())) {
+                                        hkpLinearCastInput input;
+                                        input.m_to = NiPointToHkVector(HkVectorToNiPoint(rigidBody->getPosition()) - NiPoint3(0, 0, 10));
+
+                                        hkpLinearCastCollisionInput shapeInput;
+                                        static_cast<hkpCollisionInput &>(shapeInput) = *world->world->m_collisionInput;
+                                        shapeInput.m_config = world->world->m_collisionInput->m_config;
+
+                                        shapeInput.m_tolerance = input.m_startPointTolerance;
+                                        shapeInput.m_path = NiPointToHkVector(HkVectorToNiPoint(input.m_to) - HkVectorToNiPoint(rigidBody->getPosition()));
+                                        shapeInput.m_cachedPathLength = shapeInput.m_path.length3();
+                                        shapeInput.m_maxExtraPenetration = input.m_maxExtraPenetration;
+
+                                        static AnyUpwardNormalCollector linearCastCollector;
+                                        linearCastCollector.reset();
+                                        linearCastFunc(*collidable, *selectedObject.collidable, shapeInput, linearCastCollector, &linearCastCollector);
+                                        if (linearCastCollector.m_anyHits) {
+                                            ApplyPlayerDeltaPos(wrapper, playerDeltaPos);
+                                            g_playerSpaceBodies.insert(wrapper);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Do this after we check which things are contained, since we don't want to set position of the container before checking things against it
+                            for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                                ApplyPlayerDeltaPos(connectedBody, playerDeltaPos);
+                                g_playerSpaceBodies.insert(connectedBody);
                             }
                         }
                     }

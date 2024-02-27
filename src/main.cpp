@@ -333,10 +333,6 @@ void SimulatePlayerSpace(bhkWorld *world)
         //}
 
         // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
-        // TODO: Potentially we could just do narrow phase here, collideEntitiesDiscrete() does both broad and narrow phase (and broadphase should already be handled by setPositionAndRotation().
-        // TODO: Should we extend the "container" system to stuff touching the hands / weapons? e.g. placing an object on top of your hand and moving
-        // TODO: Ideally we can handle "containers" that are several bodies connected by constraints, like books
-        //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
         std::vector<hkpEntity *> recollideBodies;
         for (bhkRigidBody *body : g_playerSpaceBodies) {
             recollideBodies.push_back(body->hkBody);
