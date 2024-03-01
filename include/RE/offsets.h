@@ -280,7 +280,7 @@ extern RelocAddr<_bhkCollisionObject_GetRigidBody> bhkCollisionObject_GetRigidBo
 typedef void(*_hkpConvexVerticesShape_getOriginalVertices)(hkpConvexVerticesShape *_this, hkArray<hkVector4> &vertices);
 extern RelocAddr<_hkpConvexVerticesShape_getOriginalVertices> hkpConvexVerticesShape_getOriginalVertices;
 
-typedef void(*_hkpWorld_reintegrateAndRecollideEntities)(hkpWorld *world, hkpEntity **entityBatch, int numEntities, hkpWorld::ReintegrationRecollideMode mode);
+typedef void(*_hkpWorld_reintegrateAndRecollideEntities)(hkpWorld *world, hkpEntity **entityBatch, int numEntities, UInt32 mode);
 extern RelocAddr<_hkpWorld_reintegrateAndRecollideEntities> hkpWorld_reintegrateAndRecollideEntities;
 
 // More havok-related

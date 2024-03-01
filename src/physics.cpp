@@ -87,6 +87,34 @@ void AnyPointWithinDistanceCollector::addCdPoint(const hkpCdPoint &point)
     m_earlyOutDistance = 0.f;
 }
 
+ClosestUpwardNormalCollector::ClosestUpwardNormalCollector()
+{
+    reset();
+}
+
+void ClosestUpwardNormalCollector::reset()
+{
+    m_earlyOutDistance = 1.0f;
+    closestCollidable = nullptr;
+    closestDistance = FLT_MAX;
+}
+
+void ClosestUpwardNormalCollector::addCdPoint(const hkpCdPoint &point)
+{
+    if (point.getContact().getNormal()(2) < 0.f) return;
+
+    const hkpCdBody *cdBody = &point.m_cdBodyB;
+    while (cdBody->m_parent) {
+        cdBody = cdBody->m_parent;
+    }
+
+    float distance = point.getContact().getDistance();
+    if (distance < closestDistance) {
+        closestCollidable = cdBody;
+        closestDistance = distance;
+    }
+}
+
 AnyUpwardNormalCollector::AnyUpwardNormalCollector()
 {
     reset();

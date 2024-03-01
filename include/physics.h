@@ -69,13 +69,22 @@ struct AnyPointWithinDistanceCollector : public hkpCdPointCollector
     bool m_anyHits = false;
 };
 
+struct ClosestUpwardNormalCollector : public hkpCdPointCollector
+{
+    ClosestUpwardNormalCollector();
+    void addCdPoint(const hkpCdPoint &point) override;
+    void reset() override;
+
+    const hkpCdBody *closestCollidable = nullptr;
+    float closestDistance = FLT_MAX;
+};
+
 struct AnyUpwardNormalCollector : public hkpCdPointCollector
 {
     AnyUpwardNormalCollector();
     void addCdPoint(const hkpCdPoint &point) override;
     void reset() override;
 
-    float maxDistance = 0.f;
     bool m_anyHits = false;
 };
 

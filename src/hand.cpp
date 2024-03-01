@@ -3770,23 +3770,50 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
                                 //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
                                 //  - We can additionally check if the center of mass of the contained shape is within the AABB. This should handle cases like a really long object barely touching the container getting affected.
+                                //   - We should check center of mass only in the xy plane I think, if it's vertically above the container's AABB then I think that's fine (e.g. long plank vertical in a cauldron)
                                 // - Deal with sneaking and unskeaning, it's kind of bad right now
                                 // - Deal with jumping, it's ok but not great
                                 // - We could make it so that an object is still player-space even after it stops being "above" (based on linearcast) the container, but is still in the AABB
                                 // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?        // TODO: Should we extend the "container" system to stuff touching the hands / weapons? e.g. placing an object on top of your hand and moving
                                 // TODO: Ideally we can handle "containers" that are several bodies connected by constraints, like books
                                 //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
+                                // TODO: What about contained bodies that are part of a constraint chain? e.g. ragdoll, book, etc.
+                                //       - Not a big problem
+                                // TODO: Object does not follow us well when we teleport
+                                // TODO: Affect player movement speed / jumping using total mass of all contained bodies!
+                                // TODO: Handle player snap turning
 
                                 BSWriteLocker lock(&world->worldLock); // Need a write lock here because we are setting positions of objects and would deadlock with a read lock only
 
-                                static std::unordered_set<bhkRigidBody *> s_containedBodies;
-                                s_containedBodies.clear();
+                                static std::vector<hkpRigidBody *> fixedBodies{};
+                                fixedBodies.clear();
 
                                 static hkArray<hkpBroadPhaseHandlePair> pairs{};
                                 pairs.clear();
 
-                                hkAabb aabb; selectedObject.collidable->getShape()->getAabb(selectedObject.rigidBody->hkBody->getTransform(), world->world->m_collisionInput->m_tolerance, aabb);
+                                hkAabb aabb; selectedObject.collidable->getShape()->getAabb(selectedObject.rigidBody->hkBody->getTransform(), 0.001f, aabb);
                                 world->world->m_broadPhase->querySingleAabb(aabb, pairs);
+
+                                for (int i = 0; i < pairs.getSize(); i++) {
+                                    hkpTypedBroadPhaseHandlePair &pair = static_cast<hkpTypedBroadPhaseHandlePair &>(pairs[i]);
+                                    hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.getElementB()->getOwner());
+
+                                    if (!world->world->m_collisionFilter->isCollisionEnabled(*collidable, *selectedObject.collidable)) {
+                                        continue;
+                                    }
+
+                                    hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+                                    if (!rigidBody || !rigidBody->m_userData) {
+                                        continue;
+                                    }
+
+                                    if (IsMoveableEntity(rigidBody)) {
+                                        continue;
+                                    }
+
+                                    fixedBodies.push_back(rigidBody);
+                                }
+
                                 for (int i = 0; i < pairs.getSize(); i++) {
                                     hkpTypedBroadPhaseHandlePair &pair = static_cast<hkpTypedBroadPhaseHandlePair &>(pairs[i]);
                                     hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.getElementB()->getOwner());
@@ -3807,12 +3834,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
                                     if (!wrapper) continue;
 
-                                    s_containedBodies.insert(wrapper);
-                                }
+                                    hkVector4 centerOfMass = rigidBody->getCenterOfMassInWorld();
 
-                                for (bhkRigidBody *wrapper : s_containedBodies) {
-                                    hkpRigidBody *rigidBody = wrapper->hkBody;
-                                    hkpCollidable *collidable = &rigidBody->m_collidable;
+                                    // TODO: If we do end up making the hands/weapons moveable, then we should probably filter those out here
 
                                     // Now do a linear cast of the shape downwards against the held object's shape only
                                     if (hkpCollisionDispatcher::LinearCastFunc linearCastFunc = world->world->m_collisionDispatcher->getLinearCastFunc(collidable->m_shape->getType(), selectedObject.collidable->m_shape->getType())) {
@@ -3828,12 +3852,28 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                         shapeInput.m_cachedPathLength = shapeInput.m_path.length3();
                                         shapeInput.m_maxExtraPenetration = input.m_maxExtraPenetration;
 
-                                        static AnyUpwardNormalCollector linearCastCollector;
-                                        linearCastCollector.reset();
-                                        linearCastFunc(*collidable, *selectedObject.collidable, shapeInput, linearCastCollector, &linearCastCollector);
-                                        if (linearCastCollector.m_anyHits) {
-                                            ApplyPlayerDeltaPos(wrapper, playerDeltaPos);
-                                            g_playerSpaceBodies.insert(wrapper);
+                                        static ClosestUpwardNormalCollector upwardNormalCollector;
+                                        upwardNormalCollector.reset();
+                                        linearCastFunc(*collidable, *selectedObject.collidable, shapeInput, upwardNormalCollector, &upwardNormalCollector);
+                                        if (upwardNormalCollector.closestCollidable == selectedObject.collidable) {
+                                            // We hit the container. Now check if any of the fixed bodies are in between
+
+                                            bool isBetweenFixed = false;
+                                            for (hkpRigidBody *fixedBody : fixedBodies) {
+                                                if (hkpCollisionDispatcher::LinearCastFunc linearCastFunc = world->world->m_collisionDispatcher->getLinearCastFunc(collidable->m_shape->getType(), fixedBody->m_collidable.m_shape->getType())) {
+                                                    // Do not reset the collector, we want to see if there is a closer point along the cast that hits the fixed body
+                                                    linearCastFunc(*collidable, fixedBody->m_collidable, shapeInput, upwardNormalCollector, &upwardNormalCollector);
+                                                    if (upwardNormalCollector.closestCollidable == &fixedBody->m_collidable) {
+                                                        isBetweenFixed = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if (!isBetweenFixed) {
+                                                ApplyPlayerDeltaPos(wrapper, playerDeltaPos);
+                                                g_playerSpaceBodies.insert(wrapper);
+                                            }
                                         }
                                     }
                                 }

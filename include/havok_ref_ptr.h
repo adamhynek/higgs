@@ -114,8 +114,6 @@ namespace RE {
             return val();
         }
 
-    private:
-
         TYPE* m_pntr;
     };
 }
