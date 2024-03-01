@@ -27,3 +27,6 @@ extern int g_numShadowUpdates;
 extern std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies;
 void ApplyPlayerDeltaPos(bhkRigidBody *body, const NiPoint3 &playerDeltaPos);
 
+extern float g_totalMassThisFrame;
+void RegisterObjectMass(hkpRigidBody *body, std::optional<float> massOverride = {});
+

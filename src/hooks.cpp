@@ -609,28 +609,9 @@ void PlayerCharacter_Update_Hook(PlayerCharacter *_this, float delta)
 
 std::optional<float> GetJumpMultiplier()
 {
-    bool rightHasHeld = g_rightHand->HasHeldObject();
-    bool leftHasHeld = g_leftHand->HasHeldObject();
-    int numHeld = int(rightHasHeld) + int(leftHasHeld);
-
     float speedReduction = 0.f;
-    if (numHeld > 0) {
-        // We are holding at least 1 object
-        float mass = 0.f;
-        if (rightHasHeld && leftHasHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
-            // Both hands are holding the same refr (ex. different limbs of the same body). We don't want to double up on the slowdown.
-            mass += g_rightHand->GetEffectiveHeldMass();
-        }
-        else {
-            if (rightHasHeld) {
-                mass += g_rightHand->GetEffectiveHeldMass();
-            }
-            if (leftHasHeld) {
-                mass += g_leftHand->GetEffectiveHeldMass();
-            }
-        }
-
-        speedReduction = min(Config::options.jumpHeightMaxReduction, powf(mass, Config::options.jumpHeightMassExponent) * Config::options.jumpHeightMassProportion);
+    if (g_totalMassThisFrame > 0) {
+        speedReduction = min(Config::options.jumpHeightMaxReduction, powf(g_totalMassThisFrame, Config::options.jumpHeightMassExponent) * Config::options.jumpHeightMassProportion);
         return (100.f - speedReduction) / 100.f;
     }
 

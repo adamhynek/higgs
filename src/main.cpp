@@ -227,30 +227,32 @@ void UpdateShadowDelay()
 float g_savedSpeedReduction = 0.f;
 double g_lastHeldTime = 0.0;
 
+std::unordered_set<hkpRigidBody *> g_thisFrameObjectMassRegisteredBodies{};
+float g_totalMassThisFrameAccumulator = 0.f; // Accumulates for the curreent frame, can be in an intermediate state
+float g_totalMassThisFrame = 0.f; // Always the final value
+
+void RegisterObjectMass(hkpRigidBody *body, std::optional<float> massOverride)
+{
+    if (g_thisFrameObjectMassRegisteredBodies.contains(body)) return;
+
+    g_thisFrameObjectMassRegisteredBodies.insert(body);
+
+    if (massOverride) {
+        g_totalMassThisFrameAccumulator += *massOverride;
+    }
+    else {
+        float invMass = body->getMassInv();
+        if (invMass != 0.f) {
+            g_totalMassThisFrameAccumulator += 1.f / invMass;
+        }
+    }
+}
+
 void UpdateSpeedReduction()
 {
-    bool rightHasHeld = g_rightHand->HasHeldObject();
-    bool leftHasHeld = g_leftHand->HasHeldObject();
-    int numHeld = int(rightHasHeld) + int(leftHasHeld);
-
     float speedReduction = 0.f;
-    if (numHeld > 0) {
-        // We are holding at least 1 object
-        float mass = 0.f;
-        if (rightHasHeld && leftHasHeld && g_rightHand->selectedObject.handle == g_leftHand->selectedObject.handle) {
-            // Both hands are holding the same refr (ex. different limbs of the same body). We don't want to double up on the slowdown.
-            mass += g_rightHand->GetEffectiveHeldMass();
-        }
-        else {
-            if (rightHasHeld) {
-                mass += g_rightHand->GetEffectiveHeldMass();
-            }
-            if (leftHasHeld) {
-                mass += g_leftHand->GetEffectiveHeldMass();
-            }
-        }
-
-        speedReduction = min(Config::options.slowMovementMaxReduction, powf(mass, Config::options.slowMovementMassExponent) * Config::options.slowMovementMassProportion);
+    if (g_totalMassThisFrame > 0.f) {
+        speedReduction = min(Config::options.slowMovementMaxReduction, powf(g_totalMassThisFrame, Config::options.slowMovementMassExponent) * Config::options.slowMovementMassProportion);
         g_lastHeldTime = g_currentFrameTime;
     }
     else if (g_currentFrameTime - g_lastHeldTime < Config::options.slowMovementFadeOutTime) {
@@ -451,11 +453,16 @@ void Update()
         }
     }
 
+    g_totalMassThisFrameAccumulator = 0.f; // reset this before hand updates which add to it
+    g_thisFrameObjectMassRegisteredBodies.clear();
+
     firstHandToUpdate->Update(*lastHandToUpdate, world);
     lastHandToUpdate->Update(*firstHandToUpdate, world);
 
     firstHandToUpdate->PostUpdate(*lastHandToUpdate, world);
     lastHandToUpdate->PostUpdate(*firstHandToUpdate, world);
+
+    g_totalMassThisFrame = g_totalMassThisFrameAccumulator; // commit the total mass for this frame
 
     SimulatePlayerSpace(world);
 
