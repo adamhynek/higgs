@@ -881,8 +881,6 @@ void GetContainedRigidBodies(bhkRigidBody *container, std::vector<NiPointer<bhkR
     //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
     //  - We can additionally check if the center of mass of the contained shape is within the AABB. This should handle cases like a really long object barely touching the container getting affected.
     //   - We should check center of mass only in the xy plane I think, if it's vertically above the container's AABB then I think that's fine (e.g. long plank vertical in a cauldron)
-    // - Deal with sneaking and unskeaning, it's kind of bad right now
-    // - Deal with jumping, it's ok but not great
     // - We could make it so that an object is still player-space even after it stops being "above" (based on linearcast) the container, but is still in the AABB
     // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?
     // TODO: Should we extend the "container" system to stuff touching the hands / weapons? e.g. placing an object on top of your hand and moving
@@ -891,7 +889,6 @@ void GetContainedRigidBodies(bhkRigidBody *container, std::vector<NiPointer<bhkR
     //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
     // TODO: What about contained bodies that are part of a constraint chain? e.g. ragdoll, book, etc.
     //       - Not a big problem
-    // TODO: Object does not follow us well when we teleport
     // TODO: Handle player snap turning
 
     ahkpWorld *hkWorld = container->GetHavokWorld_1();

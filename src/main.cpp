@@ -275,40 +275,44 @@ std::set<NiPointer<bhkRigidBody>> g_prevPlayerSpaceBodies{};
 
 std::unordered_set<bhkRigidBody *> g_thisFrameDeltaPosUpdatedBodies{};
 
-void ApplyPlayerDeltaPos(bhkRigidBody *body, const NiPoint3 &playerDeltaPos)
+void ApplyDeltaPos(bhkRigidBody *body, const NiPoint3 &deltaPos)
 {
-    if (g_thisFrameDeltaPosUpdatedBodies.contains(body)) return;
+    g_playerSpaceBodies.insert(body);
 
-    g_thisFrameDeltaPosUpdatedBodies.insert(body);
+    if (VectorLength(deltaPos) > 0.f) {
+        if (g_thisFrameDeltaPosUpdatedBodies.contains(body)) return;
 
-    bhkRigidBody_setActivated(body, true);
+        g_thisFrameDeltaPosUpdatedBodies.insert(body);
 
-    NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
-    NiPoint3 newPos = currentPos + (playerDeltaPos * *g_havokWorldScale);
-    bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation()); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
+        bhkRigidBody_setActivated(body, true);
 
-    if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
-        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-        NiAVObject_UpdateNode(node, &ctx);
+        NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
+        NiPoint3 newPos = currentPos + (deltaPos * *g_havokWorldScale);
+        bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation()); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
+
+        if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            NiAVObject_UpdateNode(node, &ctx);
+        }
     }
 }
 
 void SimulatePlayerSpace(bhkWorld *world)
 {
     float havokWorldScale = *g_havokWorldScale;
-    NiPoint3 playerDeltaPos = g_rightHand->playerDeltaPos; // TODO: Don't use right hand's data for these, probably keep track of it ourselves here
+    NiPoint3 roomDeltaPos = g_rightHand->roomDeltaPos; // TODO: Don't use right hand's data for these, probably keep track of it ourselves here
     NiPoint3 playerVelocity = g_rightHand->avgPlayerVelocityWorldspace * havokWorldScale;
 
-    if (VectorLength(playerDeltaPos) > 0.f) {
+    {
         BSWriteLocker lock(&world->worldLock);
 
         // There is potential for a body to be removed from the world between frames, or between being added to g_playerSpaceBodies and this call.
         std::erase_if(g_playerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
             return !body->hkBody->isAddedToWorld();
-        });
+            });
         std::erase_if(g_prevPlayerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
             return !body->hkBody->isAddedToWorld();
-        });
+            });
 
         {
             std::vector<NiPointer<bhkRigidBody>> bodiesEntered, bodiesExited;
@@ -320,6 +324,11 @@ void SimulatePlayerSpace(bhkWorld *world)
                 bhkRigidBody_setActivated(rigidBody, true);
                 NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
                 rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity - playerVelocity);
+
+#ifdef _DEBUG
+                _MESSAGE("%d %p Entered", *g_currentFrameCounter, rigidBody);
+#endif // _DEBUG
+
             }
 
             for (bhkRigidBody *rigidBody : bodiesExited) {
@@ -327,6 +336,10 @@ void SimulatePlayerSpace(bhkWorld *world)
                 bhkRigidBody_setActivated(rigidBody, true);
                 NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
                 rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + playerVelocity);
+
+#ifdef _DEBUG
+                _MESSAGE("%d %p Exited", *g_currentFrameCounter, rigidBody);
+#endif // _DEBUG
             }
         }
 
@@ -334,14 +347,16 @@ void SimulatePlayerSpace(bhkWorld *world)
         //    ApplyPlayerDeltaPos(body, playerDeltaPos);
         //}
 
-        // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
-        std::vector<hkpEntity *> recollideBodies;
-        for (bhkRigidBody *body : g_playerSpaceBodies) {
-            recollideBodies.push_back(body->hkBody);
+        if (VectorLength(roomDeltaPos) > 0.f) {
+            // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
+            std::vector<hkpEntity *> recollideBodies;
+            for (bhkRigidBody *body : g_playerSpaceBodies) {
+                recollideBodies.push_back(body->hkBody);
+            }
+            hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_RECOLLIDE_NARROWPHASE);
+            //hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_ALL);
         }
-        hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_RECOLLIDE_NARROWPHASE);
-        //hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_ALL);
-    }
+}
 
     g_prevPlayerSpaceBodies = g_playerSpaceBodies; // copy
     g_playerSpaceBodies.clear();

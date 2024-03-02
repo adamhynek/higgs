@@ -309,7 +309,8 @@ struct Hand
     NiTransform fpAnimWeaponTransform{};
 
     NiPoint3 prevPlayerPosWorldspace{};
-    NiPoint3 playerDeltaPos{};
+    NiPoint3 prevRoomNodePos{};
+    NiPoint3 roomDeltaPos{};
     NiPoint3 prevPlayerVelocityWorldspace{};
     NiPoint3 playerAcceleration{};
 

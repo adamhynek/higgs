@@ -696,9 +696,8 @@ void Hand::UpdateHandCollision(bhkWorld *world)
     // Put our hand collision where we want it
 
     // First, apply the player pos delta before we apply velocity
-    if (Config::options.doPhysicsGrabPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
-        ApplyPlayerDeltaPos(handBody, playerDeltaPos);
-        g_playerSpaceBodies.insert(handBody);
+    if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
+        ApplyDeltaPos(handBody, roomDeltaPos);
     }
 
     hkTransform transform = ComputeHandCollisionTransform(isBeast);
@@ -878,9 +877,8 @@ void Hand::UpdateWeaponCollision()
     weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo &= (0x0000ffff); // zero out collision group
     weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
-    if (Config::options.doPhysicsGrabPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
-        ApplyPlayerDeltaPos(weaponBody, playerDeltaPos);
-        g_playerSpaceBodies.insert(weaponBody);
+    if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
+        ApplyDeltaPos(weaponBody, roomDeltaPos);
     }
 
     hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
@@ -2263,7 +2261,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
         sneakUnsneakTime = g_currentFrameTime;
     }
 
-    playerDeltaPos = player->pos - prevPlayerPosWorldspace;
+    NiAVObject *roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+    NiPoint3 roomNodePos = roomNode->m_worldTransform.pos;
+    roomDeltaPos = roomNodePos - prevRoomNodePos;
 
 
     //if (!isLeft) {
@@ -3758,10 +3758,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
 
                 // If the player is moving, add the player's change in position to the object's position
-                if (Config::options.doPhysicsGrabPlayerMovementCompensation && VectorLength(playerDeltaPos) > 0.f) {
+                if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
                     if (selectedObject.isActor) {
-                        ApplyPlayerDeltaPos(selectedObject.rigidBody, playerDeltaPos);
-                        g_playerSpaceBodies.insert(selectedObject.rigidBody);
+                        ApplyDeltaPos(selectedObject.rigidBody, roomDeltaPos);
                     }
                     else {
                         // Check if any of the connected bodies is a fixed body. If so, we don't want to set position of everything
@@ -3775,14 +3774,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         if (!isAttachedToFixed) {
                             for (bhkRigidBody *containedBody : containedRigidBodies) {
-                                ApplyPlayerDeltaPos(containedBody, playerDeltaPos);
-                                g_playerSpaceBodies.insert(containedBody);
+                                ApplyDeltaPos(containedBody, roomDeltaPos);
                             }
 
                             // Do this after we check which things are contained, since we don't want to set position of the container before checking things against it
                             for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                                ApplyPlayerDeltaPos(connectedBody, playerDeltaPos);
-                                g_playerSpaceBodies.insert(connectedBody);
+                                ApplyDeltaPos(connectedBody, roomDeltaPos);
                             }
                         }
                     }
@@ -3969,6 +3966,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
     prevState = state;
     prevPlayerPosWorldspace = player->pos;
+    prevRoomNodePos = roomNodePos;
 }
 
 
