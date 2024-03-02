@@ -316,8 +316,6 @@ struct Hand
     std::vector<TriangleData> triangles{}; // tris are in worldspace
     NiTransform previousTriangleAdjustment{};
 
-    std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
-
     std::deque<float> handDeviations{ 5, 0.f };
     bool isSneaking = false;
     double sneakUnsneakTime = 0;

@@ -35,6 +35,22 @@ inline T get_vfunc(void *object, UInt64 index)
     return (T)(vtbl[index]);
 }
 
+template<class T>
+struct DeferVectorClear
+{
+    std::vector<T> &vec;
+    DeferVectorClear(std::vector<T> &vec) : vec(vec) {}
+    ~DeferVectorClear() { vec.clear(); }
+};
+
+template<class T>
+struct DeferSetClear
+{
+    std::set<T> &set;
+    DeferSetClear(std::set<T> &set) : set(set) {}
+    ~DeferSetClear() { set.clear(); }
+};
+
 NiAVObject * GetHighestParent(NiAVObject *node);
 NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform, bool useOldParentTransform = false);
 void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform);

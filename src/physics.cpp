@@ -12,6 +12,12 @@
 #include "skse64/gamethreads.h"
 #include "skse64/GameRTTI.h"
 
+#include <Physics/Collide/Query/CastUtil/hkpLinearCastInput.h>
+#include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
+#include <Physics/Collide/Agent/Query/hkpLinearCastCollisionInput.h>
+#include <Physics/Collide/BroadPhase/hkpBroadPhase.h>
+#include <Physics/Collide/Dispatch/BroadPhase/hkpTypedBroadPhaseHandlePair.h>
+
 
 CdPointCollector::CdPointCollector()
 {
@@ -400,7 +406,7 @@ inline bool IsHeldRigidBody(hkpRigidBody *rigidBody)
     );
 }
 
-inline bool IsHiggsRigidBody(hkpRigidBody *rigidBody)
+bool IsHandOrWeaponOrHeld(hkpRigidBody *rigidBody)
 {
     UInt32 collisionLayer = GetCollisionLayer(rigidBody);
     bool isHeld = IsHeldRigidBody(rigidBody);
@@ -526,8 +532,8 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
     hkpRigidBody *rigidBodyA = evnt.m_bodies[0];
     hkpRigidBody *rigidBodyB = evnt.m_bodies[1];
 
-    bool isAHiggs = IsHiggsRigidBody(rigidBodyA);
-    bool isBHiggs = IsHiggsRigidBody(rigidBodyB);
+    bool isAHiggs = IsHandOrWeaponOrHeld(rigidBodyA);
+    bool isBHiggs = IsHandOrWeaponOrHeld(rigidBodyB);
 
     if (!isAHiggs && !isBHiggs) return; // Neither body is a higgs body, so we don't care about this collision
 
@@ -866,5 +872,124 @@ bool IsColliding(const hkpRigidBody *rigidBody, float tolerance)
 
     hkpWorld_GetClosestPoints(world, collidable, world->getCollisionInput(), &collector);
     return collector.m_anyHits;
+}
+
+void GetContainedRigidBodies(bhkRigidBody *container, std::vector<NiPointer<bhkRigidBody>> &containedBodiesOut)
+{
+    // TODO:
+    // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
+    //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
+    //  - We can additionally check if the center of mass of the contained shape is within the AABB. This should handle cases like a really long object barely touching the container getting affected.
+    //   - We should check center of mass only in the xy plane I think, if it's vertically above the container's AABB then I think that's fine (e.g. long plank vertical in a cauldron)
+    // - Deal with sneaking and unskeaning, it's kind of bad right now
+    // - Deal with jumping, it's ok but not great
+    // - We could make it so that an object is still player-space even after it stops being "above" (based on linearcast) the container, but is still in the AABB
+    // TODO: Some things should probably not be allowed to be a container, e.g. ragdoll bodies, or objects that are too small like a coin?
+    // TODO: Should we extend the "container" system to stuff touching the hands / weapons? e.g. placing an object on top of your hand and moving
+    //       - This could potentially cause issues like when we swing at someone or punch them or hit something in general, whatever we're hitting could get consider "contained" by the hand
+    // TODO: Ideally we can handle "containers" that are several bodies connected by constraints, like books
+    //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
+    // TODO: What about contained bodies that are part of a constraint chain? e.g. ragdoll, book, etc.
+    //       - Not a big problem
+    // TODO: Object does not follow us well when we teleport
+    // TODO: Handle player snap turning
+
+    ahkpWorld *hkWorld = container->GetHavokWorld_1();
+    if (!hkWorld) return;
+
+    bhkWorld *world = hkWorld->m_userData;
+    hkpCollidable *containerCollidable = &container->hkBody->m_collidable;
+
+    static std::vector<hkpRigidBody *> fixedBodies{};
+    fixedBodies.clear();
+
+    static hkArray<hkpBroadPhaseHandlePair> pairs{};
+    pairs.clear();
+
+    BSReadLocker lock(&world->worldLock);
+
+    hkAabb aabb; containerCollidable->getShape()->getAabb(container->hkBody->getTransform(), 0.001f, aabb);
+    world->world->m_broadPhase->querySingleAabb(aabb, pairs);
+
+    for (int i = 0; i < pairs.getSize(); i++) {
+        hkpTypedBroadPhaseHandlePair &pair = static_cast<hkpTypedBroadPhaseHandlePair &>(pairs[i]);
+        hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.getElementB()->getOwner());
+
+        if (!world->world->m_collisionFilter->isCollisionEnabled(*collidable, *containerCollidable)) {
+            continue;
+        }
+
+        hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+        if (!rigidBody || !rigidBody->m_userData) {
+            continue;
+        }
+
+        if (IsMoveableEntity(rigidBody)) {
+            continue;
+        }
+
+        fixedBodies.push_back(rigidBody);
+    }
+
+    for (int i = 0; i < pairs.getSize(); i++) {
+        hkpTypedBroadPhaseHandlePair &pair = static_cast<hkpTypedBroadPhaseHandlePair &>(pairs[i]);
+        hkpCollidable *collidable = static_cast<hkpCollidable *>(pair.getElementB()->getOwner());
+
+        if (!world->world->m_collisionFilter->isCollisionEnabled(*collidable, *containerCollidable)) {
+            continue;
+        }
+
+        hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
+        if (!rigidBody || !rigidBody->m_userData) {
+            continue;
+        }
+
+        if (!IsMoveableEntity(rigidBody)) {
+            continue;
+        }
+
+        bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
+        if (!wrapper) continue;
+
+        hkVector4 centerOfMass = rigidBody->getCenterOfMassInWorld();
+
+        // Now do a linear cast of the shape downwards against the held object's shape only
+        if (hkpCollisionDispatcher::LinearCastFunc linearCastFunc = world->world->m_collisionDispatcher->getLinearCastFunc(collidable->m_shape->getType(), containerCollidable->m_shape->getType())) {
+            hkpLinearCastInput input;
+            input.m_to = NiPointToHkVector(HkVectorToNiPoint(rigidBody->getPosition()) - NiPoint3(0, 0, 10));
+
+            hkpLinearCastCollisionInput shapeInput;
+            static_cast<hkpCollisionInput &>(shapeInput) = *world->world->m_collisionInput;
+            shapeInput.m_config = world->world->m_collisionInput->m_config;
+
+            shapeInput.m_tolerance = input.m_startPointTolerance;
+            shapeInput.m_path = NiPointToHkVector(HkVectorToNiPoint(input.m_to) - HkVectorToNiPoint(rigidBody->getPosition()));
+            shapeInput.m_cachedPathLength = shapeInput.m_path.length3();
+            shapeInput.m_maxExtraPenetration = input.m_maxExtraPenetration;
+
+            static ClosestUpwardNormalCollector upwardNormalCollector;
+            upwardNormalCollector.reset();
+            linearCastFunc(*collidable, *containerCollidable, shapeInput, upwardNormalCollector, &upwardNormalCollector);
+            if (upwardNormalCollector.closestCollidable == containerCollidable) {
+                // We hit the container. Now check if any of the fixed bodies are in between
+
+                bool isBehindFixed = false;
+                for (hkpRigidBody *fixedBody : fixedBodies) {
+                    if (hkpCollisionDispatcher::LinearCastFunc linearCastFunc2 = world->world->m_collisionDispatcher->getLinearCastFunc(collidable->m_shape->getType(), fixedBody->m_collidable.m_shape->getType())) {
+                        // Do not reset the collector, we want to see if there is a closer point along the cast that hits the fixed body
+                        linearCastFunc2(*collidable, fixedBody->m_collidable, shapeInput, upwardNormalCollector, &upwardNormalCollector);
+                        if (upwardNormalCollector.closestCollidable == &fixedBody->m_collidable) {
+                            isBehindFixed = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isBehindFixed) {
+                    containedBodiesOut.push_back(wrapper);
+                }
+            }
+        }
+    }
 }
 

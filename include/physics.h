@@ -210,4 +210,7 @@ void hkpWorld_removeContactListener(hkpWorld *_this, hkpContactListener* worldLi
 float hkpContactPointEvent_getSeparatingVelocity(const hkpContactPointEvent &_this);
 
 bool IsColliding(const hkpRigidBody *rigidBody, float tolerance = 0.005f);
+void GetContainedRigidBodies(bhkRigidBody *container, std::vector<NiPointer<bhkRigidBody>> &containedBodiesOut);
+
+bool IsHandOrWeaponOrHeld(hkpRigidBody *rigidBody);
 
