@@ -889,7 +889,6 @@ void GetContainedRigidBodies(bhkRigidBody *container, std::vector<NiPointer<bhkR
     //        - e.g. I hold one half of a book and place an object on the other half of the book, it should be player space even though it's not in the AABB of the piece of the book I'm holding.
     // TODO: What about contained bodies that are part of a constraint chain? e.g. ragdoll, book, etc.
     //       - Not a big problem
-    // TODO: Handle player snap turning
 
     ahkpWorld *hkWorld = container->GetHavokWorld_1();
     if (!hkWorld) return;

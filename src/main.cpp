@@ -275,20 +275,39 @@ std::set<NiPointer<bhkRigidBody>> g_prevPlayerSpaceBodies{};
 
 std::unordered_set<bhkRigidBody *> g_thisFrameDeltaPosUpdatedBodies{};
 
-void ApplyDeltaPos(bhkRigidBody *body, const NiPoint3 &deltaPos)
+NiTransform g_currentRoomTransform{};
+NiTransform g_prevRoomTransform{};
+
+void ApplyRoomSpaceDelta(bhkRigidBody *body)
 {
     g_playerSpaceBodies.insert(body);
 
-    if (VectorLength(deltaPos) > 0.f) {
+    NiTransform currentRoomTransform = g_currentRoomTransform;
+    currentRoomTransform.pos *= *g_havokWorldScale;
+
+    NiTransform prevRoomTransform = g_prevRoomTransform;
+    prevRoomTransform.pos *= *g_havokWorldScale;
+
+    NiTransform deltaRoomTransform = currentRoomTransform * InverseTransform(prevRoomTransform);
+
+    NiTransform currentTransform{};
+    currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
+    currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
+
+    NiTransform currentRoomSpace = InverseTransform(prevRoomTransform) * currentTransform;
+
+    NiTransform newTransform = currentRoomTransform * currentRoomSpace;
+
+    NiPoint3 deltaPos = newTransform.pos - currentTransform.pos;
+
+    if (VectorLength(deltaPos) > 0.001f) {
         if (g_thisFrameDeltaPosUpdatedBodies.contains(body)) return;
 
         g_thisFrameDeltaPosUpdatedBodies.insert(body);
 
         bhkRigidBody_setActivated(body, true);
 
-        NiPoint3 currentPos = HkVectorToNiPoint(body->hkBody->getPosition());
-        NiPoint3 newPos = currentPos + (deltaPos * *g_havokWorldScale);
-        bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newPos), body->hkBody->getRotation()); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
+        bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
 
         if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
             NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
@@ -299,9 +318,7 @@ void ApplyDeltaPos(bhkRigidBody *body, const NiPoint3 &deltaPos)
 
 void SimulatePlayerSpace(bhkWorld *world)
 {
-    float havokWorldScale = *g_havokWorldScale;
-    NiPoint3 roomDeltaPos = g_rightHand->roomDeltaPos; // TODO: Don't use right hand's data for these, probably keep track of it ourselves here
-    NiPoint3 playerVelocity = g_rightHand->avgPlayerVelocityWorldspace * havokWorldScale;
+    NiPoint3 playerVelocity = g_rightHand->avgPlayerVelocityWorldspace * *g_havokWorldScale;
 
     {
         BSWriteLocker lock(&world->worldLock);
@@ -347,7 +364,7 @@ void SimulatePlayerSpace(bhkWorld *world)
         //    ApplyPlayerDeltaPos(body, playerDeltaPos);
         //}
 
-        if (VectorLength(roomDeltaPos) > 0.f) {
+        if (g_thisFrameDeltaPosUpdatedBodies.size() > 0) {
             // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
             std::vector<hkpEntity *> recollideBodies;
             for (bhkRigidBody *body : g_playerSpaceBodies) {
@@ -384,6 +401,11 @@ void Update()
         _MESSAGE("Could not get havok world from player cell");
         return;
     }
+
+    NiAVObject *roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+    if (!roomNode) return;
+
+    g_currentRoomTransform = roomNode->m_worldTransform;
 
 #ifdef _DEBUG
     Config::ReloadIfModified();
@@ -481,10 +503,11 @@ void Update()
 
     SimulatePlayerSpace(world);
 
-
     if (Config::options.slowMovementWhenObjectIsHeld) {
         UpdateSpeedReduction();
     }
+
+    g_prevRoomTransform = g_currentRoomTransform;
 }
 
 void DebugDrawSphere(const NiTransform &transform, const NiColorA &color)
