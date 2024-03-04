@@ -719,7 +719,19 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
                 if (otherLayer == BGSCollisionLayer::kCollisionLayer_Clutter || otherLayer == BGSCollisionLayer::kCollisionLayer_Weapon) {
                     float massInv = rigidBody->getMassInv();
                     float mass = massInv != 0 ? 1.f / massInv : (std::numeric_limits<float>::max)();
+
+                    bool ignoreCollision = false;
                     if (mass < Config::options.minCollideClutterMass) {
+                        ignoreCollision = true;
+                    }
+                    else {
+                        hkVector4 pointVelocity; rigidBody->getPointVelocity(hit.m_contact.getPosition(), pointVelocity);
+                        if (VectorLength(HkVectorToNiPoint(pointVelocity)) > Config::options.dontCollideClutterMinVelocity) {
+                            ignoreCollision = true;
+                        }
+                    }
+
+                    if (ignoreCollision) {
                         // remove the hit by moving the last hit into its place
                         collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
                         collector->getHits().m_size -= 1;
@@ -900,6 +912,10 @@ extern "C" {
             // Overwrite these as the user may have set them to to something of their own choosing in the game's ini file
             *g_uMaxNumPhysicsStepsPerUpdate = Config::options.maxNumPhysicsStepsPerUpdate;
             *g_uMaxNumPhysicsStepsPerUpdateComplex = Config::options.maxNumPhysicsStepsPerUpdateComplex;
+        }
+
+        if (Config::options.minCollideClutterMass != 0.f) {
+            *g_fMoveLimitMass = Config::options.minCollideClutterMass;
         }
 
         initComplete = true;

@@ -51,6 +51,8 @@ RelocPtr<float> g_fMagicHandRotateY(0x1EAEAB8);
 RelocPtr<float> g_fMagicHandRotateZ(0x1EAEAD0);
 RelocPtr<float> g_fMagicHandScale(0x1EAEAE8);
 
+RelocPtr<float> g_fMoveLimitMass(0x1EC84A8);
+
 RelocPtr<DWORD> g_havokMemoryRouterTlsIndex(0x30A8C04);
 
 RelocPtr<hkMemoryAllocator> g_hkContainerHeapAllocator(0x1EB59C8);

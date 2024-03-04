@@ -69,6 +69,8 @@ extern RelocPtr<float> g_fMagicHandRotateY;
 extern RelocPtr<float> g_fMagicHandRotateZ;
 extern RelocPtr<float> g_fMagicHandScale;
 
+extern RelocPtr<float> g_fMoveLimitMass;
+
 extern RelocPtr<DWORD> g_havokMemoryRouterTlsIndex;
 extern RelocPtr<hkMemoryAllocator> g_hkContainerHeapAllocator;
 

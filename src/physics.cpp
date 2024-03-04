@@ -877,8 +877,6 @@ bool IsColliding(const hkpRigidBody *rigidBody, float tolerance)
 void GetContainedRigidBodies(bhkRigidBody *container, std::vector<NiPointer<bhkRigidBody>> &containedBodiesOut)
 {
     // TODO:
-    // - Further filtering which objects are affected, i.e. in the AABB but not contained in the container
-    //  - Something we can try is to do a linear cast of each contained shape in the -z direction, against the container, and see if it hits the container. If it doesn't, we don't affect it.
     //  - We can additionally check if the center of mass of the contained shape is within the AABB. This should handle cases like a really long object barely touching the container getting affected.
     //   - We should check center of mass only in the xy plane I think, if it's vertically above the container's AABB then I think that's fine (e.g. long plank vertical in a cauldron)
     // - We could make it so that an object is still player-space even after it stops being "above" (based on linearcast) the container, but is still in the AABB

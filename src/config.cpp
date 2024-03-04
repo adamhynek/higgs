@@ -445,6 +445,7 @@ namespace Config {
         if (!RegisterDouble("handWeaponCollisionEnableDelay", options.handWeaponCollisionEnableDelay)) success = false;
 
         if (!RegisterFloat("minCollideClutterMass", options.minCollideClutterMass)) success = false;
+        if (!RegisterFloat("dontCollideClutterMinVelocity", options.dontCollideClutterMinVelocity)) success = false;
 
         if (!RegisterBool("enableTwoHandedGrabbing", options.enableTwoHandedGrabbing)) success = false;
 
