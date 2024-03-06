@@ -307,6 +307,8 @@ void ApplyRoomSpaceDelta(bhkRigidBody *body)
 
         bhkRigidBody_setActivated(body, true);
 
+        // We should do this without using setPositionAndRotation, as that does a couple extra things like trigger the moveBody callbacks. I think that's why the node gets desynced with the physics object in some cases when letting go.
+
         bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
 
         if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
@@ -326,13 +328,16 @@ void SimulatePlayerSpace(bhkWorld *world)
         // There is potential for a body to be removed from the world between frames, or between being added to g_playerSpaceBodies and this call.
         std::erase_if(g_playerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
             return !body->hkBody->isAddedToWorld();
-            });
+        });
         std::erase_if(g_prevPlayerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
             return !body->hkBody->isAddedToWorld();
-            });
+        });
 
         {
-            std::vector<NiPointer<bhkRigidBody>> bodiesEntered, bodiesExited;
+            static std::vector<NiPointer<bhkRigidBody>> bodiesEntered, bodiesExited;
+            bodiesEntered.clear();
+            bodiesExited.clear();
+
             std::set_difference(g_playerSpaceBodies.begin(), g_playerSpaceBodies.end(), g_prevPlayerSpaceBodies.begin(), g_prevPlayerSpaceBodies.end(), std::inserter(bodiesEntered, bodiesEntered.begin()));
             std::set_difference(g_prevPlayerSpaceBodies.begin(), g_prevPlayerSpaceBodies.end(), g_playerSpaceBodies.begin(), g_playerSpaceBodies.end(), std::inserter(bodiesExited, bodiesExited.begin()));
 
@@ -366,7 +371,9 @@ void SimulatePlayerSpace(bhkWorld *world)
 
         if (g_thisFrameDeltaPosUpdatedBodies.size() > 0) {
             // After everything's position is updated, re-collide everything because setPositionAndRotation() only re-collides in the broadphase, not the nearphase.
-            std::vector<hkpEntity *> recollideBodies;
+            static std::vector<hkpEntity *> recollideBodies;
+            recollideBodies.clear();
+
             for (bhkRigidBody *body : g_playerSpaceBodies) {
                 recollideBodies.push_back(body->hkBody);
             }
@@ -684,9 +691,10 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
         UInt32 otherGroup = collisionGroupA == playerCollisionGroup ? collisionGroupB : collisionGroupA;
 
         if (g_rightHand->ShouldIgnoreCollisionGroup(otherGroup) || g_leftHand->ShouldIgnoreCollisionGroup(otherGroup)) {
-            std::scoped_lock lock(g_ignoredCollisionGroupsLock);
-
-            g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
+            {
+                std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+                g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
+            }
 
             // remove the hit by moving the last hit into its place
             collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
@@ -702,7 +710,6 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
                     // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
                     it->second = *g_currentFrameCounter;
 
-                    // remove the hit by moving the last hit into its place
                     collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
                     collector->getHits().m_size -= 1;
                     i -= 1;
@@ -720,22 +727,25 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
                     float massInv = rigidBody->getMassInv();
                     float mass = massInv != 0 ? 1.f / massInv : (std::numeric_limits<float>::max)();
 
+                    // TODO: We need stuff above the mass threshold to not collide with the player if it's a "contained" object
                     bool ignoreCollision = false;
                     if (mass < Config::options.minCollideClutterMass) {
-                        ignoreCollision = true;
+                        collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                        collector->getHits().m_size -= 1;
+                        i -= 1;
                     }
                     else {
                         hkVector4 pointVelocity; rigidBody->getPointVelocity(hit.m_contact.getPosition(), pointVelocity);
                         if (VectorLength(HkVectorToNiPoint(pointVelocity)) > Config::options.dontCollideClutterMinVelocity) {
-                            ignoreCollision = true;
-                        }
-                    }
+                            { // Ignore the entire object after this
+                                std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+                                g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
+                            }
 
-                    if (ignoreCollision) {
-                        // remove the hit by moving the last hit into its place
-                        collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
-                        collector->getHits().m_size -= 1;
-                        i -= 1;
+                            collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                            collector->getHits().m_size -= 1;
+                            i -= 1;
+                        }
                     }
                 }
             }
