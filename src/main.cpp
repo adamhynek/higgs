@@ -307,13 +307,34 @@ void ApplyRoomSpaceDelta(bhkRigidBody *body)
 
         bhkRigidBody_setActivated(body, true);
 
-        // We should do this without using setPositionAndRotation, as that does a couple extra things like trigger the moveBody callbacks. I think that's why the node gets desynced with the physics object in some cases when letting go.
-
         bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
 
         if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
-            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            // There is an issue where the held object stops updating hen the player is not moving. I think it's a race caused by calling UpdateNode during an exterior cell change, so unset kNofify here.
+            // We only need to do this update to make sure the current transform is up to date with the physics object, the game will do the full update as usual.
+
+            static std::unordered_map<bhkCollisionObject *, bool> wasNotify{};
+            wasNotify.clear();
+
+            VisitNodes(node, [](NiAVObject *node, int depth) {
+                if (NiPointer<bhkCollisionObject> collObj = GetCollisionObject(node)) {
+                    wasNotify[collObj] = collObj->flags & 4; // kNotify
+                    collObj->flags &= ~4; // unset kNotify
+                }
+                return false;
+            }, 0);
+
+            NiAVObject::ControllerUpdateContext ctx{ 0.f, 0x2000 };
             NiAVObject_UpdateNode(node, &ctx);
+
+            VisitNodes(node, [](NiAVObject *node, int depth) {
+                if (NiPointer<bhkCollisionObject> collObj = GetCollisionObject(node)) {
+                    if (auto it = wasNotify.find(collObj); it != wasNotify.end() && it->second) {
+                        collObj->flags |= 4; // set kNotify
+                    }
+                }
+                return false;
+            }, 0);
         }
     }
 }
@@ -728,6 +749,7 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
                     float mass = massInv != 0 ? 1.f / massInv : (std::numeric_limits<float>::max)();
 
                     // TODO: We need stuff above the mass threshold to not collide with the player if it's a "contained" object
+                    //       - This is somewhat mitigated already by getting rid of most clutter collision
                     bool ignoreCollision = false;
                     if (mass < Config::options.minCollideClutterMass) {
                         collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
