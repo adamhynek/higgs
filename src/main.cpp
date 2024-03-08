@@ -750,7 +750,6 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
 
                     // TODO: We need stuff above the mass threshold to not collide with the player if it's a "contained" object
                     //       - This is somewhat mitigated already by getting rid of most clutter collision
-                    bool ignoreCollision = false;
                     if (mass < Config::options.minCollideClutterMass) {
                         collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
                         collector->getHits().m_size -= 1;
@@ -758,7 +757,10 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
                     }
                     else {
                         hkVector4 pointVelocity; rigidBody->getPointVelocity(hit.m_contact.getPosition(), pointVelocity);
-                        if (VectorLength(HkVectorToNiPoint(pointVelocity)) > Config::options.dontCollideClutterMinVelocity) {
+                        hkVector4 normal = hit.m_contact.getNormal();
+                        float speedInNormalDirection = pointVelocity.dot3(normal);
+
+                        if (speedInNormalDirection > Config::options.dontCollideClutterMinVelocity) {
                             { // Ignore the entire object after this
                                 std::scoped_lock lock(g_ignoredCollisionGroupsLock);
                                 g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
