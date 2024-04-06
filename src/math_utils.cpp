@@ -1491,7 +1491,7 @@ bool IsHairSkinInstance(NiSkinInstance *skinInstance)
     if (!data) return false;
 
     for (int i = 0; i < dismemberSkinInstance->numPartitions; i++) {
-        if (data[i].slot != 31) { // 31 is the hair bodypart number
+        if (data[i].slot != 31 && data[i].slot != 41) { // 31 is the hair bodypart number, 41 is long hair
             return false;
         }
     }
