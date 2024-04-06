@@ -1176,8 +1176,9 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
     triangles.clear();
     std::vector<TrianglePartitionData> trianglePartitions{};
     std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionDataMap{};
+    std::vector<SkinInstanceRepresentation> visitedSkinInstances{};
     double t = GetTime();
-    GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap);
+    GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap, visitedSkinInstances);
     _MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
     std::vector<NiAVObject *> triangleNodes{};
@@ -1380,8 +1381,9 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         triangles.clear();
         std::vector<TrianglePartitionData> trianglePartitions{};
         std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionDataMap{};
+        std::vector<SkinInstanceRepresentation> visitedSkinInstances{};
         double t = GetTime();
-        GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap, skinToSpecificNodes ? &nodesToSkinTo : nullptr);
+        GetSkinnedTriangles(objRoot, triangles, trianglePartitions, partitionDataMap, visitedSkinInstances, skinToSpecificNodes ? &nodesToSkinTo : nullptr);
         _MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
         std::vector<NiAVObject *> triangleNodes{};
@@ -1705,8 +1707,9 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
     triangles.clear();
     std::vector<TrianglePartitionData> trianglePartitions{};
     std::unordered_map<NiSkinPartition::Partition *, PartitionData> partitionData{};
+    std::vector<SkinInstanceRepresentation> visitedSkinInstances{};
     double t = GetTime();
-    GetSkinnedTriangles(weaponNode, triangles, trianglePartitions, partitionData);
+    GetSkinnedTriangles(weaponNode, triangles, trianglePartitions, partitionData, visitedSkinInstances);
     _MESSAGE("Time spent skinning: %.3f ms", (GetTime() - t) * 1000);
 
     std::vector<NiAVObject *> triangleNodes{};

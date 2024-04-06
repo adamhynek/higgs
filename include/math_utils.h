@@ -123,6 +123,15 @@ namespace MathUtils
     Result GetClosestPointOnTriangle(const NiPoint3 &point, const TriangleData &triangle);
 }
 
+struct SkinInstanceRepresentation
+{
+    NiSkinData *skinData;
+    NiSkinPartition *skinPartition;
+    NiTransform **boneTransforms;
+    UInt32 numBones;
+};
+
+
 inline float VectorLengthSquared(const NiPoint3 &vec) { return vec.x*vec.x + vec.y*vec.y + vec.z*vec.z; }
 inline float VectorLengthSquared(const Point2 &vec) { return vec.x*vec.x + vec.y*vec.y; }
 inline float VectorLength(const NiPoint3 &vec) { return sqrtf(VectorLengthSquared(vec)); }
@@ -193,7 +202,7 @@ inline float ConstrainAngleNegative360(float x) { return -ConstrainAngle360(-x);
 
 bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom);
 
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::vector<SkinInstanceRepresentation> &visitedSkinInstances, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr);
 void GetTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<NiAVObject *> &triangleNodes);
 
 bool GetIntersections(const std::vector<TriangleData> &triangles, int fingerIndex, float handScale, const NiPoint3 &center, const NiPoint3 &normal, const NiPoint3 &zeroAngleVector,

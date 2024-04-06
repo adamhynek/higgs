@@ -1475,6 +1475,30 @@ bool IsHairGeometry(BSGeometry *geom)
     return false;
 }
 
+struct BSDismemberSkinInstance_Data
+{
+    bool editorVisible; // 0
+    bool startNetBoneSet; // 1
+    UInt16 slot; // 2
+};
+
+bool IsHairSkinInstance(NiSkinInstance *skinInstance)
+{
+    BSDismemberSkinInstance *dismemberSkinInstance = DYNAMIC_CAST(skinInstance, NiSkinInstance, BSDismemberSkinInstance);
+    if (!dismemberSkinInstance) return false;
+
+    BSDismemberSkinInstance_Data *data = (BSDismemberSkinInstance_Data *)dismemberSkinInstance->partitionFlags;
+    if (!data) return false;
+
+    for (int i = 0; i < dismemberSkinInstance->numPartitions; i++) {
+        if (data[i].slot != 31) { // 31 is the hair bodypart number
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool IsIgnorableGeometry(BSGeometry *geom)
 {
     NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
@@ -1534,8 +1558,27 @@ bool ShouldIgnoreBasedOnVertexAlpha(BSTriShape *geom)
     return false;
 }
 
+bool HasAlreadyProcessedSimilarSkinInstance(SkinInstanceRepresentation &query, std::vector<SkinInstanceRepresentation> &visitedSkinInstances)
+{
+    for (SkinInstanceRepresentation &skinInstance : visitedSkinInstances) {
+        if (skinInstance.skinData == query.skinData && skinInstance.skinPartition == query.skinPartition && skinInstance.numBones == query.numBones) {
+            bool allTransformsMatch = true;
+            for (UInt32 i = 0; i < query.numBones; i++) {
+                if (skinInstance.boneTransforms[i] != query.boneTransforms[i]) {
+                    allTransformsMatch = false;
+                    break;
+                }
+            }
+            if (allTransformsMatch) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // Add triangles to the given list for each skinned partition in geom
-void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
+void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::vector<SkinInstanceRepresentation> &visitedSkinInstances, std::unordered_set<NiAVObject *> *nodesToSkinTo = nullptr)
 {
     if (geom->m_name && Config::options.grabNodeNameBlacklist.find(std::string_view(geom->m_name)) != Config::options.grabNodeNameBlacklist.end()) return;
 
@@ -1550,8 +1593,7 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 
     if (IsIgnorableGeometry(geom)) return;
 
-    if (Config::options.disableGrabHair && IsHairGeometry(geom)) {
-        // Don't skin hair - it gets in the way
+    if (Config::options.disableGrabHair && (IsHairGeometry(geom) || IsHairSkinInstance(skinInstance))) {
         return;
     }
 
@@ -1571,6 +1613,14 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
     if (!boneTransforms || numBones <= 0) return;
 
     BSDynamicTriShape *dynamicShape = DYNAMIC_CAST(geom, BSTriShape, BSDynamicTriShape);
+
+    if (!dynamicShape) {
+        SkinInstanceRepresentation skinInstanceRep = { skinData, skinPartition, boneTransforms, numBones };
+        if (HasAlreadyProcessedSimilarSkinInstance(skinInstanceRep, visitedSkinInstances)) {
+            return;
+        }
+        visitedSkinInstances.push_back(skinInstanceRep);
+    }
 
     NiSkinData::BoneData *boneData = skinData->m_pkBoneData;
 
@@ -1688,13 +1738,13 @@ void UpdateSkinnedTriangles(BSTriShape *geom, std::vector<TriangleData> &triangl
 }
 
 // Get skinned triangles for all geometry rooted at root
-void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::unordered_set<NiAVObject *> *nodesToSkinTo)
+void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles, std::vector<TrianglePartitionData> &trianglePartitions, std::unordered_map<NiSkinPartition::Partition *, PartitionData> &partitionData, std::vector<SkinInstanceRepresentation> &visitedSkinInstances, std::unordered_set<NiAVObject *> *nodesToSkinTo)
 {
     if (root->m_flags & 1) return; // Node is culled
 
     BSTriShape *geom = root->GetAsBSTriShape();
     if (geom) {
-        UpdateSkinnedTriangles(geom, triangles, trianglePartitions, partitionData, nodesToSkinTo);
+        UpdateSkinnedTriangles(geom, triangles, trianglePartitions, partitionData, visitedSkinInstances, nodesToSkinTo);
         return;
     }
 
@@ -1705,7 +1755,7 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
             for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
                 auto child = node->m_children.m_data[i];
                 if (child) {
-                    GetSkinnedTriangles(child, triangles, trianglePartitions, partitionData, nodesToSkinTo);
+                    GetSkinnedTriangles(child, triangles, trianglePartitions, partitionData, visitedSkinInstances, nodesToSkinTo);
                     return;
                 }
             }
@@ -1714,7 +1764,7 @@ void GetSkinnedTriangles(NiAVObject *root, std::vector<TriangleData> &triangles,
             for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
                 auto child = node->m_children.m_data[i];
                 if (child) {
-                    GetSkinnedTriangles(child, triangles, trianglePartitions, partitionData, nodesToSkinTo);
+                    GetSkinnedTriangles(child, triangles, trianglePartitions, partitionData, visitedSkinInstances, nodesToSkinTo);
                 }
             }
         }
