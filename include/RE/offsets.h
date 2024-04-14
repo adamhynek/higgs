@@ -42,7 +42,7 @@ extern RelocPtr<float> fMaxTimeComplex;
 
 extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime_CheckPaused;
 extern RelocPtr<float> g_secondsSinceLastFrame_WorldTime;
-extern RelocPtr<float> g_secondsSinceLastFrame_Unmultiplied;
+extern RelocPtr<float> g_secondsSinceLastFrame_GameTime;
 
 extern RelocPtr<int> g_currentFrameCounter;
 extern RelocPtr<int> g_sceneComplexCounter;

@@ -30,3 +30,6 @@ void ApplyRoomSpaceDelta(bhkRigidBody *body);
 extern float g_totalMassThisFrame;
 void RegisterObjectMass(hkpRigidBody *body, std::optional<float> massOverride = {});
 
+void PrePhysicsStep(bhkWorld *world);
+void PostPhysicsStep(bhkWorld *world);
+

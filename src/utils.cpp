@@ -812,6 +812,25 @@ NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root)
     return nullptr;
 }
 
+BSGeometry *GetFirstGeometry(NiAVObject *root)
+{
+    if (!root) return nullptr;
+
+    if (BSGeometry *geom = DYNAMIC_CAST(root, NiAVObject, BSGeometry)) {
+        return geom;
+    }
+
+    if (NiNode *node = root->GetAsNiNode()) {
+        for (UInt32 i = 0; i < node->m_children.m_emptyRunStart; i++) {
+            if (BSGeometry *geom = GetFirstGeometry(node->m_children.m_data[i])) {
+                return geom;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
 UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location)
 {
     UInt32 formId = sound->formID;

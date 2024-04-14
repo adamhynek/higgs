@@ -117,6 +117,7 @@ void GetDownstreamNodes(NiAVObject *root, std::unordered_set<NiAVObject *> &targ
 void GetDownstreamNodesNoCollision(NiAVObject *root, std::unordered_set<NiAVObject *> &targets);
 bool IsSkinnedToNode(NiAVObject *skinnedRoot, NiAVObject *target);
 NiPointer<bhkRigidBody> GetFirstRigidBody(NiAVObject *root);
+BSGeometry *GetFirstGeometry(NiAVObject *root);
 UInt32 PlaySoundAtNode(BGSSoundDescriptorForm *sound, NiAVObject *node, const NiPoint3 &location);
 const char * GetItemName(TESForm *form, BaseExtraList *extraList);
 SInt32 GetItemId(TESForm * form, BaseExtraList * extraList);

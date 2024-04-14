@@ -28,7 +28,6 @@ uintptr_t shaderHookedFuncAddr = 0;
 auto shaderHookLoc = RelocAddr<uintptr_t>(0x2AE3E8);
 auto shaderHookedFunc = RelocAddr<uintptr_t>(0x564DD0);
 
-uintptr_t pickHookedFuncAddr = 0;
 auto pickHookLoc = RelocAddr<uintptr_t>(0x6D2E7F);
 auto pickHookedFunc = RelocAddr<uintptr_t>(0x3BA0C0); // CrosshairPickData::Pick
 
@@ -40,7 +39,6 @@ uintptr_t postWandUpdateHookedFuncAddr = 0;
 auto postWandUpdateHookLoc = RelocAddr<uintptr_t>(0x13233AA); // A call shortly after the wand nodes are updated as part of Main::Draw()
 auto postWandUpdateHookedFunc = RelocAddr<uintptr_t>(0xDCF900);
 
-uintptr_t preVRIKMainThreadHookedFuncAddr = 0;
 auto preVRIKMainThreadHookLoc = RelocAddr<uintptr_t>(0x5BABB5); // A call on the main thread right after the skse process events hook, and right before the vrik main thread hook
 auto preVRIKMainThreadHookedFunc = RelocAddr<uintptr_t>(0xDFE470); // Some bhkWorld func
 
@@ -52,7 +50,6 @@ uintptr_t postVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
 auto postVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCFC); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
 auto postVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x62ED20); // Actor::GetWeapon
 
-uintptr_t playerCharacterUpdateHookedFuncAddr = 0;
 auto playerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x649FD3); // In Job_Non_render_safe_AI(), calls PlayerCharacter::Update()
 auto playerCharacterHookedFunc = RelocAddr<uintptr_t>(0x6C6910); // PlayerCharacter::Update()
 
@@ -91,7 +88,7 @@ auto shaderSetEffectDataInitHookedFunc = RelocAddr<uintptr_t>(0x2291F0); // TESE
 
 auto shaderCheckFlagsHookLoc = RelocAddr<uintptr_t>(0x229243);
 
-auto prePhysicsStepHookLoc = RelocAddr<uintptr_t>(0xDFB709);
+auto prePhysicsStepHookLoc = RelocAddr<uintptr_t>(0xDFB722);
 
 auto GetRefFromCollidable_GetNodeFromCollidable_HookLoc = RelocPtr<uintptr_t>(0x3B495B);
 
@@ -537,7 +534,7 @@ void RefreshActivateButtonArtHook()
 
 void UpdatePhysicsTimesHook()
 {
-    float gameFrametime = *g_secondsSinceLastFrame_Unmultiplied;
+    float gameFrametime = *g_secondsSinceLastFrame_GameTime;
 
     float maxPhysicsFrameTime = 1.f / Config::options.minPhysicsFrameRate;
 
@@ -574,9 +571,19 @@ CollisionFilterComparisonResult bhkCollisionFilter_CompareFilterInfo_Hook(bhkCol
     return HiggsPluginAPI::TriggerCollisionFilterComparisonCallbacks(filter, filterInfoA, filterInfoB);
 }
 
-void PrePhysicsStepHook(bhkWorld *world)
+typedef hkpStepResult(*_hkpWorld_stepDeltaTime)(hkpWorld *_this, float a_delta);
+_hkpWorld_stepDeltaTime bhkWorld_Update_ahkpWorld_stepDeltaTime_Original = 0;
+hkpStepResult PrePhysicsStepHook(ahkpWorld *_this, float a_physicsDeltaTime)
 {
-    HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(world);
+    HiggsPluginAPI::TriggerPrePhysicsStepCallbacks(_this->m_userData);
+
+    PrePhysicsStep(_this->m_userData);
+
+    hkpStepResult ret = bhkWorld_Update_ahkpWorld_stepDeltaTime_Original(_this, a_physicsDeltaTime);
+
+    PostPhysicsStep(_this->m_userData);
+
+    return ret;
 }
 
 typedef void(*_Actor_Update)(Actor *_this, float a_delta);
@@ -704,6 +711,138 @@ void bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook(hkpWorld *world, const 
     }
 }
 
+//auto NiAVObject_UpdateNode_UpdateDownwardPass_HookLoc = RelocPtr<uintptr_t>(0xC9BC1F);
+typedef void(*_NiAVObject_UpdateDownwardPass)(NiAVObject *_this, NiAVObject::ControllerUpdateContext *ctx, void *a3);
+_NiAVObject_UpdateDownwardPass NiAVObject_UpdateDownwardPass_Original = 0;
+RelocPtr<_NiAVObject_UpdateDownwardPass> BSFadeNode_UpdateDownwardPass_vtbl(0x18EB9E0);
+RelocPtr<_NiAVObject_UpdateDownwardPass> NiNode_UpdateDownwardPass_vtbl(0x17EED70);
+RelocPtr<_NiAVObject_UpdateDownwardPass> NiAVObject_UpdateDownwardPass_vtbl(0x17EE868);
+RelocPtr<_NiAVObject_UpdateDownwardPass> NiNode_UpdateTransformAndBounds_vtbl(0x18EBA08);
+void NiAVObject_UpdateDownwardPass_Hook(NiAVObject *_this, NiAVObject::ControllerUpdateContext *ctx, void *a3)
+{
+    if (g_rightHand) {
+        if (NiPointer<bhkRigidBody> rigidBody = g_rightHand->selectedObject.rigidBody) {
+            if (NiAVObject *node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+                if (node == _this) {
+                    _MESSAGE("%d UpdateNode", *g_currentFrameCounter);
+                }
+            }
+        }
+    }
+
+    NiAVObject_UpdateDownwardPass_Original(_this, ctx, a3);
+}
+
+struct BSRenderPass
+{
+    void *shader;            // 00
+    BSShaderProperty *shaderProperty;    // 08
+    BSGeometry *geometry;          // 10
+    std::uint32_t     passEnum;          // 18
+    std::uint8_t      accumulationHint;  // 1C
+    std::uint8_t      extraParam;        // 1D
+    char           LODMode;           // 1E
+    std::uint8_t      numLights;         // 1F
+    std::uint16_t     unk20;             // 20
+    BSRenderPass *next;              // 28
+    BSRenderPass *passGroupNext;     // 30
+    void **sceneLights;       // 38
+    std::uint32_t     cachePoolId;       // 40
+    std::uint32_t     pad44;             // 44
+};
+
+struct BSLightingShader
+{
+    void *vftable_BSLightingShader_0;
+    char _pad_8[8];
+    void *vftable_NiBoneMatrixSetterI_10;
+    void *vftable_BSReloadShaderI_18;
+    std::int32_t                                               shaderType;     // 20
+    UInt32 pad24;
+    char vertexShaders[0x30];  // 28
+    char pixelShaders[0x30];   // 58
+    const char *fxpFilename;    // 88
+    UInt32 unk90;
+    UInt32 currentRawTechnique; // 94
+    char unkMap[0x30]; // 98
+    UInt64 unkC8;
+    NiColorA skyColor; // D0
+    NiColorA directionalLightColor; // E0
+    bool unkF0;
+};
+
+typedef void (*_BSLightingShader_Func6_SetupGeometry)(BSLightingShader *a1, BSRenderPass *a2, UInt32 a_flags, int a4);
+_BSLightingShader_Func6_SetupGeometry BSLightingShader_Func6_SetupGeometry_Original = nullptr;
+RelocPtr<_BSLightingShader_Func6_SetupGeometry> BSLightingShader_Func6_SetupGeometry_vtbl(0x1905100);
+void BSLightingShader_Func6_SetupGeometry_Hook(BSLightingShader *a1, BSRenderPass *a2, UInt32 a_flags, int a4)
+{
+    float oldZ;
+
+    if (g_rightHand) {
+        if (NiPointer<bhkRigidBody> rigidBody = g_rightHand->selectedObject.rigidBody) {
+            if (NiAVObject *node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+                if (BSGeometry *geometry = GetFirstGeometry(node)) {
+                    if (geometry == a2->geometry) {
+                        _MESSAGE("%d SetupGeometry", *g_currentFrameCounter);
+                        oldZ = 0.0f;
+                        //geometry->m_worldTransform.pos.z += 0.001f;
+                        //NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                        //NiAVObject_UpdateNode(node, &ctx);
+                    }
+                }
+            }
+        }
+    }
+
+    BSLightingShader_Func6_SetupGeometry_Original(a1, a2, a_flags, a4);
+}
+
+typedef void (*_BSUtilityShader_SetupGeometry)(void *a1, BSRenderPass *a2, UInt32 a_flags, int a4);
+_BSUtilityShader_SetupGeometry BSUtilityShader_SetupGeometry_Original = nullptr;
+RelocPtr<_BSUtilityShader_SetupGeometry> BSUtilityShader_SetupGeometry_vtbl(0x1907FD8);
+void BSUtilityShader_SetupGeometry_Hook(void *a1, BSRenderPass *a2, UInt32 a_flags, int a4)
+{
+    if (g_rightHand) {
+        if (NiPointer<bhkRigidBody> rigidBody = g_rightHand->selectedObject.rigidBody) {
+            if (NiAVObject *node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+                if (BSGeometry *geometry = GetFirstGeometry(node)) {
+                    if (geometry == a2->geometry) {
+                        if (a_flags == 0x21) {
+                            _MESSAGE("%d UtilityShader", *g_currentFrameCounter);
+
+                           /* NiTransform newTransform = node->m_worldTransform;
+                            newTransform.pos = HkVectorToNiPoint(rigidBody->hkBody->getPosition());
+                            newTransform.pos /= *g_havokWorldScale;*/
+                            //geometry->m_worldTransform = newTransform;
+
+                            //geometry->m_worldTransform.pos.x += 10.f;
+                            //NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                            //NiAVObject_UpdateNode(node, &ctx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    BSUtilityShader_SetupGeometry_Original(a1, a2, a_flags, a4);
+}
+
+
+typedef void(*_Actor_SetPositionWhileIgnoringZIfSupported)(Actor *, NiPoint3 *);
+_Actor_SetPositionWhileIgnoringZIfSupported Actor_SetPositionWhileIgnoringZIfSupported_Original = nullptr;
+RelocPtr<uintptr_t> BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_HookLoc(0x614252);
+void BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_Hook(Actor *actor, NiPoint3 *position)
+{
+    if (actor == *g_thePlayer) {
+        if (Config::options.delayPlayerMovement) {
+            return;
+        }
+    }
+
+    Actor_SetPositionWhileIgnoringZIfSupported_Original(actor, position);
+}
+
 
 #ifdef _DEBUG
 
@@ -736,6 +875,17 @@ void DoColorPass_NiCamera_FinishAccumulatingPostResolveDepth_Hook(NiCamera *came
 #endif // _DEBUG
 
 
+std::uintptr_t Write6Call(std::uintptr_t a_src, std::uintptr_t a_dst)
+{
+    const auto disp = reinterpret_cast<std::int32_t *>(a_src + 1);
+    const auto nextOp = a_src + 6;
+    const auto func = nextOp + *disp;
+
+    g_branchTrampoline.Write6Call(a_src, a_dst);
+
+    return func;
+}
+
 std::uintptr_t Write5Call(std::uintptr_t a_src, std::uintptr_t a_dst)
 {
     const auto disp = reinterpret_cast<std::int32_t *>(a_src + 1);
@@ -751,14 +901,11 @@ void PerformHooks(void)
 {
     // First, set our addresses
     shaderHookedFuncAddr = shaderHookedFunc.GetUIntPtr();
-    pickHookedFuncAddr = pickHookedFunc.GetUIntPtr();
     pickLinearCastHookedFuncAddr = pickLinearCastHookedFunc.GetUIntPtr();
     shaderSetEffectDataInitHookedFuncAddr = shaderSetEffectDataInitHookedFunc.GetUIntPtr();
     postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
-    preVRIKMainThreadHookedFuncAddr = preVRIKMainThreadHookedFunc.GetUIntPtr();
     preVRIKPlayerCharacterUpdateHookedFuncAddr = preVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
     postVRIKPlayerCharacterUpdateHookedFuncAddr = postVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
-    playerCharacterUpdateHookedFuncAddr = playerCharacterHookedFunc.GetUIntPtr();
     updatePhysicsTimesHookedFuncAddr = updatePhysicsTimesHookedFunc.GetUIntPtr();
     updateVRMeleeDataRigidBodyCtorHookedFuncAddr = updateVRMeleeDataRigidBodyCtorHookedFunc.GetUIntPtr();
 
@@ -1287,39 +1434,8 @@ void PerformHooks(void)
     }
 
     {
-        struct Code : Xbyak::CodeGenerator {
-            Code(void * buf) : Xbyak::CodeGenerator(256, buf)
-            {
-                Xbyak::Label jumpBack;
-
-                sub(rsp, 0x20); // Need an additional 0x20 bytes for scratch space
-
-                mov(rcx, r12); // the bhkWorld is at r12
-
-                // Call our hook
-                mov(rax, (uintptr_t)PrePhysicsStepHook);
-                call(rax);
-
-                add(rsp, 0x20);
-
-                // Original code
-                mov(rcx, r13);
-                test(r14b, r14b);
-
-                // Jump back to whence we came (+ the size of the initial branch instruction)
-                jmp(ptr[rip + jumpBack]);
-
-                L(jumpBack);
-                dq(prePhysicsStepHookLoc.GetUIntPtr() + 6);
-            }
-        };
-
-        void * codeBuf = g_localTrampoline.StartAlloc();
-        Code code(codeBuf);
-        g_localTrampoline.EndAlloc(code.getCurr());
-
-        g_branchTrampoline.Write6Branch(prePhysicsStepHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
-
+        std::uintptr_t originalFunc = Write5Call(prePhysicsStepHookLoc.GetUIntPtr(), uintptr_t(PrePhysicsStepHook));
+        bhkWorld_Update_ahkpWorld_stepDeltaTime_Original = (_hkpWorld_stepDeltaTime)originalFunc;
         _MESSAGE("Pre-physics-step hook complete");
     }
 
@@ -1394,6 +1510,26 @@ void PerformHooks(void)
     {
         g_original_hkpCachingShapePhantom_setPositionAndLinearCast = *hkpCachingShapePhantom_setPositionAndLinearCast_vtbl;
         SafeWrite64(hkpCachingShapePhantom_setPositionAndLinearCast_vtbl.GetUIntPtr(), uintptr_t(hkpCachingShapePhantom_setPositionAndLinearCast_Hook));
+    }
+
+    {
+        NiAVObject_UpdateDownwardPass_Original = *NiNode_UpdateTransformAndBounds_vtbl;
+        SafeWrite64(NiNode_UpdateTransformAndBounds_vtbl.GetUIntPtr(), uintptr_t(NiAVObject_UpdateDownwardPass_Hook));
+    }
+
+    {
+        BSLightingShader_Func6_SetupGeometry_Original = *BSLightingShader_Func6_SetupGeometry_vtbl;
+        SafeWrite64(BSLightingShader_Func6_SetupGeometry_vtbl.GetUIntPtr(), uintptr_t(BSLightingShader_Func6_SetupGeometry_Hook));
+    }
+
+    {
+        BSUtilityShader_SetupGeometry_Original = *BSUtilityShader_SetupGeometry_vtbl;
+        SafeWrite64(BSUtilityShader_SetupGeometry_vtbl.GetUIntPtr(), uintptr_t(BSUtilityShader_SetupGeometry_Hook));
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_HookLoc.GetUIntPtr(), uintptr_t(BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_Hook));
+        Actor_SetPositionWhileIgnoringZIfSupported_Original = (_Actor_SetPositionWhileIgnoringZIfSupported)originalFunc;
     }
 
 #ifdef _DEBUG

@@ -699,11 +699,34 @@ void Hand::UpdateHandCollision(bhkWorld *world)
     if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
         ApplyRoomSpaceDelta(handBody);
     }
+}
 
-    hkTransform transform = ComputeHandCollisionTransform(isBeast);
-    hkQuaternion desiredQuat;
-    desiredQuat.setFromRotationSimd(transform.m_rotation);
-    ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handBody);
+void Hand::PostResimulate()
+{
+    if (handBody) {
+        bool isBeast = TESRace_IsBeast(Actor_GetRace(*g_thePlayer));
+
+        hkTransform transform = ComputeHandCollisionTransform(isBeast);
+        hkQuaternion desiredQuat;
+        desiredQuat.setFromRotationSimd(transform.m_rotation);
+        ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handBody);
+    }
+
+    if (weaponBody) {
+        VRMeleeData *meleeData = GetVRMeleeData(isLeft);
+
+        if (NiPointer<NiNode> collisionNode = meleeData->collisionNode) {
+            if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode)) {
+                if (rigidBody->hkBody) {
+                    hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
+
+                    hkQuaternion desiredQuat;
+                    desiredQuat.setFromRotationSimd(transform.m_rotation);
+                    ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, weaponBody);
+                }
+            }
+        }
+    }
 }
 
 
@@ -880,12 +903,6 @@ void Hand::UpdateWeaponCollision()
     if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
         ApplyRoomSpaceDelta(weaponBody);
     }
-
-    hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
-
-    hkQuaternion desiredQuat;
-    desiredQuat.setFromRotationSimd(transform.m_rotation);
-    ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, weaponBody);
 
     if (Config::options.updateHandsToMatchWeaponCollisionTransform) {
         // This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
