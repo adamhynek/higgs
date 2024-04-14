@@ -2959,10 +2959,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
 
                             // Set velocity of the held object more precisely than just using its current velocity
-                            NiPoint3 velocityObjectComponent = GetMaxVelocity(selectedObject.linearVelocities);
+                            NiPoint3 velocityObjectComponent = GetMaxVelocity(selectedObject.localLinearVelocities);
                             if (VectorLength(velocityObjectComponent) > Config::options.throwVelocityThreshold) {
                                 velocityObjectComponent *= Config::options.throwVelocityBoostFactor;
                             }
+                            velocityObjectComponent += g_prevDeltaVelocity;
 
                             bhkRigidBody_setActivated(selectedObject.rigidBody, true);
                             selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityObjectComponent);
@@ -3812,8 +3813,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 // These are actually local velocities of the object to the player, since we set position directly when the player is moving
                 NiPoint3 linearVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getLinearVelocity());
-                selectedObject.linearVelocities.pop_back();
-                selectedObject.linearVelocities.push_front(linearVelocity);
+                NiPoint3 localLinearVelocity = linearVelocity - g_prevDeltaVelocity;
+                selectedObject.localLinearVelocities.pop_back();
+                selectedObject.localLinearVelocities.push_front(localLinearVelocity);
 
                 {
                     double elapsedTimeFraction = (g_currentFrameTime - heldTime) / startGrabLerpHandDuration;

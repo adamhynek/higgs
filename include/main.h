@@ -24,6 +24,8 @@ extern int g_savedShadowUpdateFrameDelay;
 extern int g_shadowUpdateFrame;
 extern int g_numShadowUpdates;
 
+extern NiPoint3 g_prevDeltaVelocity;
+
 extern std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies;
 void ApplyRoomSpaceDelta(bhkRigidBody *body);
 
