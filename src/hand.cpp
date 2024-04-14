@@ -3782,24 +3782,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         RegisterPlayerSpaceBody(selectedObject.rigidBody);
                     }
                     else {
-                        // Check if any of the connected bodies is a fixed body. If so, we don't want to set position of everything
-                        bool isAttachedToFixed = false;
-                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                            if (!IsMoveableEntity(connectedBody->hkBody)) {
-                                isAttachedToFixed = true;
-                                break;
-                            }
+                        for (bhkRigidBody *containedBody : containedRigidBodies) {
+                            RegisterPlayerSpaceBody(containedBody);
                         }
 
-                        if (!isAttachedToFixed) {
-                            for (bhkRigidBody *containedBody : containedRigidBodies) {
-                                RegisterPlayerSpaceBody(containedBody);
-                            }
-
-                            // Do this after we check which things are contained, since we don't want to set position of the container before checking things against it
-                            for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                                RegisterPlayerSpaceBody(connectedBody);
-                            }
+                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                            RegisterPlayerSpaceBody(connectedBody);
                         }
                     }
                 }
@@ -3810,8 +3798,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 NiTransform inverseDesired = InverseTransform(desiredNodeTransformHandSpace);
                 adjustedHandTransform = heldTransform * inverseDesired;
 
-
-                // These are actually local velocities of the object to the player, since we set position directly when the player is moving
                 NiPoint3 linearVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getLinearVelocity());
                 NiPoint3 localLinearVelocity = linearVelocity - g_prevDeltaVelocity;
                 selectedObject.localLinearVelocities.pop_back();
