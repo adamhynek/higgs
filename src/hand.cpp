@@ -671,7 +671,9 @@ void Hand::UpdateHandCollision(bhkWorld *world)
     hkpRigidBody *handCollBody = handBody->hkBody;
     bool wasCollisionDisabled = (handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
 
-    if (state == State::HeldBody) {
+    bool shouldDisableCollision = state == State::HeldBody || (IsTwoHanding() || GetOtherHand().IsTwoHanding());
+
+    if (shouldDisableCollision) {
         // Don't have the hand collide while we're holding a physically-grabbed object
         handCollBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= (1 << 14); // turns collision off
         if (!wasCollisionDisabled) {
