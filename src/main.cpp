@@ -271,94 +271,56 @@ void UpdateSpeedReduction()
 }
 
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
-std::set<NiPointer<bhkRigidBody>> g_prevPlayerSpaceBodies{};
 
 std::unordered_set<bhkRigidBody *> g_thisFrameDeltaPosUpdatedBodies{};
 
 NiTransform g_currentRoomTransform{};
 NiTransform g_prevRoomTransform{};
 
-void ApplyRoomSpaceDelta(bhkRigidBody *body)
+void RegisterPlayerSpaceBody(bhkRigidBody *body)
 {
     g_playerSpaceBodies.insert(body);
-
-    NiTransform currentRoomTransform = g_currentRoomTransform;
-    currentRoomTransform.pos *= *g_havokWorldScale;
-
-    NiTransform prevRoomTransform = g_prevRoomTransform;
-    prevRoomTransform.pos *= *g_havokWorldScale;
-
-    NiTransform deltaRoomTransform = currentRoomTransform * InverseTransform(prevRoomTransform);
-
-    NiTransform currentTransform{};
-    currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
-    currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
-
-    NiTransform currentRoomSpace = InverseTransform(prevRoomTransform) * currentTransform;
-
-    NiTransform newTransform = currentRoomTransform * currentRoomSpace;
-
-    NiPoint3 deltaPos = newTransform.pos - currentTransform.pos;
-
-    if (VectorLength(deltaPos) > 0.001f) {
-        if (g_thisFrameDeltaPosUpdatedBodies.contains(body)) return;
-
-        g_thisFrameDeltaPosUpdatedBodies.insert(body);
-
-        //bhkRigidBody_setActivated(body, true);
-
-        //bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
-
-        //if (NiPointer<NiAVObject> node = GetNodeFromCollidable(body->hkBody->getCollidable())) {
-        //    // There is an issue where the held object stops updating hen the player is not moving. I think it's a race caused by calling UpdateNode during an exterior cell change, so unset kNofify here.
-        //    // We only need to do this update to make sure the current transform is up to date with the physics object, the game will do the full update as usual.
-
-        //    static std::unordered_map<bhkCollisionObject *, bool> wasNotify{};
-        //    wasNotify.clear();
-
-        //    VisitNodes(node, [](NiAVObject *node, int depth) {
-        //        if (NiPointer<bhkCollisionObject> collObj = GetCollisionObject(node)) {
-        //            wasNotify[collObj] = collObj->flags & 4; // kNotify
-        //            collObj->flags &= ~4; // unset kNotify
-        //        }
-        //        return false;
-        //    }, 0);
-
-        //    NiAVObject::ControllerUpdateContext ctx{ 0.f, 0x2000 };
-        //    NiAVObject_UpdateNode(node, &ctx);
-
-        //    VisitNodes(node, [](NiAVObject *node, int depth) {
-        //        if (NiPointer<bhkCollisionObject> collObj = GetCollisionObject(node)) {
-        //            if (auto it = wasNotify.find(collObj); it != wasNotify.end() && it->second) {
-        //                collObj->flags |= 4; // set kNotify
-        //            }
-        //        }
-        //        return false;
-        //    }, 0);
-        //}
-    }
 }
 
 NiPoint3 g_prevDeltaVelocity{};
 
 void PrePhysicsStep(bhkWorld *world)
 {
-    _MESSAGE("%d PrePhysicsStep", *g_currentFrameCounter);
+    int x = 0;
 }
 
 void PostPhysicsStep(bhkWorld *world)
 {
-    _MESSAGE("%d PostPhysicsStep", *g_currentFrameCounter);
+    int x = 0;
 }
-
-NiTransform g_currentRoomTransform2{};
-NiTransform g_prevRoomTransform2{};
 
 void SimulatePlayerSpace(bhkWorld *world)
 {
-    _MESSAGE("%d SimulatePlayerSpace", *g_currentFrameCounter);
+    //_MESSAGE("%d SimulatePlayerSpace", *g_currentFrameCounter);
+
+    PlayerCharacter *player = *g_thePlayer;
+
+    NiAVObject *roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+    if (!roomNode) return;
+
+    NiAVObject *followNode = player->unk3F0[PlayerCharacter::Node::kNode_FollowNode];
+    if (!followNode) return;
+
+    NiPointer<bhkCharProxyController> controller = GetCharProxyController(*g_thePlayer);
+    if (!controller) return;
 
     NiPoint3 playerVelocity = g_rightHand->avgPlayerVelocityWorldspace * *g_havokWorldScale;
+
+    hkVector4 controllerPos;  controller->GetPositionImpl(controllerPos, true);
+    NiPoint3 newControllerPos = HkVectorToNiPoint(controllerPos) * *g_inverseHavokWorldScale;
+
+    NiTransform nextRoomTransform = roomNode->m_worldTransform;
+    NiPoint3 predictedDelta = newControllerPos - followNode->m_worldTransform.pos;
+    nextRoomTransform.pos += predictedDelta;
+    g_currentRoomTransform = nextRoomTransform;
+
+    NiPoint3 delta = (g_currentRoomTransform.pos - g_prevRoomTransform.pos) * *g_havokWorldScale;
+    NiPoint3 deltaVelocity = delta / *g_deltaTime;
 
     {
         BSWriteLocker lock(&world->worldLock);
@@ -367,53 +329,14 @@ void SimulatePlayerSpace(bhkWorld *world)
         std::erase_if(g_playerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
             return !body->hkBody->isAddedToWorld();
             });
-        std::erase_if(g_prevPlayerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
-            return !body->hkBody->isAddedToWorld();
-            });
-
-        {
-            static std::vector<NiPointer<bhkRigidBody>> bodiesEntered, bodiesExited;
-            bodiesEntered.clear();
-            bodiesExited.clear();
-
-            std::set_difference(g_playerSpaceBodies.begin(), g_playerSpaceBodies.end(), g_prevPlayerSpaceBodies.begin(), g_prevPlayerSpaceBodies.end(), std::inserter(bodiesEntered, bodiesEntered.begin()));
-            std::set_difference(g_prevPlayerSpaceBodies.begin(), g_prevPlayerSpaceBodies.end(), g_playerSpaceBodies.begin(), g_playerSpaceBodies.end(), std::inserter(bodiesExited, bodiesExited.begin()));
-
-            for (bhkRigidBody *rigidBody : bodiesEntered) {
-                // Subtract the player velocity when the object enters the container
-                bhkRigidBody_setActivated(rigidBody, true);
-                NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
-                //rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity - playerVelocity);
-
-#ifdef _DEBUG
-                _MESSAGE("%d %p Entered", *g_currentFrameCounter, rigidBody);
-#endif // _DEBUG
-
-            }
-
-            for (bhkRigidBody *rigidBody : bodiesExited) {
-                // Add the player velocity when the object leaves the container
-                bhkRigidBody_setActivated(rigidBody, true);
-                NiPoint3 currentVelocity = HkVectorToNiPoint(rigidBody->hkBody->getLinearVelocity());
-                //rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(currentVelocity + playerVelocity);
-
-#ifdef _DEBUG
-                _MESSAGE("%d %p Exited", *g_currentFrameCounter, rigidBody);
-#endif // _DEBUG
-            }
-        }
-
-        //for (bhkRigidBody *body : g_playerSpaceBodies) {
-        //    ApplyPlayerDeltaPos(body, playerDeltaPos);
-        //}
 
         if (true) {
         //if (g_thisFrameDeltaPosUpdatedBodies.size() > 0) {
             for (bhkRigidBody *body : g_playerSpaceBodies) {
-                NiTransform currentRoomTransform = g_currentRoomTransform2;
+                NiTransform currentRoomTransform = g_currentRoomTransform;
                 currentRoomTransform.pos *= *g_havokWorldScale;
 
-                NiTransform prevRoomTransform = g_prevRoomTransform2;
+                NiTransform prevRoomTransform = g_prevRoomTransform;
                 prevRoomTransform.pos *= *g_havokWorldScale;
 
                 NiTransform deltaRoomTransform = currentRoomTransform * InverseTransform(prevRoomTransform);
@@ -431,7 +354,24 @@ void SimulatePlayerSpace(bhkWorld *world)
             }
         }
 
-        g_prevPlayerSpaceBodies = g_playerSpaceBodies; // copy
+        {
+
+            for (bhkRigidBody *body : g_playerSpaceBodies) {
+
+                // first subtract the previous velocity
+                if (IsMoveableEntity(body->hkBody)) {
+                    // Keyframed rigidBodies (like the hands) get their velocity zeroed when they step, so don't subtract anything
+                    body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) - g_prevDeltaVelocity);
+                }
+
+                // then add the new velocity
+                body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) + deltaVelocity);
+            }
+
+            g_prevDeltaVelocity = deltaVelocity;
+            g_prevRoomTransform = g_currentRoomTransform;
+        }
+
         g_playerSpaceBodies.clear();
     }
 
@@ -458,11 +398,6 @@ void Update()
         _MESSAGE("Could not get havok world from player cell");
         return;
     }
-
-    NiAVObject *roomNode = (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
-    if (!roomNode) return;
-
-    g_currentRoomTransform2 = roomNode->m_worldTransform;
 
 #ifdef _DEBUG
     Config::ReloadIfModified();
@@ -556,14 +491,7 @@ void Update()
     firstHandToUpdate->PostUpdate(*lastHandToUpdate, world);
     lastHandToUpdate->PostUpdate(*firstHandToUpdate, world);
 
-    g_rightHand->PostResimulate();
-    g_leftHand->PostResimulate();
-
     g_totalMassThisFrame = g_totalMassThisFrameAccumulator; // commit the total mass for this frame
-
-    //SimulatePlayerSpace(world);
-
-    g_prevRoomTransform2 = g_currentRoomTransform2;
 
     if (Config::options.slowMovementWhenObjectIsHeld) {
         UpdateSpeedReduction();
@@ -596,13 +524,6 @@ std::unordered_map<std::string_view, DebugTransform> g_debugDrawTransforms{};
 
 void DebugDraw()
 {
-    for (bhkRigidBody *body : g_prevPlayerSpaceBodies) {
-        if (body == g_rightHand->selectedObject.rigidBody || body == g_leftHand->selectedObject.rigidBody) {
-            NiPoint3 pos = HkVectorToNiPoint(body->hkBody->getPosition());
-            _MESSAGE("%d %.2f %.2f %.2f DebugDraw", *g_currentFrameCounter, pos.x, pos.y, pos.z);
-        }
-    }
-
 #ifdef _DEBUG
     for (auto &pair : g_debugDrawTransforms) {
         DebugDrawSphere(pair.second.transform, pair.second.color);
@@ -716,7 +637,7 @@ std::mutex g_ignoredCollisionGroupsLock{};
 
 void LateMainThreadUpdate()
 {
-    _MESSAGE("%d LateMainThreadUpdate", *g_currentFrameCounter);
+    //_MESSAGE("%d LateMainThreadUpdate", *g_currentFrameCounter);
 
     g_rightHand->LateMainThreadUpdate();
     g_leftHand->LateMainThreadUpdate();
@@ -728,7 +649,7 @@ RelocAddr<_PlayerCharacter_UpdateVRFollow> PlayerCharacter_UpdateVRFollow(0x6AD0
 
 void PlayerPostApplyMovementDeltaUpdate()
 {
-    _MESSAGE("%d PlayerPostApplyMovementDeltaUpdate", *g_currentFrameCounter);
+    //_MESSAGE("%d PlayerPostApplyMovementDeltaUpdate", *g_currentFrameCounter);
 
     //PlayerCharacter_UpdateVRFollow(*g_thePlayer, 0.f, 0.f);
 
@@ -747,65 +668,11 @@ void PlayerPostApplyMovementDeltaUpdate()
         }
     }
 
-
     PlayerCharacter *player = *g_thePlayer;
-    TESObjectCELL *cell = player->parentCell;
-    if (!cell) return;
-
-    NiPointer<bhkWorld> world = GetHavokWorldFromCell(cell);
-    if (!world) return;
-
-    SimulatePlayerSpace(world);
-
-    {
-        NiAVObject *roomNode = (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
-        if (!roomNode) return;
-
-        NiAVObject *followNode = (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_FollowNode];
-        if (!followNode) return;
-
-        //g_currentRoomTransform = roomNode->m_worldTransform;
-
-        NiPointer<bhkCharProxyController> controller = GetCharProxyController(*g_thePlayer);
-        if (!controller) return;
-
-        hkVector4 controllerPos;  controller->GetPositionImpl(controllerPos, true);
-        NiPoint3 newControllerPos = HkVectorToNiPoint(controllerPos) * *g_inverseHavokWorldScale;
-
-        NiTransform nextRoomTransform = roomNode->m_worldTransform;
-        NiPoint3 predictedDelta = newControllerPos - followNode->m_worldTransform.pos;
-        nextRoomTransform.pos += predictedDelta;
-        g_currentRoomTransform = nextRoomTransform;
-
-        NiPoint3 delta = (g_currentRoomTransform.pos - g_prevRoomTransform.pos) * *g_havokWorldScale;
-
-        //PrintToFile(std::to_string(VectorLength(delta)), "delta.txt");
-
-        NiPoint3 deltaVelocity = delta / *g_deltaTime; // TODO: maybe g_physicsDeltaTime ?
-
-        for (bhkRigidBody *body : g_prevPlayerSpaceBodies) {
-
-            // first subtract the previous velocity
-            if (IsMoveableEntity(body->hkBody)) {
-                // Keyframed rigidBodies (like the hands) get their velocity zeroed when they step, so don't subtract anything
-                body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) - g_prevDeltaVelocity);
-            }
-
-            // then add the new velocity
-            body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) + deltaVelocity);
-
-
-            if (body == g_rightHand->selectedObject.rigidBody || body == g_leftHand->selectedObject.rigidBody) {
-                NiPoint3 pos = HkVectorToNiPoint(body->hkBody->getPosition());
-                //_MESSAGE("%d %.2f %.2f %.2f Physics step", *g_currentFrameCounter, pos.x, pos.y, pos.z);
-            }
+    if (TESObjectCELL *cell = player->parentCell) {
+        if (NiPointer<bhkWorld> world = GetHavokWorldFromCell(cell)) {
+            SimulatePlayerSpace(world);
         }
-
-        //g_rightHand->PostResimulate();
-        //g_leftHand->PostResimulate();
-
-        g_prevDeltaVelocity = deltaVelocity;
-        g_prevRoomTransform = g_currentRoomTransform;
     }
 }
 

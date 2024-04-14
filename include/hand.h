@@ -159,7 +159,7 @@ struct Hand
 
     void Update(Hand &other, bhkWorld *world);
     void PostUpdate(Hand &other, bhkWorld *world);
-    void PostResimulate();
+    void MoveHandAndWeaponCollision();
     void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 
     void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);

@@ -699,11 +699,11 @@ void Hand::UpdateHandCollision(bhkWorld *world)
 
     // First, apply the player pos delta before we apply velocity
     if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
-        ApplyRoomSpaceDelta(handBody);
+        RegisterPlayerSpaceBody(handBody);
     }
 }
 
-void Hand::PostResimulate()
+void Hand::MoveHandAndWeaponCollision()
 {
     if (handBody) {
         bool isBeast = TESRace_IsBeast(Actor_GetRace(*g_thePlayer));
@@ -903,7 +903,7 @@ void Hand::UpdateWeaponCollision()
     weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo |= ((UInt32)playerCollisionGroup << 16); // set collision group to player group
 
     if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
-        ApplyRoomSpaceDelta(weaponBody);
+        RegisterPlayerSpaceBody(weaponBody);
     }
 
     if (Config::options.updateHandsToMatchWeaponCollisionTransform) {
@@ -3779,7 +3779,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 // If the player is moving, add the player's change in position to the object's position
                 if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
                     if (selectedObject.isActor) {
-                        ApplyRoomSpaceDelta(selectedObject.rigidBody);
+                        RegisterPlayerSpaceBody(selectedObject.rigidBody);
                     }
                     else {
                         // Check if any of the connected bodies is a fixed body. If so, we don't want to set position of everything
@@ -3793,12 +3793,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         if (!isAttachedToFixed) {
                             for (bhkRigidBody *containedBody : containedRigidBodies) {
-                                ApplyRoomSpaceDelta(containedBody);
+                                RegisterPlayerSpaceBody(containedBody);
                             }
 
                             // Do this after we check which things are contained, since we don't want to set position of the container before checking things against it
                             for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                                ApplyRoomSpaceDelta(connectedBody);
+                                RegisterPlayerSpaceBody(connectedBody);
                             }
                         }
                     }
@@ -4000,6 +4000,8 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
     // Update these after stuff like two-handing hand updates
     UpdateHandCollision(world);
     UpdateWeaponCollision();
+
+    MoveHandAndWeaponCollision();
 }
 
 
