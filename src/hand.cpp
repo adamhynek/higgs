@@ -3782,12 +3782,23 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         RegisterPlayerSpaceBody(selectedObject.rigidBody);
                     }
                     else {
-                        for (bhkRigidBody *containedBody : containedRigidBodies) {
-                            RegisterPlayerSpaceBody(containedBody);
+                        // Check if any of the connected bodies is a fixed body. If so, we don't want to set position of everything
+                        bool isAttachedToFixed = false;
+                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                            if (!IsMoveableEntity(connectedBody->hkBody)) {
+                                isAttachedToFixed = true;
+                                break;
+                            }
                         }
 
-                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                            RegisterPlayerSpaceBody(connectedBody);
+                        if (!isAttachedToFixed) {
+                            for (bhkRigidBody *containedBody : containedRigidBodies) {
+                                RegisterPlayerSpaceBody(containedBody);
+                            }
+
+                            for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                                RegisterPlayerSpaceBody(connectedBody);
+                            }
                         }
                     }
                 }
