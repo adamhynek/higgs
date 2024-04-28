@@ -712,21 +712,6 @@ void bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook(hkpWorld *world, const 
 }
 
 
-typedef void(*_Actor_SetPositionWhileIgnoringZIfSupported)(Actor *, NiPoint3 *);
-_Actor_SetPositionWhileIgnoringZIfSupported Actor_SetPositionWhileIgnoringZIfSupported_Original = nullptr;
-RelocPtr<uintptr_t> BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_HookLoc(0x614252);
-void BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_Hook(Actor *actor, NiPoint3 *position)
-{
-    if (actor == *g_thePlayer) {
-        if (Config::options.delayPlayerMovement) {
-            return;
-        }
-    }
-
-    Actor_SetPositionWhileIgnoringZIfSupported_Original(actor, position);
-}
-
-
 #ifdef _DEBUG
 
 bool g_wasDrawingLastFrame = false;
@@ -1393,11 +1378,6 @@ void PerformHooks(void)
     {
         g_original_hkpCachingShapePhantom_setPositionAndLinearCast = *hkpCachingShapePhantom_setPositionAndLinearCast_vtbl;
         SafeWrite64(hkpCachingShapePhantom_setPositionAndLinearCast_vtbl.GetUIntPtr(), uintptr_t(hkpCachingShapePhantom_setPositionAndLinearCast_Hook));
-    }
-
-    {
-        std::uintptr_t originalFunc = Write5Call(BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_HookLoc.GetUIntPtr(), uintptr_t(BSTEventSink_bhkCharacterMoveFinishEvent_Handle_Actor_SetPositionWhileIgnoringZIfSupported_Hook));
-        Actor_SetPositionWhileIgnoringZIfSupported_Original = (_Actor_SetPositionWhileIgnoringZIfSupported)originalFunc;
     }
 
 #ifdef _DEBUG

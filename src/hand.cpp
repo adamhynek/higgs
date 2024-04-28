@@ -703,15 +703,16 @@ void Hand::UpdateHandCollision(bhkWorld *world)
     }
 }
 
-void Hand::MoveHandAndWeaponCollision()
+void Hand::MoveHandAndWeaponCollision(const NiPoint3 &additionalOffset)
 {
     if (handBody) {
         bool isBeast = TESRace_IsBeast(Actor_GetRace(*g_thePlayer));
 
         hkTransform transform = ComputeHandCollisionTransform(isBeast);
-        hkQuaternion desiredQuat;
-        desiredQuat.setFromRotationSimd(transform.m_rotation);
-        ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.0f / *g_deltaTime, handBody);
+        transform.m_translation = NiPointToHkVector(HkVectorToNiPoint(transform.m_translation) + additionalOffset);
+
+        hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(transform.m_rotation);
+        ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, handBody);
     }
 
     if (weaponBody) {
@@ -722,8 +723,7 @@ void Hand::MoveHandAndWeaponCollision()
                 if (rigidBody->hkBody) {
                     hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
 
-                    hkQuaternion desiredQuat;
-                    desiredQuat.setFromRotationSimd(transform.m_rotation);
+                    hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(transform.m_rotation);
                     ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, weaponBody);
                 }
             }
@@ -3997,8 +3997,6 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
     // Update these after stuff like two-handing hand updates
     UpdateHandCollision(world);
     UpdateWeaponCollision();
-
-    MoveHandAndWeaponCollision();
 }
 
 

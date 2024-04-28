@@ -272,9 +272,9 @@ void UpdateSpeedReduction()
 
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
 
-std::unordered_set<bhkRigidBody *> g_thisFrameDeltaPosUpdatedBodies{};
+NiTransform g_nextRoomTransform{};
+NiTransform g_prevNextRoomTransform{};
 
-NiTransform g_currentRoomTransform{};
 NiTransform g_prevRoomTransform{};
 
 void RegisterPlayerSpaceBody(bhkRigidBody *body)
@@ -294,9 +294,14 @@ void PostPhysicsStep(bhkWorld *world)
     int x = 0;
 }
 
+bool g_prevDoWarp = false;
+bool g_prevVelocityAdded = false;
+
 void SimulatePlayerSpace(bhkWorld *world)
 {
     //_MESSAGE("%d SimulatePlayerSpace", *g_currentFrameCounter);
+
+    // At the time this is called (in ApplyMovementDelta), the charcontroller has gotten a new position, but the player character's position won't be updated until the end of the frame (after rendering).
 
     PlayerCharacter *player = *g_thePlayer;
 
@@ -311,15 +316,15 @@ void SimulatePlayerSpace(bhkWorld *world)
 
     NiPoint3 playerVelocity = g_rightHand->avgPlayerVelocityWorldspace * *g_havokWorldScale;
 
-    hkVector4 controllerPos;  controller->GetPositionImpl(controllerPos, true);
-    NiPoint3 newControllerPos = HkVectorToNiPoint(controllerPos) * *g_inverseHavokWorldScale;
+    hkVector4 hkControllerPos;  controller->GetPositionImpl(hkControllerPos, true);
+    NiPoint3 newControllerPos = HkVectorToNiPoint(hkControllerPos) * *g_inverseHavokWorldScale;
 
     NiTransform nextRoomTransform = roomNode->m_worldTransform;
     NiPoint3 predictedDelta = newControllerPos - followNode->m_worldTransform.pos;
     nextRoomTransform.pos += predictedDelta;
-    g_currentRoomTransform = nextRoomTransform;
+    g_nextRoomTransform = nextRoomTransform;
 
-    NiPoint3 delta = (g_currentRoomTransform.pos - g_prevRoomTransform.pos) * *g_havokWorldScale;
+    NiPoint3 delta = (g_nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
     NiPoint3 deltaVelocity = delta / *g_deltaTime;
 
     {
@@ -330,52 +335,99 @@ void SimulatePlayerSpace(bhkWorld *world)
             return !body->hkBody->isAddedToWorld();
             });
 
-        if (true) {
-        //if (g_thisFrameDeltaPosUpdatedBodies.size() > 0) {
+        NiTransform currentRoomTransform = roomNode->m_worldTransform;
+        //NiTransform currentRoomTransform = g_nextRoomTransform;
+        currentRoomTransform.pos *= *g_havokWorldScale;
+
+        NiTransform prevRoomTransform = g_prevRoomTransform;
+        //NiTransform prevRoomTransform = g_prevNextRoomTransform;
+        prevRoomTransform.pos *= *g_havokWorldScale;
+
+        NiTransform deltaRoomTransform = currentRoomTransform * InverseTransform(prevRoomTransform);
+        auto [axis, angle] = QuaternionToAxisAngle(MatrixToQuaternion(deltaRoomTransform.rot));
+        bool doWarp = angle > 0.01f;
+
+        bool actuallyDoWarp = doWarp || g_prevDoWarp;
+
+        if (g_prevVelocityAdded) {
             for (bhkRigidBody *body : g_playerSpaceBodies) {
-                NiTransform currentRoomTransform = g_currentRoomTransform;
-                currentRoomTransform.pos *= *g_havokWorldScale;
 
-                NiTransform prevRoomTransform = g_prevRoomTransform;
-                prevRoomTransform.pos *= *g_havokWorldScale;
-
-                NiTransform deltaRoomTransform = currentRoomTransform * InverseTransform(prevRoomTransform);
-
-                NiTransform currentTransform{};
-                currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
-                currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
-
-                NiTransform currentRoomSpace = InverseTransform(prevRoomTransform) * currentTransform;
-
-                NiTransform newTransform = currentRoomTransform * currentRoomSpace;
-
-                bhkRigidBody_setActivated(body, true);
-                //bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
-            }
-        }
-
-        {
-
-            for (bhkRigidBody *body : g_playerSpaceBodies) {
+                // TODO: There is non-zero delta velocity when snap turning, so we need to deal with that when doing the warp
 
                 // first subtract the previous velocity
                 if (IsMoveableEntity(body->hkBody)) {
                     // Keyframed rigidBodies (like the hands) get their velocity zeroed when they step, so don't subtract anything
                     body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) - g_prevDeltaVelocity);
                 }
+            }
+        }
 
+        {
+            if (actuallyDoWarp) {
+                static std::vector<hkpEntity *> recollideBodies;
+                recollideBodies.clear();
+
+                for (bhkRigidBody *body : g_playerSpaceBodies) {
+                    NiTransform currentTransform{};
+                    currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
+                    currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
+
+                    // Remove any delta in room position for this purpose, just consider rotation. Use the latest room pos.
+                    //NiTransform prevRoomT = prevRoomTransform;
+                    NiTransform prevRoomT = g_prevNextRoomTransform;
+                    prevRoomT.pos *= *g_havokWorldScale;
+                    //prevRoomT.pos = currentRoomTransform.pos;
+                    //NiTransform currentRoomT = currentRoomTransform;
+                    NiTransform currentRoomT = g_nextRoomTransform;
+                    currentRoomT.pos *= *g_havokWorldScale;
+
+                    NiTransform currentRoomSpace = InverseTransform(prevRoomT) * currentTransform;
+
+                    NiTransform newTransform = currentRoomT * currentRoomSpace;
+
+                    NiPoint3 deltaPos = newTransform.pos - currentTransform.pos;
+
+                    if (VectorLength(deltaPos) > 0.001f) {
+
+                        bhkRigidBody_setActivated(body, true);
+                        bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
+                    }
+
+                    recollideBodies.push_back(body->hkBody);
+                }
+
+                hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_RECOLLIDE_NARROWPHASE);
+            }
+        }
+
+        // Setting hand velocities needs to happen after setPosition for the hands
+        // TODO: When warping, we should move the hands to the predicted position. Right now they will move to the hand position which is not incorporating the controller's new position.
+        if (!actuallyDoWarp) {
+            g_rightHand->MoveHandAndWeaponCollision(NiPoint3());
+            g_leftHand->MoveHandAndWeaponCollision(NiPoint3());
+        }
+
+        if (!actuallyDoWarp) {
+            for (bhkRigidBody *body : g_playerSpaceBodies) {
                 // then add the new velocity
                 body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) + deltaVelocity);
             }
 
-            g_prevDeltaVelocity = deltaVelocity;
-            g_prevRoomTransform = g_currentRoomTransform;
+            g_prevVelocityAdded = true;
+        }
+        else {
+            g_prevVelocityAdded = false;
         }
 
         g_playerSpaceBodies.clear();
+
+        g_prevDoWarp = doWarp;
     }
 
-    g_thisFrameDeltaPosUpdatedBodies.clear();
+    g_prevDeltaVelocity = deltaVelocity;
+    g_prevNextRoomTransform = g_nextRoomTransform;
+
+    g_prevRoomTransform = roomNode->m_worldTransform;
 }
 
 
