@@ -241,6 +241,7 @@ namespace Config {
         bool enableTwoHandedGrabbing = true;
 
         bool doPhysicsGrabPlayerMovementCompensation = true;
+        float playerSpaceMinDeltaAngleToWarp = 0.01f;
 
         bool convertDebrisToMoving = true;
         bool disableHeadBobbingWhileGrabbed = true;

@@ -453,6 +453,7 @@ namespace Config {
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;
 
         if (!RegisterBool("doPhysicsGrabPlayerMovementCompensation", options.doPhysicsGrabPlayerMovementCompensation)) success = false;
+        if (!RegisterFloat("playerSpaceMinDeltaAngleToWarp", options.playerSpaceMinDeltaAngleToWarp)) success = false;
 
         if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
         if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;

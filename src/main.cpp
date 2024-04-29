@@ -336,24 +336,19 @@ void SimulatePlayerSpace(bhkWorld *world)
             });
 
         NiTransform currentRoomTransform = roomNode->m_worldTransform;
-        //NiTransform currentRoomTransform = g_nextRoomTransform;
         currentRoomTransform.pos *= *g_havokWorldScale;
 
         NiTransform prevRoomTransform = g_prevRoomTransform;
-        //NiTransform prevRoomTransform = g_prevNextRoomTransform;
         prevRoomTransform.pos *= *g_havokWorldScale;
 
         NiTransform deltaRoomTransform = currentRoomTransform * InverseTransform(prevRoomTransform);
         auto [axis, angle] = QuaternionToAxisAngle(MatrixToQuaternion(deltaRoomTransform.rot));
-        bool doWarp = angle > 0.01f;
+        bool doWarp = angle > Config::options.playerSpaceMinDeltaAngleToWarp;
 
         bool actuallyDoWarp = doWarp || g_prevDoWarp;
 
         if (g_prevVelocityAdded) {
             for (bhkRigidBody *body : g_playerSpaceBodies) {
-
-                // TODO: There is non-zero delta velocity when snap turning, so we need to deal with that when doing the warp
-
                 // first subtract the previous velocity
                 if (IsMoveableEntity(body->hkBody)) {
                     // Keyframed rigidBodies (like the hands) get their velocity zeroed when they step, so don't subtract anything
@@ -362,8 +357,8 @@ void SimulatePlayerSpace(bhkWorld *world)
             }
         }
 
-        {
-            if (actuallyDoWarp) {
+        if (actuallyDoWarp) {
+            {
                 static std::vector<hkpEntity *> recollideBodies;
                 recollideBodies.clear();
 
@@ -372,12 +367,9 @@ void SimulatePlayerSpace(bhkWorld *world)
                     currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
                     currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
 
-                    // Remove any delta in room position for this purpose, just consider rotation. Use the latest room pos.
-                    //NiTransform prevRoomT = prevRoomTransform;
                     NiTransform prevRoomT = g_prevNextRoomTransform;
                     prevRoomT.pos *= *g_havokWorldScale;
-                    //prevRoomT.pos = currentRoomTransform.pos;
-                    //NiTransform currentRoomT = currentRoomTransform;
+
                     NiTransform currentRoomT = g_nextRoomTransform;
                     currentRoomT.pos *= *g_havokWorldScale;
 
@@ -388,7 +380,6 @@ void SimulatePlayerSpace(bhkWorld *world)
                     NiPoint3 deltaPos = newTransform.pos - currentTransform.pos;
 
                     if (VectorLength(deltaPos) > 0.001f) {
-
                         bhkRigidBody_setActivated(body, true);
                         bhkEntity_setPositionAndRotation(body, NiPointToHkVector(newTransform.pos), NiQuatToHkQuat(MatrixToQuaternion(newTransform.rot))); // do NOT use the vfunc here, because the vfunc would apply bhkRigidBodyT transformations
                     }
@@ -398,25 +389,23 @@ void SimulatePlayerSpace(bhkWorld *world)
 
                 hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_RECOLLIDE_NARROWPHASE);
             }
-        }
 
-        // Setting hand velocities needs to happen after setPosition for the hands
-        // TODO: When warping, we should move the hands to the predicted position. Right now they will move to the hand position which is not incorporating the controller's new position.
-        if (!actuallyDoWarp) {
-            g_rightHand->MoveHandAndWeaponCollision(NiPoint3());
-            g_leftHand->MoveHandAndWeaponCollision(NiPoint3());
-        }
+            g_rightHand->MoveHandAndWeaponCollision(predictedDelta * *g_havokWorldScale);
+            g_leftHand->MoveHandAndWeaponCollision(predictedDelta * *g_havokWorldScale);
 
-        if (!actuallyDoWarp) {
+            g_prevVelocityAdded = false;
+        }
+        else {
             for (bhkRigidBody *body : g_playerSpaceBodies) {
-                // then add the new velocity
+                // add the new velocity
+                // Note: We set the velocity of the hands here too, but it doesn't matter since we're overwriting them right after this
                 body->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(HkVectorToNiPoint(body->hkBody->getLinearVelocity()) + deltaVelocity);
             }
 
+            g_rightHand->MoveHandAndWeaponCollision(delta);
+            g_leftHand->MoveHandAndWeaponCollision(delta);
+
             g_prevVelocityAdded = true;
-        }
-        else {
-            g_prevVelocityAdded = false;
         }
 
         g_playerSpaceBodies.clear();
