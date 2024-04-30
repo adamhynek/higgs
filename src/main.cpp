@@ -692,8 +692,6 @@ void PlayerPostApplyMovementDeltaUpdate()
 {
     //_MESSAGE("%d PlayerPostApplyMovementDeltaUpdate", *g_currentFrameCounter);
 
-    //PlayerCharacter_UpdateVRFollow(*g_thePlayer, 0.f, 0.f);
-
     // Clear out old ignored collision groups.
     // We do this here because this is the same thread that will be doing the character controller integrate() calls that will be using the ignored collision groups.
     if (g_ignoredCollisionGroups.size() > 0) { // quick check without locking first
