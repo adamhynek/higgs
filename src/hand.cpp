@@ -1432,24 +1432,24 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         previousTriangleAdjustment = totalAdjustment;
     }
 
-    double t = GetTime();
-    std::vector<TriangleData> nearbyTriangles{};
-    for (TriangleData &triangle : triangles) {
-        float sqrDistance = MathUtils::GetClosestPointOnTriangle(palmPos, triangle).sqrDistance;
-        if (sqrDistance < Config::options.grabMaxTriangleDistance) {
-            nearbyTriangles.push_back(triangle);
-        }
-    }
-    _MESSAGE("Time spent filtering triangles: %.3f ms", (GetTime() - t) * 1000);
-    _MESSAGE("%d / %d triangles within distance", nearbyTriangles.size(), triangles.size());
-
     NiPoint3 triPos, triNormal;
     float closestDist = (std::numeric_limits<float>::max)();
     int closestTriIndex = -1;
-    t = GetTime();
-    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(nearbyTriangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
+    double t = GetTime();
+    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
 
     if (havePointOnGeometry) {
+        double tt = GetTime();
+        std::vector<TriangleData> nearbyTriangles{};
+        for (TriangleData &triangle : triangles) {
+            float sqrDistance = MathUtils::GetClosestPointOnTriangle(triPos, triangle).sqrDistance;
+            if (sqrDistance < Config::options.grabMaxTriangleDistance) {
+                nearbyTriangles.push_back(triangle);
+            }
+        }
+        _MESSAGE("Time spent filtering triangles: %.3f ms", (GetTime() - tt) * 1000);
+        _MESSAGE("%d / %d triangles within distance", nearbyTriangles.size(), triangles.size());
+
         ptPos = triPos;
 
         NiPoint3 palmToPoint = ptPos - palmPos;
