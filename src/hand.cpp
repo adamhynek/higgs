@@ -1219,6 +1219,7 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
     int closestTriIndex = -1;
     t = GetTime();
     bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
+    _MESSAGE("Time spent finding closest triangle: %.3f ms", (GetTime() - t) * 1000);
 
     if (!havePointOnGeometry) {
         return nullptr;
@@ -1431,11 +1432,22 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         previousTriangleAdjustment = totalAdjustment;
     }
 
+    double t = GetTime();
+    std::vector<TriangleData> nearbyTriangles{};
+    for (TriangleData &triangle : triangles) {
+        float sqrDistance = MathUtils::GetClosestPointOnTriangle(palmPos, triangle).sqrDistance;
+        if (sqrDistance < Config::options.grabMaxTriangleDistance) {
+            nearbyTriangles.push_back(triangle);
+        }
+    }
+    _MESSAGE("Time spent filtering triangles: %.3f ms", (GetTime() - t) * 1000);
+    _MESSAGE("%d / %d triangles within distance", nearbyTriangles.size(), triangles.size());
+
     NiPoint3 triPos, triNormal;
     float closestDist = (std::numeric_limits<float>::max)();
     int closestTriIndex = -1;
-    double t = GetTime();
-    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(triangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
+    t = GetTime();
+    bool havePointOnGeometry = GetClosestPointOnGraphicsGeometryToLine(nearbyTriangles, palmPos, palmDirection, triPos, triNormal, closestTriIndex, closestDist);
 
     if (havePointOnGeometry) {
         ptPos = triPos;
@@ -1467,7 +1479,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
             fingerStartPositionsWorldspace[i] = handNode->m_worldTransform * startPos;
         }
 
-        auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &palmToPoint]
+        auto FingerCheck = [this, player, &fingerNormalsWorldspace, &fingerZeroAngleVecsWorldspace, &fingerStartPositionsWorldspace, handScale, &palmToPoint, &nearbyTriangles]
         (int fingerIndex) -> float
         {
             NiPoint3 zeroAngleVectorWorldspace = fingerZeroAngleVecsWorldspace[fingerIndex];
@@ -1479,7 +1491,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
             _DMESSAGE("finger %d", fingerIndex);
 
             Intersection intersection;
-            bool intersects = GetIntersections(triangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
+            bool intersects = GetIntersections(nearbyTriangles, fingerIndex, handScale, startFingerPos, normalWorldspace, zeroAngleVectorWorldspace,
                 intersection);
 
             if (intersects) {

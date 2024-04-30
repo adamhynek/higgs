@@ -363,6 +363,7 @@ namespace Config {
 
         if (!RegisterFloat("GrabLateralWeight", options.grabLateralWeight)) success = false;
         if (!RegisterFloat("GrabDirectionalWeight", options.grabDirectionalWeight)) success = false;
+        if (!RegisterFloat("grabMaxTriangleDistance", options.grabMaxTriangleDistance)) success = false;
 
         if (!RegisterBool("UseLoudSoundGrab", options.useLoudSoundGrab)) success = false;
         if (!RegisterBool("UseLoudSoundDrop", options.useLoudSoundDrop)) success = false;

@@ -29,6 +29,7 @@ namespace Config {
         float grabStartAngularSpeed = 360.0f; // deg/s
         float grabLateralWeight = 0.6f;
         float grabDirectionalWeight = 0.4f;
+        float grabMaxTriangleDistance = 100.f;
         float shoulderVelocityThreshold = 2.0f; // m/s
         float mouthVelocityThreshold = 2.0f; // m/s
         float pullDestinationZOffset = 0.01f; // in meters, z offset above the palm at which to target the pulled object
