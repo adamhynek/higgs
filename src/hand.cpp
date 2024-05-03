@@ -3767,12 +3767,23 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
+                bool isHoldingNonRagdolledActor = false;
+                if (selectedObject.isActor) {
+                    if(Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor)) {
+                        if (!Actor_IsInRagdollState(actor)) {
+                            isHoldingNonRagdolledActor = true;
+                        }
+                    }
+                }
+
                 static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies;
                 DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
                 CollectAllConnectedRigidBodies(selectedObj->GetNiNode(), selectedObject.rigidBody, connectedRigidBodies);
                 
-                for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                    RegisterObjectMass(connectedBody->hkBody);
+                if (!isHoldingNonRagdolledActor) {
+                    for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                        RegisterObjectMass(connectedBody->hkBody);
+                    }
                 }
 
                 static std::vector<NiPointer<bhkRigidBody>> containedRigidBodies;
@@ -3781,16 +3792,19 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 if (Config::options.doContainerPhysics) {
                     GetContainedRigidBodies(selectedObject.rigidBody, containedRigidBodies);
 
-                    for (bhkRigidBody *containedBody : containedRigidBodies) {
-                        if (!IsHandOrWeaponOrHeld(containedBody->hkBody)) {
-                            RegisterObjectMass(containedBody->hkBody);
+                    if (!isHoldingNonRagdolledActor) {
+                        for (bhkRigidBody *containedBody : containedRigidBodies) {
+                            if (!IsHandOrWeaponOrHeld(containedBody->hkBody)) {
+                                RegisterObjectMass(containedBody->hkBody);
+                            }
                         }
                     }
                 }
 
                 // If the player is moving, add the player's change in position to the object's position
                 if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
-                    if (selectedObject.isActor) {
+                    if (selectedObject.isActor && !Config::options.grabbedActorsArePlayerSpace) {
+                        // Only the grabbed bone is player space
                         RegisterPlayerSpaceBody(selectedObject.rigidBody);
                     }
                     else {
