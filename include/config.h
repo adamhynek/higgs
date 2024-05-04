@@ -243,7 +243,7 @@ namespace Config {
 
         bool doPhysicsGrabPlayerMovementCompensation = true;
         float playerSpaceMinDeltaAngleToWarp = 0.01f;
-        bool grabbedActorsArePlayerSpace = true;
+        int grabbedActorAffectedBoneRadius = 3;
 
         bool convertDebrisToMoving = true;
         bool disableHeadBobbingWhileGrabbed = true;

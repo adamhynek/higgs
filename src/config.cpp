@@ -455,7 +455,7 @@ namespace Config {
 
         if (!RegisterBool("doPhysicsGrabPlayerMovementCompensation", options.doPhysicsGrabPlayerMovementCompensation)) success = false;
         if (!RegisterFloat("playerSpaceMinDeltaAngleToWarp", options.playerSpaceMinDeltaAngleToWarp)) success = false;
-        if (!RegisterBool("grabbedActorsArePlayerSpace", options.grabbedActorsArePlayerSpace)) success = false;
+        if (!RegisterInt("grabbedActorAffectedBoneRadius", options.grabbedActorAffectedBoneRadius)) success = false;
 
         if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
         if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;

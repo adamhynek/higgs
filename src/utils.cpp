@@ -1139,3 +1139,57 @@ void CollectAllConnectedRigidBodies(NiAVObject *root, bhkRigidBody *connectee, s
     }
 }
 
+void CollectAllConstraints(NiAVObject *root, std::vector<NiPointer<bhkConstraint>> &out)
+{
+    if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root)) {
+        if (rigidBody->hkBody) {
+            for (int i = 0; i < rigidBody->constraints.count; i++) {
+                bhkConstraint *constraint = rigidBody->constraints.entries[i];
+                out.push_back(constraint);
+            }
+        }
+    }
+
+    if (NiNode *node = root->GetAsNiNode()) {
+        for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+            if (NiAVObject *child = node->m_children.m_data[i]) {
+                CollectAllConstraints(child, out);
+            }
+        }
+    }
+}
+
+void ForEachAdjacentBody(NiAVObject *root, bhkRigidBody *body, std::function<void(hkpRigidBody *)> f, int waves) {
+    std::vector<NiPointer<bhkConstraint>> constraints{};
+    CollectAllConstraints(root, constraints);
+
+    std::set<NiPointer<bhkRigidBody>> connectedComponent{};
+    connectedComponent.insert(body);
+
+    for (int i = 0; i < waves; i++) {
+        std::set<NiPointer<bhkRigidBody>> currentConnectedComponent = connectedComponent; // copy
+
+        for (bhkConstraint *constraintWrapper : constraints) {
+            hkpConstraintInstance *constraint = constraintWrapper->constraint;
+            bhkRigidBody *rigidBodyA = (bhkRigidBody *)constraint->getEntityA()->m_userData;
+            bhkRigidBody *rigidBodyB = (bhkRigidBody *)constraint->getEntityB()->m_userData;
+
+            bool isAInSet = currentConnectedComponent.contains(rigidBodyA);
+            bool isBInSet = currentConnectedComponent.contains(rigidBodyB);
+
+            if (isAInSet || isBInSet) {
+                // The constraint is connected to the existing connected component
+                if (!isAInSet || !isBInSet) {
+                    // Part of the constraint is not part of the connected component yet, so add it
+                    connectedComponent.insert(rigidBodyA);
+                    connectedComponent.insert(rigidBodyB);
+                }
+            }
+        }
+    }
+
+    for (NiPointer<bhkRigidBody> connectedBody : connectedComponent) {
+        f(connectedBody->hkBody);
+    }
+}
+
