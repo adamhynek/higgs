@@ -406,7 +406,6 @@ namespace Config {
         if (!RegisterFloat("grabConstraintLinearTau", options.grabConstraintLinearTau)) success = false;
         if (!RegisterFloat("grabConstraintLinearMaxForce", options.grabConstraintLinearMaxForce)) success = false;
         if (!RegisterFloat("grabConstraintLinearMaxForceWeapon", options.grabConstraintLinearMaxForceWeapon)) success = false;
-        if (!RegisterFloat("grabConstraintLinearMaxForcePerPlayerAcceleration", options.grabConstraintLinearMaxForcePerPlayerAcceleration)) success = false;
         if (!RegisterFloat("grabConstraintLinearProportionalRecoveryVelocity", options.grabConstraintLinearProportionalRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintLinearConstantRecoveryVelocity", options.grabConstraintLinearConstantRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintLinearDamping", options.grabConstraintLinearDamping)) success = false;
@@ -436,9 +435,6 @@ namespace Config {
 
         if (!ReadFloatMap("fpsToActorMaxForceMultiplierMapLinear", options.fpsToActorMaxForceMultiplierMapLinear)) success = false;
         if (!ReadFloatMap("fpsToActorMaxForceMultiplierMapAngular", options.fpsToActorMaxForceMultiplierMapAngular)) success = false;
-
-        if (!RegisterFloat("grabConstraintLinearMaxForceAddedWhenSnapTurning", options.grabConstraintLinearMaxForceAddedWhenSnapTurning)) success = false;
-        if (!RegisterDouble("grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime", options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime)) success = false;
 
         if (!RegisterDouble("physicsGrabLerpHandTimeMin", options.physicsGrabLerpHandTimeMin)) success = false;
         if (!RegisterDouble("physicsGrabLerpHandTimeMax", options.physicsGrabLerpHandTimeMax)) success = false;

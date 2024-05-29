@@ -200,7 +200,6 @@ namespace Config {
         float grabConstraintLinearTau = 0.03f;
         float grabConstraintLinearMaxForce = 2000.f;
         float grabConstraintLinearMaxForceWeapon = 9000.f;
-        float grabConstraintLinearMaxForcePerPlayerAcceleration = 50.f;
         float grabConstraintLinearProportionalRecoveryVelocity = 2.f;
         float grabConstraintLinearConstantRecoveryVelocity = 1.f;
         float grabConstraintLinearDamping = 0.8f;
@@ -224,9 +223,6 @@ namespace Config {
 
         float grabConstraintFadeInStartAngularMaxForceRatio = 100.f;
         double grabConstraintFadeInTime = 0.1;
-
-        float grabConstraintLinearMaxForceAddedWhenSnapTurning = 2000.f;
-        double grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime = 0.2;
 
         float grabbedObjectMinInertia = 0.01f;
         float grabbedObjectMaxInertiaRatio = 10.f;

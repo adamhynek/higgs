@@ -3931,14 +3931,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             linearMotor->m_tau = AdvanceFloat(linearMotor->m_tau, linearTauTarget, Config::options.grabConstraintTauLerpSpeed);
                         }
 
-                        // Set max force of the linear constraint with respect to player acceleration or snap turning
-                        float playerAccelerationAmount = VectorLength(playerAcceleration);
-                        linearMotor->m_maxForce += playerAccelerationAmount * Config::options.grabConstraintLinearMaxForcePerPlayerAcceleration;
-
-                        if (g_currentFrameTime - lastWasSnapTurningTime < Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime) {
-                            linearMotor->m_maxForce += Config::options.grabConstraintLinearMaxForceAddedWhenSnapTurning;
-                        }
-
                         if (!selectedObject.isActor) {
                             // Limit the final values of the max forces
                             float mass = selectedObject.rigidBody->hkBody->getMassInv();
