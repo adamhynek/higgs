@@ -175,18 +175,21 @@ namespace Config {
         int maxNumEntitiesPerSimulationIslandToCheck = 50;
         float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
 
-        std::map<float, float> fpsToActorMaxForceMapLinear = {
-            { 72, 1750 },
-            { 90, 2500 },
-            { 120, 4000 },
-            { 144, 5000 },
+        float grabConstraintLinearMaxForceActor = 2500.f;
+        float grabConstraintAngularMaxForceActor = 40.f;
+
+        std::map<float, float> fpsToActorMaxForceMultiplierMapLinear = {
+            { 72, 0.7 },
+            { 90, 1.0 },
+            { 120, 1.6 },
+            { 144, 2.0 },
         };
 
-        std::map<float, float> fpsToActorMaxForceMapAngular = {
-            { 72, 20 },
-            { 90, 40 },
-            { 120, 55 },
-            { 144, 60 },
+        std::map<float, float> fpsToActorMaxForceMultiplierMapAngular = {
+            { 72, 0.5 },
+            { 90, 1.0 },
+            { 120, 1.375 },
+            { 144, 1.5 },
         };
 
         float grabConstraintAngularTau = 0.03f;

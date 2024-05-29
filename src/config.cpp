@@ -431,8 +431,11 @@ namespace Config {
         if (!RegisterFloat("grabConstraintFadeInStartAngularMaxForceRatio", options.grabConstraintFadeInStartAngularMaxForceRatio)) success = false;
         if (!RegisterDouble("grabConstraintFadeInTime", options.grabConstraintFadeInTime)) success = false;
         
-        if (!ReadFloatMap("fpsToActorMaxForceMapLinear", options.fpsToActorMaxForceMapLinear)) success = false;
-        if (!ReadFloatMap("fpsToActorMaxForceMapAngular", options.fpsToActorMaxForceMapAngular)) success = false;
+        if (!RegisterFloat("grabConstraintLinearMaxForceActor", options.grabConstraintLinearMaxForceActor)) success = false;
+        if (!RegisterFloat("grabConstraintAngularMaxForceActor", options.grabConstraintAngularMaxForceActor)) success = false;
+
+        if (!ReadFloatMap("fpsToActorMaxForceMultiplierMapLinear", options.fpsToActorMaxForceMultiplierMapLinear)) success = false;
+        if (!ReadFloatMap("fpsToActorMaxForceMultiplierMapAngular", options.fpsToActorMaxForceMultiplierMapAngular)) success = false;
 
         if (!RegisterFloat("grabConstraintLinearMaxForceAddedWhenSnapTurning", options.grabConstraintLinearMaxForceAddedWhenSnapTurning)) success = false;
         if (!RegisterDouble("grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime", options.grabConstraintLinearMaxForceAddedWhenSnapTurningExtraTime)) success = false;

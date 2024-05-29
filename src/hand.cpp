@@ -3889,8 +3889,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         if (selectedObject.isActor) {
                             float physicsFPS = 1.f / *g_physicsDeltaTime;
-                            linearMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapLinear);
-                            angularMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMapAngular);
+                            linearMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMultiplierMapLinear) * Config::options.grabConstraintLinearMaxForceActor;
+                            angularMotor->m_maxForce = GetMaxForceForFPS(physicsFPS, Config::options.fpsToActorMaxForceMultiplierMapAngular) * Config::options.grabConstraintAngularMaxForceActor;
 
                             bool isInRagdollState = false;
                             if (Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor)) {
