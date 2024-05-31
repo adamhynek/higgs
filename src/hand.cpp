@@ -3803,11 +3803,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 // If the player is moving, add the player's change in position to the object's position
                 if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
-                    if (selectedObject.isActor && !isHoldingNonRagdolledActor) {
+                    if (selectedObject.isActor) {
                         if (NiPointer<NiAVObject> objRoot = selectedObj->GetNiNode()) {
-                            ForEachAdjacentBody(objRoot, selectedObject.rigidBody, [objRoot](hkpRigidBody *adjacentBody) {
+                            ForEachAdjacentBody(objRoot, selectedObject.rigidBody, [objRoot, isHoldingNonRagdolledActor](hkpRigidBody *adjacentBody) {
                                 bhkRigidBody *adjacentBodyWrapper = (bhkRigidBody *)adjacentBody->m_userData;
-                                RegisterPlayerSpaceBody(adjacentBodyWrapper);
+                                RegisterPlayerSpaceBody(adjacentBodyWrapper, !isHoldingNonRagdolledActor);
                             }, Config::options.grabbedActorAffectedBoneRadius);
                         }
                     }

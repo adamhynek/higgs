@@ -271,15 +271,20 @@ void UpdateSpeedReduction()
 }
 
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
+std::unordered_set<bhkRigidBody *> g_playerSpaceBodiesShouldNotWarp{};
 
 NiTransform g_nextRoomTransform{};
 NiTransform g_prevNextRoomTransform{};
 
 NiTransform g_prevRoomTransform{};
 
-void RegisterPlayerSpaceBody(bhkRigidBody *body)
+void RegisterPlayerSpaceBody(bhkRigidBody *body, bool allowWarp)
 {
     g_playerSpaceBodies.insert(body);
+
+    if (!allowWarp) {
+        g_playerSpaceBodiesShouldNotWarp.insert(body);
+    }
 }
 
 NiPoint3 g_prevDeltaVelocity{};
@@ -363,6 +368,10 @@ void SimulatePlayerSpace(bhkWorld *world)
                 recollideBodies.clear();
 
                 for (bhkRigidBody *body : g_playerSpaceBodies) {
+                    if (g_playerSpaceBodiesShouldNotWarp.contains(body)) {
+                        continue;
+                    }
+
                     NiTransform currentTransform{};
                     currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
                     currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
@@ -409,6 +418,7 @@ void SimulatePlayerSpace(bhkWorld *world)
         }
 
         g_playerSpaceBodies.clear();
+        g_playerSpaceBodiesShouldNotWarp.clear();
 
         g_prevDoWarp = doWarp;
     }
