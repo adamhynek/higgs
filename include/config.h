@@ -244,6 +244,11 @@ namespace Config {
         float playerSpaceMinDeltaAngleToWarp = 0.01f;
         int grabbedActorAffectedBoneRadius = 3;
 
+        float droppedObjMinDetectionSpeed = 3.f;
+        float droppedObjDetectionMassSilent = 5.f;
+        float droppedObjDetectionMassNormal = 10.f;
+        float droppedObjDetectionMassLoud = 50.f;
+
         bool convertDebrisToMoving = true;
         bool disableHeadBobbingWhileGrabbed = true;
         bool disableShaders = false;

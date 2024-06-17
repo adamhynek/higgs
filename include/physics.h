@@ -122,6 +122,17 @@ struct IslandDeactivationListener : public hkpIslandActivationListener
     void islandDeactivatedCallback(hkpSimulationIsland* island) override;
 };
 
+struct HeldObjectCollisionListener : hkpContactListener
+{
+    void contactPointCallback(const hkpContactPointEvent &evnt);
+};
+extern HeldObjectCollisionListener g_heldObjectCollisionListener;
+
+
+void AddHiggsDroppedTrackingInfo(hkpRigidBody *body);
+void RemoveHiggsDroppedTrackingInfo(hkpEntity *body);
+
+
 enum class HandIndex : UInt32 {
     Right = 0,
     Left = 1,

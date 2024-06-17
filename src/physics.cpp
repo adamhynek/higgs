@@ -276,9 +276,36 @@ void AllRayHitCollector::addRayHit(const hkpCdBody& cdBody, const hkpShapeRayCas
 }
 
 
-void IslandDeactivationListener::islandActivatedCallback(hkpSimulationIsland* island) {}
+struct CreateDetectionEventTask : TaskDelegate
+{
+    static CreateDetectionEventTask * Create(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 position, int soundLevel, TESObjectREFR *source) {
+        CreateDetectionEventTask * cmd = new CreateDetectionEventTask;
+        if (cmd)
+        {
+            cmd->ownerProcess = ownerProcess;
+            cmd->owner = owner;
+            cmd->position = position;
+            cmd->soundLevel = soundLevel;
+            cmd->source = source;
+        }
+        return cmd;
+    }
+    virtual void Run() {
+        CreateDetectionEvent(ownerProcess, owner, &position, soundLevel, source);
+    }
+    virtual void Dispose() {
+        delete this;
+    }
 
-void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* island)
+    ActorProcessManager *ownerProcess;
+    Actor* owner;
+    NiPoint3 position;
+    int soundLevel;
+    TESObjectREFR *source;
+};
+
+
+void ShadowUpdateFix_IslandDeactivatedCallback(hkpSimulationIsland *island)
 {
     int numEntities = island->m_entities.getSize();
     if (numEntities <= 0) return;
@@ -339,34 +366,43 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
     }
 }
 
+const UInt32 HAVOK_PROPERTY_HIGGS_DROPPED = 056614;
 
-struct CreateDetectionEventTask : TaskDelegate
+void AddHiggsDroppedTrackingInfo(hkpRigidBody* body)
 {
-    static CreateDetectionEventTask * Create(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 position, int soundLevel, TESObjectREFR *source) {
-        CreateDetectionEventTask * cmd = new CreateDetectionEventTask;
-        if (cmd)
-        {
-            cmd->ownerProcess = ownerProcess;
-            cmd->owner = owner;
-            cmd->position = position;
-            cmd->soundLevel = soundLevel;
-            cmd->source = source;
+    if (!hkpWorldObject_hasProperty(body, HAVOK_PROPERTY_HIGGS_DROPPED)) {
+        if (ahkpWorld *world = (ahkpWorld *)body->getWorld()) {
+            BSWriteLocker locker(&world->m_userData->worldLock);
+            hkpWorldObject_setProperty(body, HAVOK_PROPERTY_HIGGS_DROPPED, 1);
+            hkpEntity_addContactListener(body, &g_heldObjectCollisionListener);
         }
-        return cmd;
     }
-    virtual void Run() {
-        CreateDetectionEvent(ownerProcess, owner, &position, soundLevel, source);
-    }
-    virtual void Dispose() {
-        delete this;
-    }
+}
 
-    ActorProcessManager *ownerProcess;
-    Actor* owner;
-    NiPoint3 position;
-    int soundLevel;
-    TESObjectREFR *source;
-};
+void RemoveHiggsDroppedTrackingInfo(hkpEntity *body)
+{
+    if (hkpWorldObject_hasProperty(body, HAVOK_PROPERTY_HIGGS_DROPPED)) {
+        if (ahkpWorld *world = (ahkpWorld *)body->getWorld()) {
+            BSWriteLocker locker(&world->m_userData->worldLock);
+            hkpWorldObject_removeProperty(body, HAVOK_PROPERTY_HIGGS_DROPPED);
+            hkpEntity_removeContactListener(body, &g_heldObjectCollisionListener);
+        }
+    }
+}
+
+void IslandDeactivationListener::islandActivatedCallback(hkpSimulationIsland* island) {}
+
+void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* island)
+{
+    ShadowUpdateFix_IslandDeactivatedCallback(island);
+
+    if (bhkWorld *world = ((ahkpWorld *)island->getWorld())->m_userData) {
+        for (hkpEntity *entity : island->m_entities) {
+            RemoveHiggsDroppedTrackingInfo(entity);
+        }
+    }
+}
+
 
 inline bool IsLeftRigidBody(hkpRigidBody *rigidBody)
 {
@@ -415,6 +451,61 @@ bool IsHandOrWeaponOrHeld(hkpRigidBody *rigidBody)
     }
     return IsHandRigidBody(rigidBody) || IsWeaponRigidBody(rigidBody) || isHeld;
 }
+
+
+int GetSoundLevelByMass(float mass)
+{
+    // Very Loud == 200, Silent == 0, Normal == 50, Loud == 100
+    if (mass < Config::options.droppedObjDetectionMassSilent) {
+        return 0;
+    }
+    else if (mass < Config::options.droppedObjDetectionMassNormal) {
+        return 50;
+    }
+    else if (mass < Config::options.droppedObjDetectionMassLoud) {
+        return 100;
+    }
+    else {
+        return 200;
+    }
+}
+
+void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEvent &evnt)
+{
+    if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
+        return;
+    }
+
+    hkpRigidBody *droppedBody = evnt.m_source == hkpContactPointEvent::SOURCE_A ? evnt.m_bodies[0] : evnt.m_bodies[1];
+    hkpRigidBody *otherBody = evnt.m_source == hkpContactPointEvent::SOURCE_A ? evnt.m_bodies[1] : evnt.m_bodies[0];
+
+    if (IsHandRigidBody(otherBody) || IsWeaponRigidBody(otherBody)) {
+        return;
+    }
+
+    if (NiPointer<TESObjectREFR> hitRef = GetRefFromCollidable(&otherBody->m_collidable); hitRef && hitRef->formType != kFormType_Character) {
+        if (NiPointer<TESObjectREFR> heldRef = GetRefFromCollidable(&droppedBody->m_collidable)) {
+            if (heldRef != hitRef) { // don't want to trigger it for self-collisions of constrained bodies
+                if (hkContactPoint *contactPoint = evnt.m_contactPoint) {
+                    NiPoint3 linearVelocity = HkVectorToNiPoint(droppedBody->getLinearVelocity());
+                    float speed = VectorLength(linearVelocity);
+                    if (speed > Config::options.droppedObjMinDetectionSpeed) {
+                        float mass = droppedBody->getMassInv();
+                        mass = mass ? 1.f / mass : 10000.f;
+                        int soundLevel = GetSoundLevelByMass(mass);
+
+                        PlayerCharacter *player = *g_thePlayer;
+                        NiPoint3 position = HkVectorToNiPoint(contactPoint->getPosition()) * *g_inverseHavokWorldScale;
+                        g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, heldRef));
+                    }
+                }
+            }
+        }
+    }
+}
+
+HeldObjectCollisionListener g_heldObjectCollisionListener;
+
 
 std::mutex PhysicsListener::handLocks[2]{};
 
@@ -581,18 +672,6 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
             TriggerCollisionHaptics(rigidBodyA->getMassInv(), separatingVelocity, GetRigidBodyHandIndex(rigidBodyB));
         }
     }
-
-    /*
-    TESObjectREFR *ref = GetRefFromCollidable(&otherBody->m_collidable);
-    hkContactPoint *contactPoint = evnt.m_contactPoint;
-    if (ref && contactPoint) {
-        PlayerCharacter *player = *g_thePlayer;
-        NiPoint3 position = HkVectorToNiPoint(contactPoint->getPosition()) * *g_inverseHavokWorldScale;
-        // Very Loud == 200, Silent == 0, Normal == 50, Loud == 100
-        int soundLevel = 50;
-        g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, ref));
-    }
-    */
 }
 
 void PhysicsListener::postSimulationCallback(hkpWorld* world)

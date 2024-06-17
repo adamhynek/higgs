@@ -285,6 +285,18 @@ extern RelocAddr<_hkpConvexVerticesShape_getOriginalVertices> hkpConvexVerticesS
 typedef void(*_hkpWorld_reintegrateAndRecollideEntities)(hkpWorld *world, hkpEntity **entityBatch, int numEntities, UInt32 mode);
 extern RelocAddr<_hkpWorld_reintegrateAndRecollideEntities> hkpWorld_reintegrateAndRecollideEntities;
 
+typedef void(*_hkpWorldObject_removePropertyMt)(hkpWorldObject *worldObject, UInt32 key);
+extern RelocAddr<_hkpWorldObject_removePropertyMt> hkpWorldObject_removePropertyMt;
+
+typedef UInt64 * (*_hkpWorldObject_removeProperty)(hkpWorldObject *worldObject, UInt64 *retVal, UInt32 key);
+extern RelocAddr<_hkpWorldObject_removeProperty> hkpWorldObject_removePropertyImpl;
+
+typedef void(*_hkpWorldObject_setProperty)(hkpWorldObject *worldObject, UInt32 key, UInt64 value);
+extern RelocAddr<_hkpWorldObject_setProperty> hkpWorldObject_setProperty;
+
+typedef bool(*_hkpWorldObject_hasProperty)(hkpWorldObject *worldObject, UInt32 key);
+extern RelocAddr<_hkpWorldObject_hasProperty> hkpWorldObject_hasProperty;
+
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);
 extern RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell;

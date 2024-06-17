@@ -188,3 +188,9 @@ void hkpEntity_removeContactListener(hkpEntity *_this, hkpContactListener *conta
     }
 }
 
+UInt64 hkpWorldObject_removeProperty(hkpWorldObject *object, UInt32 key) {
+    UInt64 ret;
+    hkpWorldObject_removePropertyImpl(object, &ret, key);
+    return ret;
+}
+

@@ -1676,6 +1676,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
     }
 
+    // AddHiggsDroppedTrackingInfo(selectedObject.rigidBody->hkBody);
+
     if (Config::options.printHiggsGrabNodeInfo) {
         // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
         NiTransform handTransformNodeSpace = InverseTransform(desiredNodeTransform) * handNode->m_worldTransform;
@@ -3088,6 +3090,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                                 HiggsPluginAPI::TriggerDroppedCallbacks(isLeft, selectedObj);
                             }
+                        }
+
+                        if (!other.HasHeldObject() || other.selectedObject.rigidBody != selectedObject.rigidBody) {
+                            // TODO: Should we do this for all connected bodies?
+                            AddHiggsDroppedTrackingInfo(selectedObject.rigidBody->hkBody);
                         }
                     }
                 }

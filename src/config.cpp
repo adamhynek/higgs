@@ -456,6 +456,11 @@ namespace Config {
         if (!RegisterFloat("playerSpaceMinDeltaAngleToWarp", options.playerSpaceMinDeltaAngleToWarp)) success = false;
         if (!RegisterInt("grabbedActorAffectedBoneRadius", options.grabbedActorAffectedBoneRadius)) success = false;
 
+        if (!RegisterFloat("droppedObjMinDetectionSpeed", options.droppedObjMinDetectionSpeed)) success = false;
+        if (!RegisterFloat("droppedObjDetectionMassSilent", options.droppedObjDetectionMassSilent)) success = false;
+        if (!RegisterFloat("droppedObjDetectionMassNormal", options.droppedObjDetectionMassNormal)) success = false;
+        if (!RegisterFloat("droppedObjDetectionMassLoud", options.droppedObjDetectionMassLoud)) success = false;
+
         if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
         if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;
         if (!RegisterBool("DisableLooting", options.disableLooting)) success = false;

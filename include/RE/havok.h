@@ -457,3 +457,5 @@ NiPointer<bhkCharRigidBodyController> GetCharRigidBodyController(Actor *actor);
 NiPointer<bhkCharProxyController> GetCharProxyController(Actor *actor);
 void hkpEntity_removeContactListener(hkpEntity *_this, hkpContactListener *contactListener);
 
+UInt64 hkpWorldObject_removeProperty(hkpWorldObject *object, UInt32 key);
+
