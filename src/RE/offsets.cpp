@@ -199,6 +199,13 @@ RelocAddr<_Actor_IsBlocking> Actor_IsBlocking(0x611680);
 RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableFloat> IAnimationGraphManagerHolder_SetAnimationVariableFloat(0x500990);
 RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableBool> IAnimationGraphManagerHolder_SetAnimationVariableBool(0x500950);
 
+RelocAddr<_HitData_ctor> HitData_ctor(0x76D000);
+RelocAddr<_HitData_dtor> HitData_dtor(0x76D0F0);
+RelocAddr<_HitData_populate> HitData_populate(0x76D400);
+RelocAddr<_HitData_PopulateFromPhysicalHit> HitData_PopulateFromPhysicalHit(0x76DAF0);
+RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestructibleDamageTask(0x5CB4F0);
+RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon(0x683850);
+
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);
 RelocAddr<_CleanupCloneList> CleanupCloneList2(0x1C8BE0);

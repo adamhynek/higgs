@@ -461,6 +461,10 @@ namespace Config {
         if (!RegisterFloat("droppedObjDetectionMassNormal", options.droppedObjDetectionMassNormal)) success = false;
         if (!RegisterFloat("droppedObjDetectionMassLoud", options.droppedObjDetectionMassLoud)) success = false;
 
+        if (!RegisterFloat("droppedObjMinDestructibleSpeed", options.droppedObjMinDestructibleSpeed)) success = false;
+        if (!RegisterFloat("droppedObjDestructibleInflictedDamage", options.droppedObjDestructibleInflictedDamage)) success = false;
+        if (!RegisterFloat("droppedObjDestructibleSelfDamage", options.droppedObjDestructibleSelfDamage)) success = false;
+
         if (!RegisterBool("DisableShaders", options.disableShaders)) success = false;
         if (!RegisterBool("DisableSelectionBeam", options.disableSelectionBeam)) success = false;
         if (!RegisterBool("DisableLooting", options.disableLooting)) success = false;

@@ -470,6 +470,24 @@ int GetSoundLevelByMass(float mass)
     }
 }
 
+void DoDestructibleDamage(Character *source, TESObjectREFR *target, bool isOffhand)
+{
+    float damage;
+    { // All this just to get the fricken damage
+        InventoryEntryData *weaponEntry = ActorProcess_GetCurrentlyEquippedWeapon(source->processManager, isOffhand);
+
+        HitData hitData;
+        HitData_ctor(&hitData);
+        HitData_populate(&hitData, source, nullptr, weaponEntry, isOffhand);
+
+        damage = hitData.totalDamage;
+
+        HitData_dtor(&hitData);
+    }
+
+    BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), target, damage);
+}
+
 void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEvent &evnt)
 {
     if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
@@ -484,19 +502,50 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
     }
 
     if (NiPointer<TESObjectREFR> hitRef = GetRefFromCollidable(&otherBody->m_collidable); hitRef && hitRef->formType != kFormType_Character) {
-        if (NiPointer<TESObjectREFR> heldRef = GetRefFromCollidable(&droppedBody->m_collidable)) {
-            if (heldRef != hitRef) { // don't want to trigger it for self-collisions of constrained bodies
+        if (NiPointer<TESObjectREFR> droppedRef = GetRefFromCollidable(&droppedBody->m_collidable)) {
+            if (droppedRef != hitRef) { // don't want to trigger it for self-collisions of constrained bodies
                 if (hkContactPoint *contactPoint = evnt.m_contactPoint) {
-                    NiPoint3 linearVelocity = HkVectorToNiPoint(droppedBody->getLinearVelocity());
-                    float speed = VectorLength(linearVelocity);
-                    if (speed > Config::options.droppedObjMinDetectionSpeed) {
+                    NiPoint3 droppedObjVelocity = HkVectorToNiPoint(droppedBody->getLinearVelocity());
+                    NiPoint3 hitObjVelocity = HkVectorToNiPoint(otherBody->getLinearVelocity());
+                    NiPoint3 relativeVelocity = droppedObjVelocity - hitObjVelocity;
+                    float relativeSpeed = VectorLength(relativeVelocity);
+
+                    // Make sure the relative speed between the two objects is high enough.
+                    // If we are carrying an object and drop one into the other, the speed can be high but relative speed is low.
+
+                    if (relativeSpeed > Config::options.droppedObjMinDetectionSpeed) {
                         float mass = droppedBody->getMassInv();
                         mass = mass ? 1.f / mass : 10000.f;
                         int soundLevel = GetSoundLevelByMass(mass);
 
                         PlayerCharacter *player = *g_thePlayer;
                         NiPoint3 position = HkVectorToNiPoint(contactPoint->getPosition()) * *g_inverseHavokWorldScale;
-                        g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, heldRef));
+                        g_taskInterface->AddTask(CreateDetectionEventTask::Create(player->processManager, player, position, soundLevel, droppedRef));
+                    }
+
+                    if (relativeSpeed > Config::options.droppedObjMinDestructibleSpeed) {
+                        float inflictedDamage = Config::options.droppedObjDestructibleInflictedDamage;
+                        if (inflictedDamage > 0.f) {
+                            float droppedMass = droppedBody->getMassInv();
+                            droppedMass = droppedMass ? 1.f / droppedMass : 10000.f;
+
+                            float hitMass = otherBody->getMassInv();
+                            hitMass = hitMass ? 1.f / hitMass : 10000.f;
+
+                            // Damage the hit object only if the thrown object is at least as heavy as it.
+                            // Include equal mass in this so that e.g. a bottle hitting another bottle will break both.
+                            if (droppedMass >= hitMass) {
+                                if (relativeSpeed > Config::options.droppedObjMinDestructibleSpeed) {
+                                    BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage);
+                                }
+                            }
+                        }
+
+                        // Always damage the thrown object
+                        float selfDamage = Config::options.droppedObjDestructibleSelfDamage;
+                        if (selfDamage > 0.f) {
+                            BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), droppedRef, selfDamage);
+                        }
                     }
                 }
             }

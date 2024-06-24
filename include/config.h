@@ -249,6 +249,10 @@ namespace Config {
         float droppedObjDetectionMassNormal = 10.f;
         float droppedObjDetectionMassLoud = 50.f;
 
+        float droppedObjMinDestructibleSpeed = 5.f;
+        float droppedObjDestructibleInflictedDamage = 1.f;
+        float droppedObjDestructibleSelfDamage = 1.f;
+
         bool convertDebrisToMoving = true;
         bool disableHeadBobbingWhileGrabbed = true;
         bool disableShaders = false;

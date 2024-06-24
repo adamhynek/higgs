@@ -11,6 +11,7 @@
 #include "skse64/NiNodes.h"
 #include "skse64/GameVR.h"
 #include "skse64/NiGeometry.h"
+#include "skse64/gamethreads.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Collide/Shape/Convex/ConvexVertices/hkpConvexVerticesShape.h>
@@ -469,3 +470,21 @@ extern RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableFloat> IAnima
 
 typedef bool(*_IAnimationGraphManagerHolder_SetAnimationVariableBool)(IAnimationGraphManagerHolder *_this, const BSFixedString &variableName, bool value);
 extern RelocAddr<_IAnimationGraphManagerHolder_SetAnimationVariableBool> IAnimationGraphManagerHolder_SetAnimationVariableBool;
+
+typedef void(*_HitData_ctor)(HitData *_this);
+extern RelocAddr<_HitData_ctor> HitData_ctor;
+
+typedef void(*_HitData_dtor)(HitData *_this);
+extern RelocAddr<_HitData_dtor> HitData_dtor;
+
+typedef void(*_HitData_populate)(HitData *_this, Actor *src, Actor *target, InventoryEntryData *weapon, bool isOffhand);
+extern RelocAddr<_HitData_populate> HitData_populate;
+
+typedef void(*_HitData_PopulateFromPhysicalHit)(HitData *_this, Actor *src, Actor *target, float damage, bhkCharacterController::CollisionEvent &collisionEvent);
+extern RelocAddr<_HitData_PopulateFromPhysicalHit> HitData_PopulateFromPhysicalHit;
+
+typedef void(*_BSTaskPool_QueueDestructibleDamageTask)(BSTaskPool *taskPool, TESObjectREFR *target, float damage);
+extern RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestructibleDamageTask;
+
+typedef InventoryEntryData *(*_ActorProcess_GetCurrentlyEquippedWeapon)(ActorProcessManager *_this, bool isOffhand);
+extern RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon;
