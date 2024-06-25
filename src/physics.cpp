@@ -535,9 +535,7 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
                             // Damage the hit object only if the thrown object is at least as heavy as it.
                             // Include equal mass in this so that e.g. a bottle hitting another bottle will break both.
                             if (droppedMass >= hitMass) {
-                                if (relativeSpeed > Config::options.droppedObjMinDestructibleSpeed) {
-                                    BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage);
-                                }
+                                BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage);
                             }
                         }
 
