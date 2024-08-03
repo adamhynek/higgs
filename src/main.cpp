@@ -273,9 +273,7 @@ void UpdateSpeedReduction()
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
 std::unordered_set<bhkRigidBody *> g_playerSpaceBodiesShouldNotWarp{};
 
-NiTransform g_nextRoomTransform{};
 NiTransform g_prevNextRoomTransform{};
-
 NiTransform g_prevRoomTransform{};
 
 void RegisterPlayerSpaceBody(bhkRigidBody *body, bool allowWarp)
@@ -329,7 +327,6 @@ void SimulatePlayerSpace(bhkWorld *world)
     NiTransform nextRoomTransform = roomNode->m_worldTransform;
     NiPoint3 predictedDelta = newControllerPos - followNode->m_worldTransform.pos;
     nextRoomTransform.pos += predictedDelta;
-    g_nextRoomTransform = nextRoomTransform;
 
     // TODO:
     // - Need to undo the velocity when we let go of the object. If head bobbing is at a high vertical up/down velocity, the object will fly up/down
@@ -340,7 +337,7 @@ void SimulatePlayerSpace(bhkWorld *world)
 
     float vrikZoffset = g_vrikInterface ? g_vrikInterface->getFinalCameraOffsettingAmount().z : 0.f;
 
-    NiPoint3 delta = (g_nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
+    NiPoint3 delta = (nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
     NiPoint3 deltaVelocity = delta / *g_deltaTime;
 
     delta.z += vrikZoffset * *g_havokWorldScale;
@@ -393,7 +390,7 @@ void SimulatePlayerSpace(bhkWorld *world)
                     NiTransform prevRoomT = g_prevNextRoomTransform;
                     prevRoomT.pos *= *g_havokWorldScale;
 
-                    NiTransform currentRoomT = g_nextRoomTransform;
+                    NiTransform currentRoomT = nextRoomTransform;
                     currentRoomT.pos *= *g_havokWorldScale;
 
                     NiTransform currentRoomSpace = InverseTransform(prevRoomT) * currentTransform;
@@ -440,7 +437,7 @@ void SimulatePlayerSpace(bhkWorld *world)
     g_prevVrikOffset = vrikZoffset;
 
     g_prevDeltaVelocity = deltaVelocity;
-    g_prevNextRoomTransform = g_nextRoomTransform;
+    g_prevNextRoomTransform = nextRoomTransform;
 
     g_prevRoomTransform = roomNode->m_worldTransform;
 }

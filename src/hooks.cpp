@@ -342,124 +342,144 @@ struct RefreshActivateButtonArtTask : UIDelegate_v1
     }
 };
 
-bool hasSavedRumbleIntensity = false;
-float normalRumbleIntensity;
 
-enum RolloverState {
-    None,
-    Show,
-    Hide,
-};
-RolloverState g_rolloverState = RolloverState::None;
-double g_rolloverHideStartTime = 0;
-Hand *g_prevRolloverHand = nullptr;
-
-void ResetRolloverTransform(NiAVObject *node)
+struct RolloverHandler
 {
-    NiTransform transform;
-    transform.pos = { *g_fActivateRolloverWandX, *g_fActivateRolloverWandY, *g_fActivateRolloverWandZ };
-    transform.rot = EulerToMatrix(NiPoint3(*g_fActivateRolloverWandRotateX * 0.017453292f, *g_fActivateRolloverWandRotateY * 0.017453292f, *g_fActivateRolloverWandRotateZ * 0.017453292f));
-    transform.scale = *g_fActivateRolloverWandScale;
+    enum RolloverState {
+        None,
+        Show,
+        Hide,
+    };
 
-    node->m_localTransform = transform;
-}
+    RolloverState m_rolloverState = RolloverState::None;
+    double m_rolloverHideStartTime = 0;
+    Hand *m_prevRolloverHand = nullptr;
+    int m_numHideWhileShowFrames = 0;
 
-void UpdateRollover()
-{
-    PlayerCharacter *player = *g_thePlayer;
+    bool m_hasSavedRumbleIntensity = false;
+    float m_normalRumbleIntensity;
 
-    static BSFixedString rolloverNodeStr("WSActivateRollover");
-    NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
-    NiPointer<NiAVObject> rolloverNode = roomNode ? roomNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
+    void ResetRolloverTransform(NiAVObject *node)
+    {
+        NiTransform transform;
+        transform.pos = { *g_fActivateRolloverWandX, *g_fActivateRolloverWandY, *g_fActivateRolloverWandZ };
+        transform.rot = EulerToMatrix(NiPoint3(*g_fActivateRolloverWandRotateX * 0.017453292f, *g_fActivateRolloverWandRotateY * 0.017453292f, *g_fActivateRolloverWandRotateZ * 0.017453292f));
+        transform.scale = *g_fActivateRolloverWandScale;
 
-    // This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its Update
-
-    Hand *rolloverHand = GetHandToShowRolloverFor();
-
-    if (g_rolloverState == RolloverState::None) {
-        if (rolloverHand) {
-            g_rolloverState = RolloverState::Show;
-        }
+        node->m_localTransform = transform;
     }
-    else if (g_rolloverState == RolloverState::Show) {
-        if (rolloverHand && rolloverHand == g_prevRolloverHand) {
-            // Something is grabbed
 
-            rolloverHand->SetupRollover(rolloverNode);
+    void Update()
+    {
+        PlayerCharacter *player = *g_thePlayer;
 
-            Setting *activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-            if (!hasSavedRumbleIntensity) {
-                hasSavedRumbleIntensity = true;
-                normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
-            }
-            activateRumbleIntensitySetting->SetDouble(0);
+        static BSFixedString rolloverNodeStr("WSActivateRollover");
+        NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+        NiPointer<NiAVObject> rolloverNode = roomNode ? roomNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
 
-            if (Config::options.overrideActivateText) {
-                g_overrideActivateText = rolloverHand->GetActivateText(g_overrideActivateTextStr);
+        Hand *rolloverHand = GetHandToShowRolloverFor();
 
-                bool overrideActivateButtonBefore = g_overrideActivateButton;
-                std::string activateButtonStrBefore = g_overrideActivateButtonStr;
-                g_overrideActivateButton = rolloverHand->GetActivateButton(g_overrideActivateButtonStr);
-
-                if (g_overrideActivateButton != overrideActivateButtonBefore || (g_overrideActivateButton && g_overrideActivateButtonStr != activateButtonStrBefore)) {
-                    // Just starting/ending to override, or we're still overriding but the button changed
-                    g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
-                }
+        if (m_rolloverState == RolloverState::None) {
+            if (rolloverHand) {
+                m_numHideWhileShowFrames = 2;
+                m_rolloverState = RolloverState::Show;
             }
         }
-        else {
-            // Nothing is grabbed, and something was last time
+        else if (m_rolloverState == RolloverState::Show) {
+            if (rolloverHand && rolloverHand != m_prevRolloverHand) {
+                // Switched hands - hide it again as if it's the first time
+                m_numHideWhileShowFrames = 2;
+            }
 
-            if (hasSavedRumbleIntensity) {
+            if (rolloverHand) {
+                // Something is grabbed
+
+                rolloverHand->SetupRollover(rolloverNode);
+
                 Setting *activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-                activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
-            }
-
-            SetGeometryAlphaDownstream(rolloverNode, 1.0f); // Restore the alpha to 1 in case it was modified when showing on the hand
-
-            rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
-
-            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-            NiAVObject_UpdateNode(rolloverNode, &ctx);
-
-            g_overrideActivateText = false;
-            g_overrideActivateButton = false;
-            g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
-
-            g_rolloverHideStartTime = g_currentFrameTime;
-            g_rolloverState = RolloverState::Hide;
-        }
-    }
-    else if (g_rolloverState == RolloverState::Hide) {
-        if (rolloverHand) {
-            g_rolloverState = RolloverState::Show;
-        }
-        else {
-            if (g_currentFrameTime - g_rolloverHideStartTime > Config::options.rolloverHideTime) {
-                if (rolloverNode) {
-                    ResetRolloverTransform(rolloverNode);
+                if (!m_hasSavedRumbleIntensity) {
+                    m_hasSavedRumbleIntensity = true;
+                    m_normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
                 }
-                g_rolloverState = RolloverState::None;
+                activateRumbleIntensitySetting->SetDouble(0);
+
+                if (Config::options.overrideActivateText) {
+                    g_overrideActivateText = rolloverHand->GetActivateText(g_overrideActivateTextStr);
+
+                    bool overrideActivateButtonBefore = g_overrideActivateButton;
+                    std::string activateButtonStrBefore = g_overrideActivateButtonStr;
+                    g_overrideActivateButton = rolloverHand->GetActivateButton(g_overrideActivateButtonStr);
+
+                    if (g_overrideActivateButton != overrideActivateButtonBefore || (g_overrideActivateButton && g_overrideActivateButtonStr != activateButtonStrBefore)) {
+                        // Just starting/ending to override, or we're still overriding but the button changed
+                        g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
+                    }
+                }
+
+                if (m_numHideWhileShowFrames > 0) {
+                    --m_numHideWhileShowFrames;
+
+                    // Hide the menu for the first frame
+                    rolloverNode->m_localTransform.scale = 0.000001f;
+
+                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                    NiAVObject_UpdateNode(rolloverNode, &ctx);
+                }
+            }
+            else {
+                // Nothing is grabbed, and something was last time
+
+                if (m_hasSavedRumbleIntensity) {
+                    Setting *activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+                    activateRumbleIntensitySetting->data.f32 = m_normalRumbleIntensity;
+                }
+
+                SetGeometryAlphaDownstream(rolloverNode, 1.0f); // Restore the alpha to 1 in case it was modified when showing on the hand
+
+                rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
+
+                NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                NiAVObject_UpdateNode(rolloverNode, &ctx);
+
+                g_overrideActivateText = false;
+                g_overrideActivateButton = false;
+                g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
+
+                m_rolloverHideStartTime = g_currentFrameTime;
+                m_rolloverState = RolloverState::Hide;
             }
         }
+        else if (m_rolloverState == RolloverState::Hide) {
+            if (rolloverHand) {
+                m_numHideWhileShowFrames = 2;
+                m_rolloverState = RolloverState::Show;
+            }
+            else {
+                if (g_currentFrameTime - m_rolloverHideStartTime > Config::options.rolloverHideTime) {
+                    if (rolloverNode) {
+                        ResetRolloverTransform(rolloverNode);
+                    }
+                    m_rolloverState = RolloverState::None;
+                }
+            }
+        }
+
+        m_prevRolloverHand = rolloverHand;
     }
 
-    g_prevRolloverHand = rolloverHand;
-}
+};
+RolloverHandler g_rolloverHandler;
 
 void PostWandUpdateHook()
 {
-    PlayerCharacter *player = *g_thePlayer;
+    // This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its Update
+    // This hook is also after the VRIK updateUI hook
 
     LateMainThreadUpdate();
 
-    static BSFixedString rolloverNodeStr("WSActivateRollover");
-    NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
-    NiPointer<NiAVObject> rolloverNode = roomNode ? roomNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
+    g_rolloverHandler.Update();
 
-    // This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its Update
-
-    UpdateRollover();
+    PlayerCharacter *player = *g_thePlayer;
 
     if (!Config::options.disableSelectionBeam) {
         NiAVObject *spellOrigin = player->unk3F0[PlayerCharacter::Node::kNode_SpellOrigin];
