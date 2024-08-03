@@ -378,6 +378,12 @@ void SimulatePlayerSpace(bhkWorld *world)
                 static std::vector<hkpEntity *> recollideBodies;
                 recollideBodies.clear();
 
+                NiTransform prevRoomT = g_prevNextRoomTransform;
+                prevRoomT.pos *= *g_havokWorldScale;
+
+                NiTransform currentRoomT = nextRoomTransform;
+                currentRoomT.pos *= *g_havokWorldScale;
+
                 for (bhkRigidBody *body : g_playerSpaceBodies) {
                     if (g_playerSpaceBodiesShouldNotWarp.contains(body)) {
                         continue;
@@ -387,15 +393,10 @@ void SimulatePlayerSpace(bhkWorld *world)
                     currentTransform.pos = HkVectorToNiPoint(body->hkBody->getPosition());
                     currentTransform.rot = QuaternionToMatrix(HkQuatToNiQuat(body->hkBody->getRotation()));
 
-                    NiTransform prevRoomT = g_prevNextRoomTransform;
-                    prevRoomT.pos *= *g_havokWorldScale;
-
-                    NiTransform currentRoomT = nextRoomTransform;
-                    currentRoomT.pos *= *g_havokWorldScale;
-
                     NiTransform currentRoomSpace = InverseTransform(prevRoomT) * currentTransform;
 
                     NiTransform newTransform = currentRoomT * currentRoomSpace;
+                    newTransform.pos.z += (vrikZoffset - g_prevVrikOffset) * *g_havokWorldScale;
 
                     NiPoint3 deltaPos = newTransform.pos - currentTransform.pos;
 
@@ -410,8 +411,11 @@ void SimulatePlayerSpace(bhkWorld *world)
                 hkpWorld_reintegrateAndRecollideEntities(world->world, recollideBodies.data(), recollideBodies.size(), hkpWorld::ReintegrationRecollideMode::RR_MODE_RECOLLIDE_NARROWPHASE);
             }
 
-            g_rightHand->MoveHandAndWeaponCollision(predictedDelta * *g_havokWorldScale);
-            g_leftHand->MoveHandAndWeaponCollision(predictedDelta * *g_havokWorldScale);
+            NiPoint3 predictedDeltaWithVrikOffset = predictedDelta;
+            predictedDeltaWithVrikOffset.z += vrikZoffset;
+
+            g_rightHand->MoveHandAndWeaponCollision(predictedDeltaWithVrikOffset * *g_havokWorldScale);
+            g_leftHand->MoveHandAndWeaponCollision(predictedDeltaWithVrikOffset * *g_havokWorldScale);
 
             g_prevVelocityAdded = false;
         }
