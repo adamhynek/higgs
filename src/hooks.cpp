@@ -352,6 +352,7 @@ enum RolloverState {
 };
 RolloverState g_rolloverState = RolloverState::None;
 double g_rolloverHideStartTime = 0;
+Hand *g_prevRolloverHand = nullptr;
 
 void ResetRolloverTransform(NiAVObject *node)
 {
@@ -381,7 +382,7 @@ void UpdateRollover()
         }
     }
     else if (g_rolloverState == RolloverState::Show) {
-        if (rolloverHand) {
+        if (rolloverHand && rolloverHand == g_prevRolloverHand) {
             // Something is grabbed
 
             rolloverHand->SetupRollover(rolloverNode);
@@ -442,6 +443,8 @@ void UpdateRollover()
             }
         }
     }
+
+    g_prevRolloverHand = rolloverHand;
 }
 
 void PostWandUpdateHook()
