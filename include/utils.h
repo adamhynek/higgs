@@ -102,7 +102,7 @@ std::vector<std::string> SplitString(const std::string &s, char delim);
 void PrintVector(const NiPoint3 &p);
 void PrintQuat(const NiQuaternion &q);
 void PrintSceneGraph(NiAVObject *node);
-void PrintToFile(std::string entry, std::string filename);
+void PrintToFile(std::string entry, std::string filename = "printtofile.txt");
 void DumpVertices(std::vector<TriangleData> &triangles);
 
 //float hkHalfToFloat(hkHalf half);

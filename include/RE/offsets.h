@@ -12,6 +12,7 @@
 #include "skse64/GameVR.h"
 #include "skse64/NiGeometry.h"
 #include "skse64/gamethreads.h"
+#include "skse64/GameMenus.h"
 
 #include <Physics/Collide/Shape/Convex/Box/hkpBoxShape.h>
 #include <Physics/Collide/Shape/Convex/ConvexVertices/hkpConvexVerticesShape.h>
@@ -69,6 +70,14 @@ extern RelocPtr<float> g_fMagicHandRotateX;
 extern RelocPtr<float> g_fMagicHandRotateY;
 extern RelocPtr<float> g_fMagicHandRotateZ;
 extern RelocPtr<float> g_fMagicHandScale;
+
+extern RelocPtr<float> g_fActivateRolloverWandX;
+extern RelocPtr<float> g_fActivateRolloverWandY;
+extern RelocPtr<float> g_fActivateRolloverWandZ;
+extern RelocPtr<float> g_fActivateRolloverWandRotateX;
+extern RelocPtr<float> g_fActivateRolloverWandRotateY;
+extern RelocPtr<float> g_fActivateRolloverWandRotateZ;
+extern RelocPtr<float> g_fActivateRolloverWandScale;
 
 extern RelocPtr<float> g_fMoveLimitMass;
 
@@ -488,3 +497,7 @@ extern RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestru
 
 typedef InventoryEntryData *(*_ActorProcess_GetCurrentlyEquippedWeapon)(ActorProcessManager *_this, bool isOffhand);
 extern RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon;
+
+typedef IMenu ** (*_MenuManager_GetMenu)(MenuManager *menuManager, IMenu **menuOut, BSFixedString *menuName);
+extern RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu;
+

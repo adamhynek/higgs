@@ -1,8 +1,8 @@
 #pragma once
+#include "skse64/NiTypes.h"
 #include "skse64/PluginAPI.h"
 
 namespace vrikPluginApi {
-
     // Returns an IVrikInterface001 object compatible with the API shown below
     // This should only be called after SKSE sends kMessage_PostLoad to your plugin
     class IVrikInterface001;
@@ -31,12 +31,19 @@ namespace vrikPluginApi {
         virtual void beginGestureProfile() = 0;
         virtual void setProfileAction(int gestureNumber, GestureCallback callback) = 0;
         virtual void endGestureProfile() = 0;
+
         // Fetch VRIK finger position (0=closed to 1=open), and set min/max finger positions
         // VRIK normally controls the range of fingers on its own.  Return control to VRIK with restoreFingers when done.
         // Fingers are indexed as follows: 0=thumb, 1=index, 2=middle, 3=ring, 4=pinky
         virtual float getFingerPos(bool isLeft, int fingerIndex) = 0;
         virtual void  setFingerRange(bool isLeft, float min0, float max0, float min1, float max1, float min2, float max2, float min3, float max3, float min4, float max4) = 0;
         virtual void  restoreFingers(bool isLeft) = 0;
+
+        //Calculates and gets camera offsetting amount. This is for calling it before VRIK's hook.
+        virtual NiPoint3 getCameraOffsettingAmount() = 0;
+
+        //Gets the calculated camera offsetting amount. This is for calling it after VRIK's hook.
+        virtual NiPoint3 getFinalCameraOffsettingAmount() = 0;
     };
 }
 

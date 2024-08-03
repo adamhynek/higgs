@@ -331,9 +331,10 @@ bool BSGeometryListCullingProcess_vf_sub_140DA1860_Hook(BSCullingProcess *_this,
 struct RefreshActivateButtonArtTask : UIDelegate_v1
 {
     virtual void Run() {
-        if (g_wsActivateRollover) {
+        static BSFixedString activateRollOverStr("WSActivateRollover");
+        if (IMenu *rolloverMenu = MenuManager::GetSingleton()->GetMenu(&activateRollOverStr)) {
             // Unstable if called from random places
-            RefreshActivateButtonArt(g_wsActivateRollover);
+            RefreshActivateButtonArt(rolloverMenu);
         }
     }
     virtual void Dispose() {
@@ -341,12 +342,107 @@ struct RefreshActivateButtonArtTask : UIDelegate_v1
     }
 };
 
-bool wasRolloverSet = false;
-bool hasSavedRollover = false;
-NiTransform normalRolloverTransform;
 bool hasSavedRumbleIntensity = false;
 float normalRumbleIntensity;
-double lastRolloverSetTime = 0;
+
+enum RolloverState {
+    None,
+    Show,
+    Hide,
+};
+RolloverState g_rolloverState = RolloverState::None;
+double g_rolloverHideStartTime = 0;
+
+void ResetRolloverTransform(NiAVObject *node)
+{
+    NiTransform transform;
+    transform.pos = { *g_fActivateRolloverWandX, *g_fActivateRolloverWandY, *g_fActivateRolloverWandZ };
+    transform.rot = EulerToMatrix(NiPoint3(*g_fActivateRolloverWandRotateX * 0.017453292f, *g_fActivateRolloverWandRotateY * 0.017453292f, *g_fActivateRolloverWandRotateZ * 0.017453292f));
+    transform.scale = *g_fActivateRolloverWandScale;
+
+    node->m_localTransform = transform;
+}
+
+void UpdateRollover()
+{
+    PlayerCharacter *player = *g_thePlayer;
+
+    static BSFixedString rolloverNodeStr("WSActivateRollover");
+    NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
+    NiPointer<NiAVObject> rolloverNode = roomNode ? roomNode->GetObjectByName(&rolloverNodeStr.data) : nullptr;
+
+    // This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its Update
+
+    Hand *rolloverHand = GetHandToShowRolloverFor();
+
+    if (g_rolloverState == RolloverState::None) {
+        if (rolloverHand) {
+            g_rolloverState = RolloverState::Show;
+        }
+    }
+    else if (g_rolloverState == RolloverState::Show) {
+        if (rolloverHand) {
+            // Something is grabbed
+
+            rolloverHand->SetupRollover(rolloverNode);
+
+            Setting *activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+            if (!hasSavedRumbleIntensity) {
+                hasSavedRumbleIntensity = true;
+                normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
+            }
+            activateRumbleIntensitySetting->SetDouble(0);
+
+            if (Config::options.overrideActivateText) {
+                g_overrideActivateText = rolloverHand->GetActivateText(g_overrideActivateTextStr);
+
+                bool overrideActivateButtonBefore = g_overrideActivateButton;
+                std::string activateButtonStrBefore = g_overrideActivateButtonStr;
+                g_overrideActivateButton = rolloverHand->GetActivateButton(g_overrideActivateButtonStr);
+
+                if (g_overrideActivateButton != overrideActivateButtonBefore || (g_overrideActivateButton && g_overrideActivateButtonStr != activateButtonStrBefore)) {
+                    // Just starting/ending to override, or we're still overriding but the button changed
+                    g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
+                }
+            }
+        }
+        else {
+            // Nothing is grabbed, and something was last time
+
+            if (hasSavedRumbleIntensity) {
+                Setting *activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
+                activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
+            }
+
+            SetGeometryAlphaDownstream(rolloverNode, 1.0f); // Restore the alpha to 1 in case it was modified when showing on the hand
+
+            rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
+
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            NiAVObject_UpdateNode(rolloverNode, &ctx);
+
+            g_overrideActivateText = false;
+            g_overrideActivateButton = false;
+            g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
+
+            g_rolloverHideStartTime = g_currentFrameTime;
+            g_rolloverState = RolloverState::Hide;
+        }
+    }
+    else if (g_rolloverState == RolloverState::Hide) {
+        if (rolloverHand) {
+            g_rolloverState = RolloverState::Show;
+        }
+        else {
+            if (g_currentFrameTime - g_rolloverHideStartTime > Config::options.rolloverHideTime) {
+                if (rolloverNode) {
+                    ResetRolloverTransform(rolloverNode);
+                }
+                g_rolloverState = RolloverState::None;
+            }
+        }
+    }
+}
 
 void PostWandUpdateHook()
 {
@@ -360,71 +456,7 @@ void PostWandUpdateHook()
 
     // This hook is on the main thread, so we're kind of okay to do stuff with the Hand as this won't interleave with its Update
 
-    Hand *rolloverHand = GetHandToShowRolloverFor();
-
-    if (rolloverHand) {
-        // Something is grabbed
-
-        if (!hasSavedRollover) {
-            if (rolloverNode) {
-                normalRolloverTransform = rolloverNode->m_localTransform;
-                hasSavedRollover = true;
-            }
-        }
-
-        rolloverHand->SetupRollover(rolloverNode);
-
-        Setting	* activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-        if (!hasSavedRumbleIntensity) {
-            hasSavedRumbleIntensity = true;
-            normalRumbleIntensity = activateRumbleIntensitySetting->data.f32;
-        }
-        activateRumbleIntensitySetting->SetDouble(0);
-
-        if (Config::options.overrideActivateText) {
-            g_overrideActivateText = rolloverHand->GetActivateText(g_overrideActivateTextStr);
-
-            bool overrideActivateButtonBefore = g_overrideActivateButton;
-            std::string activateButtonStrBefore = g_overrideActivateButtonStr;
-            g_overrideActivateButton = rolloverHand->GetActivateButton(g_overrideActivateButtonStr);
-
-            if (g_overrideActivateButton != overrideActivateButtonBefore || (g_overrideActivateButton && g_overrideActivateButtonStr != activateButtonStrBefore)) {
-                // Just starting/ending to override, or we're still overriding but the button changed
-                g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
-            }
-        }
-    }
-    else {
-        if (wasRolloverSet) {
-            // Nothing is grabbed, and something was last time
-
-            if (hasSavedRumbleIntensity) {
-                Setting * activateRumbleIntensitySetting = GetINISetting("fActivateRumbleIntensity:VRInput");
-                activateRumbleIntensitySetting->data.f32 = normalRumbleIntensity;
-            }
-
-            SetGeometryAlphaDownstream(rolloverNode, 1.0f); // Restore the alpha to 1 in case it was modified when showing on the hand
-
-            lastRolloverSetTime = g_currentFrameTime;
-            rolloverNode->m_localTransform.scale = 0.000001f; // Hide the rollover for a bit after letting go of something
-
-            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-            NiAVObject_UpdateNode(rolloverNode, &ctx);
-
-            g_overrideActivateText = false;
-            g_overrideActivateButton = false;
-            g_taskInterface->AddUITask(new RefreshActivateButtonArtTask());
-        }
-
-        if (g_currentFrameTime - lastRolloverSetTime > Config::options.rolloverHideTime) {
-            if (rolloverNode && hasSavedRollover) {
-                rolloverNode->m_localTransform = normalRolloverTransform;
-            }
-        }
-    }
-
-    wasRolloverSet = rolloverHand != nullptr;
-
+    UpdateRollover();
 
     if (!Config::options.disableSelectionBeam) {
         NiAVObject *spellOrigin = player->unk3F0[PlayerCharacter::Node::kNode_SpellOrigin];
@@ -458,13 +490,13 @@ void PostWandUpdateHook()
 }
 
 
+#include "vrikinterface001.h"
 void PlayerCharacterUpdateHook()
 {
     HiggsPluginAPI::TriggerPreVrikPreHiggsCallbacks();
     Update();
     HiggsPluginAPI::TriggerPreVrikPostHiggsCallbacks();
 }
-
 
 void PostVRIKPCUpdateHook()
 {
@@ -508,7 +540,6 @@ void GetActivateTextHook()
 
 BSFixedString *g_activateButtonName = nullptr;
 const char **g_activateButtonNameArg = nullptr;
-void *g_wsActivateRollover = nullptr;
 bool g_overrideActivateButton = false;
 std::string g_overrideActivateButtonStr;
 
@@ -648,16 +679,16 @@ void PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Hook(PlayerCharacter *
     PlayerCharacter_VRUpdate_PlayerCharacter_UpdateHands_Original(_this, deltaGameTime);
 }
 
-auto Actor_ApplyMovementDelta_HookLoc = RelocPtr<uintptr_t>(0x5E0890);
-typedef void(*_Actor_ApplyMovementDelta)(Actor *_this, float a_delta);
-_Actor_ApplyMovementDelta Actor_ApplyMovementDelta_Original = 0;
-void Actor_ApplyMovementDelta_Hook(Actor *_this, float a_delta)
+auto Actor_UpdateMovement_GetCharacterController_HookLoc = RelocPtr<uintptr_t>(0x5E08C2);
+typedef void * (*_Actor_GetCharacterController)(ActorProcessManager *_this);
+_Actor_GetCharacterController Actor_GetCharacterController_Original = 0;
+void *Actor_UpdateMovement_GetCharacterController_Hook(ActorProcessManager *_this)
 {
-    Actor_ApplyMovementDelta_Original(_this, a_delta);
-
-    if (_this == *g_thePlayer) {
+    if (_this == (*g_thePlayer)->processManager) {
         PlayerPostApplyMovementDeltaUpdate();
     }
+
+    return Actor_GetCharacterController_Original(_this);
 }
 
 
@@ -1016,8 +1047,6 @@ void PerformHooks(void)
                 sub(rcx, 0x8);
                 mov(rax, (uintptr_t)&g_activateButtonNameArg);
                 mov(ptr[rax], rcx);
-                mov(rax, (uintptr_t)&g_wsActivateRollover);
-                mov(ptr[rax], rdi);
 
                 // Call our hook
                 mov(rax, (uintptr_t)RefreshActivateButtonArtHook);
@@ -1364,8 +1393,8 @@ void PerformHooks(void)
     }
 
     {
-        std::uintptr_t originalFunc = Write5Call(Actor_ApplyMovementDelta_HookLoc.GetUIntPtr(), uintptr_t(Actor_ApplyMovementDelta_Hook));
-        Actor_ApplyMovementDelta_Original = (_Actor_ApplyMovementDelta)originalFunc;
+        std::uintptr_t originalFunc = Write5Call(Actor_UpdateMovement_GetCharacterController_HookLoc.GetUIntPtr(), uintptr_t(Actor_UpdateMovement_GetCharacterController_Hook));
+        Actor_GetCharacterController_Original = (_Actor_GetCharacterController)originalFunc;
         _MESSAGE("Actor::ApplyMovementDelta hook complete");
     }
 

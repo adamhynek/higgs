@@ -538,7 +538,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 hkTransform Hand::ComputeHandCollisionTransform(bool isBeast, const NiTransform *a_handTransform)
 {
     // handTransform must be where the hand is in real life, as the hand collision is what drives the grab constraint
-    const NiTransform &handTransformToUse = a_handTransform ? *a_handTransform : handTransform;
+    const NiTransform &handTransformToUse = a_handTransform ? *a_handTransform : m_handTransformWithoutVrikOffset;
 
     hkTransform transform;
     NiPoint3 handCollisionBoxOffset = isBeast ? Config::options.handCollisionBoxOffsetBeast : Config::options.handCollisionBoxOffset;
@@ -561,7 +561,7 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
             NiTransform thisFrameVrikHandTransform = fpHandNode->m_worldTransform;
             thisFrameVrikHandTransform.scale = handSize;
 
-            NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * thirdPersonHandToWeaponTransform;
+            NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * m_thirdPersonHandToWeaponTransform;
             thisFrameWeaponTransform = thisFrameWeaponTransform * GetRigidBodyTLocalTransform(existingWeaponCollision);
 
             transform = NiTransformTohkTransform(thisFrameWeaponTransform);
@@ -722,6 +722,7 @@ void Hand::MoveHandAndWeaponCollision(const NiPoint3 &additionalOffset)
             if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(collisionNode)) {
                 if (rigidBody->hkBody) {
                     hkTransform transform = ComputeWeaponCollisionTransform(rigidBody);
+                    transform.m_translation = NiPointToHkVector(HkVectorToNiPoint(transform.m_translation) + additionalOffset);
 
                     hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(transform.m_rotation);
                     ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, weaponBody);
@@ -1370,7 +1371,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
     if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
         savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
-        g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
+        //g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
     }
 
     bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(selectedObj, selectedObject.rigidBody);
@@ -1734,7 +1735,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
     if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
         savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
-        g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
+        //g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
     }
 
     triangles.clear();
@@ -2250,11 +2251,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
     NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
     if (!handNode) return;
 
-    handTransform = handNode->m_worldTransform; // Save the old hand transform - we restore it later
-
-    NiPointer<NiAVObject> clavicle = isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftCavicle] : player->unk3F0[PlayerCharacter::Node::kNode_RightCavicle];
-    if (!clavicle) return;
-    clavicleTransform = clavicle->m_worldTransform;
+    m_handTransform = handNode->m_worldTransform; // Save the old hand transform - we restore it later
 
     float havokWorldScale = *g_havokWorldScale;
 
@@ -2686,11 +2683,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             wasSelectedTwoHandLerping = true;
                         }
 
-                        NiPoint3 finalHandPos = handTransform.pos + (palmOnWeaponBasedOnAnim - palmPos);
+                        NiPoint3 finalHandPos = m_handTransform.pos + (palmOnWeaponBasedOnAnim - palmPos);
 
                         double elapsedTimeFraction = (g_currentFrameTime - selectedTwoHandTime) / Config::options.twoHandedHandPosLerpSpeed;
-                        NiTransform newHandTransform = handTransform;
-                        newHandTransform.pos = lerp(handTransform.pos, finalHandPos, std::clamp(elapsedTimeFraction, 0.0, 1.0));
+                        NiTransform newHandTransform = m_handTransform;
+                        newHandTransform.pos = lerp(m_handTransform.pos, finalHandPos, std::clamp(elapsedTimeFraction, 0.0, 1.0));
 
                         UpdateHandTransform(newHandTransform);
                     }
@@ -2716,7 +2713,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     NiTransform thisFrameVrikHandTransform = fpHandNode->m_worldTransform;
                     thisFrameVrikHandTransform.scale = tpHandNode->m_worldTransform.scale;
 
-                    NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * other.thirdPersonHandToWeaponTransform;
+                    NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * other.m_thirdPersonHandToWeaponTransform;
                     NiTransform currentWeaponLocalTransform = tpWeaponNode->m_localTransform;
 
                     UpdateNodeTransformLocal(tpWeaponNode, thisFrameWeaponTransform);
@@ -3134,7 +3131,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
             if (state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::HeldTwoHanded) {
                 if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                    g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+                    //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
                 }
             }
 
@@ -3596,6 +3593,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
             NiTransform weaponTransformRoomspace = advancedTransform ? *advancedTransform : desiredWeaponTransformRoomspace;
             desiredTransform = roomNode->m_worldTransform * weaponTransformRoomspace;
 
+            // desiredTransform is now in its final form
+
             // Set hand transforms
             NiTransform newHandTransform = desiredTransform * weaponToThisHand;
             UpdateHandTransform(newHandTransform);
@@ -3626,8 +3625,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
             // This makes the vanilla blocking detection move with our transform, as it reads the wand node transforms.
             if (twoHandedState.weapon->type() != TESObjectWEAP::GameData::kType_CrossBow && twoHandedState.weapon->type() != TESObjectWEAP::GameData::kType_Staff) {
-                NiPointer<NiAVObject> wandNode = other.GetWandNode();
-                if (wandNode) {
+                if (NiPointer<NiAVObject> wandNode = other.GetWandNode()) {
                     UpdateNodeTransformLocal(wandNode, newOtherHandTransform * twoHandedState.handToWand);
                     NiAVObject_UpdateNode(wandNode, &ctx);
                 }
@@ -3656,12 +3654,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
             }
 
-            // To affect the velocity thresholds, we could:
-            // - Subtract 1 from the vrMeleeData.currentArrayOffset
-            // - Call VRMeleeData_UpdateArrays with whatever position we want to overwrite with
-            // Since UpdateWeaponSwing is called before AlignClaviclesToHands (which calls VRMeleeData_UpdateArrays), I believe it uses the last frame's data,
-            // meaning since we hook after AlignClaviclesToHands, hopefully UpdateWeaponSwing will use the values we overwrite with.
-
             twoHandedState.prevWeaponTransformRoomspace = weaponTransformRoomspace;
             twoHandedState.prevWeaponTransform = desiredTransform;
         }
@@ -3677,13 +3669,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
             }
 
-            NiPointer<NiAVObject> wandNode = other.GetWandNode();
-            if (wandNode) {
+            if (NiPointer<NiAVObject> wandNode = other.GetWandNode()) {
                 wandNode->m_localTransform = twoHandedState.wandNodeLocalTransform;
             }
 
             if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+                //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
             }
 
             HiggsPluginAPI::TriggerStopTwoHandingCallbacks();
@@ -3752,7 +3743,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
         }
         else {
             if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+                //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
             }
 
             ResetNearbyDamping();
@@ -3844,7 +3835,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
 
                 NiTransform inverseDesired = InverseTransform(desiredNodeTransformHandSpace);
-                adjustedHandTransform = heldTransform * inverseDesired;
+                m_adjustedHandTransform = heldTransform * inverseDesired;
 
                 NiPoint3 linearVelocity = HkVectorToNiPoint(selectedObject.rigidBody->hkBody->getLinearVelocity());
                 NiPoint3 localLinearVelocity = linearVelocity - g_prevDeltaVelocity;
@@ -3854,11 +3845,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 {
                     double elapsedTimeFraction = (g_currentFrameTime - heldTime) / startGrabLerpHandDuration;
                     if (elapsedTimeFraction < 1.0) {
-                        adjustedHandTransform = lerp(handTransform, adjustedHandTransform, elapsedTimeFraction);
+                        m_adjustedHandTransform = lerp(m_handTransform, m_adjustedHandTransform, elapsedTimeFraction);
                     }
                 }
 
-                float handDeviation = VectorLength(adjustedHandTransform.pos - handTransform.pos);
+                float handDeviation = VectorLength(m_adjustedHandTransform.pos - m_handTransform.pos);
                 handDeviations.pop_back();
                 handDeviations.push_front(handDeviation);
                 float avgHandDeviation = std::accumulate(handDeviations.begin(), handDeviations.end(), 0.f) / handDeviations.size();
@@ -3872,7 +3863,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
                 else {
                     // Not too far away. Update hand to object and update constraint params to match the current grab transform.
-                    UpdateHandTransform(adjustedHandTransform);
+                    UpdateHandTransform(m_adjustedHandTransform);
 
                     if (grabConstraint) {
                         NiTransform desiredTransformHandSpace = desiredNodeTransformHandSpace * GetRigidBodyTLocalTransform(selectedObject.rigidBody);
@@ -3997,7 +3988,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
         }
         else {
             if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
+                //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
             }
 
             ResetNearbyDamping();
@@ -4015,6 +4006,24 @@ void Hand::Update(Hand &other, bhkWorld *world)
 }
 
 
+void Hand::PreUpdate(Hand &other, bhkWorld *world)
+{
+    PlayerCharacter *player = *g_thePlayer;
+    if (!player || !player->GetNiNode()) return;
+
+    NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
+    if (!handNode) return;
+
+    m_handTransformWithoutVrikOffset = handNode->m_worldTransform;
+
+    if (g_vrikInterface) {
+        NiTransform newTransform = handNode->m_worldTransform;
+        newTransform.pos.z += g_prevVrikOffset;
+        UpdateHandTransform(newTransform);
+    }
+}
+
+
 void Hand::PostUpdate(Hand &other, bhkWorld *world)
 {
     PlayerCharacter *player = *g_thePlayer;
@@ -4026,6 +4035,13 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
     // Update these after stuff like two-handing hand updates
     UpdateHandCollision(world);
     UpdateWeaponCollision();
+
+
+    if (g_vrikInterface) {
+        NiTransform newTransform = handNode->m_worldTransform;
+        newTransform.pos.z -= g_prevVrikOffset;
+        UpdateHandTransform(newTransform);
+    }
 }
 
 
@@ -4293,7 +4309,7 @@ void Hand::LateMainThreadUpdate()
     NiPointer<NiAVObject> tpHandNode = GetThirdPersonHandNode();
     NiPointer<NiAVObject> tpWeaponNode = GetWeaponNode(true);
     if (tpHandNode && tpWeaponNode) {
-        thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+        m_thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
     }
 
     // Testing frame-perfect held object visual updates (regardless of collision pos)
@@ -4612,19 +4628,15 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
             desiredLocal.rot = rolloverRotation;
             desiredLocal.scale = rolloverScale;
 
+            // wand/hand transforms here are without vrik height offset
+            NiTransform wandTransform = wandNode->m_worldTransform;
+            NiTransform inverseHand = InverseTransform(m_handTransformWithoutVrikOffset);
+            NiTransform handToWand = inverseHand * wandTransform;
+
+            // hand transforms here are with vrik height offset
+            NiTransform handTransform = state == State::HeldBody ? m_adjustedHandTransform : m_handTransform;
             // World transform where we would like the rollover node to be
-            NiTransform desiredWorld;
-
-            if (state == State::HeldBody) {
-                NiTransform inverseHand = InverseTransform(handTransform);
-                NiTransform handToWand = inverseHand * wandNode->m_worldTransform;
-
-                desiredWorld = adjustedHandTransform * handToWand * desiredLocal;
-            }
-            else {
-                desiredWorld = wandNode->m_worldTransform * desiredLocal;
-            }
-
+            NiTransform desiredWorld = handTransform * handToWand * desiredLocal;
             UpdateNodeTransformLocal(rolloverNode, desiredWorld);
 
             float alpha = 1.0f;

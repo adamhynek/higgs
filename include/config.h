@@ -253,6 +253,12 @@ namespace Config {
         float droppedObjDestructibleInflictedDamage = 1.f;
         float droppedObjDestructibleSelfDamage = 1.f;
 
+        float dummyFloat0 = 0.f;
+        float dummyFloat1 = 0.f;
+        float dummyFloat2 = 0.f;
+        float dummyFloat3 = 0.f;
+        float dummyFloat4 = 0.f;
+
         bool convertDebrisToMoving = true;
         bool disableHeadBobbingWhileGrabbed = true;
         bool disableShaders = false;

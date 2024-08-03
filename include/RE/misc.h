@@ -4,6 +4,7 @@
 #include "skse64/NiTypes.h"
 #include "skse64/GameTypes.h"
 #include "skse64/NiNodes.h"
+#include "skse64/GameMenus.h"
 
 #include "Physics/Collide/Query/Collector/PointCollector/hkpAllCdPointCollector.h"
 
@@ -145,6 +146,15 @@ struct BSFlattenedBoneTree : NiNode
     UInt32 numBones; // 150
     UInt32 unk154; // 154
     BoneEntry * boneEntries; // 158
+};
+
+struct WorldSpaceMenu : IMenu
+{
+    virtual void SetHandle(UInt32 handle);
+    virtual void Unk_0A();
+    virtual void SetupMenuNode();
+    virtual NiNode * GetMenuParentNode();
+    virtual void InitializeNode();
 };
 
 struct BGSAttackData : NiRefObject

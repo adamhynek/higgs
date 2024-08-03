@@ -51,6 +51,14 @@ RelocPtr<float> g_fMagicHandRotateY(0x1EAEAB8);
 RelocPtr<float> g_fMagicHandRotateZ(0x1EAEAD0);
 RelocPtr<float> g_fMagicHandScale(0x1EAEAE8);
 
+RelocPtr<float> g_fActivateRolloverWandX(0x1EAACF0);
+RelocPtr<float> g_fActivateRolloverWandY(0x1EAAD08);
+RelocPtr<float> g_fActivateRolloverWandZ(0x1EAAD20);
+RelocPtr<float> g_fActivateRolloverWandRotateX(0x1EAAD38);
+RelocPtr<float> g_fActivateRolloverWandRotateY(0x1EAAD50);
+RelocPtr<float> g_fActivateRolloverWandRotateZ(0x1EAAD68);
+RelocPtr<float> g_fActivateRolloverWandScale(0x1EAAD80);
+
 RelocPtr<float> g_fMoveLimitMass(0x1EC84A8);
 
 RelocPtr<DWORD> g_havokMemoryRouterTlsIndex(0x30A8C04);
@@ -205,6 +213,8 @@ RelocAddr<_HitData_populate> HitData_populate(0x76D400);
 RelocAddr<_HitData_PopulateFromPhysicalHit> HitData_PopulateFromPhysicalHit(0x76DAF0);
 RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestructibleDamageTask(0x5CB4F0);
 RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon(0x683850);
+
+RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu(0xF1CE20);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);

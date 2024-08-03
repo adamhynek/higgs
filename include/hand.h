@@ -158,6 +158,7 @@ struct Hand
     ~Hand() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
 
     void Update(Hand &other, bhkWorld *world);
+    void PreUpdate(Hand &other, bhkWorld *world);
     void PostUpdate(Hand &other, bhkWorld *world);
     void MoveHandAndWeaponCollision(const NiPoint3 &additionalOffset);
     void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
@@ -301,10 +302,10 @@ struct Hand
 
     NiTransform prevHandTransformRoomspace{};
 
-    NiTransform handTransform{};
-    NiTransform clavicleTransform{};
-    NiTransform adjustedHandTransform{};
-    NiTransform thirdPersonHandToWeaponTransform{};
+    NiTransform m_handTransform{};
+    NiTransform m_handTransformWithoutVrikOffset{};
+    NiTransform m_adjustedHandTransform{};
+    NiTransform m_thirdPersonHandToWeaponTransform{};
 
     NiTransform fpAnimHandTransform{};
     NiTransform fpAnimWeaponTransform{};

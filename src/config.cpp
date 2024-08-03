@@ -26,10 +26,12 @@ namespace Config {
     std::map<std::string, bool*, std::less<>> boolMap{};
     bool g_registrationComplete = false;
 
-    bool ReadFloat(const std::string &name, float &val)
+    bool ReadFloat(const std::string &name, float &val, bool isImportant=true)
     {
         if (!GetConfigOptionFloat("Settings", name.c_str(), &val)) {
-            _WARNING("Failed to read float config option: %s", name.c_str());
+            if (isImportant) {
+                _WARNING("Failed to read float config option: %s", name.c_str());
+            }
             return false;
         }
 
@@ -123,10 +125,10 @@ namespace Config {
         return true;
     }
 
-    bool RegisterFloat(const std::string& name, float& val)
+    bool RegisterFloat(const std::string& name, float& val, bool isImportant=true)
     {
         if (!g_registrationComplete) floatMap[name] = &val;
-        return ReadFloat(name, val);
+        return ReadFloat(name, val, isImportant);
     }
 
     bool RegisterDouble(const std::string& name, double& val)
@@ -514,6 +516,12 @@ namespace Config {
         if (!ReadString("LootString", Config::options.lootString)) success = false;
 
         if (!ReadStringSet("GrabNodeNameBlacklist", Config::options.grabNodeNameBlacklist)) success = false;
+
+        RegisterFloat("dummyFloat0", options.dummyFloat0, false);
+        RegisterFloat("dummyFloat1", options.dummyFloat1, false);
+        RegisterFloat("dummyFloat2", options.dummyFloat2, false);
+        RegisterFloat("dummyFloat3", options.dummyFloat3, false);
+        RegisterFloat("dummyFloat4", options.dummyFloat4, false);
 
         g_registrationComplete = true;
 

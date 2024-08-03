@@ -302,6 +302,8 @@ void PostPhysicsStep(bhkWorld *world)
 bool g_prevDoWarp = false;
 bool g_prevVelocityAdded = false;
 
+float g_prevVrikOffset = 0.f;
+
 void SimulatePlayerSpace(bhkWorld *world)
 {
     //_MESSAGE("%d SimulatePlayerSpace", *g_currentFrameCounter);
@@ -329,8 +331,20 @@ void SimulatePlayerSpace(bhkWorld *world)
     nextRoomTransform.pos += predictedDelta;
     g_nextRoomTransform = nextRoomTransform;
 
+    // TODO:
+    // - Need to undo the velocity when we let go of the object. If head bobbing is at a high vertical up/down velocity, the object will fly up/down
+    // - Incorporate bobbing during snap turn as well (mainly for snap turning while moving)
+    // - Incorporate bobbing into two-handed weapon holding as well
+    //  - Crossbow bolt doesn't follow, that's an old bug but way more noticeable now
+    //  - For some reason weapon collision, even when not two-handing or holding anything, is not incorporating the head bobbing
+
+    float vrikZoffset = g_vrikInterface ? g_vrikInterface->getFinalCameraOffsettingAmount().z : 0.f;
+
     NiPoint3 delta = (g_nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
     NiPoint3 deltaVelocity = delta / *g_deltaTime;
+
+    delta.z += vrikZoffset * *g_havokWorldScale;
+    deltaVelocity.z += (vrikZoffset - g_prevVrikOffset) * *g_havokWorldScale / *g_deltaTime;
 
     {
         BSWriteLocker lock(&world->worldLock);
@@ -338,7 +352,7 @@ void SimulatePlayerSpace(bhkWorld *world)
         // There is potential for a body to be removed from the world between frames, or between being added to g_playerSpaceBodies and this call.
         std::erase_if(g_playerSpaceBodies, [](const NiPointer<bhkRigidBody> &body) {
             return !body->hkBody->isAddedToWorld();
-            });
+        });
 
         NiTransform currentRoomTransform = roomNode->m_worldTransform;
         currentRoomTransform.pos *= *g_havokWorldScale;
@@ -422,6 +436,8 @@ void SimulatePlayerSpace(bhkWorld *world)
 
         g_prevDoWarp = doWarp;
     }
+
+    g_prevVrikOffset = vrikZoffset;
 
     g_prevDeltaVelocity = deltaVelocity;
     g_prevNextRoomTransform = g_nextRoomTransform;
@@ -535,6 +551,9 @@ void Update()
 
     g_totalMassThisFrameAccumulator = 0.f; // reset this before hand updates which add to it
     g_thisFrameObjectMassRegisteredBodies.clear();
+
+    firstHandToUpdate->PreUpdate(*lastHandToUpdate, world);
+    lastHandToUpdate->PreUpdate(*firstHandToUpdate, world);
 
     firstHandToUpdate->Update(*lastHandToUpdate, world);
     lastHandToUpdate->Update(*firstHandToUpdate, world);
