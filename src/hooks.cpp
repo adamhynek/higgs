@@ -386,7 +386,7 @@ struct RolloverHandler
             }
         }
         else if (m_rolloverState == RolloverState::Show) {
-            if (rolloverHand && rolloverHand != m_prevRolloverHand) {
+            if (rolloverHand && m_prevRolloverHand && rolloverHand != m_prevRolloverHand) {
                 // Switched hands - hide it again as if it's the first time
                 m_numHideWhileShowFrames = 2;
             }
@@ -450,6 +450,11 @@ struct RolloverHandler
             }
         }
         else if (m_rolloverState == RolloverState::Hide) {
+            rolloverNode->m_localTransform.scale = 0.000001f;
+
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            NiAVObject_UpdateNode(rolloverNode, &ctx);
+
             if (rolloverHand) {
                 m_numHideWhileShowFrames = 2;
                 m_rolloverState = RolloverState::Show;
