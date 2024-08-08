@@ -1677,7 +1677,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkRigidBody_setMotionType(selectedObject.rigidBody, hkpMotion::MotionType::MOTION_KEYFRAMED, HK_ENTITY_ACTIVATION_DO_ACTIVATE, HK_UPDATE_FILTER_ON_ENTITY_DISABLE_ENTITY_ENTITY_COLLISIONS_ONLY);
     }
 
-    // AddHiggsDroppedTrackingInfo(selectedObject.rigidBody->hkBody);
+    // If it had dropped object tracking info and we grabbed it (e.g. we just dropped it and picked it up before it deactivated), remove tracking. It will be added again when dropping it again.
+    RemoveHiggsDroppedTrackingInfo(selectedObject.rigidBody->hkBody);
 
     if (Config::options.printHiggsGrabNodeInfo) {
         // Log the transform that would be entered into nifskope to have higgs grab the object the same way as this current grab
