@@ -260,7 +260,6 @@ namespace Config {
         float dummyFloat4 = 0.f;
 
         bool convertDebrisToMoving = true;
-        bool disableHeadBobbingWhileGrabbed = true;
         bool disableShaders = false;
         bool disableSelectionBeam = false;
         bool disableLooting = false;

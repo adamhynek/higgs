@@ -478,7 +478,6 @@ namespace Config {
         if (!RegisterBool("DisableRolloverRumble", options.disableRolloverRumble)) success = false;
         if (!RegisterBool("AlwaysShowHands", options.alwaysShowHands)) success = false;
         if (!RegisterBool("DisableVanillaGrab", options.disableVanillaGrab)) success = false;
-        if (!RegisterBool("DisableHeadBobbingWhileGrabbed", options.disableHeadBobbingWhileGrabbed)) success = false;
         if (!RegisterBool("convertDebrisToMoving", options.convertDebrisToMoving)) success = false;
 
         if (!RegisterBool("treatHandCollisionAsBelongingToPlayer", options.treatHandCollisionAsBelongingToPlayer)) success = false;

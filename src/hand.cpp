@@ -32,9 +32,6 @@
 #include <Physics/Collide/Dispatch/hkpCollisionDispatcher.h>
 
 
-int isHeadBobbingSavedCount = 0;
-double savedHeadBobbingHeight = 0.0;
-
 UInt32 skinMaterialId = 0x233db702;
 UInt32 stoneMaterialId = 0xdf02f237;
 std::unordered_set<UInt32> softSoundIds { 0x5a284, 0x624ab, 0x3f355 };
@@ -1369,11 +1366,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         PlayPhysicsSound(palmPos, Config::options.useLoudSoundGrab);
     }
 
-    if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
-        savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
-        //g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
-    }
-
     bool usePhysicsGrab = ShouldUsePhysicsBasedGrab(selectedObj, selectedObject.rigidBody);
 
     StartNearbyDamping(world);
@@ -1733,11 +1725,6 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
     NiPoint3 ptPos = closestPoint / havokWorldScale; // in skyrim coords
 
     PlayPhysicsSound(palmPos, false);
-
-    if (g_vrikInterface && Config::options.disableHeadBobbingWhileGrabbed && isHeadBobbingSavedCount++ == 0) {
-        savedHeadBobbingHeight = g_vrikInterface->getSettingDouble("headBobbingHeight");
-        //g_vrikInterface->setSettingDouble("headBobbingHeight", 0.0);
-    }
 
     triangles.clear();
     std::vector<TrianglePartitionData> trianglePartitions{};
@@ -3132,12 +3119,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 ResetNearbyDamping();
             }
 
-            if (state == State::HeldInit || state == State::Held || state == State::HeldBody || state == State::HeldTwoHanded) {
-                if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                    //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
-                }
-            }
-
             Deselect();
         }
     }
@@ -3676,10 +3657,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 wandNode->m_localTransform = twoHandedState.wandNodeLocalTransform;
             }
 
-            if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
-            }
-
             HiggsPluginAPI::TriggerStopTwoHandingCallbacks();
 
             Deselect();
@@ -3745,10 +3722,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
         }
         else {
-            if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
-            }
-
             ResetNearbyDamping();
 
             state = State::Idle;
@@ -3990,10 +3963,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
         }
         else {
-            if (g_vrikInterface && --isHeadBobbingSavedCount == 0) {
-                //g_vrikInterface->setSettingDouble("headBobbingHeight", savedHeadBobbingHeight);
-            }
-
             ResetNearbyDamping();
 
             state = State::Idle;
