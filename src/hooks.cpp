@@ -518,7 +518,6 @@ void PostWandUpdateHook()
 }
 
 
-#include "vrikinterface001.h"
 void PlayerCharacterUpdateHook()
 {
     HiggsPluginAPI::TriggerPreVrikPreHiggsCallbacks();

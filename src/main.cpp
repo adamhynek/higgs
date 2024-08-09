@@ -331,13 +331,6 @@ void SimulatePlayerSpace(bhkWorld *world)
     NiPoint3 predictedDelta = newControllerPos - followNode->m_worldTransform.pos;
     nextRoomTransform.pos += predictedDelta;
 
-    // TODO:
-    // - Need to undo the velocity when we let go of the object. If head bobbing is at a high vertical up/down velocity, the object will fly up/down
-    // - Incorporate bobbing during snap turn as well (mainly for snap turning while moving)
-    // - Incorporate bobbing into two-handed weapon holding as well
-    //  - Crossbow bolt doesn't follow, that's an old bug but way more noticeable now
-    //  - For some reason weapon collision, even when not two-handing or holding anything, is not incorporating the head bobbing
-
     NiPoint3 delta = (nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
     NiPoint3 deltaVelocity = delta / *g_deltaTime;
 
@@ -1037,6 +1030,11 @@ extern "C" {
                 g_vrikInterface = vrikPluginApi::getVrikInterface001(g_pluginHandle, g_messaging);
                 if (g_vrikInterface) {
                     _MESSAGE("Successfully got VRIK api");
+
+                    unsigned int vrikVersion = g_vrikInterface->getBuildNumber();
+                    if (vrikVersion < 80400) {
+                        ShowErrorBoxAndTerminate("[CRITICAL] You are using VRIK, but its version is lower than HIGGS supports. If you want to use VRIK alongside HIGGS, get the latest version of VRIK and try again.");
+                    }
                 }
                 else {
                     _MESSAGE("Did not get VRIK api. This is okay.");
