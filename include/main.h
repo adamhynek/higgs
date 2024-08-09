@@ -25,6 +25,7 @@ extern int g_shadowUpdateFrame;
 extern int g_numShadowUpdates;
 
 extern NiPoint3 g_prevDeltaVelocity;
+extern NiPoint3 g_prevDeltaVelocityWithVrikSmoothingOnly;
 
 extern std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies;
 void RegisterPlayerSpaceBody(bhkRigidBody *body, bool allowWarp = true);

@@ -286,6 +286,8 @@ void RegisterPlayerSpaceBody(bhkRigidBody *body, bool allowWarp)
 }
 
 NiPoint3 g_prevDeltaVelocity{};
+NiPoint3 g_prevDeltaVelocityWithVrikSmoothingOnly{};
+
 
 void PrePhysicsStep(bhkWorld *world)
 {
@@ -301,6 +303,7 @@ bool g_prevDoWarp = false;
 bool g_prevVelocityAdded = false;
 
 float g_prevVrikOffset = 0.f;
+float g_prevVrikSmoothingOffset = 0.f;
 
 void SimulatePlayerSpace(bhkWorld *world)
 {
@@ -335,10 +338,17 @@ void SimulatePlayerSpace(bhkWorld *world)
     //  - Crossbow bolt doesn't follow, that's an old bug but way more noticeable now
     //  - For some reason weapon collision, even when not two-handing or holding anything, is not incorporating the head bobbing
 
-    float vrikZoffset = g_vrikInterface ? g_vrikInterface->getFinalCameraOffsettingAmount().z : 0.f;
-
     NiPoint3 delta = (nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
     NiPoint3 deltaVelocity = delta / *g_deltaTime;
+
+    float vrikZoffset = g_vrikInterface ? g_vrikInterface->getFinalCameraOffsettingAmount().z : 0.f;
+    float vrikSmoothingZoffset = g_vrikInterface ? g_vrikInterface->getFinalSmoothingOffsettingAmount().z : 0.f;
+
+    {
+        NiPoint3 deltaVelocityWithSmoothing = deltaVelocity;
+        deltaVelocityWithSmoothing.z += (vrikSmoothingZoffset - g_prevVrikSmoothingOffset) * *g_havokWorldScale / *g_deltaTime;
+        g_prevDeltaVelocityWithVrikSmoothingOnly = deltaVelocityWithSmoothing;
+    }
 
     delta.z += vrikZoffset * *g_havokWorldScale;
     deltaVelocity.z += (vrikZoffset - g_prevVrikOffset) * *g_havokWorldScale / *g_deltaTime;
@@ -439,6 +449,7 @@ void SimulatePlayerSpace(bhkWorld *world)
     }
 
     g_prevVrikOffset = vrikZoffset;
+    g_prevVrikSmoothingOffset = vrikSmoothingZoffset;
 
     g_prevDeltaVelocity = deltaVelocity;
     g_prevNextRoomTransform = nextRoomTransform;

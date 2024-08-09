@@ -42,8 +42,11 @@ namespace vrikPluginApi {
         //Calculates and gets camera offsetting amount. This is for calling it before VRIK's hook.
         virtual NiPoint3 getCameraOffsettingAmount() = 0;
 
-        //Gets the calculated camera offsetting amount. This is for calling it after VRIK's hook.
+        //Gets the camera offsetting amount for the next frame. This is for calling it after VRIK's hook.
         virtual NiPoint3 getFinalCameraOffsettingAmount() = 0;
+
+        //Gets the smoothing offsetting amount for the next frame. This is for calling it after VRIK's hook.
+        virtual NiPoint3 getFinalSmoothingOffsettingAmount() = 0;
     };
 }
 

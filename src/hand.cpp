@@ -2975,7 +2975,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             if (VectorLength(velocityObjectComponent) > Config::options.throwVelocityThreshold) {
                                 velocityObjectComponent *= Config::options.throwVelocityBoostFactor;
                             }
-                            velocityObjectComponent += g_prevDeltaVelocity;
+
+                            // Add the room velocity with vrik smoothing (but not head bobbing) incorporated
+                            velocityObjectComponent += g_prevDeltaVelocityWithVrikSmoothingOnly;
 
                             bhkRigidBody_setActivated(selectedObject.rigidBody, true);
                             selectedObject.rigidBody->hkBody->m_motion.m_linearVelocity = NiPointToHkVector(velocityObjectComponent);
