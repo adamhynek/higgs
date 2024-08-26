@@ -770,6 +770,24 @@ void bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook(hkpWorld *world, const 
 }
 
 
+auto PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_LeftHand_HookLoc = RelocPtr<uintptr_t>(0x6AC765);
+auto PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_RightHand_HookLoc = RelocPtr<uintptr_t>(0x6AC88C);
+void PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_Hook(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)
+{
+    if (Config::options.dummyFloat0 > 0.f) {
+        NiMathDouble::NiTransform wandNodeTransformWorld = *a_wandNodeTransformWorld;
+        NiMathDouble::NiTransform magicHandTransformLocal = *a_magicHandTransformLocal;
+        NiMathDouble::NiTransform newHand = NiMathDouble::UpdateClavicleToTransformHand(a_clavicle, a_hand, &wandNodeTransformWorld, &magicHandTransformLocal);
+
+        NiMathDouble::NiTransform expected = wandNodeTransformWorld * magicHandTransformLocal;
+        PrintToFile(std::to_string(VectorLength(expected.pos.ToSingle() - a_hand->m_worldTransform.pos)));
+    }
+    else {
+        UpdateClavicleToTransformHand(a_clavicle, a_hand, a_wandNodeTransformWorld, a_magicHandTransformLocal);
+    }
+}
+
+
 #ifdef _DEBUG
 
 bool g_wasDrawingLastFrame = false;
@@ -1429,6 +1447,16 @@ void PerformHooks(void)
         std::uintptr_t originalFunc = Write5Call(bhkLinearCaster_linearCast_hkpWorld_linearCast_HookLoc.GetUIntPtr(), uintptr_t(bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook));
         g_original_bhkLinearCaster_linearCast_hkpWorld_linearCast = (_hkpWorld_LinearCast)originalFunc;
         _MESSAGE("bhkLinearCaster::linearCast hkpWorld::linearCast hook complete");
+    }
+
+    {
+        Write5Call(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_LeftHand_HookLoc.GetUIntPtr(), uintptr_t(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_Hook));
+        _MESSAGE("PlayerCharacter::UpdateHands UpdateClavicleToTransformHand LeftHand hook complete");
+    }
+
+    {
+        Write5Call(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_RightHand_HookLoc.GetUIntPtr(), uintptr_t(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_Hook));
+        _MESSAGE("PlayerCharacter::UpdateHands UpdateClavicleToTransformHand RightHand hook complete");
     }
 
     {

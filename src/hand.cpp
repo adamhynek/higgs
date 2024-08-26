@@ -2190,8 +2190,16 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
             return;
         }
 
-        NiTransform identity;
-        UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
+        if (Config::options.dummyFloat0 > 0.f) {
+            NiMathDouble::NiTransform worldDouble = worldTransform;
+            NiMathDouble::NiTransform identity;
+            NiMathDouble::UpdateClavicleToTransformHand(clavicle, handNode, &worldDouble, &identity);
+        }
+        else {
+            NiTransform identity;
+            UpdateClavicleToTransformHand(clavicle, handNode, &worldTransform, &identity);
+        }
+        //PrintToFile(std::to_string(VectorLength(worldTransform.pos - handNode->m_worldTransform.pos)));
     }
 }
 

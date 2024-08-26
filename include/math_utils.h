@@ -213,3 +213,95 @@ void GetFingerIntersectionOnGraphicsGeometry(std::vector<Intersection> &tipInter
 bool GetClosestPointOnGraphicsGeometry(NiAVObject *root, const NiPoint3 &point, NiPoint3 *closestPos, NiPoint3 *closestNormal, float *closestDistanceSoFar);
 bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &triangles, const NiPoint3 &point, const NiPoint3 &direction,
     NiPoint3 &closestPos, NiPoint3 &closestNormal, int &closestIndex, float &closestDistanceSoFar);
+
+
+
+namespace NiMathDouble
+{
+    class NiPoint3
+    {
+    public:
+        long double	x;	// 0
+        long double	y;	// 4
+        long double	z;	// 8
+
+        NiPoint3();
+        NiPoint3(long double X, long double Y, long double Z) : x(X), y(Y), z(Z) { };
+        NiPoint3(const ::NiPoint3 &pointSingle);
+
+        ::NiPoint3 ToSingle() const { return ::NiPoint3(x, y, z); }
+
+        // Negative
+        NiPoint3 operator- () const;
+
+        // Basic operations
+        NiPoint3 operator+ (const NiPoint3 &pt) const;
+        NiPoint3 operator- (const NiPoint3 &pt) const;
+
+        NiPoint3 &operator+= (const NiPoint3 &pt);
+        NiPoint3 &operator-= (const NiPoint3 &pt);
+
+        // Scalar operations
+        NiPoint3 operator* (long double fScalar) const;
+        NiPoint3 operator/ (long double fScalar) const;
+
+        NiPoint3 &operator*= (long double fScalar);
+        NiPoint3 &operator/= (long double fScalar);
+    };
+
+    class NiMatrix33
+    {
+    public:
+        union
+        {
+            long double	data[3][3];
+            long double   arr[9];
+        };
+
+        NiMatrix33() = default;
+        NiMatrix33(const ::NiMatrix33 &matSingle);
+
+        ::NiMatrix33 ToSingle() const;
+
+        void Identity();
+
+        // Matric mult
+        NiMatrix33 operator*(const NiMatrix33 &mat) const;
+
+        // Vector mult
+        NiPoint3 operator*(const NiPoint3 &pt) const;
+
+        // Scalar multiplier
+        NiMatrix33 operator*(long double fScalar) const;
+
+        NiMatrix33 Transpose() const;
+    };
+
+    // 34
+    class NiTransform
+    {
+    public:
+        NiMatrix33	rot;	// 00
+        NiPoint3	pos;	// 24
+        long double		scale;	// 30
+
+        NiTransform();
+        NiTransform(const ::NiTransform &transformSingle);
+
+        ::NiTransform ToSingle() const;
+
+        // Multiply transforms
+        NiTransform operator*(const NiTransform &rhs) const;
+
+        // Transform point
+        NiPoint3 operator*(const NiPoint3 &pt) const;
+
+        // Invert
+        void Invert(NiTransform &kDest) const;
+    };
+
+    inline NiTransform InverseTransform(const NiTransform &t) { NiTransform inverse; t.Invert(inverse); return inverse; }
+
+    NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal);
+}
+

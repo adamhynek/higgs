@@ -2172,3 +2172,350 @@ bool GetClosestPointOnGraphicsGeometryToLine(const std::vector<TriangleData> &tr
 
     return false;
 }
+
+
+
+namespace NiMathDouble
+{
+    NiPoint3::NiPoint3()
+    {
+        x = 0.0;
+        y = 0.0;
+        z = 0.0;
+    }
+
+    NiPoint3::NiPoint3(const ::NiPoint3 &pointSingle)
+    {
+        x = pointSingle.x;
+        y = pointSingle.y;
+        z = pointSingle.z;
+    }
+
+    NiPoint3 NiPoint3::operator- () const
+    {
+        return NiPoint3(-x, -y, -z);
+    }
+
+    NiPoint3 NiPoint3::operator+ (const NiPoint3 &pt) const
+    {
+        return NiPoint3(x + pt.x, y + pt.y, z + pt.z);
+    }
+
+    NiPoint3 NiPoint3::operator- (const NiPoint3 &pt) const
+    {
+        return NiPoint3(x - pt.x, y - pt.y, z - pt.z);
+    }
+
+    NiPoint3 &NiPoint3::operator+= (const NiPoint3 &pt)
+    {
+        x += pt.x;
+        y += pt.y;
+        z += pt.z;
+        return *this;
+    }
+    NiPoint3 &NiPoint3::operator-= (const NiPoint3 &pt)
+    {
+        x -= pt.x;
+        y -= pt.y;
+        z -= pt.z;
+        return *this;
+    }
+
+    // Scalar operations
+    NiPoint3 NiPoint3::operator* (long double scalar) const
+    {
+        return NiPoint3(scalar * x, scalar * y, scalar * z);
+    }
+    NiPoint3 NiPoint3::operator/ (long double scalar) const
+    {
+        long double invScalar = 1.0 / scalar;
+        return NiPoint3(invScalar * x, invScalar * y, invScalar * z);
+    }
+
+    NiPoint3 &NiPoint3::operator*= (long double scalar)
+    {
+        x *= scalar;
+        y *= scalar;
+        z *= scalar;
+        return *this;
+    }
+    NiPoint3 &NiPoint3::operator/= (long double scalar)
+    {
+        long double invScalar = 1.0 / scalar;
+        x *= invScalar;
+        y *= invScalar;
+        z *= invScalar;
+        return *this;
+    }
+
+    NiMatrix33::NiMatrix33(const ::NiMatrix33 &matSingle)
+    {
+        data[0][0] = matSingle.data[0][0];
+        data[0][1] = matSingle.data[0][1];
+        data[0][2] = matSingle.data[0][2];
+        data[1][0] = matSingle.data[1][0];
+        data[1][1] = matSingle.data[1][1];
+        data[1][2] = matSingle.data[1][2];
+        data[2][0] = matSingle.data[2][0];
+        data[2][1] = matSingle.data[2][1];
+        data[2][2] = matSingle.data[2][2];
+    }
+
+    ::NiMatrix33 NiMatrix33::ToSingle() const
+    {
+        ::NiMatrix33 matSingle;
+        matSingle.data[0][0] = data[0][0];
+        matSingle.data[0][1] = data[0][1];
+        matSingle.data[0][2] = data[0][2];
+        matSingle.data[1][0] = data[1][0];
+        matSingle.data[1][1] = data[1][1];
+        matSingle.data[1][2] = data[1][2];
+        matSingle.data[2][0] = data[2][0];
+        matSingle.data[2][1] = data[2][1];
+        matSingle.data[2][2] = data[2][2];
+        return matSingle;
+    }
+
+    void NiMatrix33::Identity()
+    {
+        data[0][0] = 1.0;
+        data[0][1] = 0.0;
+        data[0][2] = 0.0;
+        data[1][0] = 0.0;
+        data[1][1] = 1.0;
+        data[1][2] = 0.0;
+        data[2][0] = 0.0;
+        data[2][1] = 0.0;
+        data[2][2] = 1.0;
+    }
+
+    NiMatrix33 NiMatrix33::operator* (const NiMatrix33 &rhs) const
+    {
+        NiMatrix33 tmp;
+        tmp.data[0][0] =
+            data[0][0] * rhs.data[0][0] +
+            data[0][1] * rhs.data[1][0] +
+            data[0][2] * rhs.data[2][0];
+        tmp.data[1][0] =
+            data[1][0] * rhs.data[0][0] +
+            data[1][1] * rhs.data[1][0] +
+            data[1][2] * rhs.data[2][0];
+        tmp.data[2][0] =
+            data[2][0] * rhs.data[0][0] +
+            data[2][1] * rhs.data[1][0] +
+            data[2][2] * rhs.data[2][0];
+        tmp.data[0][1] =
+            data[0][0] * rhs.data[0][1] +
+            data[0][1] * rhs.data[1][1] +
+            data[0][2] * rhs.data[2][1];
+        tmp.data[1][1] =
+            data[1][0] * rhs.data[0][1] +
+            data[1][1] * rhs.data[1][1] +
+            data[1][2] * rhs.data[2][1];
+        tmp.data[2][1] =
+            data[2][0] * rhs.data[0][1] +
+            data[2][1] * rhs.data[1][1] +
+            data[2][2] * rhs.data[2][1];
+        tmp.data[0][2] =
+            data[0][0] * rhs.data[0][2] +
+            data[0][1] * rhs.data[1][2] +
+            data[0][2] * rhs.data[2][2];
+        tmp.data[1][2] =
+            data[1][0] * rhs.data[0][2] +
+            data[1][1] * rhs.data[1][2] +
+            data[1][2] * rhs.data[2][2];
+        tmp.data[2][2] =
+            data[2][0] * rhs.data[0][2] +
+            data[2][1] * rhs.data[1][2] +
+            data[2][2] * rhs.data[2][2];
+        return tmp;
+    }
+
+    NiMatrix33 NiMatrix33::operator* (long double scalar) const
+    {
+        NiMatrix33 result;
+        result.data[0][0] = data[0][0] * scalar;
+        result.data[0][1] = data[0][1] * scalar;
+        result.data[0][2] = data[0][2] * scalar;
+        result.data[1][0] = data[1][0] * scalar;
+        result.data[1][1] = data[1][1] * scalar;
+        result.data[1][2] = data[1][2] * scalar;
+        result.data[2][0] = data[2][0] * scalar;
+        result.data[2][1] = data[2][1] * scalar;
+        result.data[2][2] = data[2][2] * scalar;
+        return result;
+    }
+
+    NiPoint3 NiMatrix33::operator* (const NiPoint3 &pt) const
+    {
+        return NiPoint3
+        (
+            data[0][0] * pt.x + data[0][1] * pt.y + data[0][2] * pt.z,
+            data[1][0] * pt.x + data[1][1] * pt.y + data[1][2] * pt.z,
+            data[2][0] * pt.x + data[2][1] * pt.y + data[2][2] * pt.z
+        );
+    }
+
+    NiMatrix33 NiMatrix33::Transpose() const
+    {
+        NiMatrix33 result;
+        result.data[0][0] = data[0][0];
+        result.data[0][1] = data[1][0];
+        result.data[0][2] = data[2][0];
+        result.data[1][0] = data[0][1];
+        result.data[1][1] = data[1][1];
+        result.data[1][2] = data[2][1];
+        result.data[2][0] = data[0][2];
+        result.data[2][1] = data[1][2];
+        result.data[2][2] = data[2][2];
+        return result;
+    }
+
+    NiTransform::NiTransform()
+    {
+        rot.Identity();
+        scale = 1.0;
+    }
+
+    NiTransform::NiTransform(const ::NiTransform &transformSingle)
+    {
+        rot = transformSingle.rot;
+        pos = transformSingle.pos;
+        scale = transformSingle.scale;
+    }
+
+    ::NiTransform NiTransform::ToSingle() const
+    {
+        ::NiTransform tmp;
+        tmp.rot = rot.ToSingle();
+        tmp.pos = pos.ToSingle();
+        tmp.scale = scale;
+        return tmp;
+    }
+
+    NiTransform NiTransform::operator*(const NiTransform &rhs) const
+    {
+        NiTransform tmp;
+        tmp.scale = scale * rhs.scale;
+        tmp.rot = rot * rhs.rot;
+        tmp.pos = pos + (rot * rhs.pos) * scale;
+        return tmp;
+    }
+
+    NiPoint3 NiTransform::operator*(const NiPoint3 &pt) const
+    {
+        return (((rot * pt) * scale) + pos);
+    }
+
+    void NiTransform::Invert(NiTransform &kDest) const
+    {
+        kDest.rot = rot.Transpose();
+        kDest.scale = 1.0 / scale;
+        kDest.pos = (kDest.rot * -pos) * kDest.scale;
+    }
+
+    struct NodeTransforms
+    {
+        NiTransform local;
+        NiTransform world;
+    };
+
+    std::unordered_map<NiAVObject *, NodeTransforms> g_nodeTransforms;
+
+    NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform)
+    {
+        if (NiPointer<NiNode> parent = node->m_parent) {
+            if (!g_nodeTransforms.contains(parent)) {
+                g_nodeTransforms[parent] = { parent->m_localTransform, parent->m_worldTransform };
+            }
+            NiTransform inverseParent = InverseTransform(g_nodeTransforms[parent].world);
+            return inverseParent * worldTransform;
+        }
+        return worldTransform;
+    }
+
+    void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
+    {
+        // Given world transform, set the necessary local transform
+        NiTransform local = GetLocalTransformForDesiredWorldTransform(node, worldTransform);
+        ::NiTransform localSingle = local.ToSingle();
+        //node->m_localTransform = localSingle;
+        if (!g_nodeTransforms.contains(node)) {
+            g_nodeTransforms[node] = { local, node->m_worldTransform };
+        }
+        else {
+            g_nodeTransforms[node].local = local;
+        }
+    }
+
+    void UpdateNode(NiAVObject *node, NiTransform *a_parentTransform = nullptr)
+    {
+        NiTransform parentTransform;
+        if (a_parentTransform) {
+            parentTransform = *a_parentTransform;
+        }
+        else if (node->m_parent) {
+            if (!g_nodeTransforms.contains(node->m_parent)) {
+                g_nodeTransforms[node->m_parent] = { node->m_parent->m_localTransform, node->m_parent->m_worldTransform };
+            }
+            parentTransform = g_nodeTransforms[node->m_parent].world;
+        }
+
+        if (!g_nodeTransforms.contains(node)) {
+            g_nodeTransforms[node] = { node->m_localTransform, node->m_worldTransform };
+        }
+
+        NiTransform newTransform = parentTransform * g_nodeTransforms[node].local;
+        //node->m_worldTransform = newTransform.ToSingle();
+        g_nodeTransforms[node].world = newTransform;
+
+        if (NiNode *asNode = node->GetAsNiNode()) {
+            for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
+                if (NiAVObject *child = asNode->m_children.m_data[i]) {
+                    UpdateNode(child, &newTransform);
+                }
+            }
+        }
+    }
+
+    NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)
+    {
+        NiTransform v13; // [rsp+20h] [rbp-19h] BYREF
+
+        if (!a_hand || !a_clavicle) return NiTransform{};
+
+        g_nodeTransforms.clear();
+
+        if (!g_nodeTransforms.contains(a_hand)) {
+            g_nodeTransforms[a_hand] = { a_hand->m_localTransform, a_hand->m_worldTransform };
+        }
+        NiTransform handLocal = g_nodeTransforms[a_hand].local;
+
+        NiTransform v14 = InverseTransform(*a_magicHandTransformLocal);
+        v13 = handLocal * v14;
+
+        NiNode *parent = a_hand->m_parent;
+        while (parent && parent != a_clavicle) {
+            if (!g_nodeTransforms.contains(parent)) {
+                g_nodeTransforms[parent] = { parent->m_localTransform, parent->m_worldTransform };
+            }
+            NiTransform nodeLocal = g_nodeTransforms[parent].local;
+            v13 = nodeLocal * v13;
+            parent = parent->m_parent;
+        }
+        v14 = InverseTransform(v13);
+        v13 = *a_wandNodeTransformWorld * v14;
+
+        UpdateNodeTransformLocal(a_clavicle, v13);
+
+        UpdateNode(a_clavicle);
+
+        for (auto &[node, transforms] : g_nodeTransforms) {
+            node->m_localTransform = transforms.local.ToSingle();
+            node->m_worldTransform = transforms.world.ToSingle();
+        }
+
+        return g_nodeTransforms[a_hand].world;
+    }
+}
+
