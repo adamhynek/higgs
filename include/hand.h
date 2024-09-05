@@ -101,6 +101,23 @@ struct Hand
         }
     };
 
+    struct ShapeIdentifier
+    {
+        // Why does this class exist?
+        // It's because havok re-uses memory for shapes, rigidbodies etc, so we can't just compare shape pointers to see if they're the same shape.
+        // Using more object addresses to identify the shape makes it less likely to have address collisions.
+
+        const void *worldObjectWrapper;
+        const void *worldObject;
+        const void *shapeWrapper;
+        const void *shape;
+
+        bool operator==(const ShapeIdentifier &other) const
+        {
+            return worldObjectWrapper == other.worldObjectWrapper && worldObject == other.worldObject && shapeWrapper == other.shapeWrapper && shape == other.shape;
+        }
+    };
+
     enum class State : UInt8
     {
         Idle, // not pointing at anything meaningful
@@ -256,7 +273,7 @@ struct Hand
 
     NiPointer<bhkRigidBody> weaponBody = nullptr; // Owned by us - this is our weapon collision
     hkpCollidable *weaponCollidable = nullptr; // read only
-    const bhkShape *clonedFromWeaponShape = nullptr; // the shape of the collision object we cloned to create ours
+    std::optional<ShapeIdentifier> clonedFromWeaponShape = {}; // the shape of the collision object we cloned to create ours
     double weaponCollisionCreatedTime = 0.0;
     float weaponBodyHandSize = 1.f;
 

@@ -796,7 +796,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
         bhkRigidBody_setActivated(clonedBody, true);
         hkpWorld_AddEntity(world->world, clonedBody->hkBody, HK_ENTITY_ACTIVATION_DO_ACTIVATE);
 
-        clonedFromWeaponShape = shapeWrapper;
+        clonedFromWeaponShape = { rigidBody, rigidBody->hkBody, shapeWrapper, shapeWrapper->shape };
         weaponBody = clonedBody;
         weaponCollidable = weaponBody->hkBody->getCollidableRw();
         weaponCollisionCreatedTime = g_currentFrameTime;
@@ -814,7 +814,7 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
     hkpWorld_RemoveEntity(world->world, &ret, weaponBody->hkBody);
     weaponBody = nullptr;
     weaponCollidable = nullptr;
-    clonedFromWeaponShape = nullptr;
+    clonedFromWeaponShape = {};
 }
 
 
@@ -855,7 +855,10 @@ void Hand::UpdateWeaponCollision()
 
     bool shouldNotHaveMeleeCollision = ShouldNotHaveMeleeCollision(player->GetEquippedObject(*g_leftHandedMode != isLeft));
 
-    if (clonedFromWeaponShape != (bhkShape *)rigidBody->hkBody->getCollidable()->getShape()->m_userData || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
+    const hkpShape *shape = rigidBody->hkBody->getCollidable()->getShape();
+    ShapeIdentifier shapeId = { rigidBody, rigidBody->hkBody, (void *)shape->m_userData, shape };
+
+    if (clonedFromWeaponShape != shapeId || (g_isVrikPresent && weaponBodyHandSize != handSize)) {
         RemoveWeaponCollisionFromCurrentWorld();
         if (!shouldNotHaveMeleeCollision) {
             if (NiPointer<bhkWorld> world = meleeData->world) {
