@@ -501,3 +501,6 @@ extern RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurre
 typedef IMenu ** (*_MenuManager_GetMenu)(MenuManager *menuManager, IMenu **menuOut, BSFixedString *menuName);
 extern RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu;
 
+typedef bhkCollisionObject * (*_NiAVObject_GetRepresentativeCollisionObject)(NiAVObject *_this, UInt32 maxChecks);
+extern RelocAddr<_NiAVObject_GetRepresentativeCollisionObject> NiAVObject_GetRepresentativeCollisionObject;
+

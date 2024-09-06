@@ -201,6 +201,56 @@ NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, f
     return vector * cosTheta + (CrossProduct(axis, vector) * sinf(angle)) + axis * DotProduct(axis, vector) * (1.0f - cosTheta);
 }
 
+NiPoint3 RotateVectorByQuaternion(const NiQuaternion &quat, const NiPoint3 &vec)
+{
+    NiPoint3 qreal = { quat.m_fW, quat.m_fW, quat.m_fW };
+    NiPoint3 q2minus1 = NiPoint3(qreal.x * qreal.x, qreal.y * qreal.y, qreal.z * qreal.z) - NiPoint3(0.5, 0.5, 0.5);
+
+    NiPoint3 ret;
+    //ret.setMul4(q2minus1, direction);
+    ret = { q2minus1.x * vec.x, q2minus1.y * vec.y, q2minus1.z * vec.z };
+
+    //hkReal imagDotDir = quat.getImag().dot3(direction);
+    float imagDotDir = DotProduct({ quat.m_fX, quat.m_fY, quat.m_fZ }, vec);
+
+    //ret.addMul4(imagDotDir, quat.getImag());
+    ret += {quat.m_fX *imagDotDir, quat.m_fY *imagDotDir, quat.m_fZ *imagDotDir};
+
+    NiPoint3 imagCrossDir;
+    //imagCrossDir.setCross(quat.getImag(), direction);
+    imagCrossDir = CrossProduct({ quat.m_fX, quat.m_fY, quat.m_fZ }, vec);
+    //ret.addMul4(qreal, imagCrossDir);
+    ret += {qreal.x *imagCrossDir.x, qreal.y *imagCrossDir.y, qreal.z *imagCrossDir.z};
+
+    //this->setAdd4(ret, ret);
+    return ret + ret;
+}
+
+NiPoint3 RotateVectorByInverseQuaternion(const NiQuaternion &quat, const NiPoint3 &vec)
+{
+    NiPoint3 qreal = { quat.m_fW, quat.m_fW, quat.m_fW };
+    NiPoint3 q2minus1 = NiPoint3(qreal.x * qreal.x, qreal.y * qreal.y, qreal.z * qreal.z) - NiPoint3(0.5, 0.5, 0.5);
+
+    NiPoint3 ret;
+    //ret.setMul4(q2minus1, direction);
+    ret = { q2minus1.x * vec.x, q2minus1.y * vec.y, q2minus1.z * vec.z };
+
+    //hkReal imagDotDir = quat.getImag().dot3(direction);
+    float imagDotDir = DotProduct({ quat.m_fX, quat.m_fY, quat.m_fZ }, vec);
+
+    //ret.addMul4(imagDotDir, quat.getImag());
+    ret += {quat.m_fX *imagDotDir, quat.m_fY *imagDotDir, quat.m_fZ *imagDotDir};
+
+    NiPoint3 imagCrossDir;
+    //imagCrossDir.setCross(quat.getImag(), direction);
+    imagCrossDir = CrossProduct(vec, { quat.m_fX, quat.m_fY, quat.m_fZ });
+    //ret.addMul4(qreal, imagCrossDir);
+    ret += {qreal.x *imagCrossDir.x, qreal.y *imagCrossDir.y, qreal.z *imagCrossDir.z};
+
+    //this->setAdd4(ret, ret);
+    return ret + ret;
+}
+
 NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal)
 {
     NiPoint3 vectorAlongNormal = normal * DotProduct(vector, normal); // project above vector onto normal
@@ -2222,26 +2272,26 @@ namespace NiMathDouble
     }
 
     // Scalar operations
-    NiPoint3 NiPoint3::operator* (long double scalar) const
+    NiPoint3 NiPoint3::operator* (double scalar) const
     {
         return NiPoint3(scalar * x, scalar * y, scalar * z);
     }
-    NiPoint3 NiPoint3::operator/ (long double scalar) const
+    NiPoint3 NiPoint3::operator/ (double scalar) const
     {
-        long double invScalar = 1.0 / scalar;
+        double invScalar = 1.0 / scalar;
         return NiPoint3(invScalar * x, invScalar * y, invScalar * z);
     }
 
-    NiPoint3 &NiPoint3::operator*= (long double scalar)
+    NiPoint3 &NiPoint3::operator*= (double scalar)
     {
         x *= scalar;
         y *= scalar;
         z *= scalar;
         return *this;
     }
-    NiPoint3 &NiPoint3::operator/= (long double scalar)
+    NiPoint3 &NiPoint3::operator/= (double scalar)
     {
-        long double invScalar = 1.0 / scalar;
+        double invScalar = 1.0 / scalar;
         x *= invScalar;
         y *= invScalar;
         z *= invScalar;
@@ -2331,7 +2381,7 @@ namespace NiMathDouble
         return tmp;
     }
 
-    NiMatrix33 NiMatrix33::operator* (long double scalar) const
+    NiMatrix33 NiMatrix33::operator* (double scalar) const
     {
         NiMatrix33 result;
         result.data[0][0] = data[0][0] * scalar;

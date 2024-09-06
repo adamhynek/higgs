@@ -611,15 +611,73 @@ void UpdatePhysicsTimesHook()
 }
 
 
-auto bhkRigidBodyT_vtbl = RelocAddr<void *>(0x182BA80);
-void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *root)
+void SetRigidBodyTTransform(NiAVObject *collisionNode, bhkRigidBodyT *rigidBody)
 {
-    NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root);
-    if (bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(rigidBody, bhkRigidBody, bhkRigidBodyT)) {
+    // This is basically what the base game does when dropping an object.
+
+    NiPoint3 pos = HkVectorToNiPoint(rigidBody->translation);
+    NiQuaternion rot = HkQuatToNiQuat(rigidBody->rotation);
+
+    NiTransform collNodeLocalT = collisionNode->m_localTransform;
+    collNodeLocalT.pos *= *g_havokWorldScale;
+    collNodeLocalT.scale = 1.f;
+
+    NiPoint3 rotatedDir = RotateVectorByQuaternion(rot, pos);
+    NiPoint3 a1a = collNodeLocalT * rotatedDir;
+
+    NiQuaternion collNodeLocalRot = MatrixToQuaternion(collNodeLocalT.rot);
+    NiQuaternion mult = QuaternionMultiply(rot, collNodeLocalRot);
+
+    rigidBody->translation = NiPointToHkVector(RotateVectorByInverseQuaternion(rot, a1a));
+    rigidBody->rotation = NiQuatToHkQuat(mult);
+}
+
+
+auto bhkRigidBodyT_vtbl = RelocAddr<void *>(0x182BA80);
+void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *clonedFromRoot)
+{
+    // We want to replicate what the base game does when dropping an object here. The base VR game doesn't handle this remotely robustly, so I have to do it myself.
+    // The game is separately patched to allocate extra space for bhkRigidBodyT members so no need to reallocate in this func.
+
+    // TODO: There is a seperate issue (present in the base game) where if the 3rd person and 1st person meshes have different root positions, this results in the collision being offset.
+    // Because the collision is read from the 3rd person mesh (the one used when dropping an object) but the mesh attached to your hand is the 1st person mesh.
+
+    NiPointer<bhkRigidBody> clonedFromBody = GetRigidBody(clonedFromRoot);
+    if (!clonedFromBody) {
+        if (bhkCollisionObject *collObj = NiAVObject_GetRepresentativeCollisionObject(clonedFromRoot, 6)) {
+            clonedFromBody = DYNAMIC_CAST(collObj->body, bhkWorldObject, bhkRigidBody);
+        }
+    }
+
+    // First initialize the new rb to a rigidBodyT if it's supposed to be one - the base game doesn't do this
+    if (bhkRigidBodyT *clonedFromBodyT = DYNAMIC_CAST(clonedFromBody, bhkRigidBody, bhkRigidBodyT)) {
         set_vtbl(newRigidBody, bhkRigidBodyT_vtbl);
         bhkRigidBodyT *newRigidBodyT = DYNAMIC_CAST(newRigidBody, bhkRigidBody, bhkRigidBodyT);
-        newRigidBodyT->rotation = rigidBodyT->rotation;
-        newRigidBodyT->translation = rigidBodyT->translation;
+        newRigidBodyT->rotation = clonedFromBodyT->rotation;
+        newRigidBodyT->translation = clonedFromBodyT->translation;
+    }
+
+    // Next we need to handle the case of the collision node not being at the root
+    NiPointer<NiAVObject> collisionNode = GetNodeFromCollidable(clonedFromBody->hkBody->getCollidable());
+    if (collisionNode != clonedFromRoot) {
+        bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(newRigidBody, bhkRigidBody, bhkRigidBodyT);
+        if (!rigidBodyT) {
+            // It needs to be a rigidBodyT so that its node's transforms can be applied to it
+            set_vtbl(newRigidBody, bhkRigidBodyT_vtbl);
+            rigidBodyT = DYNAMIC_CAST(newRigidBody, bhkRigidBody, bhkRigidBodyT);
+
+            // When dropping an object, the base game does set the rigidBodyT pos/rot of the new rigidbodyT to the actual pos/rot of the existing rigidbody.
+            // BUT, the base game does this right after NULLING OUT the havok object of the existing rigidbody, so the result is just 0 pos and identity rot. WHY?
+            // Here we are NOT nulling it out, so we don't want to read from the pos/rot of the existing rigidbody since it will have actual values.
+            //hkVector4 pos; clonedFromBody->getPosition(pos);
+            //hkQuaternion rot; clonedFromBody->getRotation(rot);
+            //rigidBodyT->rotation = rot;
+            //rigidBodyT->translation = pos;
+            rigidBodyT->rotation = NiQuatToHkQuat(QuaternionIdentity());
+            rigidBodyT->translation = NiPointToHkVector(NiPoint3(0.f, 0.f, 0.f));
+        }
+
+        SetRigidBodyTTransform(collisionNode, rigidBodyT);
     }
 }
 
@@ -1254,7 +1312,7 @@ void PerformHooks(void)
                 movsd(ptr[rsp + 0x20], xmm0);
 
                 mov(rcx, rax);
-                mov(rdx, ptr[rsp + 0x70]); // root node of cloned model
+                mov(rdx, ptr[rsp + 0x70]); // root node of cloned-from model
 
                 // Call our hook
                 mov(rax, (uintptr_t)UpdateVRMeleeDataRigidBodyCtorHook);

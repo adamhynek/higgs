@@ -156,6 +156,8 @@ NiPoint3 NifskopeMatrixToEuler(const NiMatrix33 &in);
 NiMatrix33 NifskopeEulerToMatrix(const NiPoint3 &in);
 NiMatrix33 MatrixFromForwardVector(NiPoint3 &forward, NiPoint3 &world);
 NiPoint3 RotateVectorByAxisAngle(const NiPoint3 &vector, const NiPoint3 &axis, float angle);
+NiPoint3 RotateVectorByQuaternion(const NiQuaternion &quat, const NiPoint3 &vec);
+NiPoint3 RotateVectorByInverseQuaternion(const NiQuaternion &quat, const NiPoint3 &vec);
 NiPoint3 ProjectVectorOntoPlane(const NiPoint3 &vector, const NiPoint3 &normal);
 NiTransform RotateTransformAboutPoint(NiTransform &transform, NiPoint3 &point, NiMatrix33 &rotation);
 std::pair<NiQuaternion, NiQuaternion> SwingTwistDecomposition(NiQuaternion &rotation, NiPoint3 &direction);
@@ -221,12 +223,12 @@ namespace NiMathDouble
     class NiPoint3
     {
     public:
-        long double	x;	// 0
-        long double	y;	// 4
-        long double	z;	// 8
+        double	x;	// 0
+        double	y;	// 4
+        double	z;	// 8
 
         NiPoint3();
-        NiPoint3(long double X, long double Y, long double Z) : x(X), y(Y), z(Z) { };
+        NiPoint3(double X, double Y, double Z) : x(X), y(Y), z(Z) { };
         NiPoint3(const ::NiPoint3 &pointSingle);
 
         ::NiPoint3 ToSingle() const { return ::NiPoint3(x, y, z); }
@@ -242,11 +244,11 @@ namespace NiMathDouble
         NiPoint3 &operator-= (const NiPoint3 &pt);
 
         // Scalar operations
-        NiPoint3 operator* (long double fScalar) const;
-        NiPoint3 operator/ (long double fScalar) const;
+        NiPoint3 operator* (double fScalar) const;
+        NiPoint3 operator/ (double fScalar) const;
 
-        NiPoint3 &operator*= (long double fScalar);
-        NiPoint3 &operator/= (long double fScalar);
+        NiPoint3 &operator*= (double fScalar);
+        NiPoint3 &operator/= (double fScalar);
     };
 
     class NiMatrix33
@@ -254,8 +256,8 @@ namespace NiMathDouble
     public:
         union
         {
-            long double	data[3][3];
-            long double   arr[9];
+            double	data[3][3];
+            double   arr[9];
         };
 
         NiMatrix33() = default;
@@ -272,7 +274,7 @@ namespace NiMathDouble
         NiPoint3 operator*(const NiPoint3 &pt) const;
 
         // Scalar multiplier
-        NiMatrix33 operator*(long double fScalar) const;
+        NiMatrix33 operator*(double fScalar) const;
 
         NiMatrix33 Transpose() const;
     };
@@ -283,7 +285,7 @@ namespace NiMathDouble
     public:
         NiMatrix33	rot;	// 00
         NiPoint3	pos;	// 24
-        long double		scale;	// 30
+        double		scale;	// 30
 
         NiTransform();
         NiTransform(const ::NiTransform &transformSingle);

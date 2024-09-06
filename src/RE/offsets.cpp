@@ -215,6 +215,7 @@ RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestructibleD
 RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon(0x683850);
 
 RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu(0xF1CE20);
+RelocAddr<_NiAVObject_GetRepresentativeCollisionObject> NiAVObject_GetRepresentativeCollisionObject(0xE022C0);
 
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);
