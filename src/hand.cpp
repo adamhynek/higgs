@@ -1863,7 +1863,9 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
     NiPointer<NiAVObject> wandNode = other.GetWandNode();
     if (offsetNode && collisionOffsetNode && wandNode) {
         twoHandedState.weaponOffsetNodeLocalTransform = offsetNode->m_localTransform;
+        twoHandedState.weaponOffsetNode = offsetNode;
         twoHandedState.collisionOffsetNodeLocalTransform = collisionOffsetNode->m_localTransform;
+        twoHandedState.collisionOffsetNode = collisionOffsetNode;
         twoHandedState.wandNodeLocalTransform = wandNode->m_localTransform;
         twoHandedState.handToWand = inverseOtherHand * wandNode->m_worldTransform;
     }
@@ -3150,14 +3152,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 droppedTime = g_currentFrameTime;
 
-                NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
-                if (offsetNode) {
-                    offsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
+                if (twoHandedState.weaponOffsetNode) {
+                    twoHandedState.weaponOffsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
                 }
 
-                NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
-                if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
-                    collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
+                if (twoHandedState.collisionOffsetNode && twoHandedState.collisionOffsetNode != twoHandedState.weaponOffsetNode) {
+                    twoHandedState.collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
                 }
 
                 NiPointer<NiAVObject> wandNode = other.GetWandNode();
@@ -3694,14 +3694,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
         }
         else {
             // Other hand has switched weapons / sheathed after we grabbed its weapon with this hand
-            NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
-            if (offsetNode) {
-                offsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
+
+            if (twoHandedState.weaponOffsetNode) {
+                twoHandedState.weaponOffsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
             }
 
-            NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
-            if (collisionOffsetNode && collisionOffsetNode != offsetNode) {
-                collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
+            if (twoHandedState.collisionOffsetNode && twoHandedState.collisionOffsetNode != twoHandedState.weaponOffsetNode) {
+                twoHandedState.collisionOffsetNode->m_localTransform = twoHandedState.collisionOffsetNodeLocalTransform;
             }
 
             if (NiPointer<NiAVObject> wandNode = other.GetWandNode()) {

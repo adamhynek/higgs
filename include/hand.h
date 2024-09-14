@@ -61,7 +61,9 @@ struct Hand
         };
 
         NiTransform weaponOffsetNodeLocalTransform;
+        NiPointer<NiAVObject> weaponOffsetNode;
         NiTransform collisionOffsetNodeLocalTransform;
+        NiPointer<NiAVObject> collisionOffsetNode;
         NiTransform wandNodeLocalTransform;
         NiTransform handToWand;
         NiTransform handToWeapon;
