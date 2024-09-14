@@ -2120,9 +2120,6 @@ NiPointer<NiAVObject> Hand::GetWeaponOffsetNode()
         }
     }
     else { // main hand
-
-        // TODO: Should we return the arrow node or something if a bow is equipped? Or handle it somewhere else?
-
         TESObjectWEAP *mainHandWeapon = GetEquippedWeapon(player, false);
 
         if (!mainHandWeapon) {
@@ -3647,21 +3644,18 @@ void Hand::Update(Hand &other, bhkWorld *world)
             // All of those need to happen, even when using vrik.
             NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 
-            UpdateNodeTransformLocal(weaponNode, desiredTransform);
-            NiAVObject_UpdateNode(weaponNode, &ctx);
+            NiMathDouble::UpdateTransform(weaponNode, desiredTransform);
 
             // This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
             NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
             if (collisionOffsetNode) {
-                UpdateNodeTransformLocal(collisionOffsetNode, desiredTransform);
-                NiAVObject_UpdateNode(collisionOffsetNode, &ctx);
+                NiMathDouble::UpdateTransform(weaponNode, desiredTransform);
             }
 
             // This makes the actual weapon move with our transform. We need this as well as setting the weapon node's transform above.
             NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
             if (offsetNode && offsetNode != collisionOffsetNode) {
-                UpdateNodeTransformLocal(offsetNode, desiredTransform);
-                NiAVObject_UpdateNode(offsetNode, &ctx);
+                NiMathDouble::UpdateTransform(offsetNode, desiredTransform);
             }
 
             // This makes the vanilla blocking detection move with our transform, as it reads the wand node transforms.
@@ -4052,7 +4046,8 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
         UpdateHandTransform(newTransform);
     }
 
-    // TODO: Maybe we do this in postupdate too? Or we should see what other usages there are of the weapon node and if they need to be updated due to this float imprecision too
+    // TODO: The arrow node also needs to be handled for the main hand while holding a bow
+
     if (Config::options.dummyFloat3) {
         if (NiPointer<NiAVObject> weaponOffsetNode = GetWeaponOffsetNode()) {
             // TODO: weapon node should maybe be fetched 3rd person if beast race? Base game seems to do that?
