@@ -4038,14 +4038,6 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
     NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
     if (!handNode) return;
 
-    m_handTransformWithoutVrikOffset = handNode->m_worldTransform;
-
-    if (g_vrikInterface) {
-        NiTransform newTransform = handNode->m_worldTransform;
-        newTransform.pos.z += g_prevVrikOffset;
-        UpdateHandTransform(newTransform);
-    }
-
     // TODO: The arrow node also needs to be handled for the main hand while holding a bow
 
     if (Config::options.dummyFloat3) {
@@ -4060,6 +4052,14 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
                 //}
             }
         }
+    }
+
+    m_handTransformWithoutVrikOffset = handNode->m_worldTransform;
+
+    if (g_vrikInterface) {
+        NiTransform newTransform = handNode->m_worldTransform;
+        newTransform.pos.z += g_prevVrikOffset;
+        UpdateHandTransform(newTransform);
     }
 }
 
@@ -4330,6 +4330,8 @@ void Hand::PostVrikUpdate()
 {
     if (g_isVrikPresent) {
         if (state == State::HeldTwoHanded) {
+            // TODO: Probably need to do double-precision update here
+
             // Update the player 3rd person node world transforms first, as vrik only sets locals
             NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
             NiAVObject_UpdateNode((*g_thePlayer)->GetNiRootNode(0), &ctx);
