@@ -1858,7 +1858,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
     NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
     twoHandedState.prevWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * weaponNode->m_worldTransform;
 
-    NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(otherHandWeapon);
+    NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
     NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(otherHandWeapon);
     NiPointer<NiAVObject> wandNode = other.GetWandNode();
     if (offsetNode && collisionOffsetNode && wandNode) {
@@ -2081,20 +2081,66 @@ NiPointer<NiAVObject> Hand::GetThirdPersonHandNode()
 }
 
 
-NiPointer<NiAVObject> Hand::GetWeaponOffsetNode(TESObjectWEAP *weapon)
+NiPointer<NiAVObject> Hand::GetWeaponOffsetNode()
 {
-    if (!weapon) return nullptr;
-
     PlayerCharacter *player = *g_thePlayer;
-    UInt8 weaponType = weapon->gameData.type;
-    if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
-        return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftCrossbowOffsetNode : PlayerCharacter::Node::kNode_RightCrossbowOffsetNode];
-    }
-    else if (weaponType == TESObjectWEAP::GameData::kType_Staff) {
-        return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftStaffWeaponOffsetNode : PlayerCharacter::Node::kNode_RightStaffWeaponOffsetNode];
-    }
 
-    return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftMeleeWeaponOffsetNode : PlayerCharacter::Node::kNode_RightMeleeWeaponOffsetNode];
+    bool isOffhand = isLeft != *g_leftHandedMode;
+    if (isOffhand) {
+        TESObjectWEAP *mainHandWeapon = GetEquippedWeapon(player, false);
+        TESObjectWEAP *offhandWeapon = GetEquippedWeapon(player, true);
+        TESObjectARMO *shield = GetEquippedShield(player, true);
+        TESObjectLIGH *torch = GetEquippedLight(player, true);
+
+        if (shield) {
+            return isLeft ? player->unk3F0[PlayerCharacter::Node::kNode_LeftShieldOffsetNode] : player->unk3F0[PlayerCharacter::Node::kNode_RightShieldOffsetNode];
+        }
+        else if (torch) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftMeleeWeaponOffsetNode : PlayerCharacter::Node::kNode_RightMeleeWeaponOffsetNode];
+        }
+
+        if ((mainHandWeapon && IsBow(mainHandWeapon)) || (offhandWeapon && IsBow(offhandWeapon))) {
+            return player->unk538[PlayerCharacter::BowNode::kBowNode_BowRotationNode];
+        }
+
+        if (!offhandWeapon) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftWeaponOffsetNode : PlayerCharacter::Node::kNode_RightWeaponOffsetNode];
+        }
+
+        UInt8 weaponType = offhandWeapon->gameData.type;
+
+        if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftCrossbowOffsetNode : PlayerCharacter::Node::kNode_RightCrossbowOffsetNode];
+        }
+        else if (weaponType == TESObjectWEAP::GameData::kType_Staff) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftStaffWeaponOffsetNode : PlayerCharacter::Node::kNode_RightStaffWeaponOffsetNode];
+        }
+        else {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftMeleeWeaponOffsetNode : PlayerCharacter::Node::kNode_RightMeleeWeaponOffsetNode];
+        }
+    }
+    else { // main hand
+
+        // TODO: Should we return the arrow node or something if a bow is equipped? Or handle it somewhere else?
+
+        TESObjectWEAP *mainHandWeapon = GetEquippedWeapon(player, false);
+
+        if (!mainHandWeapon) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftWeaponOffsetNode : PlayerCharacter::Node::kNode_RightWeaponOffsetNode];
+        }
+
+        UInt8 weaponType = mainHandWeapon->gameData.type;
+
+        if (weaponType == TESObjectWEAP::GameData::kType_CrossBow) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftCrossbowOffsetNode : PlayerCharacter::Node::kNode_RightCrossbowOffsetNode];
+        }
+        else if (weaponType == TESObjectWEAP::GameData::kType_Staff) {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftStaffWeaponOffsetNode : PlayerCharacter::Node::kNode_RightStaffWeaponOffsetNode];
+        }
+        else {
+            return player->unk3F0[isLeft ? PlayerCharacter::Node::kNode_LeftMeleeWeaponOffsetNode : PlayerCharacter::Node::kNode_RightMeleeWeaponOffsetNode];
+        }
+    }
 }
 
 
@@ -3107,7 +3153,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 droppedTime = g_currentFrameTime;
 
-                NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
+                NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
                 if (offsetNode) {
                     offsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
                 }
@@ -3612,7 +3658,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
 
             // This makes the actual weapon move with our transform. We need this as well as setting the weapon node's transform above.
-            NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
+            NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
             if (offsetNode && offsetNode != collisionOffsetNode) {
                 UpdateNodeTransformLocal(offsetNode, desiredTransform);
                 NiAVObject_UpdateNode(offsetNode, &ctx);
@@ -3654,7 +3700,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
         }
         else {
             // Other hand has switched weapons / sheathed after we grabbed its weapon with this hand
-            NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode(twoHandedState.weapon);
+            NiPointer<NiAVObject> offsetNode = other.GetWeaponOffsetNode();
             if (offsetNode) {
                 offsetNode->m_localTransform = twoHandedState.weaponOffsetNodeLocalTransform;
             }
@@ -3988,6 +4034,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
     prevPlayerPosWorldspace = player->pos;
 }
 
+NiTransform g_lastHandTransformm;
 
 void Hand::PreUpdate(Hand &other, bhkWorld *world)
 {
@@ -4003,6 +4050,21 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
         NiTransform newTransform = handNode->m_worldTransform;
         newTransform.pos.z += g_prevVrikOffset;
         UpdateHandTransform(newTransform);
+    }
+
+    // TODO: Maybe we do this in postupdate too? Or we should see what other usages there are of the weapon node and if they need to be updated due to this float imprecision too
+    if (Config::options.dummyFloat3) {
+        if (NiPointer<NiAVObject> weaponOffsetNode = GetWeaponOffsetNode()) {
+            // TODO: weapon node should maybe be fetched 3rd person if beast race? Base game seems to do that?
+            if (NiPointer<NiAVObject> weaponNode = GetWeaponNode(false)) {
+                NiMathDouble::UpdateTransform(weaponNode, weaponOffsetNode->m_worldTransform);
+
+                //if (isLeft) {
+                //    PrintToFile(std::to_string(VectorLength(weaponNode->m_worldTransform.pos - g_lastHandTransformm.pos)));
+                //    g_lastHandTransformm = weaponNode->m_worldTransform;
+                //}
+            }
+        }
     }
 }
 
@@ -4025,6 +4087,9 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
         newTransform.pos.z -= g_prevVrikOffset;
         UpdateHandTransform(newTransform);
     }
+
+
+    // TODO: Test vrik 3rd person hand diff in postvrikupdate
 }
 
 

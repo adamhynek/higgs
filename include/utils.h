@@ -83,6 +83,7 @@ bool IsTwoHandable(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);
 TESObjectWEAP *GetEquippedWeapon(Actor *actor, bool isOffhand);
 TESObjectARMO *GetEquippedShield(Actor *actor, bool isOffhand);
+TESObjectLIGH *GetEquippedLight(Actor *actor, bool isOffhand);
 SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand);
 bool ShouldNotHaveMeleeCollision(TESForm *equippedObject);
 

@@ -379,6 +379,15 @@ TESObjectARMO *GetEquippedShield(Actor *actor, bool isOffhand)
     return nullptr;
 }
 
+TESObjectLIGH *GetEquippedLight(Actor *actor, bool isOffhand)
+{
+    TESForm *equippedObject = actor->GetEquippedObject(isOffhand);
+    if (equippedObject) {
+        return DYNAMIC_CAST(equippedObject, TESForm, TESObjectLIGH);
+    }
+    return nullptr;
+}
+
 SpellItem *GetEquippedSpell(Actor *actor, bool isOffhand)
 {
     TESForm *form = actor->GetEquippedObject(isOffhand);

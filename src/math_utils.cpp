@@ -2516,8 +2516,11 @@ namespace NiMathDouble
         }
 
         NiTransform newTransform = parentTransform * g_nodeTransforms[node].local;
-        //node->m_worldTransform = newTransform.ToSingle();
         g_nodeTransforms[node].world = newTransform;
+
+        auto &transforms = g_nodeTransforms[node];
+        node->m_localTransform = transforms.local.ToSingle();
+        node->m_worldTransform = transforms.world.ToSingle();
 
         if (NiNode *asNode = node->GetAsNiNode()) {
             for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
@@ -2526,6 +2529,14 @@ namespace NiMathDouble
                 }
             }
         }
+    }
+
+    void UpdateTransform(NiAVObject *node, const NiTransform &transform)
+    {
+        g_nodeTransforms.clear();
+
+        UpdateNodeTransformLocal(node, transform);
+        UpdateNode(node);
     }
 
     NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)
@@ -2559,11 +2570,6 @@ namespace NiMathDouble
         UpdateNodeTransformLocal(a_clavicle, v13);
 
         UpdateNode(a_clavicle);
-
-        for (auto &[node, transforms] : g_nodeTransforms) {
-            node->m_localTransform = transforms.local.ToSingle();
-            node->m_worldTransform = transforms.world.ToSingle();
-        }
 
         return g_nodeTransforms[a_hand].world;
     }

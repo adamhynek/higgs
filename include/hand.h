@@ -214,7 +214,7 @@ struct Hand
     void SetPulledDuration(const NiPoint3 &hkPalmNodePos, const NiPoint3 &objPoint);
     NiPointer<NiAVObject> GetFirstPersonHandNode();
     NiPointer<NiAVObject> GetThirdPersonHandNode();
-    NiPointer<NiAVObject> GetWeaponOffsetNode(TESObjectWEAP *weapon);
+    NiPointer<NiAVObject> GetWeaponOffsetNode();
     NiPointer<NiAVObject> GetWeaponCollisionOffsetNode(TESObjectWEAP *weapon);
     NiPointer<NiAVObject> GetWeaponNode(bool thirdPerson);
     inline NiPointer<NiAVObject> GetWandNode() { return isLeft ? (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_LeftWandNode] : (*g_thePlayer)->unk3F0[PlayerCharacter::Node::kNode_RightWandNode]; }
