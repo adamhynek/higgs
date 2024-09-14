@@ -1518,10 +1518,10 @@ void PerformHooks(void)
         _MESSAGE("PlayerCharacter::UpdateHands UpdateClavicleToTransformHand LeftHand hook complete");
     }
 
-    //{
-    //    Write5Call(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_RightHand_HookLoc.GetUIntPtr(), uintptr_t(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_Hook));
-    //    _MESSAGE("PlayerCharacter::UpdateHands UpdateClavicleToTransformHand RightHand hook complete");
-    //}
+    {
+        Write5Call(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_RightHand_HookLoc.GetUIntPtr(), uintptr_t(PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_Hook));
+        _MESSAGE("PlayerCharacter::UpdateHands UpdateClavicleToTransformHand RightHand hook complete");
+    }
 
     {
         g_original_hkpCachingShapePhantom_setPositionAndLinearCast = *hkpCachingShapePhantom_setPositionAndLinearCast_vtbl;
