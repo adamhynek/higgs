@@ -2498,7 +2498,23 @@ namespace NiMathDouble
         }
     }
 
-    void UpdateNode(NiAVObject *node, NiTransform *a_parentTransform = nullptr)
+    void UpdateBSFlattenedBoneTree(BSFlattenedBoneTree *tree)
+    {
+        for (int i = 0; i < tree->numBones; i++) {
+            BSFlattenedBoneTree::BoneEntry &entry = tree->boneEntries[i];
+            if (entry.node) {
+                entry.world = entry.node->m_worldTransform;
+            }
+            else {
+                SInt16 parentIndex = entry.unk68;
+                NiTransform parentWorld = parentIndex >= 0 ? tree->boneEntries[parentIndex].world : tree->m_worldTransform; // TODO: Should this wait until all bone entry world transforms are updated?
+                NiTransform entryWorld = parentWorld * entry.local;
+                entry.world = entryWorld.ToSingle();
+            }
+        }
+    }
+
+    void UpdateNodeImpl(NiAVObject *node, NiTransform *a_parentTransform = nullptr)
     {
         NiTransform parentTransform;
         if (a_parentTransform) {
@@ -2525,10 +2541,21 @@ namespace NiMathDouble
         if (NiNode *asNode = node->GetAsNiNode()) {
             for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
                 if (NiAVObject *child = asNode->m_children.m_data[i]) {
-                    UpdateNode(child, &newTransform);
+                    UpdateNodeImpl(child, &newTransform);
                 }
             }
         }
+
+        // Do this after regular NiNode stuff
+        if (BSFlattenedBoneTree *tree = DYNAMIC_CAST(node, NiAVObject, BSFlattenedBoneTree)) {
+            UpdateBSFlattenedBoneTree(tree);
+        }
+    }
+
+    void UpdateNode(NiAVObject *node)
+    {
+        g_nodeTransforms.clear();
+        UpdateNodeImpl(node);
     }
 
     void UpdateTransform(NiAVObject *node, const NiTransform &transform)
@@ -2536,7 +2563,7 @@ namespace NiMathDouble
         g_nodeTransforms.clear();
 
         UpdateNodeTransformLocal(node, transform);
-        UpdateNode(node);
+        UpdateNodeImpl(node);
     }
 
     NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)
@@ -2569,7 +2596,7 @@ namespace NiMathDouble
 
         UpdateNodeTransformLocal(a_clavicle, v13);
 
-        UpdateNode(a_clavicle);
+        UpdateNodeImpl(a_clavicle);
 
         return g_nodeTransforms[a_hand].world;
     }

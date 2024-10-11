@@ -304,6 +304,7 @@ namespace NiMathDouble
 
     inline NiTransform InverseTransform(const NiTransform &t) { NiTransform inverse; t.Invert(inverse); return inverse; }
 
+    void UpdateNode(NiAVObject *node);
     void UpdateTransform(NiAVObject *node, const NiTransform &transform);
     NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal);
 }
