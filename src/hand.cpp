@@ -3627,7 +3627,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
             NiTransform desiredWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * desiredTransform;
 
-            std::optional<NiTransform> advancedTransform = AdvanceTransform(twoHandedState.prevWeaponTransformRoomspace, desiredWeaponTransformRoomspace, 9999.f, Config::options.twoHandedRotationSnapSpeed);
+            float posSpeed = 9999.f / *g_globalTimeMultiplier;
+            float rotSpeed = Config::options.twoHandedRotationSnapSpeed / *g_globalTimeMultiplier;
+            std::optional<NiTransform> advancedTransform = AdvanceTransform(twoHandedState.prevWeaponTransformRoomspace, desiredWeaponTransformRoomspace, posSpeed, rotSpeed);
             NiTransform weaponTransformRoomspace = advancedTransform ? *advancedTransform : desiredWeaponTransformRoomspace;
             desiredTransform = roomNode->m_worldTransform * weaponTransformRoomspace;
 
