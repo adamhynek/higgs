@@ -46,9 +46,7 @@ uintptr_t preVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
 auto preVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCBF); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
 auto preVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x6AA060); // PlayerCharacter::UpdateVRBlocking
 
-uintptr_t postVRIKPlayerCharacterUpdateHookedFuncAddr = 0;
-auto postVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6ABCFC); // A call in PlayerCharacter::Update after AlignClaviclesToHand, and right before the vrik hook in there
-auto postVRIKPlayerCharacterUpdateHookedFunc = RelocAddr<uintptr_t>(0x62ED20); // Actor::GetWeapon
+auto postVRIKPlayerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x6C6A7D); // The NiNode::Update call for the 3rd person player root. In PlayerCharacter::Update not too long after the vrik update.
 
 auto playerCharacterUpdateHookLoc = RelocAddr<uintptr_t>(0x649FD3); // In Job_Non_render_safe_AI(), calls PlayerCharacter::Update()
 auto playerCharacterHookedFunc = RelocAddr<uintptr_t>(0x6C6910); // PlayerCharacter::Update()
@@ -525,12 +523,11 @@ void PlayerCharacterUpdateHook()
     HiggsPluginAPI::TriggerPreVrikPostHiggsCallbacks();
 }
 
-void PostVRIKPCUpdateHook()
-{
-    HiggsPluginAPI::TriggerPostVrikPreHiggsCallbacks();
 
-    g_rightHand->PostVrikUpdate();
-    g_leftHand->PostVrikUpdate();
+void PostVRIKPCUpdateHook(NiNode *thirdPersonRoot, NiAVObject::ControllerUpdateContext &ctx)
+{
+
+    HiggsPluginAPI::TriggerPostVrikPreHiggsCallbacks();
 
     if (Config::options.dontAnimateFingersWhenBeast && TESRace_IsBeast(Actor_GetRace(*g_thePlayer))) {
         g_rightHand->fingerAnimator.animate = false;
@@ -540,6 +537,12 @@ void PostVRIKPCUpdateHook()
         g_rightHand->fingerAnimator.Update();
         g_leftHand->fingerAnimator.Update();
     }
+
+    // We're hooking the normal UpdateNode call
+    NiAVObject_UpdateNode(thirdPersonRoot, &ctx);
+
+    g_rightHand->PostVrikUpdate();
+    g_leftHand->PostVrikUpdate();
 
     HiggsPluginAPI::TriggerPostVrikPostHiggsCallbacks();
 }
@@ -913,7 +916,6 @@ void PerformHooks(void)
     shaderSetEffectDataInitHookedFuncAddr = shaderSetEffectDataInitHookedFunc.GetUIntPtr();
     postWandUpdateHookedFuncAddr = postWandUpdateHookedFunc.GetUIntPtr();
     preVRIKPlayerCharacterUpdateHookedFuncAddr = preVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
-    postVRIKPlayerCharacterUpdateHookedFuncAddr = postVRIKPlayerCharacterUpdateHookedFunc.GetUIntPtr();
     updatePhysicsTimesHookedFuncAddr = updatePhysicsTimesHookedFunc.GetUIntPtr();
     updateVRMeleeDataRigidBodyCtorHookedFuncAddr = updateVRMeleeDataRigidBodyCtorHookedFunc.GetUIntPtr();
 
@@ -1271,45 +1273,6 @@ void PerformHooks(void)
                 Xbyak::Label jumpBack;
 
                 // Original code
-                mov(rax, postVRIKPlayerCharacterUpdateHookedFuncAddr);
-                call(rax);
-
-                push(rax);
-                sub(rsp, 0x38); // Need to keep the stack 16 byte aligned, and an additional 0x20 bytes for scratch space
-                movsd(ptr[rsp + 0x20], xmm0);
-
-                // Call our hook
-                mov(rax, (uintptr_t)PostVRIKPCUpdateHook);
-                call(rax);
-
-                movsd(xmm0, ptr[rsp + 0x20]);
-                add(rsp, 0x38);
-                pop(rax);
-
-                // Jump back to whence we came (+ the size of the initial branch instruction)
-                jmp(ptr[rip + jumpBack]);
-
-                L(jumpBack);
-                dq(postVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr() + 5);
-            }
-        };
-
-        void * codeBuf = g_localTrampoline.StartAlloc();
-        Code code(codeBuf);
-        g_localTrampoline.EndAlloc(code.getCurr());
-
-        g_branchTrampoline.Write5Branch(postVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
-
-        _MESSAGE("PlayerCharacter::Update post-vrik hook complete");
-    }
-
-    {
-        struct Code : Xbyak::CodeGenerator {
-            Code(void * buf) : Xbyak::CodeGenerator(256, buf)
-            {
-                Xbyak::Label jumpBack;
-
-                // Original code
                 mov(rax, updateVRMeleeDataRigidBodyCtorHookedFuncAddr);
                 call(rax);
 
@@ -1437,6 +1400,11 @@ void PerformHooks(void)
         g_branchTrampoline.Write6Branch(bhkCollisionFilter_CompareFilterInfo_HookLoc.GetUIntPtr(), uintptr_t(code.getCode()));
 
         _MESSAGE("bhkCollisionFilter::CompareFilterInfo hook complete");
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(postVRIKPlayerCharacterUpdateHookLoc.GetUIntPtr(), uintptr_t(PostVRIKPCUpdateHook));
+        _MESSAGE("PlayerCharacter::Update post-vrik hook complete");
     }
 
     {

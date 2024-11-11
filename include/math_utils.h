@@ -303,9 +303,22 @@ namespace NiMathDouble
     };
 
     inline NiTransform InverseTransform(const NiTransform &t) { NiTransform inverse; t.Invert(inverse); return inverse; }
+    inline double VectorLengthSquared(const NiPoint3 &vec) { return vec.x*vec.x + vec.y*vec.y + vec.z*vec.z; }
+    inline double VectorLength(const NiPoint3 &vec) { return sqrt(VectorLengthSquared(vec)); }
+    inline NiPoint3 VectorNormalized(const NiPoint3 &vec) { double length = VectorLength(vec); return length > 0.0 ? vec / length : NiPoint3(); }
+    inline NiPoint3 RightVector(const NiMatrix33 &r) { return { r.data[0][0], r.data[1][0], r.data[2][0] }; }
+    inline NiPoint3 ForwardVector(const NiMatrix33 &r) { return { r.data[0][1], r.data[1][1], r.data[2][1] }; }
+    inline NiPoint3 UpVector(const NiMatrix33 &r) { return { r.data[0][2], r.data[1][2], r.data[2][2] }; }
+    inline void SetRightVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][0] = v.x; r.data[1][0] = v.y; r.data[2][0] = v.z; }
+    inline void SetForwardVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][1] = v.x; r.data[1][1] = v.y; r.data[2][1] = v.z; }
+    inline void SetUpVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][2] = v.x; r.data[1][2] = v.y; r.data[2][2] = v.z; }
 
     void UpdateNode(NiAVObject *node);
     void UpdateTransform(NiAVObject *node, const NiTransform &transform);
     NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal);
 }
 
+namespace NiMathSingle
+{
+    void UpdateNode(NiAVObject *node);
+}

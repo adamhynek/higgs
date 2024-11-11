@@ -134,7 +134,7 @@ struct BSFlattenedBoneTree : NiNode
     {
         NiTransform local; // 00
         NiTransform world; // 34
-        UInt16 unk68;
+        SInt16 parentIndex; // 68 - set to -1 if no parent. Used if no .node is set
         UInt16 unk6A;
         UInt16 unk6C;
         UInt16 unk6E;

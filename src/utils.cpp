@@ -260,8 +260,7 @@ NiTransform GetRigidBodyTLocalTransform(bhkRigidBody *rigidBody)
 
 void UpdateBoneMatrices(NiAVObject *obj)
 {
-    BSGeometry *geom = obj->GetAsBSGeometry();
-    if (geom) {
+    if (BSGeometry *geom = obj->GetAsBSGeometry()) {
         NiSkinInstance *skinInstance = geom->m_spSkinInstance;
         if (skinInstance) {
             skinInstance->unk38 = -1; // This is the frameID. UpdateBoneMatrices only updates the bone matrices if the frameID is not equal to the current frame.
@@ -269,11 +268,9 @@ void UpdateBoneMatrices(NiAVObject *obj)
         }
     }
 
-    NiNode *node = obj->GetAsNiNode();
-    if (node) {
+    if (NiNode *node = obj->GetAsNiNode()) {
         for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
-            NiAVObject *child = node->m_children.m_data[i];
-            if (child) {
+            if (NiAVObject *child = node->m_children.m_data[i]) {
                 UpdateBoneMatrices(child);
             }
         }

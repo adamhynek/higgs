@@ -2506,7 +2506,7 @@ namespace NiMathDouble
                 entry.world = entry.node->m_worldTransform;
             }
             else {
-                SInt16 parentIndex = entry.unk68;
+                SInt16 parentIndex = entry.parentIndex;
                 NiTransform parentWorld = parentIndex >= 0 ? tree->boneEntries[parentIndex].world : tree->m_worldTransform; // TODO: Should this wait until all bone entry world transforms are updated?
                 NiTransform entryWorld = parentWorld * entry.local;
                 entry.world = entryWorld.ToSingle();
@@ -2514,13 +2514,10 @@ namespace NiMathDouble
         }
     }
 
-    void UpdateNodeImpl(NiAVObject *node, NiTransform *a_parentTransform = nullptr)
+    void UpdateNodeImpl(NiAVObject *node)
     {
         NiTransform parentTransform;
-        if (a_parentTransform) {
-            parentTransform = *a_parentTransform;
-        }
-        else if (node->m_parent) {
+        if (node->m_parent) {
             if (!g_nodeTransforms.contains(node->m_parent)) {
                 g_nodeTransforms[node->m_parent] = { node->m_parent->m_localTransform, node->m_parent->m_worldTransform };
             }
@@ -2541,7 +2538,7 @@ namespace NiMathDouble
         if (NiNode *asNode = node->GetAsNiNode()) {
             for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
                 if (NiAVObject *child = asNode->m_children.m_data[i]) {
-                    UpdateNodeImpl(child, &newTransform);
+                    UpdateNodeImpl(child);
                 }
             }
         }
@@ -2602,3 +2599,49 @@ namespace NiMathDouble
     }
 }
 
+namespace NiMathSingle
+{
+    struct NodeTransforms
+    {
+        NiTransform local;
+        NiTransform world;
+    };
+
+    std::unordered_map<NiAVObject *, NodeTransforms> g_nodeTransforms;
+
+    void UpdateNodeImpl(NiAVObject *node)
+    {
+        NiTransform parentTransform;
+        if (node->m_parent) {
+            if (!g_nodeTransforms.contains(node->m_parent)) {
+                g_nodeTransforms[node->m_parent] = { node->m_parent->m_localTransform, node->m_parent->m_worldTransform };
+            }
+            parentTransform = g_nodeTransforms[node->m_parent].world;
+        }
+
+        if (!g_nodeTransforms.contains(node)) {
+            g_nodeTransforms[node] = { node->m_localTransform, node->m_worldTransform };
+        }
+
+        NiTransform newTransform = parentTransform * g_nodeTransforms[node].local;
+        g_nodeTransforms[node].world = newTransform;
+
+        auto &transforms = g_nodeTransforms[node];
+        node->m_localTransform = transforms.local;
+        node->m_worldTransform = transforms.world;
+
+        if (NiNode *asNode = node->GetAsNiNode()) {
+            for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
+                if (NiAVObject *child = asNode->m_children.m_data[i]) {
+                    UpdateNodeImpl(child);
+                }
+            }
+        }
+    }
+
+    void UpdateNode(NiAVObject *node)
+    {
+        g_nodeTransforms.clear();
+        UpdateNodeImpl(node);
+    }
+}
