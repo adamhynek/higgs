@@ -312,6 +312,7 @@ namespace NiMathDouble
     inline void SetRightVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][0] = v.x; r.data[1][0] = v.y; r.data[2][0] = v.z; }
     inline void SetForwardVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][1] = v.x; r.data[1][1] = v.y; r.data[2][1] = v.z; }
     inline void SetUpVector(NiMatrix33 &r, const NiPoint3 &v) { r.data[0][2] = v.x; r.data[1][2] = v.y; r.data[2][2] = v.z; }
+    inline double DotProduct(const NiPoint3 &vec1, const NiPoint3 &vec2) { return vec1.x*vec2.x + vec1.y*vec2.y + vec1.z*vec2.z; }
 
     void UpdateNode(NiAVObject *node);
     void UpdateTransform(NiAVObject *node, const NiTransform &transform);

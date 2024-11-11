@@ -4667,18 +4667,36 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
             desiredLocal.rot = rolloverRotation;
             desiredLocal.scale = rolloverScale;
 
-            // wand/hand transforms here are without vrik height offset
-            NiTransform wandTransform = wandNode->m_worldTransform;
-            NiTransform inverseHand = InverseTransform(m_handTransformWithoutVrikOffset);
-            NiTransform handToWand = inverseHand * wandTransform;
+            NiTransform desiredWorld;
+            if (Config::options.doDoublePrecision) {
+                // wand/hand transforms here are without vrik height offset
+                NiMathDouble::NiTransform wandTransform = wandNode->m_worldTransform;
+                NiMathDouble::NiTransform inverseHand = NiMathDouble::InverseTransform(m_handTransformWithoutVrikOffset);
+                NiMathDouble::NiTransform handToWand = inverseHand * wandTransform;
 
-            // hand transforms here are with vrik height offset
-            NiTransform handTransform = state == State::HeldBody ? m_adjustedHandTransform : m_handTransform;
-            // World transform where we would like the rollover node to be
-            NiTransform desiredWorld = handTransform * handToWand * desiredLocal;
-            UpdateNodeTransformLocal(rolloverNode, desiredWorld);
+                // hand transforms here are with vrik height offset
+                NiMathDouble::NiTransform handTransform = state == State::HeldBody ? m_adjustedHandTransform : m_handTransform;
+                // World transform where we would like the rollover node to be
+                desiredWorld = (handTransform * handToWand * desiredLocal).ToSingle();
+                NiMathDouble::UpdateTransform(rolloverNode, desiredWorld);
+            }
+            else {
+                // wand/hand transforms here are without vrik height offset
+                NiTransform wandTransform = wandNode->m_worldTransform;
+                NiTransform inverseHand = InverseTransform(m_handTransformWithoutVrikOffset);
+                NiTransform handToWand = inverseHand * wandTransform;
 
-            float alpha = 1.0f;
+                // hand transforms here are with vrik height offset
+                NiTransform handTransform = state == State::HeldBody ? m_adjustedHandTransform : m_handTransform;
+                // World transform where we would like the rollover node to be
+                desiredWorld = handTransform * handToWand * desiredLocal;
+                UpdateNodeTransformLocal(rolloverNode, desiredWorld);
+
+                NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                NiAVObject_UpdateNode(rolloverNode, &ctx);
+            }
+
+            float alpha = 1.f;
             if (HasHeldObject() || state == State::GrabFromOtherHand) {
                 NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
                 NiPointer<NiAVObject> hmdNode = player->unk3F0[PlayerCharacter::Node::kNode_HmdNode];
@@ -4686,33 +4704,31 @@ void Hand::SetupRollover(NiAVObject *rolloverNode)
                     NiPoint3 rolloverForward = ForwardVector(desiredWorld.rot);
                     NiPoint3 hmdToRollover = VectorNormalized(desiredWorld.pos - hmdNode->m_worldTransform.pos);
 
-                    float x = max(0.0f, DotProduct(rolloverForward, hmdToRollover));
+                    float x = max(0.f, DotProduct(rolloverForward, hmdToRollover));
 
                     // Logistic function (sigmoid) mapping dot product -> alpha value for the rollover hud
                     alpha = logistic(x, Config::options.rolloverAlphaLogisticK, Config::options.rolloverAlphaLogisticMidpoint);
-                    alpha = alpha < Config::options.rolloverMinAlphaToShow ? 0.0f : alpha;
+                    alpha = alpha < Config::options.rolloverMinAlphaToShow ? 0.f : alpha;
 
                     double elapsedFraction = min(1.0, (g_currentFrameTime - grabbedTime) / Config::options.rolloverAfterGrabAlphaFadeInTime);
                     float t = logistic(elapsedFraction, Config::options.rolloverAlphaFadeInLogisticK, Config::options.rolloverAlphaFadeInLogisticMidpoint);
-                    alpha = std::clamp(lerp(0.0f, alpha, t), 0.0f, 1.0f);
+                    alpha = std::clamp(lerp(0.f, alpha, t), 0.f, 1.f);
 
                     rolloverAlphaSetTime = g_currentFrameTime;
                 }
             }
             else if (g_currentFrameTime - pulledTime < pulledExpireTime) {
-                alpha = 0.0f; // Don't show the rollover while a pull is in progress
+                alpha = 0.f; // Don't show the rollover while a pull is in progress
             }
 
             double elapsedFraction = min(1.0, (g_currentFrameTime - rolloverAlphaSetTime) / Config::options.rolloverAfterDropAlphaFadeInTime);
             if (g_currentFrameTime != rolloverAlphaSetTime && elapsedFraction < 1.0) {
                 // Hide the rollover for some time after letting go of the object, even if we still want to show it for e.g. SelectedClose
                 float t = logistic(elapsedFraction, Config::options.rolloverAlphaFadeInLogisticK, Config::options.rolloverAlphaFadeInLogisticMidpoint);
-                alpha = std::clamp(lerp(0.0f, alpha, t), 0.0f, 1.0f);
+                alpha = std::clamp(lerp(0.f, alpha, t), 0.f, 1.f);
             }
-            SetGeometryAlphaDownstream(rolloverNode, alpha);
 
-            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-            NiAVObject_UpdateNode(rolloverNode, &ctx);
+            SetGeometryAlphaDownstream(rolloverNode, alpha);
         }
     }
 }
