@@ -304,6 +304,8 @@ namespace Config {
 
         bool doDoublePrecision = true;
 
+        bool reloadConfigIfModified = false;
+
         bool enableHiggsGrabNodes = true;
         bool printHiggsGrabNodeInfo = true;
 

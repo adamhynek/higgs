@@ -471,9 +471,14 @@ void Update()
         return;
     }
 
+    bool reloadConfig = Config::options.reloadConfigIfModified;
 #ifdef _DEBUG
-    Config::ReloadIfModified();
+    reloadConfig = true;
 #endif // _DEBUG
+
+    if (reloadConfig) {
+        Config::ReloadIfModified();
+    }
 
     if (world != g_physicsListener.world) {
         if (NiPointer<bhkWorld> oldWorld = g_physicsListener.world) {
