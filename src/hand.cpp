@@ -4057,7 +4057,7 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
 
     m_handTransformWithoutVrikOffset = handNode->m_worldTransform;
 
-    if (g_vrikInterface) {
+    if (Config::options.handleVrikOffsetting && g_vrikInterface) {
         NiTransform newTransform = handNode->m_worldTransform;
         newTransform.pos.z += g_prevVrikOffset;
         UpdateHandTransform(newTransform);
@@ -4078,7 +4078,7 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
     UpdateWeaponCollision();
 
 
-    if (g_vrikInterface) {
+    if (Config::options.handleVrikOffsetting && g_vrikInterface) {
         NiTransform newTransform = handNode->m_worldTransform;
         newTransform.pos.z -= g_prevVrikOffset;
         UpdateHandTransform(newTransform);

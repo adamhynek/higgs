@@ -334,8 +334,8 @@ void SimulatePlayerSpace(bhkWorld *world)
     NiPoint3 delta = (nextRoomTransform.pos - g_prevNextRoomTransform.pos) * *g_havokWorldScale;
     NiPoint3 deltaVelocity = delta / *g_deltaTime;
 
-    float vrikZoffset = g_vrikInterface ? g_vrikInterface->getFinalCameraOffsettingAmount().z : 0.f;
-    float vrikSmoothingZoffset = g_vrikInterface ? g_vrikInterface->getFinalSmoothingOffsettingAmount().z : 0.f;
+    float vrikZoffset = (Config::options.handleVrikOffsetting && g_vrikInterface) ? g_vrikInterface->getFinalCameraOffsettingAmount().z : 0.f;
+    float vrikSmoothingZoffset = (Config::options.handleVrikOffsetting && g_vrikInterface) ? g_vrikInterface->getFinalSmoothingOffsettingAmount().z : 0.f;
 
     {
         NiPoint3 deltaVelocityWithSmoothing = deltaVelocity;

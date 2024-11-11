@@ -962,16 +962,11 @@ void ReplaceBSString(BSString &replacee, std::string &replacer)
 
 void SetGeometryAlphaDownstream(NiAVObject *root, float alpha)
 {
-    BSGeometry *geom = DYNAMIC_CAST(root, NiAVObject, BSGeometry);
-    if (geom) {
-        NiPointer<NiProperty> geomProperty = geom->m_spEffectState;
-        if (geomProperty) {
-            BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty);
-            if (shaderProperty) {
-                BSShaderMaterial *material = shaderProperty->material;
-                if (material) {
-                    BSEffectShaderMaterial *effectShaderMaterial = DYNAMIC_CAST(material, BSShaderMaterial, BSEffectShaderMaterial);
-                    if (effectShaderMaterial) {
+    if (BSGeometry *geom = DYNAMIC_CAST(root, NiAVObject, BSGeometry)) {
+        if (NiPointer<NiProperty> geomProperty = geom->m_spEffectState) {
+            if (BSShaderProperty *shaderProperty = DYNAMIC_CAST(geomProperty, NiProperty, BSShaderProperty)) {
+                if (BSShaderMaterial *material = shaderProperty->material) {
+                    if (BSEffectShaderMaterial *effectShaderMaterial = DYNAMIC_CAST(material, BSShaderMaterial, BSEffectShaderMaterial)) {
                         *(float *)((UInt64)effectShaderMaterial + 0x54) = alpha;
                         //*(float *)&shaderProperty->unk18 = alpha;
                     }
@@ -980,8 +975,7 @@ void SetGeometryAlphaDownstream(NiAVObject *root, float alpha)
         }
     }
 
-    NiNode *node = root->GetAsNiNode();
-    if (node) {
+    if (NiNode *node = root->GetAsNiNode()) {
         for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
             if (NiAVObject *child = node->m_children.m_data[i]) {
                 SetGeometryAlphaDownstream(child, alpha);
@@ -1011,8 +1005,7 @@ NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root)
     BSFlattenedBoneTree *boneTree = DYNAMIC_CAST(root, NiAVObject, BSFlattenedBoneTree);
     if (boneTree) return boneTree;
 
-    NiNode *node = root->GetAsNiNode();
-    if (node) {
+    if (NiNode *node = root->GetAsNiNode()) {
         for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
             if (NiAVObject *child = node->m_children.m_data[i]) {
                 return GetFlattenedBoneTree(child);

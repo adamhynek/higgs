@@ -303,6 +303,7 @@ namespace Config {
         bool doContainerPhysics = true;
 
         bool doDoublePrecision = true;
+        bool handleVrikOffsetting = true;
 
         bool reloadConfigIfModified = false;
 

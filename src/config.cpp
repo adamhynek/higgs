@@ -505,6 +505,7 @@ namespace Config {
         if (!RegisterBool("doContainerPhysics", options.doContainerPhysics)) success = false;
 
         if (!RegisterBool("doDoublePrecision", options.doDoublePrecision)) success = false;
+        if (!RegisterBool("handleVrikOffsetting", options.handleVrikOffsetting)) success = false;
 
         if (!RegisterBool("reloadConfigIfModified", options.reloadConfigIfModified)) success = false;
 
