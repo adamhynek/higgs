@@ -2551,16 +2551,30 @@ namespace NiMathDouble
 
     void UpdateNode(NiAVObject *node)
     {
-        g_nodeTransforms.clear();
-        UpdateNodeImpl(node);
+        if (Config::options.doDoublePrecision) {
+            g_nodeTransforms.clear();
+            UpdateNodeImpl(node);
+        }
+        else {
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            NiAVObject_UpdateNode(node, &ctx);
+        }
     }
 
     void UpdateTransform(NiAVObject *node, const NiTransform &transform)
     {
-        g_nodeTransforms.clear();
+        if (Config::options.doDoublePrecision) {
+            g_nodeTransforms.clear();
 
-        UpdateNodeTransformLocal(node, transform);
-        UpdateNodeImpl(node);
+            UpdateNodeTransformLocal(node, transform);
+            UpdateNodeImpl(node);
+        }
+        else {
+            // Regular single precision stuff, let the game do it
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            ::UpdateNodeTransformLocal(node, transform.ToSingle());
+            NiAVObject_UpdateNode(node, &ctx);
+        }
     }
 
     NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)

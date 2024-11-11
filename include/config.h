@@ -302,6 +302,8 @@ namespace Config {
 
         bool doContainerPhysics = true;
 
+        bool doDoublePrecision = true;
+
         bool enableHiggsGrabNodes = true;
         bool printHiggsGrabNodeInfo = true;
 

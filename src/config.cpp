@@ -504,6 +504,8 @@ namespace Config {
 
         if (!RegisterBool("doContainerPhysics", options.doContainerPhysics)) success = false;
 
+        if (!RegisterBool("doDoublePrecision", options.doDoublePrecision)) success = false;
+
         if (!RegisterBool("enableHiggsGrabNodes", options.enableHiggsGrabNodes)) success = false;
         if (!RegisterBool("printHiggsGrabNodeInfo", options.printHiggsGrabNodeInfo)) success = false;
 

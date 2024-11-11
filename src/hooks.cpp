@@ -831,27 +831,24 @@ void bhkLinearCaster_linearCast_hkpWorld_linearCast_Hook(hkpWorld *world, const 
 }
 
 
-NiTransform g_lastHandTransform;
-
 auto PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_LeftHand_HookLoc = RelocPtr<uintptr_t>(0x6AC765);
 auto PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_RightHand_HookLoc = RelocPtr<uintptr_t>(0x6AC88C);
 void PlayerCharacter_UpdateHands_UpdateClavicleToTransformHand_Hook(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)
 {
-    if (Config::options.dummyFloat0 > 0.f) {
+    if (Config::options.doDoublePrecision) {
         NiMathDouble::NiTransform wandNodeTransformWorld = *a_wandNodeTransformWorld;
         NiMathDouble::NiTransform magicHandTransformLocal = *a_magicHandTransformLocal;
         NiMathDouble::NiTransform newHand = NiMathDouble::UpdateClavicleToTransformHand(a_clavicle, a_hand, &wandNodeTransformWorld, &magicHandTransformLocal);
 
         NiMathDouble::NiTransform expected = wandNodeTransformWorld * magicHandTransformLocal;
         //PrintToFile(std::to_string(VectorLength(expected.pos.ToSingle() - a_hand->m_worldTransform.pos)));
-
     }
     else {
         UpdateClavicleToTransformHand(a_clavicle, a_hand, a_wandNodeTransformWorld, a_magicHandTransformLocal);
     }
 
     //PrintToFile(std::to_string(VectorLength(a_hand->m_worldTransform.pos - g_lastHandTransform.pos)));
-    g_lastHandTransform = a_hand->m_worldTransform;
+    //g_lastHandTransform = a_hand->m_worldTransform;
 }
 
 

@@ -2238,7 +2238,7 @@ void Hand::UpdateHandTransform(NiTransform &worldTransform)
             return;
         }
 
-        if (Config::options.dummyFloat0 > 0.f) {
+        if (Config::options.doDoublePrecision) {
             NiMathDouble::NiTransform worldDouble = worldTransform;
             NiMathDouble::NiTransform identity;
             NiMathDouble::UpdateClavicleToTransformHand(clavicle, handNode, &worldDouble, &identity);
@@ -4039,9 +4039,9 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
     NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
     if (!handNode) return;
 
-    // TODO: The arrow node also needs to be handled for the main hand while holding a bow
+    // TODO: The arrow node also should be handled for the main hand while holding a bow
 
-    if (Config::options.dummyFloat3) {
+    if (Config::options.doDoublePrecision) {
         if (NiPointer<NiAVObject> weaponOffsetNode = GetWeaponOffsetNode()) {
             // TODO: weapon node should maybe be fetched 3rd person if beast race? Base game seems to do that?
             if (NiPointer<NiAVObject> weaponNode = GetWeaponNode(false)) {
