@@ -501,7 +501,9 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
         return;
     }
 
-    if (NiPointer<TESObjectREFR> hitRef = GetRefFromCollidable(&otherBody->m_collidable); hitRef && hitRef->formType != kFormType_Character) {
+    NiPointer<TESObjectREFR> hitRef = GetRefFromCollidable(&otherBody->m_collidable);
+
+    if (!hitRef || hitRef->formType != kFormType_Character) {
         if (NiPointer<TESObjectREFR> droppedRef = GetRefFromCollidable(&droppedBody->m_collidable)) {
             if (droppedRef != hitRef) { // don't want to trigger it for self-collisions of constrained bodies
                 if (hkContactPoint *contactPoint = evnt.m_contactPoint) {
@@ -524,18 +526,20 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
                     }
 
                     if (relativeSpeed > Config::options.droppedObjMinDestructibleSpeed) {
-                        float inflictedDamage = Config::options.droppedObjDestructibleInflictedDamage;
-                        if (inflictedDamage > 0.f) {
-                            float droppedMass = droppedBody->getMassInv();
-                            droppedMass = droppedMass ? 1.f / droppedMass : 10000.f;
+                        if (hitRef) {
+                            float inflictedDamage = Config::options.droppedObjDestructibleInflictedDamage;
+                            if (inflictedDamage > 0.f) {
+                                float droppedMass = droppedBody->getMassInv();
+                                droppedMass = droppedMass ? 1.f / droppedMass : 10000.f;
 
-                            float hitMass = otherBody->getMassInv();
-                            hitMass = hitMass ? 1.f / hitMass : 10000.f;
+                                float hitMass = otherBody->getMassInv();
+                                hitMass = hitMass ? 1.f / hitMass : 10000.f;
 
-                            // Damage the hit object only if the thrown object is at least as heavy as it.
-                            // Include equal mass in this so that e.g. a bottle hitting another bottle will break both.
-                            if (droppedMass >= hitMass) {
-                                BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage);
+                                // Damage the hit object only if the thrown object is at least as heavy as it.
+                                // Include equal mass in this so that e.g. a bottle hitting another bottle will break both.
+                                if (droppedMass >= hitMass) {
+                                    BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage);
+                                }
                             }
                         }
 
