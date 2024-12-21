@@ -212,6 +212,7 @@ RelocAddr<_HitData_dtor> HitData_dtor(0x76D0F0);
 RelocAddr<_HitData_populate> HitData_populate(0x76D400);
 RelocAddr<_HitData_PopulateFromPhysicalHit> HitData_PopulateFromPhysicalHit(0x76DAF0);
 RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestructibleDamageTask(0x5CB4F0);
+RelocAddr<_BSTaskPool_QueueDamageObjectTask> BSTaskPool_QueueDamageObjectTask(0x5CB5B0);
 RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon(0x683850);
 
 RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu(0xF1CE20);

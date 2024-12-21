@@ -495,6 +495,9 @@ extern RelocAddr<_HitData_PopulateFromPhysicalHit> HitData_PopulateFromPhysicalH
 typedef void(*_BSTaskPool_QueueDestructibleDamageTask)(BSTaskPool *taskPool, TESObjectREFR *target, float damage);
 extern RelocAddr<_BSTaskPool_QueueDestructibleDamageTask> BSTaskPool_QueueDestructibleDamageTask;
 
+typedef void(*_BSTaskPool_QueueDamageObjectTask)(BSTaskPool *taskPool, TESObjectREFR *target, float damage, bool isInternalDamage, TESObjectREFR *instigator);
+extern RelocAddr<_BSTaskPool_QueueDamageObjectTask> BSTaskPool_QueueDamageObjectTask;
+
 typedef InventoryEntryData *(*_ActorProcess_GetCurrentlyEquippedWeapon)(ActorProcessManager *_this, bool isOffhand);
 extern RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEquippedWeapon;
 

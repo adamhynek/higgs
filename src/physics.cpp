@@ -470,24 +470,6 @@ int GetSoundLevelByMass(float mass)
     }
 }
 
-void DoDestructibleDamage(Character *source, TESObjectREFR *target, bool isOffhand)
-{
-    float damage;
-    { // All this just to get the fricken damage
-        InventoryEntryData *weaponEntry = ActorProcess_GetCurrentlyEquippedWeapon(source->processManager, isOffhand);
-
-        HitData hitData;
-        HitData_ctor(&hitData);
-        HitData_populate(&hitData, source, nullptr, weaponEntry, isOffhand);
-
-        damage = hitData.totalDamage;
-
-        HitData_dtor(&hitData);
-    }
-
-    BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), target, damage);
-}
-
 void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEvent &evnt)
 {
     if (evnt.m_contactPointProperties->m_flags & hkContactPointMaterial::FlagEnum::CONTACT_IS_DISABLED) {
@@ -538,7 +520,7 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
                                 // Damage the hit object only if the thrown object is at least as heavy as it.
                                 // Include equal mass in this so that e.g. a bottle hitting another bottle will break both.
                                 if (droppedMass >= hitMass) {
-                                    BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage);
+                                    BSTaskPool_QueueDamageObjectTask(BSTaskPool::GetSingleton(), hitRef, inflictedDamage, false, *g_thePlayer);
                                 }
                             }
                         }
@@ -546,7 +528,7 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
                         // Always damage the thrown object
                         float selfDamage = Config::options.droppedObjDestructibleSelfDamage;
                         if (selfDamage > 0.f) {
-                            BSTaskPool_QueueDestructibleDamageTask(BSTaskPool::GetSingleton(), droppedRef, selfDamage);
+                            BSTaskPool_QueueDamageObjectTask(BSTaskPool::GetSingleton(), droppedRef, selfDamage, false, *g_thePlayer);
                         }
                     }
                 }
