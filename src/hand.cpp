@@ -3838,7 +3838,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         if (NiPointer<NiAVObject> objRoot = selectedObj->GetNiNode()) {
                             ForEachAdjacentBody(objRoot, selectedObject.rigidBody, [objRoot, isHoldingNonRagdolledActor](hkpRigidBody *adjacentBody) {
                                 bhkRigidBody *adjacentBodyWrapper = (bhkRigidBody *)adjacentBody->m_userData;
-                                RegisterPlayerSpaceBody(adjacentBodyWrapper, !isHoldingNonRagdolledActor);
+                                RegisterPlayerSpaceBody(adjacentBodyWrapper, false);
                             }, Config::options.grabbedActorAffectedBoneRadius);
                         }
                     }
