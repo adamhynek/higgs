@@ -344,6 +344,7 @@ struct Hand
 
     bool isExternalGrab = false;
     bool disableDropEvents = false;
+    bool disableConsumeStash = false;
 
     bool externalGrabRequested = false;
     NiPointer<TESObjectREFR> externalGrabRequestedObject = nullptr;

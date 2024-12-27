@@ -91,6 +91,7 @@ void Hand::Select(TESObjectREFR *obj)
     }
 
     disableDropEvents = false;
+    disableConsumeStash = false;
 }
 
 
@@ -108,6 +109,7 @@ void Hand::Deselect()
     selectedObject.isDisconnected = false;
 
     disableDropEvents = false;
+    disableConsumeStash = false;
 
     state = State::Idle;
 }
@@ -2844,6 +2846,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             else if (isGrabbingOtherHandsHeldObject && !considerTwoHanding) {
                                 // Grabbing the object from the other hand - make the other hand drop it and wait
                                 other.disableDropEvents = true;
+                                other.disableConsumeStash = true;
                                 other.idleDesired = true;
                                 grabbedTime = g_currentFrameTime;
                                 state = State::GrabFromOtherHand;
@@ -2876,6 +2879,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                         if (isGrabbingOtherHandsHeldObject && !considerTwoHanding) {
                                             // Grabbing the object from the other hand - make the other hand drop it and wait
                                             other.disableDropEvents = true;
+                                            other.disableConsumeStash = true;
                                             other.idleDesired = true;
                                             grabbedTime = g_currentFrameTime;
                                             state = State::GrabFromOtherHand;
@@ -2949,6 +2953,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             if (other.HasHeldObject() && selectedObject.rigidBody == other.selectedObject.rigidBody && !other.disableDropEvents) {
                 // Don't trigger drop events if the other hand is still holding the same object
                 disableDropEvents = true;
+                disableConsumeStash = true;
             }
 
             NiPointer<TESObjectREFR> selectedObj;
@@ -3075,7 +3080,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(angularVelocity);
                         }
 
-                        if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableDropEvents) {
+                        if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableConsumeStash) {
                             // Object dropped at the mouth
 
                             TESForm *baseForm = selectedObj->baseForm;
@@ -3098,7 +3103,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                             haptics.QueueHapticEvent(Config::options.mouthDropHapticStrength, 0, Config::options.mouthDropHapticFadeTime);
                         }
-                        else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && !disableDropEvents) {
+                        else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && !disableConsumeStash) {
                             // Object deposited in the shoulder
 
                             UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
@@ -3887,7 +3892,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 if (!shouldIgnoreHandDistance && avgHandDeviation > (Config::options.maxHandDistance / havokWorldScale)) {
                     // Hand is too far from the actual hand's position in real life
                     idleDesired = true;
-                    disableDropEvents = true; // Prevent stuff like eating or stashing when the object is dropped like this
+                    disableConsumeStash = true; // Prevent stuff like eating or stashing when the object is dropped like this
                 }
                 else {
                     // Not too far away. Update hand to object and update constraint params to match the current grab transform.
