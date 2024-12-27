@@ -169,10 +169,17 @@ void Hand::StartNearbyDamping(bhkWorld &world)
         if (collidable->m_broadPhaseHandle.m_collisionFilterInfo & (1 << 14)) {
             continue; // Collision is disabled
         }
+
         hkpRigidBody *rigidBody = hkpGetRigidBody(collidable);
         if (!rigidBody || !rigidBody->m_userData) {
             continue; // No rigidbody -> no movement :/
         }
+
+        UInt32 layer = GetCollisionLayer(collidable->m_broadPhaseHandle.m_collisionFilterInfo);
+        if (layer == BGSCollisionLayer::kCollisionLayer_Biped || layer == BGSCollisionLayer::kCollisionLayer_BipedNoCC || layer == BGSCollisionLayer::kCollisionLayer_DeadBip) {
+            continue; // Ignore ragdolls
+        }
+
         bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
         if (wrapper && IsMoveableEntity(rigidBody)) {
             hkContactPoint &contactPoint = pair.second;
@@ -181,7 +188,7 @@ void Hand::StartNearbyDamping(bhkWorld &world)
 
                 if (VectorLength(HkVectorToNiPoint(motion->m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
                     VectorLength(HkVectorToNiPoint(motion->m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
-                    if (!g_nearbyBodies.contains(wrapper)) {
+                    if (!g_nearbyBodies.contains(wrapper) && !WasPlayerSpaceBodyLastFrame(wrapper)) {
                         AddDampedBody(wrapper);
                         g_nearbyBodies.insert(wrapper);
                     }

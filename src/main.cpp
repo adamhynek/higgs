@@ -303,8 +303,8 @@ void ClearStaleDampedBodies(bhkWorld *world)
     static std::vector<std::pair<NiPointer<bhkRigidBody>, DampedBodyData>> toRemove{};
 
     for (auto &it = g_dampedBodyData.begin(); it != g_dampedBodyData.end();) {
-        if (g_currentFrameTime > it->second.endTime) {
-            auto body = it->first;
+        auto [body, data] = *it;
+        if (g_currentFrameTime > data.endTime || WasPlayerSpaceBodyLastFrame(body)) {
             toRemove.push_back(*it);
             it = g_dampedBodyData.erase(it);
         }
@@ -317,7 +317,7 @@ void ClearStaleDampedBodies(bhkWorld *world)
         BSWriteLocker lock(&world->worldLock);
 
         for (auto &it : toRemove) {
-            auto[body, data] = it;
+            auto [body, data] = it;
             hkpMotion *motion = body->hkBody->getMotion();
             motion->m_motionState.m_linearDamping = data.linearDamping;
             motion->m_motionState.m_angularDamping = data.angularDamping;
@@ -329,6 +329,7 @@ void ClearStaleDampedBodies(bhkWorld *world)
 
 
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
+std::unordered_set<bhkRigidBody *> g_prevPlayerSpaceBodies{};
 std::unordered_set<bhkRigidBody *> g_playerSpaceBodiesShouldNotWarp{};
 
 NiTransform g_prevNextRoomTransform{};
@@ -341,6 +342,11 @@ void RegisterPlayerSpaceBody(bhkRigidBody *body, bool allowWarp)
     if (!allowWarp) {
         g_playerSpaceBodiesShouldNotWarp.insert(body);
     }
+}
+
+bool WasPlayerSpaceBodyLastFrame(bhkRigidBody *body)
+{
+    return g_prevPlayerSpaceBodies.contains(body);
 }
 
 NiPoint3 g_prevDeltaVelocity{};
@@ -492,6 +498,9 @@ void SimulatePlayerSpace(bhkWorld *world)
 
             g_prevVelocityAdded = true;
         }
+
+        g_prevPlayerSpaceBodies.clear();
+        g_prevPlayerSpaceBodies.insert(g_playerSpaceBodies.begin(), g_playerSpaceBodies.end());
 
         g_playerSpaceBodies.clear();
         g_playerSpaceBodiesShouldNotWarp.clear();
