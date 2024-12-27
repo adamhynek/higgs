@@ -270,6 +270,16 @@ void UpdateSpeedReduction()
     }
 }
 
+NiPoint3 g_prevDeltaVelocity{};
+NiPoint3 g_prevDeltaVelocityWithVrikSmoothingOnly{};
+
+std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
+std::unordered_set<bhkRigidBody *> g_prevPlayerSpaceBodies{};
+std::unordered_set<bhkRigidBody *> g_playerSpaceBodiesShouldNotWarp{};
+
+NiTransform g_prevNextRoomTransform{};
+NiTransform g_prevRoomTransform{};
+
 
 struct DampedBodyData
 {
@@ -304,7 +314,7 @@ void ClearStaleDampedBodies(bhkWorld *world)
 
     for (auto &it = g_dampedBodyData.begin(); it != g_dampedBodyData.end();) {
         auto [body, data] = *it;
-        if (g_currentFrameTime > data.endTime || WasPlayerSpaceBodyLastFrame(body)) {
+        if (g_currentFrameTime > data.endTime) {
             toRemove.push_back(*it);
             it = g_dampedBodyData.erase(it);
         }
@@ -328,13 +338,6 @@ void ClearStaleDampedBodies(bhkWorld *world)
 }
 
 
-std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
-std::unordered_set<bhkRigidBody *> g_prevPlayerSpaceBodies{};
-std::unordered_set<bhkRigidBody *> g_playerSpaceBodiesShouldNotWarp{};
-
-NiTransform g_prevNextRoomTransform{};
-NiTransform g_prevRoomTransform{};
-
 void RegisterPlayerSpaceBody(bhkRigidBody *body, bool allowWarp)
 {
     g_playerSpaceBodies.insert(body);
@@ -348,9 +351,6 @@ bool WasPlayerSpaceBodyLastFrame(bhkRigidBody *body)
 {
     return g_prevPlayerSpaceBodies.contains(body);
 }
-
-NiPoint3 g_prevDeltaVelocity{};
-NiPoint3 g_prevDeltaVelocityWithVrikSmoothingOnly{};
 
 
 void PrePhysicsStep(bhkWorld *world)
