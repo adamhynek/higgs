@@ -270,6 +270,64 @@ void UpdateSpeedReduction()
     }
 }
 
+
+struct DampedBodyData
+{
+    hkHalf linearDamping;
+    hkHalf angularDamping;
+    double endTime;
+};
+std::map<NiPointer<bhkRigidBody>, DampedBodyData> g_dampedBodyData{};
+
+void AddDampedBody(bhkRigidBody *body)
+{
+    auto it = g_dampedBodyData.find(body);
+    if (it == g_dampedBodyData.end()) {
+        // Not already damped (e.g. by the other hand grabbing something)
+
+        hkpMotion *motion = body->hkBody->getMotion();
+
+        g_dampedBodyData[body] = { motion->m_motionState.m_linearDamping, motion->m_motionState.m_angularDamping, g_currentFrameTime + Config::options.grabFreezeNearbyVelocityTime };
+
+        motion->m_motionState.m_linearDamping = hkHalf(Config::options.nearbyGrabLinearDamping);
+        motion->m_motionState.m_angularDamping = hkHalf(Config::options.nearbyGrabAngularDamping);
+    }
+    else {
+        // Already damped, just extend the time
+        it->second.endTime = g_currentFrameTime + Config::options.grabFreezeNearbyVelocityTime;
+    }
+}
+
+void ClearStaleDampedBodies(bhkWorld *world)
+{
+    static std::vector<std::pair<NiPointer<bhkRigidBody>, DampedBodyData>> toRemove{};
+
+    for (auto &it = g_dampedBodyData.begin(); it != g_dampedBodyData.end();) {
+        if (g_currentFrameTime > it->second.endTime) {
+            auto body = it->first;
+            toRemove.push_back(*it);
+            it = g_dampedBodyData.erase(it);
+        }
+        else {
+            ++it;
+        }
+    }
+
+    if (!toRemove.empty()) {
+        BSWriteLocker lock(&world->worldLock);
+
+        for (auto &it : toRemove) {
+            auto[body, data] = it;
+            hkpMotion *motion = body->hkBody->getMotion();
+            motion->m_motionState.m_linearDamping = data.linearDamping;
+            motion->m_motionState.m_angularDamping = data.angularDamping;
+        }
+
+        toRemove.clear();
+    }
+}
+
+
 std::set<NiPointer<bhkRigidBody>> g_playerSpaceBodies{};
 std::unordered_set<bhkRigidBody *> g_playerSpaceBodiesShouldNotWarp{};
 
@@ -570,6 +628,8 @@ void Update()
 
     firstHandToUpdate->PostUpdate(*lastHandToUpdate, world);
     lastHandToUpdate->PostUpdate(*firstHandToUpdate, world);
+
+    ClearStaleDampedBodies(world);
 
     g_totalMassThisFrame = g_totalMassThisFrameAccumulator; // commit the total mass for this frame
 

@@ -184,7 +184,6 @@ struct Hand
 
     void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
     void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
-    void ResetNearbyDamping();
     void StartNearbyDamping(bhkWorld &world);
     bool FindCloseObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, bool isTwoHandedOffhand,
         NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
@@ -303,9 +302,6 @@ struct Hand
     std::deque<NiPoint3> playerVelocitiesWorldspace{ 5, NiPoint3() }; // previous n player velocities in skyrim worldspace
     NiPoint3 avgPlayerVelocityWorldspace{};
     float avgPlayerSpeedWorldspace = 0.f;
-
-    std::vector<NiPointer<bhkRigidBody>> nearbyBodies{}; // This only exists to hold the NiPointers
-    std::unordered_map<bhkRigidBody *, std::pair<hkHalf, hkHalf>> nearbyBodyMap{};
 
     SelectedObject selectedObject{};
     PulledObject pulledObject{};

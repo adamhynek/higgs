@@ -151,28 +151,9 @@ void Hand::StopSelectionEffect(UInt32 objHandle, NiAVObject *node)
 }
 
 
-void Hand::ResetNearbyDamping()
-{
-    if (nearbyBodies.size() > 0) {
-        for (NiPointer<bhkRigidBody> body : nearbyBodies) {
-            if (nearbyBodyMap.count(body) != 0) {
-                auto[linearDamping, angularDamping] = nearbyBodyMap[body];
-                body->hkBody->m_motion.m_motionState.m_linearDamping = linearDamping;
-                body->hkBody->m_motion.m_motionState.m_angularDamping = angularDamping;
-            }
-        }
-
-        nearbyBodies.clear();
-        nearbyBodyMap.clear();
-    }
-}
-
-
 std::unordered_set<bhkRigidBody *> g_nearbyBodies; // prevent duplicates due to multiple contact points
 void Hand::StartNearbyDamping(bhkWorld &world)
 {
-    nearbyBodies.clear();
-    nearbyBodyMap.clear();
     g_nearbyBodies.clear();
 
     cdPointCollector.reset();
@@ -196,16 +177,13 @@ void Hand::StartNearbyDamping(bhkWorld &world)
         if (wrapper && IsMoveableEntity(rigidBody)) {
             hkContactPoint &contactPoint = pair.second;
             if (contactPoint.getDistance() < Config::options.nearbyGrabBodyRadius) {
-                hkpMotion &motion = rigidBody->m_motion;
+                hkpMotion *motion = rigidBody->getMotion();
 
-                if (VectorLength(HkVectorToNiPoint(motion.m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
-                    VectorLength(HkVectorToNiPoint(motion.m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
-                    if (g_nearbyBodies.count(wrapper) == 0) {
+                if (VectorLength(HkVectorToNiPoint(motion->m_linearVelocity)) < Config::options.nearbyGrabMaxLinearVelocity &&
+                    VectorLength(HkVectorToNiPoint(motion->m_angularVelocity)) < Config::options.nearbyGrabMaxAngularVelocity) {
+                    if (!g_nearbyBodies.contains(wrapper)) {
+                        AddDampedBody(wrapper);
                         g_nearbyBodies.insert(wrapper);
-                        nearbyBodies.push_back(wrapper);
-                        nearbyBodyMap[wrapper] = { motion.m_motionState.m_linearDamping, motion.m_motionState.m_angularDamping };
-                        motion.m_motionState.m_linearDamping = hkHalf(Config::options.nearbyGrabLinearDamping);
-                        motion.m_motionState.m_angularDamping = hkHalf(Config::options.nearbyGrabAngularDamping);
                     }
                 }
             }
@@ -3173,11 +3151,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 HiggsPluginAPI::TriggerStopTwoHandingCallbacks();
             }
 
-            // Do all this stuff even if the refr has been deleted / 3d unloaded
-            if (state == State::HeldInit || state == State::Held || state == State::HeldBody) {
-                ResetNearbyDamping();
-            }
-
             Deselect();
         }
     }
@@ -3763,10 +3736,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         TESObjectREFR_SetPosition(selectedObj, collidableNode->m_worldTransform.pos);
                     }
 
-                    if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
-                        ResetNearbyDamping();
-                    }
-
                     if (IsObjectConsumable(selectedObj, hmdNode, palmPos)) {
                         haptics.QueueHapticPulse(Config::options.mouthConstantHapticStrength);
                     }
@@ -3779,8 +3748,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
         }
         else {
-            ResetNearbyDamping();
-
             state = State::Idle;
         }
     }
@@ -4014,14 +3981,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     }
                 }
             }
-
-            if (g_currentFrameTime - heldTime > Config::options.grabFreezeNearbyVelocityTime) {
-                ResetNearbyDamping();
-            }
         }
         else {
-            ResetNearbyDamping();
-
             state = State::Idle;
         }
     }

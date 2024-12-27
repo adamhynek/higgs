@@ -36,5 +36,7 @@ void RegisterObjectMass(hkpRigidBody *body, std::optional<float> massOverride = 
 void PrePhysicsStep(bhkWorld *world);
 void PostPhysicsStep(bhkWorld *world);
 
+void AddDampedBody(bhkRigidBody *body);
+
 extern float g_prevVrikOffset;
 
