@@ -268,6 +268,9 @@ extern RelocAddr<_bhkWorld_AddConstraint> bhkWorld_AddConstraint;
 typedef void(*_bhkWorld_RemoveConstraint)(bhkWorld *_this, hkpConstraintInstance *constraint);
 extern RelocAddr<_bhkWorld_RemoveConstraint> bhkWorld_RemoveConstraint;
 
+typedef bool *(*_hkpConstraintInstance_isEnabled)(hkpConstraintInstance *_this, bool *enabled);
+extern RelocAddr<_hkpConstraintInstance_isEnabled> hkpConstraintInstance_isEnabled;
+
 typedef void(*_hkVector4_setTransformedInversePos)(hkVector4 &_this, const hkTransform &transform, const hkVector4 &pos);
 extern RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedInversePos;
 

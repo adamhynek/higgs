@@ -134,6 +134,7 @@ RelocAddr<_bhkRigidBody_AddConstraintToArray> bhkRigidBody_AddConstraintToArray(
 RelocAddr<_bhkRigidBody_RemoveConstraintFromArray> bhkRigidBody_RemoveConstraintFromArray(0xE08A70);
 RelocAddr<_bhkWorld_AddConstraint> bhkWorld_AddConstraint(0xDFA810);
 RelocAddr<_bhkWorld_RemoveConstraint> bhkWorld_RemoveConstraint(0xDFB240);
+RelocAddr<_hkpConstraintInstance_isEnabled> hkpConstraintInstance_isEnabled(0xAC06D0);
 RelocAddr<_hkVector4_setTransformedInversePos> hkVector4_setTransformedInversePos(0xA05DC0);
 RelocAddr<_hkRealTohkUFloat8> hkRealTohkUFloat8(0xA02B10);
 RelocAddr<_hkpConstraintData_getConstraintInfoUtil> hkpConstraintData_getConstraintInfoUtil(0xACC490);

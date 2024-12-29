@@ -1092,6 +1092,10 @@ bool CollectAllConnectedRigidBodiesHelper(NiAVObject *root, std::set<NiPointer<b
         if (rigidBody->hkBody) {
             for (int i = 0; i < rigidBody->constraints.count; i++) {
                 bhkConstraint *constraint = rigidBody->constraints.entries[i];
+
+                bool isConstraintEnabled; hkpConstraintInstance_isEnabled(constraint->constraint, &isConstraintEnabled);
+                if (!isConstraintEnabled) continue;
+
                 bhkRigidBody *rigidBodyA = (bhkRigidBody *)constraint->constraint->getEntityA()->m_userData;
                 bhkRigidBody *rigidBodyB = (bhkRigidBody *)constraint->constraint->getEntityB()->m_userData;
 
@@ -1170,6 +1174,10 @@ void ForEachAdjacentBody(NiAVObject *root, bhkRigidBody *body, std::function<voi
 
         for (bhkConstraint *constraintWrapper : constraints) {
             hkpConstraintInstance *constraint = constraintWrapper->constraint;
+
+            bool isConstraintEnabled; hkpConstraintInstance_isEnabled(constraint, &isConstraintEnabled);
+            if (!isConstraintEnabled) continue;
+
             bhkRigidBody *rigidBodyA = (bhkRigidBody *)constraint->getEntityA()->m_userData;
             bhkRigidBody *rigidBodyB = (bhkRigidBody *)constraint->getEntityB()->m_userData;
 
