@@ -88,11 +88,11 @@ namespace HiggsPluginAPI {
         std::vector<NoArgCallback> postVrikPreHiggsCallbacks;
         std::vector<NoArgCallback> postVrikPostHiggsCallbacks;
 
-        std::atomic<int> rightDisableCount = 0;
-        std::atomic<int> leftDisableCount = 0;
+        std::atomic<bool> isRightHandDisabled = false;
+        std::atomic<bool> isLeftHandDisabled = false;
 
-        std::atomic<int> rightWeaponDisableCount = 0;
-        std::atomic<int> leftWeaponDisableCount = 0;
+        std::atomic<bool> isRightWeaponCollisionDisabled = false;
+        std::atomic<bool> isLeftWeaponCollisionDisabled = false;
 
         // Same as L_WEAPON layer, but + self-collision (layer 56) and - charcontroller collision
         UInt64 higgsLayerBitfield = 0x01053343161b7fff;

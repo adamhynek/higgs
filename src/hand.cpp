@@ -4056,9 +4056,6 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
         newTransform.pos.z -= g_prevVrikOffset;
         UpdateHandTransform(newTransform);
     }
-
-
-    // TODO: Test vrik 3rd person hand diff in postvrikupdate
 }
 
 
@@ -4081,6 +4078,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     bool gripRisingEdge = gripDown && !gripDownBefore;
     bool gripFallingEdge = !gripDown && gripDownBefore;
 
+    // Only advance states if no menus are open
     if (MenuChecker::isGameStopped()) return;
 
     PlayerCharacter *player = *g_thePlayer;
@@ -4094,7 +4092,6 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
     bool canGrab = CanHoldObject() || CanTwoHand();
 
-    // Only advance states if no menus are open
     if (inputState == InputState::Idle) {
         if ((triggerRisingEdge || gripRisingEdge) && canGrab) {
             grabRequestedTime = g_currentFrameTime;

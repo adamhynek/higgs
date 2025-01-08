@@ -274,60 +274,60 @@ bool HiggsInterface001::IsHandInGrabbableState(bool isLeft)
 void HiggsInterface001::DisableHand(bool isLeft)
 {
     if (isLeft) {
-        leftDisableCount++;
+        isLeftHandDisabled = true;
     }
     else {
-        rightDisableCount++;
+        isRightHandDisabled = true;
     }
 }
 
 void HiggsInterface001::EnableHand(bool isLeft)
 {
     if (isLeft) {
-        leftDisableCount--;
+        isLeftHandDisabled = false;
     }
     else {
-        rightDisableCount--;
+        isRightHandDisabled = false;
     }
 }
 
 bool HiggsInterface001::IsDisabled(bool isLeft)
 {
     if (isLeft) {
-        return leftDisableCount > 0;
+        return isLeftHandDisabled;
     }
     else {
-        return rightDisableCount > 0;
+        return isRightHandDisabled;
     }
 }
 
 void HiggsInterface001::DisableWeaponCollision(bool isLeft)
 {
     if (isLeft) {
-        leftWeaponDisableCount++;
+        isLeftWeaponCollisionDisabled = true;
     }
     else {
-        rightWeaponDisableCount++;
+        isRightWeaponCollisionDisabled = true;
     }
 }
 
 void HiggsInterface001::EnableWeaponCollision(bool isLeft)
 {
     if (isLeft) {
-        leftWeaponDisableCount--;
+        isLeftWeaponCollisionDisabled = false;
     }
     else {
-        rightWeaponDisableCount--;
+        isRightWeaponCollisionDisabled = false;
     }
 }
 
 bool HiggsInterface001::IsWeaponCollisionDisabled(bool isLeft)
 {
     if (isLeft) {
-        return leftWeaponDisableCount > 0;
+        return isLeftWeaponCollisionDisabled;
     }
     else {
-        return rightWeaponDisableCount > 0;
+        return isRightWeaponCollisionDisabled;
     }
 }
 
