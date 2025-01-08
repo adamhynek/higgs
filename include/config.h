@@ -47,6 +47,7 @@ namespace Config {
         float throwVelocityBoostFactor = 1.0f;
         double throwIgnoreHandCollisionTime = 0.1; // in s, amount of time to ignore hand collisions after throwing
 
+        bool enableWeaponTwoHanding = true;
         bool offhandAffectsTwoHandedRotation = true;
         float twoHandedHandToHandAlignmentFactor = 1.f;
         float twoHandedHandToHandShiftFactor = 0.5f;

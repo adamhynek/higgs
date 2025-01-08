@@ -4249,6 +4249,8 @@ bool Hand::CanHoldBasedOnWeapon() const
 
 bool Hand::CanTwoHand() const
 {
+    if (!Config::options.enableWeaponTwoHanding) return false;
+
     PlayerCharacter *player = *g_thePlayer;
 
     if (!player->actorState.IsWeaponDrawn()) return false; // Can't two-hand a weapon if the weapon isn't drawn

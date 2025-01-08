@@ -296,6 +296,7 @@ namespace Config {
         if (!RegisterFloat("TangentialVelocityLimit", options.tangentialVelocityLimit)) success = false;
         if (!RegisterFloat("TwoHandedRotationSnapSpeed", options.twoHandedRotationSnapSpeed)) success = false;
 
+        if (!RegisterBool("enableWeaponTwoHanding", options.enableWeaponTwoHanding)) success = false;
         if (!RegisterBool("offhandAffectsTwoHandedRotation", options.offhandAffectsTwoHandedRotation)) success = false;
         if (!RegisterFloat("twoHandedHandToHandAlignmentFactor", options.twoHandedHandToHandAlignmentFactor)) success = false;
         if (!RegisterFloat("twoHandedHandToHandShiftFactor", options.twoHandedHandToHandShiftFactor)) success = false;
