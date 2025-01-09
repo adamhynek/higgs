@@ -78,6 +78,11 @@ bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref);
 
 bool HasGeometryChildren(NiAVObject *obj);
 
+bool GetAnimVariableBool(Actor *actor, BSFixedString &variableName);
+bool IsDualCasting(Actor *actor);
+bool IsCastingRight(Actor *actor);
+bool IsCastingLeft(Actor *actor);
+
 bool IsTwoHanded(const TESObjectWEAP *weap);
 bool IsTwoHandable(const TESObjectWEAP *weap);
 bool IsBow(const TESObjectWEAP *weap);

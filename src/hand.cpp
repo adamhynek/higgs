@@ -2356,6 +2356,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
     bool isAllowedToHold = CanHoldObject();
     bool canTwoHand = CanTwoHand();
+    bool shouldRestrictPull = ShouldRestrictPull();
 
     NiPoint3 palmPos = GetPalmPositionWS(handNode->m_worldTransform);
     NiPoint3 hkPalmPos = palmPos * havokWorldScale;
@@ -2435,7 +2436,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             isSelectedNear = FindCloseObject(world, other, hkPalmPos, palmVector, sphere, isTwoHandedOffhand,
                 closestObj, closestRigidBody, closestPoint);
 
-            if (!isSelectedNear) {
+            if (!isSelectedNear && !shouldRestrictPull) {
                 // Nothing close by the hand. Check for stuff farther away
                 FindFarObject(world, other, hkPalmPos, pointingVector, hmdPos * havokWorldScale, hmdForward, sphere,
                     closestObj, closestRigidBody, closestPoint);
@@ -2677,7 +2678,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             isSelectedThisFrame = true;
             lastSelectedTime = g_currentFrameTime;
         }
-        else if (isTwoHandedOffhand && closestRigidBody == other.weaponBody && closestRigidBody != selectedObject.rigidBody) {
+        else if (isTwoHandedOffhand && closestRigidBody == other.weaponBody && closestRigidBody != selectedObject.rigidBody && canTwoHand) {
             StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
             Deselect();
 
@@ -3654,27 +3655,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
 
             // Since you can grab a one-handed weapon with two hands if the offhand has a spell, we want to hide the in-hand spell fx while holding it.
-            // The game will set the position on its own, so we're cool to override it here and it will be back to normal once we stop.
-            if (GetEquippedSpell(player, *g_leftHandedMode != isLeft)) {
-                // Move the magic nodes way below us to hide them
-                NiPointer<NiAVObject> magicOffsetNode = GetMagicOffsetNode();
-                if (magicOffsetNode) {
-                    NiTransform transform = magicOffsetNode->m_worldTransform;
-                    transform.pos += NiPoint3(0, 0, -10000);
-                    UpdateNodeTransformLocal(magicOffsetNode, transform);
-                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                    CALL_MEMBER_FN(magicOffsetNode, UpdateNode)(&ctx);
-                }
-
-                NiPointer<NiAVObject> magicAimNode = GetMagicAimNode();
-                if (magicAimNode) {
-                    NiTransform transform = magicAimNode->m_worldTransform;
-                    transform.pos += NiPoint3(0, 0, -10000);
-                    UpdateNodeTransformLocal(magicAimNode, transform);
-                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                    CALL_MEMBER_FN(magicAimNode, UpdateNode)(&ctx);
-                }
-            }
+            HideInHandSpellEffects();
 
             twoHandedState.prevWeaponTransformRoomspace = weaponTransformRoomspace;
             twoHandedState.prevWeaponTransform = desiredTransform;
@@ -3752,6 +3733,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
 
                 RegisterObjectMass(selectedObject.rigidBody->hkBody, selectedObject.massAtGrabTime);
+
+                HideInHandSpellEffects();
             }
         }
         else {
@@ -3986,6 +3969,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     else if (IsObjectDepositable(selectedObj, hmdNode, handPos) && !doesOtherHandHoldSameRigidBody) {
                         haptics.QueueHapticPulse(Config::options.shoulderConstantHapticStrength);
                     }
+
+                    // Hide the spell vfx while holding an object, since you can grab stuff with a spell in your hand now
+                    HideInHandSpellEffects();
                 }
             }
         }
@@ -4000,6 +3986,29 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
     prevState = state;
     prevPlayerPosWorldspace = player->pos;
+}
+
+void Hand::HideInHandSpellEffects()
+{
+    // The game will set the position on its own, so we're cool to override it here and it will be back to normal once we stop.
+    if (GetEquippedSpell(*g_thePlayer, *g_leftHandedMode != isLeft)) {
+        // Move the magic nodes way below us to hide them
+        if (NiPointer<NiAVObject> magicOffsetNode = GetMagicOffsetNode()) {
+            NiTransform transform = magicOffsetNode->m_worldTransform;
+            transform.pos += NiPoint3(0, 0, -10000);
+            UpdateNodeTransformLocal(magicOffsetNode, transform);
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            CALL_MEMBER_FN(magicOffsetNode, UpdateNode)(&ctx);
+        }
+
+        if (NiPointer<NiAVObject> magicAimNode = GetMagicAimNode()) {
+            NiTransform transform = magicAimNode->m_worldTransform;
+            transform.pos += NiPoint3(0, 0, -10000);
+            UpdateNodeTransformLocal(magicAimNode, transform);
+            NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+            CALL_MEMBER_FN(magicAimNode, UpdateNode)(&ctx);
+        }
+    }
 }
 
 NiTransform g_lastHandTransformm;
@@ -4091,9 +4100,10 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     }
 
     bool canGrab = CanHoldObject() || CanTwoHand();
+    bool canUseTrigger = !ShouldRestrictTrigger();
 
     if (inputState == InputState::Idle) {
-        if ((triggerRisingEdge || gripRisingEdge) && canGrab) {
+        if (((triggerRisingEdge && canUseTrigger) || gripRisingEdge) && canGrab) {
             grabRequestedTime = g_currentFrameTime;
             grabRequested = true;
 
@@ -4227,6 +4237,14 @@ bool Hand::CanHoldBasedOnWeapon() const
                 return isMainHand ? currentAmmo == nullptr : false; // Let the main hand grab stuff if no arrows are equipped
             }
         }
+        else if (isMainHand && Config::options.allowGrabWithSpell) {
+            if (SpellItem *spell = DYNAMIC_CAST(mainhandItem, TESForm, SpellItem)) {
+                bool isCastingPrimary = IsCastingRight(player) || IsDualCasting(player);
+                if (!isCastingPrimary) {
+                    isMainValid = true;
+                }
+            }
+        }
     }
     else {
         isMainValid = true; // fist
@@ -4236,6 +4254,14 @@ bool Hand::CanHoldBasedOnWeapon() const
         TESObjectWEAP *weap = DYNAMIC_CAST(offhandItem, TESForm, TESObjectWEAP);
         if (weap && weap->gameData.type == TESObjectWEAP::GameData::kType_HandToHandMelee) {
             isOffhandValid = true; // fist
+        }
+        else if (!isMainHand && Config::options.allowGrabWithSpell) {
+            if (SpellItem *spell = DYNAMIC_CAST(offhandItem, TESForm, SpellItem)) {
+                bool isCastingSecondary = IsCastingLeft(player) || IsDualCasting(player);
+                if (!isCastingSecondary) {
+                    isOffhandValid = true;
+                }
+            }
         }
     }
     else {
@@ -4382,6 +4408,20 @@ bool Hand::HasExclusiveObject() const
 bool Hand::IsInGrabbableState() const
 {
     return state == State::Idle || state == State::SelectedClose || state == State::SelectedFar || state == State::SelectionLocked;
+}
+
+bool Hand::ShouldRestrictPull() const
+{
+    if (!Config::options.restrictPullWithSpell) return false;
+
+    PlayerCharacter *player = *g_thePlayer;
+    return player->actorState.IsWeaponDrawn() && GetEquippedSpell(player, *g_leftHandedMode != isLeft);
+}
+
+bool Hand::ShouldRestrictTrigger() const
+{
+    PlayerCharacter *player = *g_thePlayer;
+    return player->actorState.IsWeaponDrawn() && GetEquippedSpell(player, *g_leftHandedMode != isLeft);
 }
 
 bool Hand::CanHoldObject() const

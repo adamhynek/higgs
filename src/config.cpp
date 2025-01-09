@@ -451,6 +451,8 @@ namespace Config {
         if (!RegisterFloat("dontCollideClutterMinVelocity", options.dontCollideClutterMinVelocity)) success = false;
 
         if (!RegisterBool("enableTwoHandedGrabbing", options.enableTwoHandedGrabbing)) success = false;
+        if (!RegisterBool("allowGrabWithSpell", options.allowGrabWithSpell)) success = false;
+        if (!RegisterBool("restrictPullWithSpell", options.restrictPullWithSpell)) success = false;
 
         if (!RegisterFloat("grabbedObjectMinInertia", options.grabbedObjectMinInertia)) success = false;
         if (!RegisterFloat("grabbedObjectMaxInertiaRatio", options.grabbedObjectMaxInertiaRatio)) success = false;

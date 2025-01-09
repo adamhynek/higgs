@@ -182,6 +182,8 @@ struct Hand
     void MoveHandAndWeaponCollision(const NiPoint3 &additionalOffset);
     void ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRControllerState001_t *pControllerState);
 
+    void HideInHandSpellEffects();
+
     void PlaySelectionEffect(UInt32 objHandle, NiAVObject *node);
     void StopSelectionEffect(UInt32 objHandle, NiAVObject *node);
     void StartNearbyDamping(bhkWorld &world);
@@ -239,6 +241,8 @@ struct Hand
     bool IsObjectPullable();
     bool HasExclusiveObject() const;
     bool IsInGrabbableState() const;
+    bool ShouldRestrictPull() const;
+    bool ShouldRestrictTrigger() const;
     bool CanHoldObject() const;
     bool CanTwoHand() const;
     bool CanGrabObject() const;

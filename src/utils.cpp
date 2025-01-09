@@ -319,6 +319,33 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
     ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false); // Gets shadows to update since keyframed nodes are not "dynamic" and so the game doesn't think they can move
 }
 
+bool GetAnimVariableBool(Actor *actor, BSFixedString &variableName)
+{
+    IAnimationGraphManagerHolder *animGraph = &actor->animGraphHolder;
+    UInt64 *vtbl = *((UInt64 **)animGraph);
+    bool var = false;
+    ((IAnimationGraphManagerHolder_GetGraphVariableBool)(vtbl[0x12]))(animGraph, variableName, var);
+    return var;
+}
+
+bool IsDualCasting(Actor *actor)
+{
+    static BSFixedString animVarName("IsCastingDual");
+    return GetAnimVariableBool(actor, animVarName);
+}
+
+bool IsCastingRight(Actor *actor)
+{
+    static BSFixedString animVarName("IsCastingRight");
+    return GetAnimVariableBool(actor, animVarName);
+}
+
+bool IsCastingLeft(Actor *actor)
+{
+    static BSFixedString animVarName("IsCastingLeft");
+    return GetAnimVariableBool(actor, animVarName);
+}
+
 bool IsTwoHanded(const TESObjectWEAP *weap)
 {
     switch (weap->gameData.type) {

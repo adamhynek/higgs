@@ -240,6 +240,8 @@ namespace Config {
         float dontCollideClutterMinVelocity = 0.f;
 
         bool enableTwoHandedGrabbing = true;
+        bool allowGrabWithSpell = true;
+        bool restrictPullWithSpell = true;
 
         bool doPhysicsGrabPlayerMovementCompensation = true;
         float playerSpaceMinDeltaAngleToWarp = 0.01f;
