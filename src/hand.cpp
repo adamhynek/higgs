@@ -3991,7 +3991,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
 void Hand::HideInHandSpellEffects()
 {
     // The game will set the position on its own, so we're cool to override it here and it will be back to normal once we stop.
-    if (GetEquippedSpell(*g_thePlayer, *g_leftHandedMode != isLeft)) {
+    PlayerCharacter *player = *g_thePlayer;
+    if (player->actorState.IsWeaponDrawn() && GetEquippedSpell(player, *g_leftHandedMode != isLeft)) {
         // Move the magic nodes way below us to hide them
         if (NiPointer<NiAVObject> magicOffsetNode = GetMagicOffsetNode()) {
             NiTransform transform = magicOffsetNode->m_worldTransform;
