@@ -21,7 +21,6 @@ extern bool g_isVrikPresent;
 extern SInt32 g_controllerType;
 extern bool g_isActivateBoundToGrip;
 extern int g_savedShadowUpdateFrameDelay;
-extern int g_shadowUpdateFrame;
 extern int g_numShadowUpdates;
 
 extern NiPoint3 g_prevDeltaVelocity;
@@ -38,6 +37,8 @@ void PrePhysicsStep(bhkWorld *world);
 void PostPhysicsStep(bhkWorld *world);
 
 void AddDampedBody(bhkRigidBody *body);
+
+void UpdateShadowDelay();
 
 extern float g_prevVrikOffset;
 

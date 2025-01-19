@@ -568,6 +568,17 @@ void GetActivateTextHook()
 }
 
 
+typedef void(*_UpdateShadows)();
+auto UpdateShadows_HookLoc = RelocPtr<uintptr_t>(0x1321DA7);
+_UpdateShadows UpdateShadows_Original = 0;
+void UpdateShadows_Hook()
+{
+    UpdateShadowDelay();
+
+    UpdateShadows_Original();
+}
+
+
 BSFixedString *g_activateButtonName = nullptr;
 const char **g_activateButtonNameArg = nullptr;
 bool g_overrideActivateButton = false;
@@ -1491,6 +1502,11 @@ void PerformHooks(void)
     {
         g_original_hkpCachingShapePhantom_setPositionAndLinearCast = *hkpCachingShapePhantom_setPositionAndLinearCast_vtbl;
         SafeWrite64(hkpCachingShapePhantom_setPositionAndLinearCast_vtbl.GetUIntPtr(), uintptr_t(hkpCachingShapePhantom_setPositionAndLinearCast_Hook));
+    }
+
+    {
+        std::uintptr_t originalFunc = Write5Call(UpdateShadows_HookLoc.GetUIntPtr(), uintptr_t(UpdateShadows_Hook));
+        UpdateShadows_Original = (_UpdateShadows)originalFunc;
     }
 
 #ifdef _DEBUG

@@ -398,6 +398,7 @@ namespace Config {
         if (!RegisterInt("maxNumPhysicsStepsPerUpdateComplex", options.maxNumPhysicsStepsPerUpdateComplex)) success = false;
 
         if (!RegisterBool("EnableShadowUpdateFix", options.enableShadowUpdateFix)) success = false;
+        if (!RegisterInt("numShadowUpdates", options.numShadowUpdates)) success = false;
         if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) success = false;
         if (!RegisterFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) success = false;
 

@@ -77,8 +77,7 @@ PhysicsListener g_physicsListener{};
 IslandDeactivationListener g_activationListener;
 
 int g_savedShadowUpdateFrameDelay = -1;
-int g_shadowUpdateFrame = 0;
-int g_numShadowUpdates = 0;
+int g_numShadowUpdates = -1;
 
 
 bool TryHook()
@@ -208,18 +207,17 @@ void FillControllerVelocities(NiAVObject *hmdNode, vr_src::TrackedDevicePose_t* 
 void UpdateShadowDelay()
 {
     if (g_numShadowUpdates > 0) {
-        if (g_shadowUpdateFrame != *g_currentFrameCounter) {
-            if (g_numShadowUpdates > 1) {
-                *g_nextShadowUpdateFrameCount = *g_currentFrameCounter;
-                *g_iShadowUpdateFrameDelay = 1;
-            }
-            else { // == 1
-                // Done
-                *g_iShadowUpdateFrameDelay = g_savedShadowUpdateFrameDelay;
-            }
-
-            --g_numShadowUpdates;
+        if (g_savedShadowUpdateFrameDelay == -1) {
+            g_savedShadowUpdateFrameDelay = *g_iShadowUpdateFrameDelay;
         }
+        *g_nextShadowUpdateFrameCount = *g_currentFrameCounter;
+        *g_iShadowUpdateFrameDelay = 1;
+
+        --g_numShadowUpdates;
+    }
+    else if (g_numShadowUpdates == 0) {
+        *g_iShadowUpdateFrameDelay = g_savedShadowUpdateFrameDelay;
+        --g_numShadowUpdates; // it becomes -1
     }
 }
 
@@ -520,8 +518,6 @@ void SimulatePlayerSpace(bhkWorld *world)
 
 void Update()
 {
-    UpdateShadowDelay();
-
     if (!initComplete) return;
 
     PlayerCharacter *player = *g_thePlayer;

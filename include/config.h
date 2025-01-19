@@ -173,6 +173,7 @@ namespace Config {
         int maxNumPhysicsStepsPerUpdateComplex = 3;
 
         bool enableShadowUpdateFix = true;
+        int numShadowUpdates = 1;
         int maxNumEntitiesPerSimulationIslandToCheck = 50;
         float maxDistanceOfSimulationIslandToUpdate = 25.0f; // meters
 

@@ -330,7 +330,7 @@ extern RelocAddr<_BSVRInterface_GetHandTransform> BSOpenVR_GetHandTransform;
 typedef void(*_CreateDetectionEvent)(ActorProcessManager *ownerProcess, Actor *owner, NiPoint3 *position, int soundLevel, TESObjectREFR *source);
 extern RelocAddr<_CreateDetectionEvent> CreateDetectionEvent;
 
-typedef void(*_ShadowSceneNode_UpdateNodeList)(ShadowSceneNode *sceneNode, NiAVObject *node, bool useOtherList);
+typedef void(*_ShadowSceneNode_UpdateNodeList)(ShadowSceneNode *sceneNode, NiAVObject *node, bool isDynamic);
 extern RelocAddr<_ShadowSceneNode_UpdateNodeList> ShadowSceneNode_UpdateNodeList;
 
 typedef bool(*_IsInMenuMode)(VMClassRegistry* registry, UInt32 stackId);
@@ -509,4 +509,7 @@ extern RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu;
 
 typedef bhkCollisionObject * (*_NiAVObject_GetRepresentativeCollisionObject)(NiAVObject *_this, UInt32 maxChecks);
 extern RelocAddr<_NiAVObject_GetRepresentativeCollisionObject> NiAVObject_GetRepresentativeCollisionObject;
+
+typedef void(*_PlayRumble)(UInt32 isRight, float rumbleIntensity, float rumbleDuration);
+extern RelocAddr<_PlayRumble> PlayRumble;
 

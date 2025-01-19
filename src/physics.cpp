@@ -310,23 +310,13 @@ void ShadowUpdateFix_IslandDeactivatedCallback(hkpSimulationIsland *island)
     int numEntities = island->m_entities.getSize();
     if (numEntities <= 0) return;
 
-    if (g_shadowUpdateFrame == *g_currentFrameCounter) {
+    if (g_numShadowUpdates > 0) {
         return; // We're already doing an update this frame
     }
 
     auto SetShadowsToUpdateThisFrame = []() {
         //_MESSAGE("Island deactived on frame %d", *g_currentFrameCounter);
-        if (g_savedShadowUpdateFrameDelay == -1) {
-            g_savedShadowUpdateFrameDelay = *g_iShadowUpdateFrameDelay;
-        }
-
-        // These are values within the game
-        *g_nextShadowUpdateFrameCount = *g_currentFrameCounter;
-        *g_iShadowUpdateFrameDelay = 1;
-
-        // These are mine, used to keep track of when we want to stop updating
-        g_shadowUpdateFrame = *g_currentFrameCounter;
-        g_numShadowUpdates = 1;
+        g_numShadowUpdates = Config::options.numShadowUpdates;
     };
 
     if (numEntities > Config::options.maxNumEntitiesPerSimulationIslandToCheck) {

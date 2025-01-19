@@ -219,6 +219,8 @@ RelocAddr<_ActorProcess_GetCurrentlyEquippedWeapon> ActorProcess_GetCurrentlyEqu
 RelocAddr<_MenuManager_GetMenu> MenuManager_GetMenu(0xF1CE20);
 RelocAddr<_NiAVObject_GetRepresentativeCollisionObject> NiAVObject_GetRepresentativeCollisionObject(0xE022C0);
 
+RelocAddr<_PlayRumble> PlayRumble(0xC59440);
+
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);
 RelocAddr<_CleanupCloneList> CleanupCloneList2(0x1C8BE0);
