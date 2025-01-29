@@ -2470,31 +2470,29 @@ namespace NiMathDouble
         NiTransform world;
     };
 
-    std::unordered_map<NiAVObject *, NodeTransforms> g_nodeTransforms;
-
-    NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform)
+    NiTransform GetLocalTransformForDesiredWorldTransform(NiAVObject *node, const NiTransform &worldTransform, std::unordered_map<NiAVObject *, NodeTransforms> &nodeTransforms)
     {
         if (NiPointer<NiNode> parent = node->m_parent) {
-            if (!g_nodeTransforms.contains(parent)) {
-                g_nodeTransforms[parent] = { parent->m_localTransform, parent->m_worldTransform };
+            if (!nodeTransforms.contains(parent)) {
+                nodeTransforms[parent] = { parent->m_localTransform, parent->m_worldTransform };
             }
-            NiTransform inverseParent = InverseTransform(g_nodeTransforms[parent].world);
+            NiTransform inverseParent = InverseTransform(nodeTransforms[parent].world);
             return inverseParent * worldTransform;
         }
         return worldTransform;
     }
 
-    void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform)
+    void UpdateNodeTransformLocal(NiAVObject *node, const NiTransform &worldTransform, std::unordered_map<NiAVObject *, NodeTransforms> &nodeTransforms)
     {
         // Given world transform, set the necessary local transform
-        NiTransform local = GetLocalTransformForDesiredWorldTransform(node, worldTransform);
+        NiTransform local = GetLocalTransformForDesiredWorldTransform(node, worldTransform, nodeTransforms);
         ::NiTransform localSingle = local.ToSingle();
         //node->m_localTransform = localSingle;
-        if (!g_nodeTransforms.contains(node)) {
-            g_nodeTransforms[node] = { local, node->m_worldTransform };
+        if (!nodeTransforms.contains(node)) {
+            nodeTransforms[node] = { local, node->m_worldTransform };
         }
         else {
-            g_nodeTransforms[node].local = local;
+            nodeTransforms[node].local = local;
         }
     }
 
@@ -2514,31 +2512,31 @@ namespace NiMathDouble
         }
     }
 
-    void UpdateNodeImpl(NiAVObject *node)
+    void UpdateNodeImpl(NiAVObject *node, std::unordered_map<NiAVObject *, NodeTransforms> &nodeTransforms)
     {
         NiTransform parentTransform;
         if (node->m_parent) {
-            if (!g_nodeTransforms.contains(node->m_parent)) {
-                g_nodeTransforms[node->m_parent] = { node->m_parent->m_localTransform, node->m_parent->m_worldTransform };
+            if (!nodeTransforms.contains(node->m_parent)) {
+                nodeTransforms[node->m_parent] = { node->m_parent->m_localTransform, node->m_parent->m_worldTransform };
             }
-            parentTransform = g_nodeTransforms[node->m_parent].world;
+            parentTransform = nodeTransforms[node->m_parent].world;
         }
 
-        if (!g_nodeTransforms.contains(node)) {
-            g_nodeTransforms[node] = { node->m_localTransform, node->m_worldTransform };
+        if (!nodeTransforms.contains(node)) {
+            nodeTransforms[node] = { node->m_localTransform, node->m_worldTransform };
         }
 
-        NiTransform newTransform = parentTransform * g_nodeTransforms[node].local;
-        g_nodeTransforms[node].world = newTransform;
+        NiTransform newTransform = parentTransform * nodeTransforms[node].local;
+        nodeTransforms[node].world = newTransform;
 
-        auto &transforms = g_nodeTransforms[node];
+        auto &transforms = nodeTransforms[node];
         node->m_localTransform = transforms.local.ToSingle();
         node->m_worldTransform = transforms.world.ToSingle();
 
         if (NiNode *asNode = node->GetAsNiNode()) {
             for (int i = 0; i < asNode->m_children.m_emptyRunStart; i++) {
                 if (NiAVObject *child = asNode->m_children.m_data[i]) {
-                    UpdateNodeImpl(child);
+                    UpdateNodeImpl(child, nodeTransforms);
                 }
             }
         }
@@ -2552,8 +2550,8 @@ namespace NiMathDouble
     void UpdateNode(NiAVObject *node)
     {
         if (Config::options.doDoublePrecision) {
-            g_nodeTransforms.clear();
-            UpdateNodeImpl(node);
+            std::unordered_map<NiAVObject *, NodeTransforms> nodeTransforms{};
+            UpdateNodeImpl(node, nodeTransforms);
         }
         else {
             NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
@@ -2564,10 +2562,10 @@ namespace NiMathDouble
     void UpdateTransform(NiAVObject *node, const NiTransform &transform)
     {
         if (Config::options.doDoublePrecision) {
-            g_nodeTransforms.clear();
+            std::unordered_map<NiAVObject *, NodeTransforms> nodeTransforms{};
 
-            UpdateNodeTransformLocal(node, transform);
-            UpdateNodeImpl(node);
+            UpdateNodeTransformLocal(node, transform, nodeTransforms);
+            UpdateNodeImpl(node, nodeTransforms);
         }
         else {
             // Regular single precision stuff, let the game do it
@@ -2583,33 +2581,33 @@ namespace NiMathDouble
 
         if (!a_hand || !a_clavicle) return NiTransform{};
 
-        g_nodeTransforms.clear();
+        std::unordered_map<NiAVObject *, NodeTransforms> nodeTransforms{};
 
-        if (!g_nodeTransforms.contains(a_hand)) {
-            g_nodeTransforms[a_hand] = { a_hand->m_localTransform, a_hand->m_worldTransform };
+        if (!nodeTransforms.contains(a_hand)) {
+            nodeTransforms[a_hand] = { a_hand->m_localTransform, a_hand->m_worldTransform };
         }
-        NiTransform handLocal = g_nodeTransforms[a_hand].local;
+        NiTransform handLocal = nodeTransforms[a_hand].local;
 
         NiTransform v14 = InverseTransform(*a_magicHandTransformLocal);
         v13 = handLocal * v14;
 
         NiNode *parent = a_hand->m_parent;
         while (parent && parent != a_clavicle) {
-            if (!g_nodeTransforms.contains(parent)) {
-                g_nodeTransforms[parent] = { parent->m_localTransform, parent->m_worldTransform };
+            if (!nodeTransforms.contains(parent)) {
+                nodeTransforms[parent] = { parent->m_localTransform, parent->m_worldTransform };
             }
-            NiTransform nodeLocal = g_nodeTransforms[parent].local;
+            NiTransform nodeLocal = nodeTransforms[parent].local;
             v13 = nodeLocal * v13;
             parent = parent->m_parent;
         }
         v14 = InverseTransform(v13);
         v13 = *a_wandNodeTransformWorld * v14;
 
-        UpdateNodeTransformLocal(a_clavicle, v13);
+        UpdateNodeTransformLocal(a_clavicle, v13, nodeTransforms);
 
-        UpdateNodeImpl(a_clavicle);
+        UpdateNodeImpl(a_clavicle, nodeTransforms);
 
-        return g_nodeTransforms[a_hand].world;
+        return nodeTransforms[a_hand].world;
     }
 }
 
