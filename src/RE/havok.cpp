@@ -194,3 +194,16 @@ UInt64 hkpWorldObject_removeProperty(hkpWorldObject *object, UInt32 key) {
     return ret;
 }
 
+int hkpCharacterProxy_findCharacterProxyListener(hkpCharacterProxy *_this, hkpCharacterProxyListener *proxyListener)
+{
+    hkArray<hkpCharacterProxyListener *> &listeners = _this->m_listeners;
+
+    for (int i = 0; i < listeners.getSize(); i++) {
+        hkpCharacterProxyListener *listener = listeners[i];
+        if (listener == proxyListener) {
+            return i;
+        }
+    }
+    return -1;
+}
+

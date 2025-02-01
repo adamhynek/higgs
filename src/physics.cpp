@@ -17,6 +17,7 @@
 #include <Physics/Collide/Agent/Query/hkpLinearCastCollisionInput.h>
 #include <Physics/Collide/BroadPhase/hkpBroadPhase.h>
 #include <Physics/Collide/Dispatch/BroadPhase/hkpTypedBroadPhaseHandlePair.h>
+#include <Physics/ConstraintSolver/Simplex/hkpSimplexSolver.h>
 
 
 CdPointCollector::CdPointCollector()
@@ -528,6 +529,26 @@ void HeldObjectCollisionListener::contactPointCallback(const hkpContactPointEven
 }
 
 HeldObjectCollisionListener g_heldObjectCollisionListener;
+
+
+void PlayerCharacterProxyListener::processConstraintsCallback(const hkpCharacterProxy *proxy, const hkArray<hkpRootCdPoint> &manifold, hkpSimplexSolverInput &input)
+{
+    int i = 0;
+    for (i = 0; i < manifold.getSize(); i++) {
+        hkpRigidBody *rigidBody = hkpGetRigidBody(manifold[i].m_rootCollidableB);
+
+        if (rigidBody && IsMoveableEntity(rigidBody)) {
+            UInt32 layer = GetCollisionLayer(rigidBody);
+            bool isBiped = layer == BGSCollisionLayer::kCollisionLayer_Biped || layer == BGSCollisionLayer::kCollisionLayer_BipedNoCC;
+            if (IsMoveableEntity(rigidBody) && !isBiped) {
+                hkpSurfaceConstraintInfo &surface = input.m_constraints[i];
+                surface.m_velocity.setZero4();
+            }
+        }
+    }
+}
+
+PlayerCharacterProxyListener g_characterProxyListener{};
 
 
 std::mutex PhysicsListener::handLocks[2]{};

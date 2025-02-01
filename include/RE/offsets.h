@@ -310,6 +310,9 @@ extern RelocAddr<_hkpWorldObject_setProperty> hkpWorldObject_setProperty;
 typedef bool(*_hkpWorldObject_hasProperty)(hkpWorldObject *worldObject, UInt32 key);
 extern RelocAddr<_hkpWorldObject_hasProperty> hkpWorldObject_hasProperty;
 
+typedef void(*_hkpCharacterProxy_addCharacterProxyListener)(hkpCharacterProxy *_this, hkpCharacterProxyListener *listener);
+extern RelocAddr<_hkpCharacterProxy_addCharacterProxyListener> hkpCharacterProxy_addCharacterProxyListener;
+
 // More havok-related
 typedef bhkWorld * (*_GetHavokWorldFromCell)(TESObjectCELL *cell);
 extern RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell;

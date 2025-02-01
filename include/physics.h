@@ -128,6 +128,20 @@ struct HeldObjectCollisionListener : hkpContactListener
 };
 extern HeldObjectCollisionListener g_heldObjectCollisionListener;
 
+struct PlayerCharacterProxyListener : hkpCharacterProxyListener
+{
+    // Called when the character interacts with another (non fixed or keyframed) rigid body.
+    //virtual void objectInteractionCallback(hkpCharacterProxy *proxy, const hkpCharacterObjectInteractionEvent &input, hkpCharacterObjectInteractionResult &output);
+
+    // Called before the simplex solver is called.
+    // The manifold is passed so the user can retrieve body information if necessary
+    // This allows the user to override of add any information stored in the plane equations passed to the simplex solver.
+    virtual void processConstraintsCallback(const hkpCharacterProxy *proxy, const hkArray<hkpRootCdPoint> &manifold, hkpSimplexSolverInput &input);
+
+    bhkCharProxyController *playerProxy = nullptr; // for reference purposes only, do not dereference
+};
+extern PlayerCharacterProxyListener g_characterProxyListener;
+
 
 void AddHiggsDroppedTrackingInfo(hkpRigidBody *body);
 void RemoveHiggsDroppedTrackingInfo(hkpEntity *body);

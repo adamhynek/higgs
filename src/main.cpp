@@ -367,6 +367,7 @@ bool g_prevVelocityAdded = false;
 float g_prevVrikOffset = 0.f;
 float g_prevVrikSmoothingOffset = 0.f;
 
+
 void SimulatePlayerSpace(bhkWorld *world)
 {
     //_MESSAGE("%d SimulatePlayerSpace", *g_currentFrameCounter);
@@ -541,6 +542,21 @@ void Update()
 
     if (reloadConfig) {
         Config::ReloadIfModified();
+    }
+
+    if (NiPointer<bhkCharProxyController> controller = GetCharProxyController(*g_thePlayer)) {
+        if (controller != g_characterProxyListener.playerProxy) {
+            if (RE::hkRefPtr<hkpCharacterProxy> proxy = controller->proxy.characterProxy) {
+                _MESSAGE("%d: Player Character Proxy changed", *g_currentFrameCounter);
+
+                BSWriteLocker lock(&world->worldLock);
+
+                if (hkpCharacterProxy_findCharacterProxyListener(proxy, &g_characterProxyListener) == -1) {
+                    hkpCharacterProxy_addCharacterProxyListener(proxy, &g_characterProxyListener);
+                }
+            }
+            g_characterProxyListener.playerProxy = controller;
+        }
     }
 
     if (world != g_physicsListener.world) {
@@ -863,8 +879,9 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
 
             const hkpCollidable *otherCollidable = collisionGroupA == playerCollisionGroup ? hit.m_rootCollidableB : hit.m_rootCollidableA;
             if (hkpRigidBody *rigidBody = hkpGetRigidBody(otherCollidable)) {
-                UInt32 otherLayer = otherCollidable->getCollisionFilterInfo() & 0x7f;
-                if (otherLayer == BGSCollisionLayer::kCollisionLayer_Clutter || otherLayer == BGSCollisionLayer::kCollisionLayer_Weapon) {
+                UInt32 otherLayer = GetCollisionLayer(rigidBody);
+                bool isBiped = otherLayer == BGSCollisionLayer::kCollisionLayer_Biped || otherLayer == BGSCollisionLayer::kCollisionLayer_BipedNoCC;
+                if (IsMoveableEntity(rigidBody) && !isBiped) {
                     float massInv = rigidBody->getMassInv();
                     float mass = massInv != 0 ? 1.f / massInv : (std::numeric_limits<float>::max)();
 
@@ -874,22 +891,6 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
                         collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
                         collector->getHits().m_size -= 1;
                         i -= 1;
-                    }
-                    else {
-                        hkVector4 pointVelocity; rigidBody->getPointVelocity(hit.m_contact.getPosition(), pointVelocity);
-                        hkVector4 normal = hit.m_contact.getNormal();
-                        float speedInNormalDirection = pointVelocity.dot3(normal);
-
-                        if (speedInNormalDirection > Config::options.dontCollideClutterMinVelocity) {
-                            { // Ignore the entire object after this
-                                std::scoped_lock lock(g_ignoredCollisionGroupsLock);
-                                g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
-                            }
-
-                            collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
-                            collector->getHits().m_size -= 1;
-                            i -= 1;
-                        }
                     }
                 }
             }
@@ -1069,6 +1070,8 @@ extern "C" {
         }
 
         if (Config::options.minCollideClutterMass != 0.f) {
+            // Note: fMoveLimitMass mostly just does 1 thing: collided objects above this mass get their objectImpulse zeroed (i.e. the player cannot move them by colliding with them)
+            // There is another place it's used where objects below this mass result in the charcontroller proxy plane being zeroed (i.e. collision ignored). But this only runs if there was no rigidbody collided, so basically never?
             *g_fMoveLimitMass = Config::options.minCollideClutterMass;
         }
 

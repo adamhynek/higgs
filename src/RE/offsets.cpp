@@ -148,6 +148,7 @@ RelocAddr<_hkpWorldObject_removePropertyMt> hkpWorldObject_removePropertyMt(0xDF
 RelocAddr<_hkpWorldObject_removeProperty> hkpWorldObject_removePropertyImpl(0xAB9B80);
 RelocAddr<_hkpWorldObject_setProperty> hkpWorldObject_setProperty(0xAB9C40);
 RelocAddr<_hkpWorldObject_hasProperty> hkpWorldObject_hasProperty(0xDF8BD0);
+RelocAddr<_hkpCharacterProxy_addCharacterProxyListener> hkpCharacterProxy_addCharacterProxyListener(0xAFA820);
 
 // More havok-related
 RelocAddr<_GetHavokWorldFromCell> GetHavokWorldFromCell(0x276A90);

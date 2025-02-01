@@ -343,7 +343,7 @@ struct RefreshActivateButtonArtTask : UIDelegate_v1
 
 struct RolloverHandler
 {
-    enum RolloverState {
+    enum class RolloverState {
         None,
         Show,
         Hide,

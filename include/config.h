@@ -238,7 +238,6 @@ namespace Config {
         double handWeaponCollisionEnableDelay = 0.1;
 
         float minCollideClutterMass = 0.f;
-        float dontCollideClutterMinVelocity = 0.f;
 
         bool enableTwoHandedGrabbing = true;
         bool allowGrabWithSpell = true;
