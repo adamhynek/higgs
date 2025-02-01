@@ -112,15 +112,19 @@ namespace HiggsPluginAPI {
         virtual void AddPostVrikPreHiggsCallback(NoArgCallback callback) = 0;
         virtual void AddPostVrikPostHiggsCallback(NoArgCallback callback) = 0;
 
-        // Read or modify any of higgs's numeric ini settings. Returns true if the option exists and is gotten/set, and false otherwise.
-        // Only some settings will have an effect if modified, depending on if they are read at startup, when loading / switching cells, or at the time that they are actually required.
-        virtual bool GetSettingDouble(const std::string_view& name, double& out) = 0;
-        virtual bool SetSettingDouble(const std::string& name, double val) = 0;
+        // Deprecated functions for getting/setting ini settings. Use GetSettingDouble/SetSettingDouble instead.
+        virtual bool Deprecated1(const std::string_view& name, double& out) = 0;
+        virtual bool Deprecated2(const std::string& name, double val) = 0;
 
         // Get/set the transform of the current grabbed object in the space of the hand that grabs it, i.e. the hand-to-grabbed-node transform.
         // This is the transform the grabbed node is driven/set to, as well as the transform the hand is set from when in physics-grab mode.
         virtual NiTransform GetGrabTransform(bool isLeft) = 0;
         virtual void SetGrabTransform(bool isLeft, const NiTransform &transform) = 0;
+
+        // Read or modify any of higgs's numeric ini settings. Returns true if the option exists and is gotten/set, and false otherwise.
+        // Only some settings will have an effect if modified, depending on if they are read at startup, when loading / switching cells, or at the time that they are actually required.
+        virtual bool GetSettingDouble(const char *name, double &out) = 0;
+        virtual bool SetSettingDouble(const char *name, double val) = 0;
     };
 }
 

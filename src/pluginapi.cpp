@@ -42,11 +42,19 @@ unsigned int HiggsInterface001::GetBuildNumber() {
     return higgsBuildNumber;
 }
 
-bool HiggsInterface001::GetSettingDouble(const std::string_view& name, double& out) {
+bool HiggsInterface001::Deprecated1(const std::string_view &name, double &out) {
     return Config::GetSettingDouble(name, out);
 }
 
-bool HiggsInterface001::SetSettingDouble(const std::string& name, double val) {
+bool HiggsInterface001::Deprecated2(const std::string &name, double val) {
+    return Config::SetSettingDouble(name, val);
+}
+
+bool HiggsInterface001::GetSettingDouble(const char *name, double& out) {
+    return Config::GetSettingDouble(name, out);
+}
+
+bool HiggsInterface001::SetSettingDouble(const char *name, double val) {
     return Config::SetSettingDouble(name, val);
 }
 
