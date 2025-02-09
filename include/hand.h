@@ -243,6 +243,7 @@ struct Hand
     bool IsInGrabbableState() const;
     bool ShouldRestrictPull() const;
     bool ShouldRestrictTrigger() const;
+    bool ShouldNotBlockTrigger() const;
     bool CanHoldObject() const;
     bool CanTwoHand() const;
     bool CanGrabObject() const;

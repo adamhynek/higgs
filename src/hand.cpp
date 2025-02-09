@@ -4102,6 +4102,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
     bool canGrab = CanHoldObject() || CanTwoHand();
     bool canUseTrigger = !ShouldRestrictTrigger();
+    bool shouldNotBlockTrigger = ShouldNotBlockTrigger(); // offhand trigger triggers eagle eye with crossbows, and we want to keep that
 
     if (inputState == InputState::Idle) {
         if (((triggerRisingEdge && canUseTrigger) || gripRisingEdge) && canGrab) {
@@ -4180,7 +4181,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             }
         }
         else {
-            if (Config::options.enableTrigger) {
+            if (Config::options.enableTrigger && !shouldNotBlockTrigger) {
                 pControllerState->ulButtonPressed &= ~triggerMask;
             }
 
@@ -4423,6 +4424,11 @@ bool Hand::ShouldRestrictTrigger() const
 {
     PlayerCharacter *player = *g_thePlayer;
     return player->actorState.IsWeaponDrawn() && GetEquippedSpell(player, *g_leftHandedMode != isLeft);
+}
+
+bool Hand::ShouldNotBlockTrigger() const
+{
+    return IsTwoHanding() && twoHandedState.weapon->type() == TESObjectWEAP::GameData::kType_CrossBow;
 }
 
 bool Hand::CanHoldObject() const
