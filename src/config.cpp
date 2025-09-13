@@ -58,10 +58,12 @@ namespace Config {
         return true;
     }
 
-    bool ReadInt(const std::string &name, int &val)
+    bool ReadInt(const std::string &name, int &val, bool isImportant=true)
     {
         if (!GetConfigOptionInt("Settings", name.c_str(), &val)) {
-            _WARNING("Failed to read int config option: %s", name.c_str());
+            if (isImportant) {
+                _WARNING("Failed to read int config option: %s", name.c_str());
+            }
             return false;
         }
 
@@ -137,10 +139,10 @@ namespace Config {
         return ReadDouble(name, val);
     }
 
-    bool RegisterInt(const std::string& name, int& val)
+    bool RegisterInt(const std::string& name, int& val, bool isImportant=true)
     {
         if (!g_registrationComplete) intMap[name] = &val;
-        return ReadInt(name, val);
+        return ReadInt(name, val, isImportant);
     }
 
     bool RegisterBool(const std::string& name, bool& val)
@@ -529,6 +531,12 @@ namespace Config {
         RegisterFloat("dummyFloat2", options.dummyFloat2, false);
         RegisterFloat("dummyFloat3", options.dummyFloat3, false);
         RegisterFloat("dummyFloat4", options.dummyFloat4, false);
+
+        RegisterInt("dummyInt0", options.dummyInt0, false);
+        RegisterInt("dummyInt1", options.dummyInt1, false);
+        RegisterInt("dummyInt2", options.dummyInt2, false);
+        RegisterInt("dummyInt3", options.dummyInt3, false);
+        RegisterInt("dummyInt4", options.dummyInt4, false);
 
         g_registrationComplete = true;
 

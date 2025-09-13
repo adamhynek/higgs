@@ -125,6 +125,9 @@ namespace HiggsPluginAPI {
         // Only some settings will have an effect if modified, depending on if they are read at startup, when loading / switching cells, or at the time that they are actually required.
         virtual bool GetSettingDouble(const char *name, double &out) = 0;
         virtual bool SetSettingDouble(const char *name, double val) = 0;
+
+        // Get the name of the node that the given hand is currently grabbing, or an empty string if not grabbing a node or if the grabbed node has no name.
+        virtual BSFixedString GetGrabbedNodeName(bool isLeft) = 0;
     };
 }
 

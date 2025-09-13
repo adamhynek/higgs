@@ -262,6 +262,12 @@ namespace Config {
         float dummyFloat3 = 0.f;
         float dummyFloat4 = 0.f;
 
+        int dummyInt0 = 0;
+        int dummyInt1 = 0;
+        int dummyInt2 = 0;
+        int dummyInt3 = 0;
+        int dummyInt4 = 0;
+
         bool convertDebrisToMoving = true;
         bool disableShaders = false;
         bool disableSelectionBeam = false;

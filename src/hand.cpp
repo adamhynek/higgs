@@ -1304,6 +1304,8 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         return;
     }
 
+    selectedObject.grabbedNodeName = collidableNode->m_name;
+
     StopSelectionEffect(selectedObject.handle, selectedObject.shaderNode);
 
     float mass = NiAVObject_GetMass(collidableNode, 0);
@@ -4470,6 +4472,8 @@ bool Hand::HasIgnorableCollision() const
 
 bool Hand::ShouldIgnoreCollisionGroup(UInt32 collisionGroup) const
 {
+    // Note: This also ignores held actors, which we might not want
+
     bool isPulling = pulledObject.handle != *g_invalidRefHandle;
     if (isPulling) {
         return collisionGroup == pulledObject.collisionGroup;

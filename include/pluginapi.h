@@ -51,6 +51,7 @@ namespace HiggsPluginAPI {
 
         virtual void GrabObject(TESObjectREFR *object, bool isLeft);
         virtual TESObjectREFR * GetGrabbedObject(bool isLeft);
+        virtual BSFixedString GetGrabbedNodeName(bool isLeft);
         virtual bool IsHandInGrabbableState(bool isLeft);
 
         virtual void DisableHand(bool isLeft);

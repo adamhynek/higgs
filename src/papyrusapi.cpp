@@ -22,6 +22,10 @@ namespace PapyrusAPI
         return g_interface001.GetGrabbedObject(isLeft);
     }
 
+    BSFixedString PapyrusGetGrabbedNodeName(StaticFunctionTag *base, bool isLeft) {
+        return g_interface001.GetGrabbedNodeName(isLeft);
+    }
+
     bool PapyrusCanGrabObject(StaticFunctionTag *base, bool isLeft) {
         return g_interface001.CanGrabObject(isLeft);
     }
@@ -284,6 +288,7 @@ namespace PapyrusAPI
 
         registry->RegisterFunction(new NativeFunction2 <StaticFunctionTag, void, TESObjectREFR*, bool>("GrabObject", "HiggsVR", PapyrusGrabObject, registry));
         registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, TESObjectREFR*, bool>("GetGrabbedObject", "HiggsVR", PapyrusGetGrabbedObject, registry));
+        registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, BSFixedString, bool>("GetGrabbedNodeName", "HiggsVR", PapyrusGetGrabbedNodeName, registry));
         registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, bool, bool>("CanGrabObject", "HiggsVR", PapyrusCanGrabObject, registry));
 
         registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, void, bool>("DisableHand", "HiggsVR", PapyrusDisableHand, registry));

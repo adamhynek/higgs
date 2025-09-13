@@ -273,6 +273,15 @@ TESObjectREFR * HiggsInterface001::GetGrabbedObject(bool isLeft)
     return nullptr;
 }
 
+BSFixedString HiggsInterface001::GetGrabbedNodeName(bool isLeft)
+{
+    Hand &hand = isLeft ? *g_leftHand : *g_rightHand;
+    if (hand.HasHeldObject() && hand.selectedObject.grabbedNodeName) {
+        return hand.selectedObject.grabbedNodeName;
+    }
+    return "";
+}
+
 bool HiggsInterface001::IsHandInGrabbableState(bool isLeft)
 {
     Hand &hand = isLeft ? *g_leftHand : *g_rightHand;

@@ -32,6 +32,7 @@ struct Hand
         std::unordered_map<bhkRigidBody *, NiPoint3> savedInverseInertias;
         std::deque<NiPoint3> localLinearVelocities{ 5, NiPoint3() };
         NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
+        BSFixedString grabbedNodeName;
         UInt32 handle = 0;
         UInt32 collisionGroup = 0;
         float massAtGrabTime = 0.f;
