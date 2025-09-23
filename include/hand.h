@@ -31,10 +31,11 @@ struct Hand
         std::unordered_map<bhkRigidBody *, hkInt16> savedContactPointCallbackDelays;
         std::unordered_map<bhkRigidBody *, NiPoint3> savedInverseInertias;
         std::deque<NiPoint3> localLinearVelocities{ 5, NiPoint3() };
+        std::vector<hkpRigidBody *> collisionIgnoredBodies{}; // NOT smart pointer, only for lookups / comparisons
+        std::mutex collisionIgnoredBodiesLock{};
         NiPoint3 point; // in meters (havok), the last point that was selected by the collision checks
         BSFixedString grabbedNodeName;
         UInt32 handle = 0;
-        UInt32 collisionGroup = 0;
         float massAtGrabTime = 0.f;
         hkpMotion::MotionType savedMotionType = hkpMotion::MotionType::MOTION_INVALID;
         hkInt8 savedQuality = HK_COLLIDABLE_QUALITY_INVALID;
@@ -48,9 +49,10 @@ struct Hand
     struct PulledObject
     {
         NiPointer<bhkRigidBody> rigidBody;
+        std::vector<hkpRigidBody *> collisionIgnoredBodies{}; // NOT smart pointer, only for lookups / comparisons
+        std::mutex collisionIgnoredBodiesLock{};
         UInt32 handle = 0;
         hkHalf savedAngularDamping;
-        UInt32 collisionGroup = 0;
     };
 
     struct TwoHandedState
@@ -253,7 +255,7 @@ struct Hand
     bool HasHeldKeyframed() const;
     bool HasHeldConstrained() const;
     bool HasIgnorableCollision() const;
-    bool ShouldIgnoreCollisionGroup(UInt32 collisionGroup) const;
+    bool ShouldIgnoreCollisionWithBody(const hkpRigidBody *body);
     bool GetActivateText(std::string &str);
     bool GetActivateButton(std::string &str);
     void SetupRollover(NiAVObject *rolloverNode);

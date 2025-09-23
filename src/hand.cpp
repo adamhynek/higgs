@@ -1217,7 +1217,7 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
         // It's not one of the skinned nodes
         int triIndex = closestTriIndex - trianglePartitions.size();
         NiPointer<NiAVObject> grabbedNode = triangleNodes[triIndex];
-        if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithCollision(grabbedNode)) {
+        if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithMoveableCollision(grabbedNode)) {
             if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
                 return rigidBody;
             }
@@ -1283,7 +1283,7 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
         }
 
         if (maxBone) {
-            if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithCollision(maxBone)) {
+            if (NiPointer<NiAVObject> nodeWithCollision = GetClosestParentWithMoveableCollision(maxBone)) {
                 if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
                     return rigidBody;
                 }
@@ -1538,6 +1538,18 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
     desiredNodeTransform.pos += palmPos - ptPos;
     desiredNodeTransformHandSpace = inverseHand * desiredNodeTransform;
 
+    static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
+    DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
+    CollectAllGrabbedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+
+    {
+        std::scoped_lock lock(selectedObject.collisionIgnoredBodiesLock);
+        selectedObject.collisionIgnoredBodies.clear();
+        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+            selectedObject.collisionIgnoredBodies.push_back(connectedBody->hkBody);
+        }
+    }
+
     if (usePhysicsGrab) {
         if (warpToHand) {
             // Teleport the object directly into our hand
@@ -1598,7 +1610,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         bhkWorld_AddConstraint(&world, constraint->constraint);
         grabConstraint = constraint;
 
-        // If the object needs to sync a lot (a custom transform was provided), we wanto to fade in the forces gradually
+        // If the object needs to sync a lot (a custom transform was provided), we want to fade in the forces gradually
         fadeInGrabConstraint = initialTransform.has_value();
 
         {
@@ -1612,10 +1624,6 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
         }
 
         handDeviations.assign(handDeviations.size(), 0.f);
-
-        static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
-        DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
-        CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
 
         for (NiPointer<bhkRigidBody> connectedBody : connectedRigidBodies) {
             hkpEntity_addContactListener(connectedBody->hkBody, isLeft ? &g_leftEntityCollisionListener : &g_rightEntityCollisionListener);
@@ -2536,7 +2544,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                     }
                                     else {
                                         // Weapon is attached to the character - get the nearest parent node that does have collision
-                                        NiAVObject *nodeWithCollision = GetClosestParentWithCollision(geomNode);
+                                        NiAVObject *nodeWithCollision = GetClosestParentWithMoveableCollision(geomNode);
                                         if (nodeWithCollision && nodeWithCollision == hitNode) {
                                             TESForm *form = bipedData->unk10[i].armor;
                                             if (form && form->IsPlayable()) {
@@ -3004,7 +3012,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                             static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies{};
                             DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
-                            CollectAllConnectedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+                            CollectAllGrabbedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
 
                             // Set velocity of the held object more precisely than just using its current velocity
                             NiPoint3 velocityObjectComponent = GetMaxVelocity(selectedObject.localLinearVelocities);
@@ -3207,9 +3215,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                 other.EndPull();
                             }
 
+                            { // clear this before we set the handle as that's what we check to see if we are pulling something
+                                std::scoped_lock lock(pulledObject.collisionIgnoredBodiesLock);
+                                pulledObject.collisionIgnoredBodies.clear();
+                            }
+
                             pulledObject.handle = selectedObject.handle;
                             pulledObject.rigidBody = selectedObject.rigidBody;
-                            pulledObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
                             pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
                             motion->m_motionState.m_angularDamping = hkHalf(Config::options.pulledAngularDamping);
 
@@ -3396,9 +3408,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         // Cancel an existing pulled collision reset
                         EndPull();
 
+                        { // clear this before we set the handle as that's what we check to see if we are pulling something
+                            std::scoped_lock lock(pulledObject.collisionIgnoredBodiesLock);
+                            pulledObject.collisionIgnoredBodies.clear();
+                        }
+
                         pulledObject.handle = selectedObject.handle;
                         pulledObject.rigidBody = selectedObject.rigidBody;
-                        pulledObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
 
                         hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
                         pulledObject.savedAngularDamping = motion->m_motionState.m_angularDamping;
@@ -3450,14 +3466,32 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     float verticalDelta = pullTarget.z - objPoint.z;
                     velocity.z = 0.5f * 9.81f * duration + verticalDelta / duration;
 
-                    NiPointer<NiAVObject> n = GetNodeFromCollidable(selectedObject.collidable);
-                    if (n && DoesNodeHaveConstraint(objRoot, n)) {
-                        // TODO: Set velocity for only the connected component of constrained objects containing this one, not all in the refr
-                        SetVelocityDownstream(objRoot, NiPointToHkVector(velocity));
+
+                    static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies;
+                    DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
+                    bool isAttachedToFixed = CollectAllGrabbedRigidBodies(objRoot, selectedObject.rigidBody, connectedRigidBodies);
+
+                    {
+                        std::scoped_lock lock(pulledObject.collisionIgnoredBodiesLock);
+                        pulledObject.collisionIgnoredBodies.clear();
+                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                            pulledObject.collisionIgnoredBodies.push_back(connectedBody->hkBody);
+                        }
+                    }
+
+                    // If any of the connected bodies is a fixed body, we don't want to set velocity of everything
+                    if (!isAttachedToFixed) {
+                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
+                            if (IsMoveableEntity(connectedBody->hkBody)) {
+                                bhkRigidBody_setActivated(connectedBody, true);
+                                hkpMotion *motion = connectedBody->hkBody->getRigidMotion();
+                                motion->m_linearVelocity = NiPointToHkVector(velocity);
+                            }
+                        }
                     }
                     else {
-                        hkpMotion *motion = &selectedObject.rigidBody->hkBody->m_motion;
                         bhkRigidBody_setActivated(selectedObject.rigidBody, true);
+                        hkpMotion *motion = selectedObject.rigidBody->hkBody->getRigidMotion();
                         motion->m_linearVelocity = NiPointToHkVector(velocity);
                     }
                 }
@@ -3693,8 +3727,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
                 fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
 
-                selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
-
                 NiTransform desiredTransform = handNode->m_worldTransform * desiredNodeTransformHandSpace;
 
                 if (state == State::HeldInit) {
@@ -3755,8 +3787,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     fingerAnimator.SetFingerValues(grabbedFingerValues, posSpeed, rotSpeed, useAlternateThumbCurve);
                 }
 
-                selectedObject.collisionGroup = selectedObject.collidable->getCollisionFilterInfo() >> 16;
-
                 bool isHoldingNonRagdolledActor = false;
                 if (selectedObject.isActor) {
                     if(Actor *actor = DYNAMIC_CAST(selectedObj, TESObjectREFR, Actor)) {
@@ -3768,7 +3798,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies;
                 DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
-                CollectAllConnectedRigidBodies(selectedObj->GetNiNode(), selectedObject.rigidBody, connectedRigidBodies);
+                bool isAttachedToFixed = CollectAllGrabbedRigidBodies(selectedObj->GetNiNode(), selectedObject.rigidBody, connectedRigidBodies);
                 
                 if (!isHoldingNonRagdolledActor) {
                     for (bhkRigidBody *connectedBody : connectedRigidBodies) {
@@ -3802,15 +3832,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         }
                     }
                     else {
-                        // Check if any of the connected bodies is a fixed body. If so, we don't want to set position of everything
-                        bool isAttachedToFixed = false;
-                        for (bhkRigidBody *connectedBody : connectedRigidBodies) {
-                            if (!IsMoveableEntity(connectedBody->hkBody)) {
-                                isAttachedToFixed = true;
-                                break;
-                            }
-                        }
-
+                        // If any of the connected bodies is a fixed body, we don't want to set position of everything
                         if (!isAttachedToFixed) {
                             for (bhkRigidBody *containedBody : containedRigidBodies) {
                                 RegisterPlayerSpaceBody(containedBody);
@@ -4390,7 +4412,6 @@ void Hand::EndPull()
     }
     pulledObject.handle = *g_invalidRefHandle;
     pulledObject.rigidBody = nullptr;
-    pulledObject.collisionGroup = 0;
 }
 
 
@@ -4470,18 +4491,20 @@ bool Hand::HasIgnorableCollision() const
     return isPulling || isHolding;
 }
 
-bool Hand::ShouldIgnoreCollisionGroup(UInt32 collisionGroup) const
+bool Hand::ShouldIgnoreCollisionWithBody(const hkpRigidBody *body)
 {
     // Note: This also ignores held actors, which we might not want
 
     bool isPulling = pulledObject.handle != *g_invalidRefHandle;
     if (isPulling) {
-        return collisionGroup == pulledObject.collisionGroup;
+        std::scoped_lock lock(pulledObject.collisionIgnoredBodiesLock);
+        return std::find(pulledObject.collisionIgnoredBodies.begin(), pulledObject.collisionIgnoredBodies.end(), body) != pulledObject.collisionIgnoredBodies.end();
     }
 
     bool isHolding = HasHeldObject();
     if (isHolding) {
-        return collisionGroup == selectedObject.collisionGroup;
+        std::scoped_lock lock(selectedObject.collisionIgnoredBodiesLock);
+        return std::find(selectedObject.collisionIgnoredBodies.begin(), selectedObject.collisionIgnoredBodies.end(), body) != selectedObject.collisionIgnoredBodies.end();
     }
 
     return false;

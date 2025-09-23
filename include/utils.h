@@ -73,7 +73,7 @@ inline bool IsMotionTypeMoveable(UInt8 motionType) {
         motionType == hkpMotion::MotionType::MOTION_THIN_BOX_INERTIA
         );
 }
-bool IsMoveableEntity(hkpEntity *entity);
+bool IsMoveableEntity(const hkpEntity *entity);
 bool IsObjectSelectable(hkpRigidBody *rigidBody, TESObjectREFR *ref);
 
 bool HasGeometryChildren(NiAVObject *obj);
@@ -132,13 +132,16 @@ void SetSelectedHandles(bool isLeftHanded, UInt32 handle);
 void ReplaceBSString(BSString &replacee, std::string &replacer);
 void SetGeometryAlphaDownstream(NiAVObject *root, float alpha);
 NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node);
+NiPointer<NiAVObject> GetClosestParentWithMoveableCollision(NiAVObject *node);
 NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root);
 NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(TESObjectREFR *refr);
 NiAVObject * GetNodeMatchingBoneTreeTransform(BSFlattenedBoneTree *tree, NiTransform *worldTransform);
 void ModSpeedMult(Actor *actor, float amount);
 void ConsumeSpellBook(PlayerCharacter *player, TESObjectBOOK *book);
 void CollectAllHavokObjects(NiAVObject *root, std::vector<NiPointer<bhkRigidBody>> &out);
+void CollectRelevantNonMoveableRigidBodies(std::set<NiPointer<bhkRigidBody>> &inOut);
 void CollectAllConnectedRigidBodies(NiAVObject *root, bhkRigidBody *connectee, std::set<NiPointer<bhkRigidBody>> &out);
+bool CollectAllGrabbedRigidBodies(NiAVObject *root, bhkRigidBody *grabbedBody, std::set<NiPointer<bhkRigidBody>> &out);
 void ForEachAdjacentBody(NiAVObject *root, bhkRigidBody *body, std::function<void(hkpRigidBody *)> f, int waves = 1);
 inline TESRace * Actor_GetRace(Actor *actor) { return *((TESRace **)((UInt64)actor + 0x1F0)); }
 

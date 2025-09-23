@@ -117,9 +117,9 @@ UInt32 GetFullFormID(const ModInfo * modInfo, UInt32 formLower)
     return (modInfo->modIndex << 24) | formLower;
 }
 
-bool IsMoveableEntity(hkpEntity *entity)
+bool IsMoveableEntity(const hkpEntity *entity)
 {
-    hkpMotion *motion = &entity->m_motion;
+    const hkpMotion *motion = &entity->m_motion;
     return IsMotionTypeMoveable(motion->m_type);
 }
 
@@ -1027,6 +1027,20 @@ NiPointer<NiAVObject> GetClosestParentWithCollision(NiAVObject *node)
     return nullptr;
 }
 
+NiPointer<NiAVObject> GetClosestParentWithMoveableCollision(NiAVObject *node)
+{
+    NiPointer<NiAVObject> nodeWithCollision = node;
+    while (nodeWithCollision) {
+        if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(nodeWithCollision)) {
+            if (rigidBody->hkBody->m_world && IsMoveableEntity(rigidBody->hkBody)) {
+                return nodeWithCollision;
+            }
+        }
+        nodeWithCollision = nodeWithCollision->m_parent;
+    }
+    return nullptr;
+}
+
 NiPointer<BSFlattenedBoneTree> GetFlattenedBoneTree(NiAVObject *root)
 {
     if (!root) return nullptr;
@@ -1169,6 +1183,63 @@ void CollectAllConnectedRigidBodies(NiAVObject *root, bhkRigidBody *connectee, s
         bool didAddAny = CollectAllConnectedRigidBodiesHelper(root, out);
         done = !didAddAny;
     }
+}
+
+void CollectDownstreamNonMoveableRigidBodies(NiAVObject *root, std::set<NiPointer<bhkRigidBody>> &out)
+{
+    if (NiNode *node = root->GetAsNiNode()) {
+        for (int i = 0; i < node->m_children.m_emptyRunStart; i++) {
+            if (NiAVObject *child = node->m_children.m_data[i]) {
+                if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(child)) {
+                    if (IsMoveableEntity(rigidBody->hkBody)) {
+                        // If it's moveable, it undergoes its own physics and so does not follow the parent
+                    }
+                    else {
+                        // Non-moveable follows the parent, so include it
+                        out.insert(rigidBody);
+                        CollectDownstreamNonMoveableRigidBodies(child, out);
+                    }
+                }
+                else {
+                    CollectDownstreamNonMoveableRigidBodies(child, out);
+                }
+            }
+        }
+    }
+}
+
+void CollectRelevantNonMoveableRigidBodies(std::set<NiPointer<bhkRigidBody>> &inOut)
+{
+    std::set<NiPointer<bhkRigidBody>> copy(inOut); // copy since we're iterating and modifying the same set
+    for (bhkRigidBody *rigidBody : copy) {
+        if (NiPointer<NiAVObject> node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
+            CollectDownstreamNonMoveableRigidBodies(node, inOut);
+        }
+    }
+}
+
+bool CollectAllGrabbedRigidBodies(NiAVObject *root, bhkRigidBody *grabbedBody, std::set<NiPointer<bhkRigidBody>> &out)
+{
+    CollectAllConnectedRigidBodies(root, grabbedBody, out);
+
+    bool isAttachedToNonMoveable = false;
+    // Remove any non-moveable bodies we are attached to.
+    std::erase_if(out,
+        [&isAttachedToNonMoveable](const NiPointer<bhkRigidBody> &body) {
+            if (!IsMoveableEntity(body->hkBody)) {
+                isAttachedToNonMoveable = true;
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+    );
+
+    // Add any downstream non-moveable bodies.
+    CollectRelevantNonMoveableRigidBodies(out);
+
+    return isAttachedToNonMoveable;
 }
 
 void CollectAllConstraints(NiAVObject *root, std::vector<NiPointer<bhkConstraint>> &out)

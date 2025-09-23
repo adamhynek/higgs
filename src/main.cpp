@@ -792,8 +792,8 @@ public:
 };
 HitEventHandler hitEventHandler;
 
-std::unordered_map<UInt32, int> g_ignoredCollisionGroups{};
-std::mutex g_ignoredCollisionGroupsLock{};
+std::unordered_map<hkpRigidBody *, int> g_ignoredCollisionBodies{};
+std::mutex g_ignoredCollisionBodiesLock{};
 
 
 void LateMainThreadUpdate()
@@ -812,14 +812,14 @@ void PlayerPostApplyMovementDeltaUpdate()
 {
     //_MESSAGE("%d PlayerPostApplyMovementDeltaUpdate", *g_currentFrameCounter);
 
-    // Clear out old ignored collision groups.
-    // We do this here because this is the same thread that will be doing the character controller integrate() calls that will be using the ignored collision groups.
-    if (g_ignoredCollisionGroups.size() > 0) { // quick check without locking first
-        std::scoped_lock lock(g_ignoredCollisionGroupsLock);
+    // Clear out old ignored collision bodies.
+    // We do this here because this is the same thread that will be doing the character controller integrate() calls that will be using the ignored collision bodies.
+    if (g_ignoredCollisionBodies.size() > 0) { // quick check without locking first
+        std::scoped_lock lock(g_ignoredCollisionBodiesLock);
 
-        for (auto it = g_ignoredCollisionGroups.begin(); it != g_ignoredCollisionGroups.end();) {
+        for (auto it = g_ignoredCollisionBodies.begin(); it != g_ignoredCollisionBodies.end();) {
             if (*g_currentFrameCounter - it->second > 5) {
-                it = g_ignoredCollisionGroups.erase(it);
+                it = g_ignoredCollisionBodies.erase(it);
             }
             else {
                 ++it;
@@ -845,40 +845,39 @@ void ProcessPlayerProxyCastCollector(hkpAllCdPointCollector *collector)
         UInt32 collisionGroupA = hit.m_rootCollidableA->getCollisionFilterInfo() >> 16;
         UInt32 collisionGroupB = hit.m_rootCollidableB->getCollisionFilterInfo() >> 16;
 
-        UInt32 otherGroup = collisionGroupA == playerCollisionGroup ? collisionGroupB : collisionGroupA;
+        const hkpCollidable *otherCollidable = collisionGroupA == playerCollisionGroup ? hit.m_rootCollidableB : hit.m_rootCollidableA;
+        if (hkpRigidBody *rigidBody = hkpGetRigidBody(otherCollidable)) {
 
-        if (g_rightHand->ShouldIgnoreCollisionGroup(otherGroup) || g_leftHand->ShouldIgnoreCollisionGroup(otherGroup)) {
-            {
-                std::scoped_lock lock(g_ignoredCollisionGroupsLock);
-                g_ignoredCollisionGroups[otherGroup] = *g_currentFrameCounter;
-            }
-
-            // remove the hit by moving the last hit into its place
-            collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
-            collector->getHits().m_size -= 1;
-            i -= 1;
-        }
-        else {
-            {
-                std::scoped_lock lock(g_ignoredCollisionGroupsLock);
-
-                if (auto it = g_ignoredCollisionGroups.find(otherGroup); it != g_ignoredCollisionGroups.end() && *g_currentFrameCounter - it->second <= 1) {
-                    // We were ignoring this group last frame, so continue ignoring it. 
-                    // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
-                    it->second = *g_currentFrameCounter;
-
-                    collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
-                    collector->getHits().m_size -= 1;
-                    i -= 1;
-
-                    continue;
+            if (g_rightHand->ShouldIgnoreCollisionWithBody(rigidBody) || g_leftHand->ShouldIgnoreCollisionWithBody(rigidBody)) {
+                {
+                    std::scoped_lock lock(g_ignoredCollisionBodiesLock);
+                    g_ignoredCollisionBodies[rigidBody] = *g_currentFrameCounter;
                 }
+
+                // remove the hit by moving the last hit into its place
+                collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                collector->getHits().m_size -= 1;
+                i -= 1;
             }
+            else {
+                {
+                    std::scoped_lock lock(g_ignoredCollisionBodiesLock);
 
-            // Everything else
+                    if (auto it = g_ignoredCollisionBodies.find(rigidBody); it != g_ignoredCollisionBodies.end() && *g_currentFrameCounter - it->second <= 1) {
+                        // We were ignoring this rigidbody last frame, so continue ignoring it. 
+                        // This way we stop ignoring it only if it stops coming up in the linear cast query that's done every frame for the player character proxy.
+                        it->second = *g_currentFrameCounter;
 
-            const hkpCollidable *otherCollidable = collisionGroupA == playerCollisionGroup ? hit.m_rootCollidableB : hit.m_rootCollidableA;
-            if (hkpRigidBody *rigidBody = hkpGetRigidBody(otherCollidable)) {
+                        collector->getHits()[i] = collector->getHits()[collector->getNumHits() - 1];
+                        collector->getHits().m_size -= 1;
+                        i -= 1;
+
+                        continue;
+                    }
+                }
+
+                // Everything else
+
                 UInt32 otherLayer = GetCollisionLayer(rigidBody);
                 bool isBiped = otherLayer == BGSCollisionLayer::kCollisionLayer_Biped || otherLayer == BGSCollisionLayer::kCollisionLayer_BipedNoCC;
                 if (IsMoveableEntity(rigidBody) && !isBiped) {
