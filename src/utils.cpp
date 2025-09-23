@@ -1129,7 +1129,7 @@ void CollectAllHavokObjects(NiAVObject *root, std::vector<NiPointer<bhkRigidBody
     }
 }
 
-bool CollectAllConnectedRigidBodiesHelper(NiAVObject *root, std::set<NiPointer<bhkRigidBody>> &out)
+bool CollectAllConnectedRigidBodiesHelper(NiAVObject *root, std::set<RE::hkRefPtr<hkpRigidBody>> &out)
 {
     if (NiPointer<bhkRigidBody> rigidBody = GetRigidBody(root)) {
         if (rigidBody->hkBody) {
@@ -1139,8 +1139,8 @@ bool CollectAllConnectedRigidBodiesHelper(NiAVObject *root, std::set<NiPointer<b
                 bool isConstraintEnabled; hkpConstraintInstance_isEnabled(constraint->constraint, &isConstraintEnabled);
                 if (!isConstraintEnabled) continue;
 
-                bhkRigidBody *rigidBodyA = (bhkRigidBody *)constraint->constraint->getEntityA()->m_userData;
-                bhkRigidBody *rigidBodyB = (bhkRigidBody *)constraint->constraint->getEntityB()->m_userData;
+                hkpRigidBody *rigidBodyA = (hkpRigidBody *)constraint->constraint->getEntityA();
+                hkpRigidBody *rigidBodyB = (hkpRigidBody *)constraint->constraint->getEntityB();
 
                 bool isAInSet = out.count(rigidBodyA) != 0;
                 bool isBInSet = out.count(rigidBodyB) != 0;
@@ -1172,10 +1172,10 @@ bool CollectAllConnectedRigidBodiesHelper(NiAVObject *root, std::set<NiPointer<b
     return false;
 }
 
-void CollectAllConnectedRigidBodies(NiAVObject *root, bhkRigidBody *connectee, std::set<NiPointer<bhkRigidBody>> &out)
+void CollectAllConnectedRigidBodies(NiAVObject *root, bhkRigidBody *connectee, std::set<RE::hkRefPtr<hkpRigidBody>> &out)
 {
     // Start us off with just the first node being part of the connected component
-    out.insert(connectee);
+    out.insert(connectee->hkBody);
 
     // Continuously add nodes to the connected component until a pass where no nodes are added
     bool done = false;
@@ -1220,21 +1220,21 @@ void CollectRelevantNonMoveableRigidBodies(std::set<NiPointer<bhkRigidBody>> &in
 
 bool CollectAllGrabbedRigidBodies(NiAVObject *root, bhkRigidBody *grabbedBody, std::set<NiPointer<bhkRigidBody>> &out)
 {
-    CollectAllConnectedRigidBodies(root, grabbedBody, out);
+    std::set<RE::hkRefPtr<hkpRigidBody>> connectedBodies;
+    CollectAllConnectedRigidBodies(root, grabbedBody, connectedBodies);
 
     bool isAttachedToNonMoveable = false;
-    // Remove any non-moveable bodies we are attached to.
-    std::erase_if(out,
-        [&isAttachedToNonMoveable](const NiPointer<bhkRigidBody> &body) {
-            if (!IsMoveableEntity(body->hkBody)) {
-                isAttachedToNonMoveable = true;
-                return true;
-            }
-            else {
-                return false;
-            }
+
+    for (RE::hkRefPtr<hkpRigidBody> body : connectedBodies) {
+        if (!IsMoveableEntity(body)) {
+            // Do not add non-moveable rigidbodies since these are either stationary or follow their parent node. The constraint has no effect on them.
+            isAttachedToNonMoveable = true;
         }
-    );
+        // No bhkRigidBody user data can happen for example in the case ofthe world's fixed rigidbody.
+        else if (bhkRigidBody *wrapper = (bhkRigidBody *)body->m_userData) {
+            out.insert(wrapper);
+        }
+    }
 
     // Add any downstream non-moveable bodies.
     CollectRelevantNonMoveableRigidBodies(out);
@@ -1280,6 +1280,8 @@ void ForEachAdjacentBody(NiAVObject *root, bhkRigidBody *body, std::function<voi
 
             bhkRigidBody *rigidBodyA = (bhkRigidBody *)constraint->getEntityA()->m_userData;
             bhkRigidBody *rigidBodyB = (bhkRigidBody *)constraint->getEntityB()->m_userData;
+
+            if (!rigidBodyA || !rigidBodyB) continue;
 
             bool isAInSet = currentConnectedComponent.contains(rigidBodyA);
             bool isBInSet = currentConnectedComponent.contains(rigidBodyB);
