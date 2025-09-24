@@ -2577,7 +2577,7 @@ namespace NiMathDouble
 
     NiTransform UpdateClavicleToTransformHand(NiAVObject *a_clavicle, NiAVObject *a_hand, NiTransform *a_wandNodeTransformWorld, NiTransform *a_magicHandTransformLocal)
     {
-        NiTransform v13; // [rsp+20h] [rbp-19h] BYREF
+        NiTransform v13;
 
         if (!a_hand || !a_clavicle) return NiTransform{};
 
