@@ -3696,7 +3696,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             // This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
             NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
             if (collisionOffsetNode) {
-                NiMathDouble::UpdateTransform(weaponNode, desiredTransform);
+                NiMathDouble::UpdateTransform(collisionOffsetNode, desiredTransform);
             }
 
             // This makes the actual weapon move with our transform. We need this as well as setting the weapon node's transform above.
