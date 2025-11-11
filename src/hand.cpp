@@ -3846,6 +3846,10 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
 
                 // Update the hand to match the object
+                if (Config::options.forceGrabbedNodeUpdate) {
+                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                    NiAVObject_UpdateNode(collidableNode, &ctx);
+                }
                 NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
 
                 NiTransform inverseDesired = InverseTransform(desiredNodeTransformHandSpace);

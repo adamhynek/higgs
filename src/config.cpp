@@ -404,6 +404,8 @@ namespace Config {
         if (!ReadInt("MaxNumEntitiesPerSimulationIslandToCheck", options.maxNumEntitiesPerSimulationIslandToCheck)) success = false;
         if (!RegisterFloat("MaxDistanceOfSimulationIslandToUpdate", options.maxDistanceOfSimulationIslandToUpdate)) success = false;
 
+        if (!RegisterBool("forceGrabbedNodeUpdate", options.forceGrabbedNodeUpdate)) success = false;
+
         if (!RegisterFloat("grabConstraintAngularTau", options.grabConstraintAngularTau)) success = false;
         if (!RegisterFloat("grabConstraintAngularProportionalRecoveryVelocity", options.grabConstraintAngularProportionalRecoveryVelocity)) success = false;
         if (!RegisterFloat("grabConstraintAngularConstantRecoveryVelocity", options.grabConstraintAngularConstantRecoveryVelocity)) success = false;

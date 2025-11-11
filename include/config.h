@@ -194,6 +194,8 @@ namespace Config {
             { 144, 1.5 },
         };
 
+        bool forceGrabbedNodeUpdate = true;
+
         float grabConstraintAngularTau = 0.03f;
         float grabConstraintAngularProportionalRecoveryVelocity = 2.f;
         float grabConstraintAngularConstantRecoveryVelocity = 1.f;
