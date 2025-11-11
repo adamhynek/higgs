@@ -207,6 +207,7 @@ struct Hand
     void UpdateWeaponCollision();
     std::optional<NiTransform> GetAttachTransform(const TESForm *baseForm);
     std::optional<NiTransform> ComputeInitialObjectTransform(TESObjectREFR *refr, const NiAVObject *handNode, NiAVObject *grabbedNode);
+    std::optional<NiTransform> ComputeInitialObjectTransformFromUpdatedCollidableNode(TESObjectREFR *refr, const NiAVObject *handNode);
     std::optional<NiTransform> GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode);
     bool ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, bhkRigidBody *rigidBody);
     NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &other, TESObjectREFR *selectedObj, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const std::optional<NiTransform> &initialTransform, NiAVObject *handNode);

@@ -1109,6 +1109,21 @@ std::optional<NiTransform> Hand::ComputeInitialObjectTransform(TESObjectREFR *re
 }
 
 
+std::optional<NiTransform> Hand::ComputeInitialObjectTransformFromUpdatedCollidableNode(TESObjectREFR *refr, const NiAVObject *handNode)
+{
+    if (Config::options.useAttachPointForInitialGrab) {
+        if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
+            if (Config::options.forceGrabbedNodeUpdate) {
+                NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                NiAVObject_UpdateNode(collidableNode, &ctx);
+            }
+            return ComputeInitialObjectTransform(refr, handNode, collidableNode);
+        }
+    }
+    return {};
+}
+
+
 std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const NiAVObject *handNode, NiAVObject *grabbedNode)
 {
     if (!Config::options.enableHiggsGrabNodes) return {};
@@ -1165,6 +1180,11 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
     NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
     if (!collidableNode || !objRoot) {
         return nullptr;
+    }
+
+    if (Config::options.forceGrabbedNodeUpdate) {
+        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+        NiAVObject_UpdateNode(collidableNode, &ctx);
     }
 
     NiTransform originalTransform = collidableNode->m_worldTransform;
@@ -1302,6 +1322,11 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
     if (!collidableNode || !objRoot) {
         state = State::Idle;
         return;
+    }
+
+    if (Config::options.forceGrabbedNodeUpdate) {
+        NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+        NiAVObject_UpdateNode(collidableNode, &ctx);
     }
 
     selectedObject.grabbedNodeName = collidableNode->m_name;
@@ -2402,6 +2427,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
                         hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
                         if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable)) {
+                            if (Config::options.forceGrabbedNodeUpdate) {
+                                NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                                NiAVObject_UpdateNode(collidableNode, &ctx);
+                            }
+
                             selectedObject.rigidBody = rigidBody;
                             selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
@@ -2881,22 +2911,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
                                             state = State::GrabFromOtherHand;
                                         }
                                         else {
-                                            std::optional<NiTransform> initialTransform = {};
-                                            if (Config::options.useAttachPointForInitialGrab) {
-                                                initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
-                                            }
-
+                                            std::optional<NiTransform> initialTransform = ComputeInitialObjectTransformFromUpdatedCollidableNode(selectedObj, handNode);
                                             TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform, false, true);
                                         }
                                     }
                                     else {
                                         // Node we chose based on geometry is the same as the one that was selected via collision
-
-                                        std::optional<NiTransform> initialTransform = {};
-                                        if (Config::options.useAttachPointForInitialGrab) {
-                                            initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
-                                        }
-
+                                        std::optional<NiTransform> initialTransform = ComputeInitialObjectTransformFromUpdatedCollidableNode(selectedObj, handNode);
                                         TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj, initialTransform, false, true);
                                     }
                                 }
@@ -3277,10 +3298,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     }
                     else {
                         // Grabbing a regular object, not from the other hand or off of a body
-                        std::optional<NiTransform> initialTransform = {};
-                        if (Config::options.useAttachPointForInitialGrab) {
-                            initialTransform = ComputeInitialObjectTransform(selectedObj, handNode, GetNodeFromCollidable(selectedObject.collidable));
-                        }
+                        std::optional<NiTransform> initialTransform = ComputeInitialObjectTransformFromUpdatedCollidableNode(selectedObj, handNode);
                         TransitionHeld(other, *world, palmPos, palmVector, HkVectorToNiPoint(closestPoint), havokWorldScale, handNode, handSize, selectedObj, initialTransform);
                     }
                 }
@@ -3364,6 +3382,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     if (NiPointer<bhkRigidBody> rigidBody = GetFirstRigidBody(objRoot)) {
                         hkpCollidable *collidable = &rigidBody->hkBody->m_collidable;
                         if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(collidable)) {
+                            if (Config::options.forceGrabbedNodeUpdate) {
+                                NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                                NiAVObject_UpdateNode(collidableNode, &ctx);
+                            }
+
                             selectedObject.rigidBody = rigidBody;
                             selectedObject.collidable = &rigidBody->hkBody->m_collidable;
 
@@ -3722,6 +3745,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
         NiPointer<TESObjectREFR> selectedObj;
         if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
             if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
+                if (Config::options.forceGrabbedNodeUpdate) {
+                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                    NiAVObject_UpdateNode(collidableNode, &ctx);
+                }
+
                 double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
                 float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
                 float rotSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabAngularSpeed;
@@ -3780,6 +3808,11 @@ void Hand::Update(Hand &other, bhkWorld *world)
         NiPointer<TESObjectREFR> selectedObj;
         if (LookupREFRByHandle(selectedObject.handle, selectedObj) && selectedObj->GetNiNode()) {
             if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
+                if (Config::options.forceGrabbedNodeUpdate) {
+                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
+                    NiAVObject_UpdateNode(collidableNode, &ctx);
+                }
+
                 {
                     double elapsedTimeFraction = 1 + (g_currentFrameTime - grabbedTime) / Config::options.fingerAnimateGrabDoubleSpeedTime;
                     float posSpeed = elapsedTimeFraction * Config::options.fingerAnimateGrabLinearSpeed;
@@ -3846,10 +3879,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
 
                 // Update the hand to match the object
-                if (Config::options.forceGrabbedNodeUpdate) {
-                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                    NiAVObject_UpdateNode(collidableNode, &ctx);
-                }
                 NiTransform heldTransform = collidableNode->m_worldTransform; // gets the scale
 
                 NiTransform inverseDesired = InverseTransform(desiredNodeTransformHandSpace);
