@@ -2526,8 +2526,19 @@ namespace NiMathDouble
             nodeTransforms[node] = { node->m_localTransform, node->m_worldTransform };
         }
 
-        NiTransform newTransform = parentTransform * nodeTransforms[node].local;
-        nodeTransforms[node].world = newTransform;
+        if (Runtime_DynamicCast(node, RTTI_NiAVObject, RTTI_NiBillboardNode)) {
+            // Ignore rotation for billboards
+            NodeTransforms &nodeTransform = nodeTransforms[node];
+            nodeTransform.world.pos = parentTransform.pos + parentTransform.rot * (nodeTransform.local.pos * parentTransform.scale);
+            nodeTransform.world.scale = parentTransform.scale * nodeTransform.local.scale;
+        }
+        else if (Runtime_DynamicCast(node, RTTI_NiAVObject, RTTI_NiParticleSystem)) {
+            // For particle systems, do nothing (their UpdateWorldData is an empty function)
+        }
+        else {
+            NiTransform newTransform = parentTransform * nodeTransforms[node].local;
+            nodeTransforms[node].world = newTransform;
+        }
 
         auto &transforms = nodeTransforms[node];
         node->m_localTransform = transforms.local.ToSingle();
