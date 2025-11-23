@@ -4191,6 +4191,9 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                     if (inputGrip) {
                         if (Config::options.useTouchForGrip) {
                             pControllerState->ulButtonTouched &= ~gripMask;
+                            if (!Config::options.allowGripPressWhileUsingTouchInput) {
+                                pControllerState->ulButtonPressed &= ~gripMask;
+                            }
                         } else {
                             pControllerState->ulButtonPressed &= ~gripMask;
                         }
@@ -4224,6 +4227,9 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             if (Config::options.enableGrip) {
                 if (Config::options.useTouchForGrip) {
                     pControllerState->ulButtonTouched &= ~gripMask;
+                    if (!Config::options.allowGripPressWhileUsingTouchInput) {
+                        pControllerState->ulButtonPressed &= ~gripMask;
+                    }
                 } else {
                     pControllerState->ulButtonPressed &= ~gripMask;
                 }

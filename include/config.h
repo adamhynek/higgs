@@ -301,6 +301,7 @@ namespace Config {
         bool enableTrigger = true;
         bool enableGrip = true;
         bool useTouchForGrip = false;
+        bool allowGripPressWhileUsingTouchInput = false;
         bool delayRightGripInput = true;
         bool delayLeftGripInput = false;
 
