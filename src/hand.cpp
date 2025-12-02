@@ -893,23 +893,6 @@ void Hand::UpdateWeaponCollision()
     if (Config::options.doPhysicsGrabPlayerMovementCompensation) {
         RegisterPlayerSpaceBody(weaponBody);
     }
-
-    if (Config::options.updateHandsToMatchWeaponCollisionTransform) {
-        // This updates the in-game hand/weapon to match our collision for the weapon. Useful for debugging.
-        NiPointer<NiAVObject> weaponNode = collisionNode;
-        NiTransform &weaponTransform = weaponNode->m_worldTransform;
-        NiAVObject *handNode = GetFirstPersonHandNode();
-        NiTransform &handTransform = handNode->m_worldTransform;
-        NiTransform inverseHand = InverseTransform(handTransform);
-        NiTransform handToWeapon = inverseHand * weaponTransform;
-
-        NiTransform inverseDesired = InverseTransform(handToWeapon);
-
-        hkTransform t; weaponBody->getTransform(t);
-        NiTransform newWeaponTransform = hkTransformToNiTransform(t, weaponTransform.scale);
-
-        UpdateHandTransform(newWeaponTransform * inverseDesired);
-    }
 }
 
 
@@ -1874,7 +1857,10 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
     NiTransform inverseOtherHand = InverseTransform(otherHand->m_worldTransform);
 
     twoHandedState.weapon = otherHandWeapon;
-    twoHandedState.handToWeapon = inverseOtherHand * weaponNode->m_worldTransform;
+    // Note: weaponNode is the updated 3rd person (vrik future) node, so this is already corrected for vrik weapon offsets
+    //twoHandedState.otherFpHandToTpWeaponTransform = inverseOtherHand * weaponNode->m_worldTransform;
+    twoHandedState.otherFpHandToTpWeaponTransform = other.m_firstPersonHandToThirdPersonWeaponTransform;
+    twoHandedState.otherFpWeaponToTpWeaponTransform = other.m_firstToThirdPersonWeaponTransform;
     twoHandedState.prevWeaponTransform = weaponNode->m_worldTransform;
 
     NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
@@ -2788,12 +2774,12 @@ void Hand::Update(Hand &other, bhkWorld *world)
                     NiTransform thisFrameWeaponTransform = thisFrameVrikHandTransform * other.m_thirdPersonHandToWeaponTransform;
                     NiTransform currentWeaponLocalTransform = tpWeaponNode->m_localTransform;
 
-                    UpdateNodeTransformLocal(tpWeaponNode, thisFrameWeaponTransform);
-                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
-                    NiAVObject_UpdateNode(tpWeaponNode, &ctx);
+                    NiMathDouble::UpdateTransform(tpWeaponNode, thisFrameWeaponTransform);
 
                     TransitionHeldTwoHanded(other, *world, hkPalmPos, palmVector, selectedObject.point, havokWorldScale, handNode->m_worldTransform, handSize, tpWeaponNode, otherHandEquippedWeap);
+
                     tpWeaponNode->m_localTransform = currentWeaponLocalTransform;
+                    NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
                     NiAVObject_UpdateNode(tpWeaponNode, &ctx);
                 }
                 else {
@@ -3553,12 +3539,13 @@ void Hand::Update(Hand &other, bhkWorld *world)
             }
 
             NiPointer<NiAVObject> otherHand = other.GetFirstPersonHandNode();
+            NiPointer<NiAVObject> fpWeaponNode = other.GetWeaponNode(false);
 
             // Start us off where the main hand wants the weapon
-            NiTransform desiredTransform = otherHand->m_worldTransform * twoHandedState.handToWeapon;
+            NiTransform desiredTransform = otherHand->m_worldTransform * twoHandedState.otherFpHandToTpWeaponTransform;
 
             NiTransform thisHandToWeaponDesired = desiredNodeTransformHandSpace;
-            NiTransform otherHandToWeaponDesired = twoHandedState.handToWeapon;
+            NiTransform otherHandToWeaponDesired = twoHandedState.otherFpHandToTpWeaponTransform;
 
             NiTransform weaponToThisHand = InverseTransform(thisHandToWeaponDesired);
             NiTransform weaponToOtherHand = InverseTransform(otherHandToWeaponDesired);
@@ -3666,8 +3653,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 desiredTransform = twoHandedState.prevWeaponTransform;
             }
 
-            NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(false);
-
             NiPointer<NiAVObject> roomNode = player->unk3F0[PlayerCharacter::Node::kNode_RoomNode];
 
             NiTransform desiredWeaponTransformRoomspace = InverseTransform(roomNode->m_worldTransform) * desiredTransform;
@@ -3680,6 +3665,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
             // desiredTransform is now in its final form
 
+            NiTransform fpWeaponNodeTransform = fpWeaponNode->m_worldTransform;
+            NiTransform otherHandTransform = otherHand->m_worldTransform;
+
             // Set hand transforms
             NiTransform newHandTransform = desiredTransform * weaponToThisHand;
             UpdateHandTransform(newHandTransform);
@@ -3691,7 +3679,14 @@ void Hand::Update(Hand &other, bhkWorld *world)
             // All of those need to happen, even when using vrik.
             NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 
-            NiMathDouble::UpdateTransform(weaponNode, desiredTransform);
+            NiTransform fpHandToDesired = InverseTransform(otherHandTransform) * desiredTransform;
+            NiTransform fpHandToWeapon = InverseTransform(otherHandTransform) * fpWeaponNodeTransform;
+            NiTransform vrikAdjustment = InverseTransform(twoHandedState.otherFpHandToTpWeaponTransform) * fpHandToWeapon; // handToWeapon is first person hand to 3rd person weapon (includes vrik offset)
+            //NiTransform finalT = otherHand->m_worldTransform * vrikAdjustment * fpHandToDesired;
+            //NiTransform finalT = desiredTransform * vrikAdjustment;
+            //desiredTransform = fpWeaponNodeTransform;
+            NiTransform finalT = desiredTransform * InverseTransform(twoHandedState.otherFpWeaponToTpWeaponTransform);
+            NiMathDouble::UpdateTransform(fpWeaponNode, finalT);
 
             // This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
             NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
@@ -4084,8 +4079,8 @@ void Hand::PreUpdate(Hand &other, bhkWorld *world)
     if (Config::options.doDoublePrecision) {
         if (NiPointer<NiAVObject> weaponOffsetNode = GetWeaponOffsetNode()) {
             // TODO: weapon node should maybe be fetched 3rd person if beast race? Base game seems to do that?
-            if (NiPointer<NiAVObject> weaponNode = GetWeaponNode(false)) {
-                NiMathDouble::UpdateTransform(weaponNode, weaponOffsetNode->m_worldTransform);
+            if (NiPointer<NiAVObject> fpWeaponNode = GetWeaponNode(false)) {
+                NiMathDouble::UpdateTransform(fpWeaponNode, weaponOffsetNode->m_worldTransform);
 
                 //if (isLeft) {
                 //    PrintToFile(std::to_string(VectorLength(weaponNode->m_worldTransform.pos - g_lastHandTransformm.pos)));
@@ -4112,6 +4107,12 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
 
     NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
     if (!handNode) return;
+
+    if (!isLeft) {
+        if (NiPointer<NiAVObject> fpWeaponNode = GetWeaponNode(false)) {
+            RegisterDebugTransform("fpWeapon", { fpWeaponNode->m_worldTransform, {0, 1, 0, 1} });
+        }
+    }
 
     // Update these after stuff like two-handing hand updates
     UpdateHandCollision(world);
@@ -4390,9 +4391,29 @@ void Hand::PostVrikUpdate()
         if (state == State::HeldTwoHanded) {
             // Overwrite vrik's weapon node transforms here, in order to handle vrik's weapon offsets
             Hand &other = isLeft ? *g_rightHand : *g_leftHand;
-            if (NiPointer<NiAVObject> weaponNode = other.GetWeaponNode(true)) {
-                NiMathDouble::UpdateTransform(weaponNode, twoHandedState.prevWeaponTransform);
+            if (NiPointer<NiAVObject> tpWeaponNode = other.GetWeaponNode(true)) {
+                //NiMathDouble::UpdateTransform(tpWeaponNode, twoHandedState.prevWeaponTransform);
             }
+        }
+    }
+
+    NiPointer<NiAVObject> tpHandNode = GetThirdPersonHandNode();
+    NiPointer<NiAVObject> fpHandNode = GetFirstPersonHandNode();
+    NiPointer<NiAVObject> tpWeaponNode = GetWeaponNode(true);
+    NiPointer<NiAVObject> fpWeaponNode = GetWeaponNode(false);
+    if (fpHandNode && tpWeaponNode) {
+        m_firstPersonHandToThirdPersonWeaponTransform = InverseTransform(fpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+    }
+    if (tpHandNode && tpWeaponNode) {
+        m_thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+        if (!isLeft) {
+            RegisterDebugTransform("tpWeapon", { tpWeaponNode->m_worldTransform, {1, 0, 0, 1} });
+        }
+    }
+    if (fpWeaponNode && tpWeaponNode) {
+        m_firstToThirdPersonWeaponTransform = InverseTransform(fpWeaponNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+        if (!isLeft) {
+            //RegisterDebugTransform("fpWeapon", { fpWeaponNode->m_worldTransform, {0, 1, 0, 1} });
         }
     }
 
@@ -4402,23 +4423,15 @@ void Hand::PostVrikUpdate()
 
 void Hand::LateMainThreadUpdate()
 {
-    NiPointer<NiAVObject> tpHandNode = GetThirdPersonHandNode();
-    NiPointer<NiAVObject> tpWeaponNode = GetWeaponNode(true);
-    if (tpHandNode && tpWeaponNode) {
-        m_thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
-    }
-
-    // Testing frame-perfect held object visual updates (regardless of collision pos)
-    /*if (state == State::HeldBody) {
-        NiPointer<TESObjectREFR> heldRefr;
-        if (LookupREFRByHandle(selectedObject.handle, heldRefr) && heldRefr->GetNiNode()) {
-            if (NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable)) {
-                NiTransform desiredTransform = handTransform * desiredNodeTransformHandSpace;
-                UpdateNodeTransformLocal(collidableNode, desiredTransform);
-                RecalculateNodeTransform(collidableNode);
-            }
-        }
-    }*/
+    //NiPointer<NiAVObject> tpHandNode = GetThirdPersonHandNode();
+    //NiPointer<NiAVObject> tpWeaponNode = GetWeaponNode(true);
+    //NiPointer<NiAVObject> fpWeaponNode = GetWeaponNode(false);
+    //if (tpHandNode && tpWeaponNode) {
+    //    m_thirdPersonHandToWeaponTransform = InverseTransform(tpHandNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+    //}
+    //if (fpWeaponNode && tpWeaponNode) {
+    //    m_firstToThirdPersonWeaponTransform = InverseTransform(fpWeaponNode->m_worldTransform) * tpWeaponNode->m_worldTransform;
+    //}
 }
 
 

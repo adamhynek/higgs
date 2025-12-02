@@ -69,7 +69,8 @@ struct Hand
         NiPointer<NiAVObject> collisionOffsetNode;
         NiTransform wandNodeLocalTransform;
         NiTransform handToWand;
-        NiTransform handToWeapon;
+        NiTransform otherFpHandToTpWeaponTransform;
+        NiTransform otherFpWeaponToTpWeaponTransform;
         NiTransform prevWeaponTransform;
         NiTransform prevWeaponTransformRoomspace;
         TESObjectWEAP *weapon;
@@ -330,6 +331,8 @@ struct Hand
     NiTransform m_handTransformWithoutVrikOffset{};
     NiTransform m_adjustedHandTransform{};
     NiTransform m_thirdPersonHandToWeaponTransform{};
+    NiTransform m_firstToThirdPersonWeaponTransform{};
+    NiTransform m_firstPersonHandToThirdPersonWeaponTransform{};
 
     NiTransform fpAnimHandTransform{};
     NiTransform fpAnimWeaponTransform{};

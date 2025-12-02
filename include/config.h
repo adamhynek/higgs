@@ -152,7 +152,6 @@ namespace Config {
         bool disableGrabGeometryWithVertexAlpha = true;
         bool inheritTangentialVelocity = true;
 
-        bool updateHandsToMatchWeaponCollisionTransform = false;
         bool useVrikWeaponTransform = true;
         float weaponCollisionScale = 1.f;
 
