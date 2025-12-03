@@ -222,6 +222,8 @@ RelocAddr<_NiAVObject_GetRepresentativeCollisionObject> NiAVObject_GetRepresenta
 
 RelocAddr<_PlayRumble> PlayRumble(0xC59440);
 
+RelocAddr<_UpdateVRMeleeCollision> UpdateVRMeleeCollision(0x6E5220);
+
 // Used by NiCloningProcess...
 RelocAddr<_CleanupCloneList> CleanupCloneList1(0x1C8CA0);
 RelocAddr<_CleanupCloneList> CleanupCloneList2(0x1C8BE0);

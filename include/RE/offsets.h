@@ -516,3 +516,11 @@ extern RelocAddr<_NiAVObject_GetRepresentativeCollisionObject> NiAVObject_GetRep
 typedef void(*_PlayRumble)(UInt32 isRight, float rumbleIntensity, float rumbleDuration);
 extern RelocAddr<_PlayRumble> PlayRumble;
 
+struct VRMeleeCollisionUpdateData
+{
+    PlayerCharacter *player; // 00
+    float *deltaTime; // 08
+};
+typedef void(*_UpdateVRMeleeCollision)(VRMeleeCollisionUpdateData *a1, VRMeleeData *meleeData);
+extern RelocAddr<_UpdateVRMeleeCollision> UpdateVRMeleeCollision;
+
