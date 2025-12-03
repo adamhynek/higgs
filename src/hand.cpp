@@ -1858,7 +1858,6 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
     twoHandedState.weapon = otherHandWeapon;
     // Note: weaponNode is the updated 3rd person (vrik future) node, so this is already corrected for vrik weapon offsets
-    //twoHandedState.otherFpHandToTpWeaponTransform = inverseOtherHand * weaponNode->m_worldTransform;
     twoHandedState.otherFpHandToTpWeaponTransform = other.m_firstPersonHandToThirdPersonWeaponTransform;
     twoHandedState.otherFpWeaponToTpWeaponTransform = other.m_firstToThirdPersonWeaponTransform;
     twoHandedState.prevWeaponTransform = weaponNode->m_worldTransform;
@@ -3669,9 +3668,6 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
             // desiredTransform is now in its final form
 
-            NiTransform fpWeaponNodeTransform = fpWeaponNode->m_worldTransform;
-            NiTransform otherHandTransform = otherHand->m_worldTransform;
-
             // Set hand transforms
             NiTransform newHandTransform = desiredTransform * weaponToThisHand;
             UpdateHandTransform(newHandTransform);
@@ -3683,6 +3679,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
             // All of those need to happen, even when using vrik.
             NiAVObject::ControllerUpdateContext ctx{ 0, 0 };
 
+            // For the weapon node itself, vrik applies its own transform on top of the first person weapon transform.
+            // desiredTransform is where we want the weapon to be after vrik is done applying its transform, so we must apply an inverted vrik-applied transform here so that it evens out at the end.
             NiTransform vrikCorrectedTransform = desiredTransform * InverseTransform(twoHandedState.otherFpWeaponToTpWeaponTransform);
             NiMathDouble::UpdateTransform(fpWeaponNode, vrikCorrectedTransform);
 
@@ -3691,7 +3689,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             if (collisionOffsetNode) {
                 NiMathDouble::UpdateTransform(collisionOffsetNode, desiredTransform);
 
-                // Now update the melee collision itself as well, to be more up to date (otherwise it lags behind a bit)
+                // Now update the melee collision itself as well, to be more up to date (otherwise it lags behind a bit) when not using vrik
                 float deltaTime = 0.1f; // Anything > 0 will make UpdateVRMeleeCollision move it
                 VRMeleeCollisionUpdateData data{ *g_thePlayer, &deltaTime };
                 VRMeleeData &otherMeleeData = *GetVRMeleeData(!isLeft);
@@ -4116,12 +4114,6 @@ void Hand::PostUpdate(Hand &other, bhkWorld *world)
 
     NiPointer<NiAVObject> handNode = GetFirstPersonHandNode();
     if (!handNode) return;
-
-    if (!isLeft) {
-        if (NiPointer<NiAVObject> fpWeaponNode = GetWeaponNode(false)) {
-            RegisterDebugTransform("fpWeapon", { fpWeaponNode->m_worldTransform, {0, 1, 0, 1} });
-        }
-    }
 
     // Update these after stuff like two-handing hand updates
     UpdateHandCollision(world);
