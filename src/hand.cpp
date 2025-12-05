@@ -4255,12 +4255,12 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
         if (Config::options.useTouchForGrip) {
             pControllerState->ulButtonTouched &= ~gripMask;
             if (!Config::options.allowGripPressWhileUsingTouchInput) {
-                // Also suppress grip press if not explicitly allowed in config
-                pControllerState->ulButtonPressed &= ~gripMask;
-
                 // Remember that grip press was suppressed too so it can be forced later.
                 // Only reset it on the next Idle state as grip press is always released a few frames before grip touch.
                 gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
+
+                // Also suppress grip press if not explicitly allowed in config
+                pControllerState->ulButtonPressed &= ~gripMask;
             }
         } else {
             pControllerState->ulButtonPressed &= ~gripMask;
