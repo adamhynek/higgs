@@ -4141,6 +4141,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
             inputTrigger = false;
             inputGrip = false;
+            gripPressWasBlockedWithGripTouch = false;
 
             if (triggerRisingEdge) {
                 if (!player->actorState.IsWeaponDrawn()) {
@@ -4192,6 +4193,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                         if (Config::options.useTouchForGrip) {
                             pControllerState->ulButtonTouched &= ~gripMask;
                             if (!Config::options.allowGripPressWhileUsingTouchInput) {
+                                gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
                                 pControllerState->ulButtonPressed &= ~gripMask;
                             }
                         } else {
@@ -4228,6 +4230,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                 if (Config::options.useTouchForGrip) {
                     pControllerState->ulButtonTouched &= ~gripMask;
                     if (!Config::options.allowGripPressWhileUsingTouchInput) {
+                        gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
                         pControllerState->ulButtonPressed &= ~gripMask;
                     }
                 } else {
@@ -4245,6 +4248,9 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             if (inputGrip) {
                 if (Config::options.useTouchForGrip) {
                     pControllerState->ulButtonTouched |= gripMask;
+                    if (!Config::options.allowGripPressWhileUsingTouchInput && gripPressWasBlockedWithGripTouch) {
+                        pControllerState->ulButtonPressed |= gripMask;
+                    }
                 } else {
                     pControllerState->ulButtonPressed |= gripMask;
                 }

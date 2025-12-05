@@ -390,6 +390,7 @@ struct Hand
     bool grabRequested = false; // True on rising edge of trigger press
     bool releaseRequested = false; // True on falling edge of trigger press
     bool wasObjectGrabbed = false;
+    bool gripPressWasBlockedWithGripTouch = false;
 };
 
 extern Hand *g_rightHand;
