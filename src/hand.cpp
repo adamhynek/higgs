@@ -4114,9 +4114,11 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
     bool triggerRisingEdge = triggerDown && !triggerDownBefore;
     bool triggerFallingEdge = !triggerDown && triggerDownBefore;
+    bool suppressTrigger = false;
 
     bool gripRisingEdge = gripDown && !gripDownBefore;
     bool gripFallingEdge = !gripDown && gripDownBefore;
+    bool suppressGrip = false;
 
     // Only advance states if no menus are open
     if (MenuChecker::isGameStopped()) return;
@@ -4183,22 +4185,12 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                         inputGrip = true;
                     }
 
-                    // Suppress trigger press
+                    // Suppress grip/trigger inputs during triggerPressedLeewayTime
                     if (inputTrigger) {
-                        pControllerState->ulButtonPressed &= ~triggerMask;
+                        suppressTrigger = true;
                     }
-
-                    // Suppress grip press/touch
                     if (inputGrip) {
-                        if (Config::options.useTouchForGrip) {
-                            pControllerState->ulButtonTouched &= ~gripMask;
-                            if (!Config::options.allowGripPressWhileUsingTouchInput) {
-                                gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
-                                pControllerState->ulButtonPressed &= ~gripMask;
-                            }
-                        } else {
-                            pControllerState->ulButtonPressed &= ~gripMask;
-                        }
+                        suppressGrip = true;
                     }
                 }
                 else {
@@ -4222,20 +4214,12 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             }
         }
         else {
+            // Suppress grip/trigger inputs while inputState == Block
             if (Config::options.enableTrigger && !shouldNotBlockTrigger) {
-                pControllerState->ulButtonPressed &= ~triggerMask;
+                suppressTrigger = true;
             }
-
             if (Config::options.enableGrip) {
-                if (Config::options.useTouchForGrip) {
-                    pControllerState->ulButtonTouched &= ~gripMask;
-                    if (!Config::options.allowGripPressWhileUsingTouchInput) {
-                        gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
-                        pControllerState->ulButtonPressed &= ~gripMask;
-                    }
-                } else {
-                    pControllerState->ulButtonPressed &= ~gripMask;
-                }
+                suppressGrip = true;
             }
         }
     }
@@ -4258,6 +4242,28 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
         }
         else {
             inputState = InputState::Idle;
+        }
+    }
+
+    if (suppressTrigger) {
+        // Suppress trigger press if requested
+        pControllerState->ulButtonPressed &= ~triggerMask;
+    }
+
+    if (suppressGrip) {
+        // Suppress grip press/touch if requested
+        if (Config::options.useTouchForGrip) {
+            pControllerState->ulButtonTouched &= ~gripMask;
+            if (!Config::options.allowGripPressWhileUsingTouchInput) {
+                // Also suppress grip press if not explicitly allowed in config
+                pControllerState->ulButtonPressed &= ~gripMask;
+
+                // Remember that grip press was suppressed too so it can be forced later.
+                // Only reset it on the next Idle state as grip press is always released a few frames before grip touch.
+                gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
+            }
+        } else {
+            pControllerState->ulButtonPressed &= ~gripMask;
         }
     }
 }
