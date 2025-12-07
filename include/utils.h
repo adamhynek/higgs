@@ -171,3 +171,4 @@ inline void SetPartNumber(hkUint32 &collisionFilterInfo, UInt32 partNumber) {
     collisionFilterInfo &= ~(0x1f00); // zero out part number
     collisionFilterInfo |= (partNumber & 0x1f) << 8; // set part number
 }
+bool IsHandUsingIndexController(bool leftHand);

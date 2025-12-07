@@ -280,7 +280,7 @@ void UpdateBoneMatrices(NiAVObject *obj)
 void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
 {
     UpdateNodeTransformLocal(node, transform);
-    
+
     NiAVObject::ControllerUpdateContext ctx;
     ctx.flags = 0x2000; // Use velocity for moving the collision object - this won't actually move it until the next sim
     ctx.delta = 0;
@@ -313,7 +313,7 @@ void UpdateKeyframedNode(NiAVObject *node, NiTransform &transform)
             ApplyHardKeyframeVelocityClamped(NiPointToHkVector(pos * *g_havokWorldScale), NiQuatToHkQuat(rot), 1.0f / *g_deltaTime, rigidBody);
         }
     }
-    
+
     UpdateBoneMatrices(node); // Update skinned geometry on the object so that it's not a frame behind
 
     ShadowSceneNode_UpdateNodeList(*g_shadowSceneNode, node, false); // Gets shadows to update since keyframed nodes are not "dynamic" and so the game doesn't think they can move
@@ -950,7 +950,7 @@ Hand * GetHandToShowRolloverFor()
             return g_leftHand;
         }
     }
-    
+
     return nullptr;
 }
 
@@ -1302,3 +1302,25 @@ void ForEachAdjacentBody(NiAVObject *root, bhkRigidBody *body, std::function<voi
     }
 }
 
+bool IsHandUsingIndexController(bool leftHand)
+{
+    if (g_openVR && *g_openVR) {
+        BSOpenVR* openVR = *g_openVR;
+        vr_src::IVRSystem* vrSystem = openVR->vrSystem;
+
+        if (vrSystem) {
+            auto handIndex = vrSystem->GetTrackedDeviceIndexForControllerRole(leftHand? vr_src::TrackedControllerRole_LeftHand: vr_src::TrackedControllerRole_RightHand);
+
+            char buffer[200] = {};
+            vr_src::ETrackedPropertyError error = vr_src::TrackedProp_Success;
+            vrSystem->GetStringTrackedDeviceProperty(handIndex, vr_src::Prop_InputProfilePath_String, buffer, sizeof(buffer), &error);
+            if (error != vr_src::TrackedProp_Success) {
+                return false;
+            }
+
+            return std::string_view(buffer).find("indexcontroller") != std::string_view::npos;
+        }
+    }
+
+    return false;
+}
