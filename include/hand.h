@@ -177,11 +177,11 @@ struct Hand
         }
 
         // Determine whether this controller should use touch for it's grip input by default.
-        if (Config::options.useTouchForGrip == 0 || Config::options.useTouchForGrip == 1) {
-            useTouchForGripThisSession = static_cast<bool>(Config::options.useTouchForGrip);
+        if (Config::options.gripInputMethod == Config::GripInputMethod::Press || Config::options.gripInputMethod == Config::GripInputMethod::Touch) {
+            useTouchForGrip = Config::options.gripInputMethod == Config::GripInputMethod::Touch;
         }
         else {
-            useTouchForGripThisSession = IsHandUsingIndexController(isLeft);
+            useTouchForGrip = IsHandUsingIndexController(isLeft);
         }
     };
 
@@ -400,7 +400,7 @@ struct Hand
     bool wasObjectGrabbed = false;
     bool gripPressWasBlockedWithGripTouch = false;
 
-    bool useTouchForGripThisSession = false;
+    bool useTouchForGrip = false;
 };
 
 extern Hand *g_rightHand;
