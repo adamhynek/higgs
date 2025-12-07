@@ -7,6 +7,12 @@
 
 
 namespace Config {
+    enum GripInputMethod {
+        Auto = -1,
+        Press,
+        Touch
+    };
+
     struct Options {
         bool debugDrawControllers = false;
 
@@ -301,7 +307,7 @@ namespace Config {
 
         bool enableTrigger = true;
         bool enableGrip = true;
-        int useTouchForGrip = -1;
+        int gripInputMethod = GripInputMethod::Auto;
         bool allowGripPressWhileUsingTouchInput = false;
         bool delayRightGripInput = true;
         bool delayLeftGripInput = false;

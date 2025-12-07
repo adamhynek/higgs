@@ -4141,7 +4141,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     triggerDown = Config::options.enableTrigger && (pControllerState->ulButtonPressed & triggerMask);
 
     // Check if the grip is pressed or touched
-    if (Config::options.useTouchForGrip) {
+    if (useTouchForGrip) {
         gripDown = Config::options.enableGrip && (pControllerState->ulButtonTouched & gripMask);
     } else {
         gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
@@ -4265,7 +4265,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                 pControllerState->ulButtonPressed |= triggerMask;
             }
             if (inputGrip) {
-                if (Config::options.useTouchForGrip) {
+                if (useTouchForGrip) {
                     pControllerState->ulButtonTouched |= gripMask;
                     if (!Config::options.allowGripPressWhileUsingTouchInput && gripPressWasBlockedWithGripTouch) {
                         pControllerState->ulButtonPressed |= gripMask;
@@ -4287,7 +4287,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
     if (suppressGrip) {
         // Suppress grip press/touch if requested
-        if (Config::options.useTouchForGrip) {
+        if (useTouchForGrip) {
             pControllerState->ulButtonTouched &= ~gripMask;
             if (!Config::options.allowGripPressWhileUsingTouchInput) {
                 // Remember that grip press was suppressed too so it can be forced later.
