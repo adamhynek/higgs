@@ -502,7 +502,7 @@ namespace Config {
 
         if (!RegisterBool("EnableTrigger", options.enableTrigger)) success = false;
         if (!RegisterBool("EnableGrip", options.enableGrip)) success = false;
-        if (!RegisterBool("UseTouchForGrip", options.useTouchForGrip)) success = false;
+        if (!RegisterInt("UseTouchForGrip", options.useTouchForGrip)) success = false;
         if (!RegisterBool("AllowGripPressWhileUsingTouchInput", options.allowGripPressWhileUsingTouchInput)) success = false;
 
         if (!RegisterBool("EnableDrinkPoison", options.enableDrinkPoison)) success = false;
