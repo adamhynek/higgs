@@ -8,7 +8,7 @@
 
 namespace Config {
     enum GripInputMethod {
-        Auto = -1,
+        Auto,
         Press,
         Touch
     };
