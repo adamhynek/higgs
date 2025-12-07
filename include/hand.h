@@ -175,6 +175,14 @@ struct Hand
                 this->fingerNodeNames[i][j] = fingerNodeNames[i][j];
             }
         }
+
+        // Determine whether this controller should use touch for it's grip input by default.
+        if (Config::options.useTouchForGrip == 0 || Config::options.useTouchForGrip == 1) {
+            useTouchForGripThisSession = static_cast<bool>(Config::options.useTouchForGrip);
+        }
+        else {
+            useTouchForGripThisSession = IsHandUsingIndexController(isLeft);
+        }
     };
 
     ~Hand() = delete; // Hacky way to prevent trying to free NiPointers when the game quits and memory is fucked
@@ -391,6 +399,8 @@ struct Hand
     bool releaseRequested = false; // True on falling edge of trigger press
     bool wasObjectGrabbed = false;
     bool gripPressWasBlockedWithGripTouch = false;
+
+    bool useTouchForGripThisSession = false;
 };
 
 extern Hand *g_rightHand;
