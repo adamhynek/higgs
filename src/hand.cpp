@@ -486,7 +486,7 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
                 }
                 else if (ref->formType == kFormType_Character) {
                     Actor *actor = DYNAMIC_CAST(ref, TESObjectREFR, Actor);
-                    bool disableLooting = 
+                    bool disableLooting =
                         Config::options.disableLooting ||
                         Config::options.disableGravityGlovesLooting ||
                         (!Config::options.allowLootingNonRagdolledActors && !Actor_IsInRagdollState(actor)) ||
@@ -722,7 +722,7 @@ void Hand::CreateWeaponCollision(bhkWorld *world)
     if (!Config::options.enableWeaponCollision) return;
 
     PlayerCharacter *player = *g_thePlayer;
-    
+
     VRMeleeData *meleeData = GetVRMeleeData(isLeft);
 
     NiPointer<NiNode> collisionNode = meleeData->collisionNode;
@@ -1937,7 +1937,7 @@ bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const N
             }
         }
     }
-    
+
     return false;
 }
 
@@ -3834,7 +3834,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 static std::set<NiPointer<bhkRigidBody>> connectedRigidBodies;
                 DeferSetClear connectedRigidBodiesClear(connectedRigidBodies);
                 bool isAttachedToFixed = CollectAllGrabbedRigidBodies(selectedObj->GetNiNode(), selectedObject.rigidBody, connectedRigidBodies);
-                
+
                 if (!isHoldingNonRagdolledActor) {
                     for (bhkRigidBody *connectedBody : connectedRigidBodies) {
                         RegisterObjectMass(connectedBody->hkBody);
@@ -3927,7 +3927,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                         hkpPositionConstraintMotor *linearMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
                         hkpPositionConstraintMotor *angularMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
-                        
+
                         float angularToLinearForceRatio = Config::options.grabConstraintAngularToLinearForceRatio;
                         if (fadeInGrabConstraint) {
                             double elapsedTimeFraction = (g_currentFrameTime - heldTime) / Config::options.grabConstraintFadeInTime;
@@ -4016,7 +4016,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         }
                     }
                     */
-                    
+
                     /*NiPoint3 desiredPos = newTransform.pos * havokWorldScale;
                     NiPoint3 playerHkVelocity = avgPlayerVelocityWorldspace * havokWorldScale;
                     desiredPos += playerHkVelocity * *g_deltaTime;*/
@@ -4139,13 +4139,21 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
     // Check if the trigger is pressed
     triggerDown = Config::options.enableTrigger && (pControllerState->ulButtonPressed & triggerMask);
-    gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
+
+    // Check if the grip is pressed or touched
+    if (Config::options.useTouchForGrip) {
+        gripDown = Config::options.enableGrip && (pControllerState->ulButtonTouched & gripMask);
+    } else {
+        gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
+    }
 
     bool triggerRisingEdge = triggerDown && !triggerDownBefore;
     bool triggerFallingEdge = !triggerDown && triggerDownBefore;
+    bool suppressTrigger = false;
 
     bool gripRisingEdge = gripDown && !gripDownBefore;
     bool gripFallingEdge = !gripDown && gripDownBefore;
+    bool suppressGrip = false;
 
     // Only advance states if no menus are open
     if (MenuChecker::isGameStopped()) return;
@@ -4170,6 +4178,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
             inputTrigger = false;
             inputGrip = false;
+            gripPressWasBlockedWithGripTouch = false;
 
             if (triggerRisingEdge) {
                 if (!player->actorState.IsWeaponDrawn()) {
@@ -4211,12 +4220,12 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                         inputGrip = true;
                     }
 
-                    // Suppress trigger press
+                    // Suppress grip/trigger inputs during triggerPressedLeewayTime
                     if (inputTrigger) {
-                        pControllerState->ulButtonPressed &= ~triggerMask;
+                        suppressTrigger = true;
                     }
                     if (inputGrip) {
-                        pControllerState->ulButtonPressed &= ~gripMask;
+                        suppressGrip = true;
                     }
                 }
                 else {
@@ -4240,12 +4249,12 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             }
         }
         else {
+            // Suppress grip/trigger inputs while inputState == Block
             if (Config::options.enableTrigger && !shouldNotBlockTrigger) {
-                pControllerState->ulButtonPressed &= ~triggerMask;
+                suppressTrigger = true;
             }
-
             if (Config::options.enableGrip) {
-                pControllerState->ulButtonPressed &= ~gripMask;
+                suppressGrip = true;
             }
         }
     }
@@ -4256,11 +4265,40 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
                 pControllerState->ulButtonPressed |= triggerMask;
             }
             if (inputGrip) {
-                pControllerState->ulButtonPressed |= gripMask;
+                if (Config::options.useTouchForGrip) {
+                    pControllerState->ulButtonTouched |= gripMask;
+                    if (!Config::options.allowGripPressWhileUsingTouchInput && gripPressWasBlockedWithGripTouch) {
+                        pControllerState->ulButtonPressed |= gripMask;
+                    }
+                } else {
+                    pControllerState->ulButtonPressed |= gripMask;
+                }
             }
         }
         else {
             inputState = InputState::Idle;
+        }
+    }
+
+    if (suppressTrigger) {
+        // Suppress trigger press if requested
+        pControllerState->ulButtonPressed &= ~triggerMask;
+    }
+
+    if (suppressGrip) {
+        // Suppress grip press/touch if requested
+        if (Config::options.useTouchForGrip) {
+            pControllerState->ulButtonTouched &= ~gripMask;
+            if (!Config::options.allowGripPressWhileUsingTouchInput) {
+                // Remember that grip press was suppressed too so it can be forced later.
+                // Only reset it on the next Idle state as grip press is always released a few frames before grip touch.
+                gripPressWasBlockedWithGripTouch = gripPressWasBlockedWithGripTouch || (pControllerState->ulButtonPressed & gripMask);
+
+                // Also suppress grip press if not explicitly allowed in config
+                pControllerState->ulButtonPressed &= ~gripMask;
+            }
+        } else {
+            pControllerState->ulButtonPressed &= ~gripMask;
         }
     }
 }

@@ -223,7 +223,7 @@ namespace Config {
         if (!RegisterFloat("MouthRadius", options.mouthRadius)) success = false;
 
         if (!ReadVector("SelectionBeamStretch", options.selectionBeamStretch)) success = false;
-        
+
         if (!ReadVector("RolloverOffsetRight", options.rolloverOffsetRight)) success = false;
         if (!ReadVector("RolloverOffsetLeft", options.rolloverOffsetLeft)) success = false;
         if (!ReadVector("RolloverRotation", options.rolloverRotation)) success = false;
@@ -437,7 +437,7 @@ namespace Config {
 
         if (!RegisterFloat("grabConstraintFadeInStartAngularMaxForceRatio", options.grabConstraintFadeInStartAngularMaxForceRatio)) success = false;
         if (!RegisterDouble("grabConstraintFadeInTime", options.grabConstraintFadeInTime)) success = false;
-        
+
         if (!RegisterFloat("grabConstraintLinearMaxForceActor", options.grabConstraintLinearMaxForceActor)) success = false;
         if (!RegisterFloat("grabConstraintAngularMaxForceActor", options.grabConstraintAngularMaxForceActor)) success = false;
 
@@ -502,6 +502,8 @@ namespace Config {
 
         if (!RegisterBool("EnableTrigger", options.enableTrigger)) success = false;
         if (!RegisterBool("EnableGrip", options.enableGrip)) success = false;
+        if (!RegisterBool("UseTouchForGrip", options.useTouchForGrip)) success = false;
+        if (!RegisterBool("AllowGripPressWhileUsingTouchInput", options.allowGripPressWhileUsingTouchInput)) success = false;
 
         if (!RegisterBool("EnableDrinkPoison", options.enableDrinkPoison)) success = false;
         if (!RegisterBool("OverrideActivateText", options.overrideActivateText)) success = false;
