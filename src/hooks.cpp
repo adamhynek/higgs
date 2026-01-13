@@ -673,7 +673,7 @@ void UpdateVRMeleeDataRigidBodyCtorHook(bhkRigidBody *newRigidBody, NiAVObject *
 
     // Next we need to handle the case of the collision node not being at the root
     NiPointer<NiAVObject> collisionNode = GetNodeFromCollidable(clonedFromBody->hkBody->getCollidable());
-    if (collisionNode != clonedFromRoot) {
+    if (collisionNode && collisionNode != clonedFromRoot) {
         bhkRigidBodyT *rigidBodyT = DYNAMIC_CAST(newRigidBody, bhkRigidBody, bhkRigidBodyT);
         if (!rigidBodyT) {
             // It needs to be a rigidBodyT so that its node's transforms can be applied to it
