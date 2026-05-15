@@ -9,6 +9,7 @@ namespace MenuChecker
     };
     
     std::vector<std::string> gameStoppingMenus{
+        "CustomMenu",
         "BarterMenu",
         "Book Menu",
         "Console",
@@ -42,6 +43,7 @@ namespace MenuChecker
     };
 
     std::unordered_map<std::string, bool> menuTypes({
+        { "CustomMenu", false },
         { "BarterMenu", false },
         { "Book Menu", false },
         { "Console", false },
