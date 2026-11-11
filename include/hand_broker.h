@@ -1,6 +1,8 @@
 #pragma once
 #include "hand_input_extended.h"
 #include "higgsinputcontext.h"
+#include "higgsinputroutes.h"
+#include "higgscommandpolicy.h"
 #include "higgsgrantmutation.h"
 #include "higgsauthorizeddispatch.h"
 #include "higgshandapi.h"
@@ -52,7 +54,19 @@ class Broker
     void RetainRequest(uint64_t, bool);
     HIGGS_HandStatus CancelNativeRequest(uint64_t, uint64_t);
     HIGGS_HandStatus Remove(HIGGS_HandClient, uint64_t);
-    HIGGS_HandStatus Submit(HIGGS_HandClient, const HIGGS_ActionCandidate &, uint64_t &, Clock);
+    HIGGS_HandStatus Submit(HIGGS_HandClient, const HIGGS_ActionCandidate &, uint64_t &, Clock, uint64_t stableTarget = 0);
+    void AcceptNativePress(uint32_t hand,uint32_t button);
+    HIGGS_HandStatus CopySequence(uint64_t, uint64_t, HIGGS_InputSequence &);
+    HIGGS_HandStatus CheckSelectedAction(uint64_t, uint64_t, uint64_t, uint32_t, uint64_t &, Clock);
+    HIGGS_HandStatus ObservedSnapshot(uint64_t, HIGGS_HandSnapshot &, Clock);
+    HIGGS_HandStatus ObservedDecision(uint64_t, uint64_t, HIGGS_InputDecision &);
+    uint64_t ClientLabel(uint64_t);
+    uint64_t ClientForLabel(uint64_t);
+    HIGGS_HandStatus AttachDraw(uint64_t,uint32_t,uint64_t&);
+    HIGGS_HandStatus DetachDraw(uint64_t,uint64_t);
+    uint32_t DrawCoverage();
+    HIGGS_HandStatus DrawPolicy(uint64_t,const HIGGS_TriggerDrawPolicy&,Clock);
+    HIGGS_HandStatus EvaluateDraw(uint64_t,uint64_t,uint32_t,uint32_t&,Clock);
     HIGGS_HandStatus Report(HIGGS_HandClient, const HIGGS_ActionResult &);
     HIGGS_HandStatus Result(HIGGS_HandClient, uint64_t, HIGGS_ActionResult &);
     HIGGS_HandStatus Decision(HIGGS_HandClient, uint64_t, HIGGS_InputDecision &);
@@ -133,9 +147,11 @@ class Broker
   private:
     struct Client
     {
-        uint64_t id = 0;
+        uint64_t id = 0, label = 0;
         HIGGS_HandClientInfo info{};
         bool active = true;
+        uint64_t drawEpoch = 0, drawUntil = 0;
+        uint32_t drawDecision = HIGGS_DRAW_DEFAULT;
     };
     struct Registration
     {
@@ -161,6 +177,7 @@ class Broker
         Clock expires = 0;
         bool grantActive = false, selected = false, dispatched = false;
         uint64_t recognizerOwner = 0;
+        uint64_t stableTarget = 0;
         HIGGS_HandOperationState operation{};
         bool operationActive = false;
         bool nativeStarted = false;
@@ -203,6 +220,14 @@ class Broker
     HIGGS_InputContextState ContextStateLocked() const;
     bool RoutedLocked(uint64_t executor, uint64_t recognizer, uint32_t hands);
     int32_t PriorityLocked(const Client &, bool &overridden) const;
+    int32_t ActionPriorityLocked(const Client &, uint64_t action, bool &overridden) const;
+    uint64_t GrantCorrelationLocked(uint64_t grant) const;
+    uint64_t ClientLabelLocked(uint64_t);
+    void ObserveRecordLocked(HIGGS_HandRecord &);
+    HIGGS_HandSnapshot ObservationLocked(HIGGS_HandSnapshot);
+    void EndSequenceLocked(size_t hand, size_t control, uint64_t up, uint32_t reason);
+    void CancelSequencesLocked(size_t hand, uint32_t reason);
+    void CancelRoutesLocked(uint64_t executor, uint64_t owner, uint64_t recognizer, uint32_t reason);
     void RefreshLocked();
     void FinishLocked(Action &, uint32_t stage, uint32_t reason);
     void QueueResultLocked(const Action &);
@@ -216,12 +241,22 @@ class Broker
     std::condition_variable drained_;
     std::recursive_mutex dispatch_;
     std::vector<Client> clients_;
+    uint64_t drawBoundaryOwner_ = 0, drawBoundaryId_ = 0;
+    uint64_t nextClientLabel_ = UINT64_C(1) << 63;
     std::vector<std::pair<std::string, int32_t>> priorities_;
     std::vector<std::shared_ptr<Registration>> registrations_;
     std::array<Action, 256> actions_{};
     std::array<HIGGS_InputDecision, 256> decisions_{};
     std::array<uint64_t, 256> decisionContexts_{};
-    std::vector<HIGGS_HandEvent> pendingEvents_;
+    struct ActiveSequence {
+        HIGGS_InputSequence record{};
+        uint64_t owner = 0, recognizer = 0;
+    };
+    std::vector<std::array<ActiveSequence,kInputControlSlots>> activeSequences_{2};
+    std::vector<HIGGS_InputSequence> pastSequences_ = std::vector<HIGGS_InputSequence>(256);
+    std::array<std::array<uint64_t,2>,2> nativeFallbackPress_{};
+    size_t nextPastSequence_ = 0;
+    std::vector<std::pair<uint64_t,HIGGS_HandEvent>> pendingEvents_;
     std::vector<std::pair<HIGGS_InputContextState, HIGGS_InputContextState>> pendingContexts_;
     uint32_t contextMenus_ = 0;
     uint64_t contextGeneration_ = 1, contextChangedAt_ = 0;

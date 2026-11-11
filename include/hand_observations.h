@@ -11,7 +11,8 @@ namespace HiggsHands {
 class ObservationStore {
 public:
     bool Motion(HIGGS_MotionSample);
-    bool Contact(HIGGS_ContactObservation,uint64_t* assignedSequence=nullptr);
+    bool Contact(HIGGS_ContactObservation,uint64_t* assignedSequence=nullptr, HIGGS_ContactDetails details={});
+    HIGGS_HandStatus CopyContactDetails(uint64_t epoch,uint64_t sequence,HIGGS_ContactDetails&);
     bool Controllers(const std::array<HIGGS_MotionSample,4>&,const HIGGS_TrackingMappingSample*);
     void Release(const HIGGS_HandEvent&,const HIGGS_HandSnapshot&);
     void Epoch(uint64_t);
@@ -26,6 +27,7 @@ private:
     uint64_t lastTrackingGeneration_=0,lastCapture_=0;
     std::array<HIGGS_MotionSample,256> motion_{};
     std::array<HIGGS_ContactObservation,512> contacts_{};
+    std::array<HIGGS_ContactDetails,512> details_{};
     std::array<HIGGS_ReleaseObservation,64> releases_{};
     std::array<HIGGS_TrackingMappingSample,64> mappings_{};
     size_t motionCount_=0,contactCount_=0,releaseCount_=0;

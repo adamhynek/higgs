@@ -1,5 +1,6 @@
 #ifndef HIGGS_HAND_PARTS_H
 #define HIGGS_HAND_PARTS_H
+#define HIGGS_HAND_PARTS_ABI_VERSION 2u
 #include "higgshandapi.h"
 #ifdef __cplusplus
 extern "C" {
@@ -49,7 +50,7 @@ typedef struct HIGGS_HandPartSetState {
 } HIGGS_HandPartSetState;
 typedef struct HIGGS_HandPartAttribution {
     uint32_t structSize, physicalHand, partId, bodyKey;
-    uint64_t epoch, bodyGeneration, setId, appliedRevision, owner;
+    uint64_t epoch, bodyGeneration, setId, appliedRevision, owner; /* Public registration label. */
 } HIGGS_HandPartAttribution;
 typedef struct HIGGS_HandPartContact {
     uint32_t structSize, reserved;

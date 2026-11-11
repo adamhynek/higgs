@@ -4290,6 +4290,10 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
 
     if (inputState == InputState::Idle) {
         if (((triggerRisingEdge && canUseTrigger) || gripRisingEdge) && canGrab) {
+            // The native leeway window can acquire a target after this Down. Its matching
+            // falling edge belongs to this native attempt even if the initial ray was empty.
+            if (triggerRisingEdge && canUseTrigger) HiggsHands::Service().AcceptNativePress(physicalHand, HIGGS_INPUT_TRIGGER);
+            if (gripRisingEdge) HiggsHands::Service().AcceptNativePress(physicalHand, HIGGS_INPUT_GRIP);
             grabRequestedTime = g_currentFrameTime;
             grabRequested = true;
 

@@ -1,7 +1,7 @@
 #ifndef HIGGS_INPUT_EXTENDED_H
 #define HIGGS_INPUT_EXTENDED_H
 #include "higgshandapi.h"
-#define HIGGS_INPUT_ABI_VERSION 1u
+#define HIGGS_INPUT_ABI_VERSION 2u
 #define HIGGS_INPUT_CAP_FRAMES UINT64_C(1)
 #define HIGGS_INPUT_CAP_OBSERVATIONS UINT64_C(2)
 #define HIGGS_INPUT_CAP_PRESS_CANDIDATES UINT64_C(4)
@@ -157,7 +157,7 @@ extern "C"
     typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryInputInterfaceFn)(uint32_t, uint32_t, HIGGS_InputInterface *);
     HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryInputInterface(uint32_t, uint32_t, HIGGS_InputInterface *);
 #pragma pack(pop)
-/* Exact v1 copied records. Remove recognizers through HandInterface.RemoveRegistration;
+/* Exact v2 copied records. Remove recognizers through HandInterface.RemoveRegistration;
  * it shares existing callback drainage. Callback events with inputId0/without
  * ACTIONABLE are immutable observations, not authority to execute gameplay.
  * Candidates share the existing broker priority winner. Grip/trigger retain their

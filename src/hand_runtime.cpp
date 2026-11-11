@@ -50,7 +50,7 @@ HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, HIGGS_HandSnapshot *out)
         return s;
     return Guard([&] {
         HIGGS_HandSnapshot value{};
-        auto status = Service().Copy(owner, value, Now());
+        auto status = Service().ObservedSnapshot(owner, value, Now());
         if (!status)
             std::memcpy(out, &value, sizeof(value));
         return status;
@@ -134,7 +134,7 @@ HIGGS_HandStatus HIGGS_HAND_CALL Decision(uint64_t o, uint64_t id, HIGGS_InputDe
         return s;
     return Guard([&] {
         HIGGS_InputDecision value{};
-        auto status = Service().Decision(o, id, value);
+        auto status = Service().ObservedDecision(o, id, value);
         if (!status)
             std::memcpy(out, &value, sizeof(value));
         return status;
@@ -158,11 +158,17 @@ HIGGS_HandStatus HIGGS_HAND_CALL Physical(uint64_t o, const HIGGS_PhysicalReques
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Authorize(uint64_t o, uint64_t e, uint64_t r, uint32_t h)
 {
-    return Guard([&] { return Service().Authorize(o, e, r, h); });
+    return Guard([&] {
+        const auto recognizer=Service().ClientForLabel(r);
+        return recognizer ? Service().Authorize(o,e,recognizer,h) : HIGGS_HandStatus(HIGGS_HAND_INVALID_CLIENT);
+    });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Revoke(uint64_t o, uint64_t e, uint64_t r)
 {
-    return Guard([&] { return Service().Revoke(o, e, r); });
+    return Guard([&] {
+        const auto recognizer=Service().ClientForLabel(r);
+        return recognizer ? Service().Revoke(o,e,recognizer) : HIGGS_HandStatus(HIGGS_HAND_INVALID_CLIENT);
+    });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL CanRoute(uint64_t r, uint64_t e, uint32_t h)
 {
@@ -264,13 +270,13 @@ extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandOperationsInterface(u
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryGrantMutationInterface(uint32_t version, uint32_t bytes,
                                                                               HIGGS_GrantMutationInterface *out)
 {
-    if (version != 1)
+    if (version != HIGGS_GRANT_MUTATION_ABI_VERSION)
         return HIGGS_HAND_UNSUPPORTED_VERSION;
     if (!out)
         return HIGGS_HAND_INVALID_ARGUMENT;
     if (bytes < sizeof(*out))
         return HIGGS_HAND_BUFFER_TOO_SMALL;
-    const HIGGS_GrantMutationInterface table{sizeof(table), 1, Authorized};
+    const HIGGS_GrantMutationInterface table{sizeof(table), HIGGS_GRANT_MUTATION_ABI_VERSION, Authorized};
     std::memcpy(out, &table, sizeof(table));
     return HIGGS_HAND_OK;
 }
@@ -289,6 +295,41 @@ extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryAuthorizedDispatchInterfa
 }
 static_assert(std::is_standard_layout<HIGGS_HandSnapshot>::value && std::is_trivially_copyable<HIGGS_HandInput>::value,
               "Copied C records");
+namespace {
+HIGGS_HandStatus HIGGS_HAND_CALL Ordered(uint64_t owner, const HIGGS_ActionCandidate *p, uint64_t target, uint64_t *out)
+{
+    if (!p || !out) return HIGGS_HAND_INVALID_ARGUMENT;
+    return Guard([&]{ return Service().Submit(owner,*p,*out,Now(),target); });
+}
+HIGGS_HandStatus HIGGS_HAND_CALL Sequence(uint64_t owner, uint64_t press, HIGGS_InputSequence *out)
+{
+    const auto status = Output(out);
+    if (status) return status;
+    return Guard([&]{ return Service().CopySequence(owner,press,*out); });
+}
+HIGGS_HandStatus HIGGS_HAND_CALL CurrentAction(uint64_t owner,uint64_t id,uint64_t epoch,uint32_t hands,uint64_t *out)
+{
+    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
+    return Guard([&]{ return Service().CheckSelectedAction(owner,id,epoch,hands,*out,Now()); });
+}
+HIGGS_HandStatus HIGGS_HAND_CALL Label(uint64_t owner,uint64_t *out)
+{
+    if(!out)return HIGGS_HAND_INVALID_ARGUMENT;
+    return Guard([&]() -> HIGGS_HandStatus {
+        const auto label=Service().ClientLabel(owner);
+        if(!label)return HIGGS_HAND_INVALID_CLIENT;
+        *out=label;return HIGGS_HAND_OK;
+    });
+}
+}
+extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryInputRoutesInterface(uint32_t version,uint32_t bytes,HIGGS_InputRoutesInterface *out)
+{
+    if (version != 1) return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
+    if (bytes < sizeof(*out)) return HIGGS_HAND_BUFFER_TOO_SMALL;
+    *out = {sizeof(*out),1,HIGGS_ROUTE_NATIVE_GRIP|HIGGS_ROUTE_ORDERED_CANDIDATES|HIGGS_ROUTE_TERMINALS|HIGGS_ROUTE_NATIVE_TRIGGER_GRAB,Ordered,Sequence,CurrentAction,Label};
+    return HIGGS_HAND_OK;
+}
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandInterface(uint32_t version, uint32_t bytes,
                                                                      HIGGS_HandInterface *out)
 {

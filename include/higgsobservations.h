@@ -1,7 +1,7 @@
 #ifndef HIGGS_OBSERVATIONS_H
 #define HIGGS_OBSERVATIONS_H
 #include "higgshandapi.h"
-#define HIGGS_OBSERVATION_ABI_VERSION 1u
+#define HIGGS_OBSERVATION_ABI_VERSION 2u
 #define HIGGS_OBSERVATION_CAP_MOTION UINT64_C(1)
 #define HIGGS_OBSERVATION_CAP_CONTACT UINT64_C(2)
 #define HIGGS_OBSERVATION_CAP_RELEASE UINT64_C(4)
@@ -49,6 +49,26 @@ typedef struct HIGGS_ContactObservation {
     /* Engine enabled contact evidence, not a damage event or an impulse report.
      * Position is world Skyrim units; velocities are world-axis metres/s. */
 } HIGGS_ContactObservation;
+enum { HIGGS_CONTACT_BODY_UNKNOWN=0, HIGGS_CONTACT_BODY_HAND_PART=1, HIGGS_CONTACT_BODY_HELD_OR_EQUIPPED=2 };
+enum { HIGGS_CONTACT_BODY_LIFETIME=1, HIGGS_CONTACT_APPLIED_REVISION=2, HIGGS_CONTACT_LEAF_KEY=4 };
+typedef struct HIGGS_ContactEndpoint {
+    uint32_t source, fields, observedBodyKey, leafShapeKey;
+    uint64_t bodyGeneration, appliedRevision;
+} HIGGS_ContactEndpoint;
+typedef struct HIGGS_ContactDetails {
+    uint32_t structSize, reserved;
+    uint64_t epoch, contactSequence;
+    HIGGS_ContactEndpoint probe, target;
+} HIGGS_ContactDetails;
+typedef struct HIGGS_ContactDetailsInterface {
+    uint32_t structSize, abiVersion;
+    HIGGS_HandStatus (HIGGS_HAND_CALL *Copy)(HIGGS_HandClient,uint64_t epoch,uint64_t contactSequence,HIGGS_ContactDetails*);
+} HIGGS_ContactDetailsInterface;
+/* Both endpoints are captured at the contact. Lifetime is scoped by source
+   and epoch. A leaf key alone is neither an anatomical label nor a complete
+   compound shape path. Unknown external endpoints retain their observed UID. */
+HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryContactDetailsInterface(uint32_t,uint32_t,HIGGS_ContactDetailsInterface*);
+typedef HIGGS_HandStatus (HIGGS_HAND_CALL *HIGGS_QueryContactDetailsInterfaceFn)(uint32_t,uint32_t,HIGGS_ContactDetailsInterface*);
 typedef struct HIGGS_ObservationQuery {
     uint32_t structSize,physicalHands,source,space;
     uint64_t epoch,afterSequence,minObservedAtNs;

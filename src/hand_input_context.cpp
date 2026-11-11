@@ -24,6 +24,8 @@ void Broker::SetInputContext(uint32_t menus, Clock now)
     {
         std::lock_guard lock(mutex_);
         if (menus == contextMenus_) return;
+        CancelSequencesLocked(0, HIGGS_HAND_NOT_READY);
+        CancelSequencesLocked(1, HIGGS_HAND_NOT_READY);
         const auto previous = ContextStateLocked();
         contextMenus_ = menus;
         ++contextGeneration_;
@@ -57,9 +59,11 @@ void Broker::ObserveContextFrame(const HIGGS_ControllerFrame &frame)
     const auto mask = ActionControlMask();
     const auto pressed = frame.pressed & mask, touched = frame.touched & mask;
     if (!hand.known || hand.device != frame.deviceIndex || (frame.flags & HIGGS_INPUT_BASELINE)) {
+        if (hand.known) CancelSequencesLocked(frame.physicalHand - 1, HIGGS_HAND_NOT_READY);
         hand.drainPressed |= pressed;
         hand.drainTouched |= touched;
     }
+    if (frame.status != HIGGS_INPUT_FRAME_READY) CancelSequencesLocked(frame.physicalHand - 1,HIGGS_HAND_NOT_READY);
     // Save the union BEFORE clearing released bits: its matching Up is drained too.
     HIGGS_InputContextFrame stamp{sizeof(stamp), frame.physicalHand,
         contextMenus_ ? uint32_t(HIGGS_CONTEXT_UI) : uint32_t(HIGGS_CONTEXT_GAMEPLAY), HIGGS_CONTEXT_NO_REPLAY,
@@ -167,5 +171,103 @@ extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryInputContextInterface(uin
     if (bytes < sizeof(*out)) return HIGGS_HAND_BUFFER_TOO_SMALL;
     const HIGGS_InputContextInterface table{sizeof(table), HIGGS_INPUT_CONTEXT_ABI_VERSION, 7, Context, Frame, Subscribe};
     std::memcpy(out, &table, sizeof(table));
+    return HIGGS_HAND_OK;
+}
+
+namespace HiggsHands {
+HIGGS_HandStatus Broker::AttachDraw(uint64_t owner, uint32_t paths, uint64_t &registration)
+{
+    std::lock_guard lock(mutex_);
+    if (!ClientLocked(owner)) return HIGGS_HAND_INVALID_CLIENT;
+    if (paths != HIGGS_DRAW_ALL_PATHS) return HIGGS_HAND_UNSUPPORTED;
+    if (drawBoundaryOwner_) return HIGGS_HAND_CONFLICT;
+    if (!nextToken_ || nextToken_ == UINT64_MAX) return HIGGS_HAND_CAPACITY;
+    drawBoundaryOwner_ = owner;
+    registration = drawBoundaryId_ = nextToken_++;
+    return HIGGS_HAND_OK;
+}
+HIGGS_HandStatus Broker::DetachDraw(uint64_t owner, uint64_t registration)
+{
+    std::lock_guard lock(mutex_);
+    if (!ClientLocked(owner)) return HIGGS_HAND_INVALID_CLIENT;
+    if (owner != drawBoundaryOwner_) return HIGGS_HAND_WRONG_OWNER;
+    if (!registration || drawBoundaryId_ != registration) return HIGGS_HAND_STALE;
+    drawBoundaryOwner_ = drawBoundaryId_ = 0;
+    for (auto &client : clients_) client.drawUntil = 0;
+    return HIGGS_HAND_OK;
+}
+uint32_t Broker::DrawCoverage()
+{
+    std::lock_guard lock(mutex_);
+    return drawBoundaryOwner_ ? HIGGS_DRAW_ALL_PATHS : 0;
+}
+HIGGS_HandStatus Broker::DrawPolicy(uint64_t owner, const HIGGS_TriggerDrawPolicy &r, Clock now)
+{
+    std::lock_guard lock(mutex_);
+    auto client = ClientLocked(owner);
+    if (!client) return HIGGS_HAND_INVALID_CLIENT;
+    if (r.structSize != sizeof(r) || r.reserved || r.decision > HIGGS_DRAW_SUPPRESS || r.durationMs > 60000 ||
+        (r.decision == HIGGS_DRAW_DEFAULT) != (r.durationMs == 0)) return HIGGS_HAND_INVALID_ARGUMENT;
+    if (r.decision == HIGGS_DRAW_DEFAULT) { client->drawUntil=0; return HIGGS_HAND_OK; }
+    if (!drawBoundaryOwner_) return HIGGS_HAND_UNSUPPORTED;
+    if (!snapshot_.worldReady || worldChangePending_) return HIGGS_HAND_NOT_READY;
+    if (!r.epoch || r.epoch != snapshot_.epoch) return HIGGS_HAND_STALE;
+    const Clock duration = Clock(r.durationMs) * 1000000;
+    if (UINT64_MAX - now < duration) return HIGGS_HAND_CAPACITY;
+    client->drawEpoch = r.epoch;
+    client->drawUntil = now + duration;
+    client->drawDecision = r.decision;
+    return HIGGS_HAND_OK;
+}
+HIGGS_HandStatus Broker::EvaluateDraw(uint64_t owner, uint64_t registration, uint32_t path, uint32_t &decision, Clock now)
+{
+    std::lock_guard lock(mutex_);
+    if (!ClientLocked(owner)) return HIGGS_HAND_INVALID_CLIENT;
+    if (owner != drawBoundaryOwner_) return HIGGS_HAND_WRONG_OWNER;
+    if (!registration || registration != drawBoundaryId_) return HIGGS_HAND_STALE;
+    if (!path || (path & (path-1)) || path > HIGGS_DRAW_DUAL_CAST) return HIGGS_HAND_INVALID_ARGUMENT;
+    decision = HIGGS_DRAW_DEFAULT;
+    if (!snapshot_.worldReady || worldChangePending_ || contextMenus_) return HIGGS_HAND_OK;
+    const Client *best = nullptr;
+    int32_t priority = INT32_MIN;
+    for (const auto &client : clients_) {
+        if (!client.active || client.drawUntil <= now || client.drawEpoch != snapshot_.epoch) continue;
+        bool overridden = false;
+        const auto score = PriorityLocked(client,overridden);
+        if (!best || score > priority || (score==priority && std::strcmp(client.info.name,best->info.name)<0)) {
+            best=&client; priority=score;
+        }
+    }
+    if (best) decision=best->drawDecision;
+    return HIGGS_HAND_OK;
+}
+}
+namespace {
+template<class F> HIGGS_HandStatus GuardCommand(F f) noexcept { try { return f(); } catch (...) { return HIGGS_HAND_INTERNAL_ERROR; } }
+HIGGS_HandStatus HIGGS_HAND_CALL AttachDraw(uint64_t owner,uint32_t paths,uint64_t *id) {
+    if (!id) return HIGGS_HAND_INVALID_ARGUMENT;
+    return GuardCommand([&]{return HiggsHands::Service().AttachDraw(owner,paths,*id);});
+}
+HIGGS_HandStatus HIGGS_HAND_CALL DetachDraw(uint64_t owner,uint64_t id) {
+    return GuardCommand([&]{return HiggsHands::Service().DetachDraw(owner,id);});
+}
+HIGGS_HandStatus HIGGS_HAND_CALL DrawCoverage(uint32_t *paths) {
+    if (!paths) return HIGGS_HAND_INVALID_ARGUMENT;
+    return GuardCommand([&]{*paths=HiggsHands::Service().DrawCoverage();return HIGGS_HAND_OK;});
+}
+HIGGS_HandStatus HIGGS_HAND_CALL SetDraw(uint64_t owner,const HIGGS_TriggerDrawPolicy *r) {
+    if (!r) return HIGGS_HAND_INVALID_ARGUMENT;
+    return GuardCommand([&]{return HiggsHands::Service().DrawPolicy(owner,*r,HiggsHands::Now());});
+}
+HIGGS_HandStatus HIGGS_HAND_CALL EvaluateDraw(uint64_t owner,uint64_t id,uint32_t path,uint32_t *decision) {
+    if (!decision) return HIGGS_HAND_INVALID_ARGUMENT;
+    return GuardCommand([&]{return HiggsHands::Service().EvaluateDraw(owner,id,path,*decision,HiggsHands::Now());});
+}
+}
+extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryDefaultCommandInterface(uint32_t version,uint32_t bytes,HIGGS_DefaultCommandInterface *out) {
+    if(version!=1)return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if(!out)return HIGGS_HAND_INVALID_ARGUMENT;
+    if(bytes<sizeof(*out))return HIGGS_HAND_BUFFER_TOO_SMALL;
+    *out={sizeof(*out),1,AttachDraw,DetachDraw,DrawCoverage,SetDraw,EvaluateDraw};
     return HIGGS_HAND_OK;
 }

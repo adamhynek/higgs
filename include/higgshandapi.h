@@ -11,7 +11,7 @@
 extern "C"
 {
 #endif
-#define HIGGS_HAND_ABI_VERSION 1u
+#define HIGGS_HAND_ABI_VERSION 2u
 #define HIGGS_HAND_CAP_SNAPSHOT UINT64_C(1)
 #define HIGGS_HAND_CAP_INPUT_BROKER UINT64_C(2)
 #define HIGGS_HAND_CAP_OWNED_GRANTS UINT64_C(4)
@@ -69,7 +69,9 @@ extern "C"
         HIGGS_OBS_EQUIPMENT_KNOWN = 2,
         HIGGS_OBS_PALM_VALID = 4,
         HIGGS_OBS_TRACKING_VALID = 8,
-        HIGGS_OBS_SECONDARY_SUPPORT = 16
+        HIGGS_OBS_SECONDARY_SUPPORT = 16,
+        HIGGS_OBS_NATIVE_GRIP_TARGET = 32,
+        HIGGS_OBS_NATIVE_TRIGGER_TARGET = 64
     };
     enum
     {
@@ -96,7 +98,8 @@ extern "C"
         HIGGS_DECISION_CLIENT_PRIORITY = 2u,
         HIGGS_DECISION_REGISTRATION_ORDER = 4u, /* reserved for earlier drafts */
         HIGGS_DECISION_CANDIDATE_ORDER = 8u, /* offers of the same recognizer for one provider */
-        HIGGS_DECISION_STABLE_ID = 16u
+        HIGGS_DECISION_STABLE_ID = 16u,
+        HIGGS_DECISION_NATIVE = 32u
     };
     enum
     {
@@ -121,7 +124,8 @@ extern "C"
         HIGGS_EVENT_ACTION_RESULT = 5,
         HIGGS_EVENT_RESET = 6,
         HIGGS_EVENT_CONSUMPTION_REQUESTED = 7,
-        HIGGS_EVENT_STASH_REQUESTED = 8
+        HIGGS_EVENT_STASH_REQUESTED = 8,
+        HIGGS_EVENT_INPUT_RELEASED = 9, HIGGS_EVENT_INPUT_CANCELLED = 10
     };
     enum
     {
@@ -142,8 +146,8 @@ extern "C"
         uint32_t physicalHand, observationMask, occupancy, availability;
         uint32_t unavailableReasons, heldRefId, equippedFormId, reserved;
         uint64_t generation, poseObservationId, poseObservedAtNs;
-        HIGGS_HandGrant grant;
-        HIGGS_HandClient owner;
+        HIGGS_HandGrant grant; /* Public reservation correlation, never a mutation grant. */
+        HIGGS_HandClient owner; /* Public provider label, never a client credential. */
         float palmPosition[3]; /* Skyrim world units, world axes, resolved HIGGS palm. */
         float palmRotation[9]; /* row-major, no VRIK final-pose guarantee. */
     } HIGGS_HandRecord;
@@ -188,8 +192,8 @@ extern "C"
     {
         uint32_t structSize, consumed;
         uint64_t inputId, epoch;
-        HIGGS_HandClient owner;
-        HIGGS_HandGrant grant;
+        HIGGS_HandClient owner; /* Public provider label. */
+        HIGGS_HandGrant grant; /* Public reservation correlation. */
         HIGGS_HandRequestId requestId;
         int32_t effectivePriority;
         uint32_t reason;
@@ -198,7 +202,7 @@ extern "C"
     {
         uint32_t structSize, type, physicalHand, itemRefId;
         uint64_t eventId, epoch, observationId, poseObservationId, observedAtNs;
-        HIGGS_ActionResult result; /* only ACTION_RESULT; physical changes are observations. */
+        HIGGS_ActionResult result; /* ACTION_RESULT, plus original press/request identifiers on input termination. */
         HIGGS_HandRecord hand;     /* exact observation for grab/release/support events. */
     } HIGGS_HandEvent;
     typedef struct HIGGS_PhysicalRequest
@@ -256,7 +260,7 @@ extern "C"
      only after an actual matching hold transition. Acceptance is not completion.
      Successful outputs copy known bytes only; failures leave output unchanged except
      BUFFER_TOO_SMALL sets structSize. No C++ exceptions may cross callbacks.
-     Exact v1 table only; sizes/layout immutable. Stop callers before DLL unload. */
+     Exact v2 table only; sizes/layout immutable. Stop callers before DLL unload. */
     typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryHandInterfaceFn)(uint32_t, uint32_t, HIGGS_HandInterface *);
     HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandInterface(uint32_t version, uint32_t tableSize,
                                                               HIGGS_HandInterface *);

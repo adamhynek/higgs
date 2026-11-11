@@ -275,6 +275,7 @@
   <ItemGroup>
     <ClCompile Include="src\hand_broker.cpp" />
     <ClCompile Include="src\hand_runtime.cpp" />
+    <ClCompile Include="src\hand_equipment.cpp" />
     <ClCompile Include="src\main\native_regions.cpp" />
     <ClCompile Include="src\hand_native.cpp" />
     <ClInclude Include="include\hand_broker.h" />
@@ -319,6 +320,9 @@
     <ClInclude Include="include\higgsinput.h" />
     <ClInclude Include="include\hand_input_extended.h" />
     <ClInclude Include="include\higgsinputcontext.h" />
+    <ClInclude Include="include\higgsinputroutes.h" />
+    <ClInclude Include="include\higgscommandpolicy.h" />
+    <ClInclude Include="include\higgsequipment.h" />
     <ClInclude Include="include\higgshandusetransition.h" />
     <ClInclude Include="include\higgshanduseproposals.h" />
     <ClInclude Include="include\higgssupport.h" />

@@ -1,10 +1,11 @@
 ; Merge this section into Data\SKSE\Plugins\higgs_vr.ini.
 ; Case-insensitive registered client names. Higher priority wins.
 ; Routed candidates use the assigned executor PROVIDER's priority.
-; Missing entries use that client's registered default. Equal scores use the stable
-; executor provider ID and then the recognizer ID. One recognizer can rank its own
-; offers to that same provider by submitting its preferred offer first.
+; An action-specific provider/decimalActionId entry overrides the provider default.
+; The HIGGS native grab candidate (eligible grip or trigger) uses HIGGS/1 when its target is currently eligible.
+; Equal priorities use provider, action, optional stable target and recognizer.
+; Offers with identical keys and different targets need a stable target key.
 ; Empty Priorities clears overrides. Invalid/duplicate/overflow values preserve
 ; the previous complete map and log a warning. Up to 64 entries / 8190 characters.
 [HandBroker]
-Priorities=BodySlots=20,ExampleClimbing=50,ExamplePouchProvider=30
+Priorities=BodySlots=20,HIGGS/1=25,ExampleClimbing=50,ExamplePouchProvider=30

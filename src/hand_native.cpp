@@ -1,5 +1,6 @@
 #include "RE/offsets.h"
 #include "controller_tracking.h"
+#include "config.h"
 #include "hand.h"
 #include "hand_broker.h"
 #include "hand_observations.h"
@@ -572,6 +573,15 @@ void PublishNative()
         }
         if (hand->IsTwoHanding())
             h.observationMask |= HIGGS_OBS_SECONDARY_SUPPORT;
+        if ((Config::options.enableGrip || Config::options.enableTrigger) && hand->inputState==Hand::InputState::Idle) {
+            NiPointer<TESObjectREFR> selected;
+            const bool object = (hand->state == Hand::State::SelectedClose || hand->state == Hand::State::SelectedFar) &&
+                hand->CanGrabObject() && LookupREFRByHandle(hand->selectedObject.handle,selected) && selected;
+            if (object || (hand->state == Hand::State::SelectedTwoHand && hand->CanTwoHand())) {
+                if(Config::options.enableGrip) h.observationMask |= HIGGS_OBS_NATIVE_GRIP_TARGET;
+                if(Config::options.enableTrigger && !hand->ShouldRestrictTrigger()) h.observationMask |= HIGGS_OBS_NATIVE_TRIGGER_TARGET;
+            }
+        }
         if (tracking.hands[i].available)
             h.observationMask |= HIGGS_OBS_TRACKING_VALID;
         if (auto node = hand->GetFirstPersonHandNode())
@@ -597,7 +607,8 @@ void PublishNative()
             h.unavailableReasons |= HIGGS_HAND_REASON_MENU;
         if (!(h.observationMask & HIGGS_OBS_TRACKING_VALID))
             h.unavailableReasons |= HIGGS_HAND_REASON_TRACKING;
-        if (!hand->IsInGrabbableState() && !hand->HasHeldObject() && !hand->IsTwoHanding() && !hand->synergyGrabPending)
+        if (!hand->IsInGrabbableState() && !(h.observationMask & (HIGGS_OBS_NATIVE_GRIP_TARGET | HIGGS_OBS_NATIVE_TRIGGER_TARGET)) &&
+            !hand->HasHeldObject() && !hand->IsTwoHanding() && !hand->synergyGrabPending)
             h.unavailableReasons |= HIGGS_HAND_REASON_EXISTING_USE;
     }
     PublishNativeItems();

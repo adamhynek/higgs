@@ -36,7 +36,7 @@ class TransactionService
     struct Item
     {
         HIGGS_ItemIdentity value{};
-        uint64_t nativeKey = 0, seen = 0;
+        uint64_t nativeKey = 0, seen = 0, owner = 0;
         bool available = true;
     };
     struct Transaction

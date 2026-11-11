@@ -59,14 +59,14 @@ HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint64_t id, HIGGS_Physica
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryPhysicalPolicyInterface(uint32_t version, uint32_t bytes,
                                                                                HIGGS_PhysicalPolicyInterface *out)
 {
-    if (version != 1)
+    if (version != HIGGS_PHYSICAL_POLICY_ABI_VERSION)
         return HIGGS_HAND_UNSUPPORTED_VERSION;
     if (!out)
         return HIGGS_HAND_INVALID_ARGUMENT;
     if (bytes < sizeof(*out))
         return HIGGS_HAND_BUFFER_TOO_SMALL;
     const HIGGS_PhysicalPolicyInterface table{
-        sizeof(table), 1, HiggsHands::PhysicalPolicies().Capabilities(), Request, Update, End, Copy};
+        sizeof(table), HIGGS_PHYSICAL_POLICY_ABI_VERSION, HiggsHands::PhysicalPolicies().Capabilities(), Request, Update, End, Copy};
     std::memcpy(out, &table, sizeof(table));
     return HIGGS_HAND_OK;
 }

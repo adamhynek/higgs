@@ -73,6 +73,7 @@ HIGGS_HandStatus CreateBody(bhkWorld* world,const HIGGS_HandPartDefinition& d,co
     auto* rawBody=static_cast<bhkRigidBody*>(Heap_Allocate(sizeof(bhkRigidBody)));if(!rawBody)return HIGGS_HAND_INTERNAL_ERROR;bhkRigidBody_ctor(rawBody,&info);output.wrapper=rawBody;if(!output.wrapper->hkBody)return HIGGS_HAND_INTERNAL_ERROR;bhkRigidBody_setActivated(output.wrapper,true);if(world->world->areCriticalOperationsLocked())return HIGGS_HAND_PENDING;output.addSubmitted=output.addPending=true;hkpWorld_AddEntity(world->world,output.wrapper->hkBody,HK_ENTITY_ACTIVATION_DO_ACTIVATE);if(output.wrapper->hkBody->getWorld()==world->world.val())output.addPending=false;return output.addPending?HIGGS_HAND_PENDING:HIGGS_HAND_OK;
 }
 HIGGS_HandStatus Drive(const HIGGS_HandPartSetRequest& request,const HIGGS_HandPartSources& source,HIGGS_HandPartSetState& state,bool cleanup,void*){
+    const auto publicOwner=Service().ClientLabel(state.owner);
     auto& rig=rigs[state.physicalHand-1];if(cleanup){const bool removed=rig.set!=state.setId||RemoveRig(rig);return removed&&!Retiring(state.setId)?HIGGS_HAND_OK:HIGGS_HAND_PENDING;}
     if(!applying||!stepWorld||!stepWorld->world||stepDt<=0)return HIGGS_HAND_PENDING;const auto index=state.physicalHand-1;const auto tracking=HiggsMotion::Tracking().CopyObservation();if(source.sampleId!=stepSources[index].sampleId||source.epoch!=stepSources[index].epoch||!SameModel(index)||tracking.generation!=source.trackingGeneration||!tracking.hands[index].available||tracking.hands[index].lastAcceptedObservation!=source.trackingObservationId)return HIGGS_HAND_STALE;auto* hand=index==0?g_leftHand:g_rightHand;auto palm=hand?hand->handBody:nullptr;if(!palm||!palm->hkBody)return HIGGS_HAND_NOT_READY;
     if(Retiring(state.setId))return HIGGS_HAND_PENDING;if(rig.set&&(rig.set!=state.setId||rig.epoch!=state.epoch||rig.world!=stepWorld)&&!RemoveRig(rig))return HIGGS_HAND_PENDING;
@@ -86,7 +87,7 @@ HIGGS_HandStatus Drive(const HIGGS_HandPartSetRequest& request,const HIGGS_HandP
     bool valid=true;for(unsigned i=0;i<rig.count;++i){auto& b=rig.bodies[i];if(!b.wrapper||!b.wrapper->hkBody||!b.shape||!b.shape->shape||b.addPending||b.removeIssued||b.invalidated||b.wrapper->hkBody->getWorld()!=stepWorld->world.val()||b.wrapper->hkBody->getCollidable()->getShape()!=b.shape->shape.val()){b.invalidated=true;valid=false;}}if(!valid){PublishIdentities();return HIGGS_HAND_STALE;}
     unsigned needed=0;for(unsigned i=0;i<request.partCount;++i){bool reusable=false;for(unsigned j=0;j<rig.count;++j)if(rig.bodies[j].id==request.parts[i].partId&&!std::memcmp(rig.bodies[j].half,request.parts[i].halfExtentsMetres,sizeof(rig.bodies[j].half)))reusable=true;if(!reusable)++needed;}PairReservation pairs(needed);if(!pairs.ready)return HIGGS_HAND_PENDING;
     auto previous=std::move(rig);rig={};PublishIdentities();
-    const uint32_t filter=palm->hkBody->getCollisionFilterInfo();Rig next;next.set=state.setId;next.epoch=state.epoch;next.hand=state.physicalHand;next.revision=previous.revision;next.owner=state.owner;next.world=stepWorld;next.count=request.partCount;
+    const uint32_t filter=palm->hkBody->getCollisionFilterInfo();Rig next;next.set=state.setId;next.epoch=state.epoch;next.hand=state.physicalHand;next.revision=previous.revision;next.owner=publicOwner;next.world=stepWorld;next.count=request.partCount;
     RigCleanup rollback{&previous,&next,reservation};
     for(unsigned i=0;i<request.partCount;++i){auto& b=next.bodies[i];const auto& d=request.parts[i];for(unsigned j=0;j<previous.count;++j){auto& old=previous.bodies[j];if(old.id==d.partId&&!std::memcmp(old.half,d.halfExtentsMetres,sizeof(old.half))&&!old.addPending&&!old.removeIssued){b=std::move(old);old={};break;}}if(!b.wrapper){if(!nextBody||nextBody==UINT64_MAX)return HIGGS_HAND_CAPACITY;b.pairSlot=pairs.Take();b.id=d.partId;b.generation=nextBody++;std::memcpy(b.half,d.halfExtentsMetres,sizeof(b.half));const auto created=CreateBody(stepWorld,d,positions[i],rotations[i],filter|(1u<<14),b);if(created)return created;}}
     const bool removed=RemoveLocked(previous);if(!removed)reservation.Park(previous,0);if(!removed){rig=std::move(next);rollback.Release();PublishIdentities();return HIGGS_HAND_PENDING;}
@@ -109,4 +110,13 @@ void BeginNativeHandPartsStep(bhkWorld* world,float dt){auto phase=Service().Nat
 void ApplyNativeHandPartsStep(bhkWorld* world,float dt){auto phase=Service().NativePhase();if(mainThread!=std::this_thread::get_id()){wrongThread=true;return;}if(world!=stepWorld||dt!=stepDt||!stepWorld)return;applying=true;try{DrainRetirements();HandParts().Drain(Now());DrainDetachedPairs();}catch(...){applying=false;stepWorld=nullptr;HandParts().Invalidate(HIGGS_PART_REASON_NATIVE);return;}applying=false;stepWorld=nullptr;}
 bool ResolveNativeHandPart(const hkpRigidBody* body,uint32_t& hand,uint32_t& part,uint64_t& set,uint64_t& revision){if(!body)return false;const auto copy=identities.load();const auto epoch=Service().Epoch();for(const auto& item:*copy)if(item.body==body&&item.epoch==epoch){hand=item.hand;part=item.part;set=item.set;revision=item.revision;return true;}return false;}
 void RecordNativeHandPartContact(const hkpRigidBody* body,uint64_t epoch,uint64_t sequence){if(!body||!epoch||!sequence)return;const auto copy=identities.load();for(const auto& item:*copy)if(item.body==body&&item.epoch==epoch){HIGGS_HandPartContact contact{};contact.structSize=sizeof(contact);contact.contactSequence=sequence;contact.part={sizeof(contact.part),item.hand,item.part,item.bodyKey,item.epoch,item.generation,item.set,item.revision,item.owner};HandParts().Contact(contact);return;}}
+bool CopyNativePartLifetime(const hkpRigidBody* body,uint64_t epoch,uint64_t& generation,uint64_t& revision)
+{
+    const auto current=identities.load();
+    for(const auto& item:*current)if(item.body==body && item.epoch==epoch && item.generation && item.revision &&
+        body->getWorld() && item.retainedShape && item.retainedShape->shape.val()==body->getCollidable()->getShape()){
+        generation=item.generation;revision=item.revision;return true;
+    }
+    return false;
+}
 }

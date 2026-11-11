@@ -67,11 +67,24 @@ bool ObservationStore::Motion(HIGGS_MotionSample value){
     if(value.epoch!=epoch_||next_==(std::numeric_limits<uint64_t>::max)())return false;
     value.sequence=next_++;Append(motion_,motionCount_,motionWrite_,value);return true;
 }
-bool ObservationStore::Contact(HIGGS_ContactObservation value,uint64_t* assignedSequence){
+bool ObservationStore::Contact(HIGGS_ContactObservation value,uint64_t* assignedSequence,HIGGS_ContactDetails details){
     if(assignedSequence)*assignedSequence=0;
     if(!ContactValid(value))return false;std::lock_guard lock(mutex_);EpochLocked(value.epoch);
     if(value.epoch!=epoch_||next_==(std::numeric_limits<uint64_t>::max)())return false;
-    value.sequence=next_++;Append(contacts_,contactCount_,contactWrite_,value);if(assignedSequence)*assignedSequence=value.sequence;return true;
+    value.sequence=next_++;
+    details.structSize=sizeof(details); details.epoch=value.epoch; details.contactSequence=value.sequence;
+    details.probe.observedBodyKey=static_cast<uint32_t>(value.probeBodyKey);
+    details.target.observedBodyKey=static_cast<uint32_t>(value.targetBodyKey);
+    details_[contactWrite_]=details;
+    Append(contacts_,contactCount_,contactWrite_,value);if(assignedSequence)*assignedSequence=value.sequence;return true;
+}
+HIGGS_HandStatus ObservationStore::CopyContactDetails(uint64_t epoch,uint64_t seq,HIGGS_ContactDetails &out){
+    std::lock_guard lock(mutex_);
+    if(!epoch||!seq)return HIGGS_HAND_INVALID_ARGUMENT;
+    if(epoch!=epoch_)return HIGGS_HAND_STALE;
+    for(size_t i=0;i<contactCount_;++i)
+        if(details_[i].epoch==epoch && details_[i].contactSequence==seq){out=details_[i];return HIGGS_HAND_OK;}
+    return HIGGS_HAND_NOT_FOUND;
 }
 bool ObservationStore::Controllers(const std::array<HIGGS_MotionSample,4>& samples,const HIGGS_TrackingMappingSample* mapping){
     for(unsigned i=0;i<samples.size();++i){const auto& value=samples[i];if(!MotionValid(value)||value.source!=HIGGS_SAMPLE_CONTROLLER||value.physicalHand!=(i/2+1)||value.space!=uint32_t(i%2?HIGGS_SPACE_WORLD:HIGGS_SPACE_OPENVR_TRACKING)||value.epoch!=samples[0].epoch||value.observationId!=samples[0].observationId||value.trackingGeneration!=samples[0].trackingGeneration||value.captureId!=samples[0].captureId||value.observedAtNs!=samples[0].observedAtNs)return false;

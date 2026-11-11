@@ -5,7 +5,7 @@
 extern "C"
 {
 #endif
-#define HIGGS_TRANSACTIONS_VERSION 1u
+#define HIGGS_TRANSACTIONS_VERSION 2u
 #define HIGGS_TX_CAP_ITEM_IDENTITIES UINT64_C(1)
 #define HIGGS_TX_CAP_TRANSFERS UINT64_C(2)
 #define HIGGS_TX_CAP_CONSUMPTION UINT64_C(4)
@@ -87,7 +87,7 @@ extern "C"
     {
         uint32_t structSize, kind;
         uint64_t epoch, instance, generation;
-        HIGGS_HandClient provider;
+        uint64_t provider; /* Public label of the declaring client. Zero for observed world items. */
         uint64_t providerKey, instanceDataVersion;
         uint32_t validFields, baseFormId, worldRefId, quantity;
     } HIGGS_ItemIdentity;

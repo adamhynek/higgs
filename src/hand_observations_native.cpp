@@ -51,13 +51,31 @@ void ObserveNativeContact(const hkpContactPointEvent& event,uint32_t hands,uint3
     if(event.m_contactPointProperties->isPotential())value.flags|=HIGGS_CONTACT_POTENTIAL;
     value.epoch=snapshot.epoch;value.observationId=snapshot.observationId;value.observedAtNs=Now();
     value.probeBodyKey=probe->m_uid;value.targetBodyKey=target->m_uid;
+    auto endpoint=[&](const hkpRigidBody* body,int index){
+        HIGGS_ContactEndpoint result{};
+        if(CopyNativePartLifetime(body,value.epoch,result.bodyGeneration,result.appliedRevision)){
+            result.source=HIGGS_CONTACT_BODY_HAND_PART;
+            result.fields=HIGGS_CONTACT_BODY_LIFETIME|HIGGS_CONTACT_APPLIED_REVISION;
+        }else if((result.bodyGeneration=NativeItemBodyLifetime(body,value.epoch))!=0){
+            result.source=HIGGS_CONTACT_BODY_HELD_OR_EQUIPPED;
+            result.fields=HIGGS_CONTACT_BODY_LIFETIME;
+        }
+        if(event.m_shapeKeyStorage){
+            auto keys=event.getShapeKeys(index);
+            if(keys&&keys[0]!=HK_INVALID_SHAPE_KEY){result.leafShapeKey=keys[0];result.fields|=HIGGS_CONTACT_LEAF_KEY;}
+        }
+        return result;
+    };
+    HIGGS_ContactDetails details{};
+    details.probe=endpoint(probe,probeIsA?0:1);
+    details.target=endpoint(target,probeIsA?1:0);
     Vector(value.position,event.m_contactPoint->getPosition(),*g_inverseHavokWorldScale);
     Vector(value.targetToProbeNormal,event.m_contactPoint->getNormal(),probeIsA?1.f:-1.f);
     Vector(value.probeLinearVelocity,probe->getLinearVelocity());Vector(value.targetLinearVelocity,target->getLinearVelocity());
     if(auto ref=GetRefFromCollidable(target->getCollidable())){value.targetRefId=ref->formID;value.targetFormType=ref->baseForm?ref->baseForm->formType:0;}
     if(auto ref=GetRefFromCollidable(probe->getCollidable()))value.itemRefId=ref->formID;
     uint64_t sequence=0;
-    if(Observations().Contact(value,&sequence))RecordNativeHandPartContact(probe,value.epoch,sequence);
+    if(Observations().Contact(value,&sequence,details))RecordNativeHandPartContact(probe,value.epoch,sequence);
 }
 namespace {
 bool PoseFinite(const vr_1_0_12::HmdMatrix34_t& m){for(const auto& row:m.m)for(float value:row)if(!std::isfinite(value))return false;return true;}

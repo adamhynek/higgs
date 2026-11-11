@@ -17,7 +17,7 @@ bool PhysicalHand(uint32_t hand)
 }
 bool EqualIdentity(const HIGGS_ItemIdentity &a, const HIGGS_ItemIdentity &b)
 {
-    return a.epoch == b.epoch && a.instance == b.instance && a.generation == b.generation && a.provider == b.provider &&
+    return a.epoch == b.epoch && a.instance == b.instance && a.generation == b.generation && a.provider == b.provider && a.providerKey == b.providerKey &&
            a.instanceDataVersion == b.instanceDataVersion && a.quantity == b.quantity && a.baseFormId == b.baseFormId &&
            a.worldRefId == b.worldRefId && a.kind == b.kind && a.validFields == b.validFields;
 }
@@ -322,7 +322,7 @@ HIGGS_HandStatus TransactionService::Declare(uint64_t owner, const HIGGS_ItemDec
         return HIGGS_HAND_STALE;
     Item *slot = nullptr;
     for (auto &item : items_)
-        if (item.value.kind == HIGGS_ITEM_DOMAIN && item.value.provider == owner &&
+        if (item.value.kind == HIGGS_ITEM_DOMAIN && item.owner == owner &&
             item.value.providerKey == d.providerKey)
         {
             slot = &item;
@@ -366,7 +366,8 @@ HIGGS_HandStatus TransactionService::Declare(uint64_t owner, const HIGGS_ItemDec
     v.structSize = sizeof(v);
     v.kind = HIGGS_ITEM_DOMAIN;
     v.epoch = epoch_;
-    v.provider = owner;
+    slot->owner = owner;
+    v.provider = broker_.ClientLabel(owner);
     v.providerKey = d.providerKey;
     v.instanceDataVersion = d.instanceDataVersion;
     v.quantity = d.quantity;
@@ -441,7 +442,7 @@ HIGGS_HandStatus TransactionService::ObserveInventory(uint64_t owner, uint64_t k
         return HIGGS_HAND_INVALID_ARGUMENT;
     Item *slot = nullptr;
     for (auto &item : items_)
-        if (item.value.kind == HIGGS_ITEM_NATIVE_INVENTORY && item.value.provider == owner &&
+        if (item.value.kind == HIGGS_ITEM_NATIVE_INVENTORY && item.owner == owner &&
             item.value.providerKey == key)
         {
             slot = &item;
@@ -485,7 +486,8 @@ HIGGS_HandStatus TransactionService::ObserveInventory(uint64_t owner, uint64_t k
     value.structSize = sizeof(value);
     value.kind = HIGGS_ITEM_NATIVE_INVENTORY;
     value.epoch = epoch_;
-    value.provider = owner;
+    slot->owner = owner;
+    value.provider = broker_.ClientLabel(owner);
     value.providerKey = key;
     value.instanceDataVersion = version;
     value.baseFormId = base;
@@ -501,7 +503,7 @@ void TransactionService::InvalidateInventory(uint64_t owner, uint64_t key)
     std::lock_guard lock(mutex_);
     SyncLocked();
     for (auto &item : items_)
-        if (item.value.kind == HIGGS_ITEM_NATIVE_INVENTORY && item.value.provider == owner &&
+        if (item.value.kind == HIGGS_ITEM_NATIVE_INVENTORY && item.owner == owner &&
             item.value.providerKey == key)
             item.available = false;
 }
@@ -511,7 +513,7 @@ bool TransactionService::RetireInventory(uint64_t owner,uint64_t key)
     std::lock_guard lock(mutex_);
     SyncLocked();
     for(auto& item:items_)
-        if(item.value.kind==HIGGS_ITEM_NATIVE_INVENTORY&&item.value.provider==owner&&item.value.providerKey==key){
+        if(item.value.kind==HIGGS_ITEM_NATIVE_INVENTORY&&item.owner==owner&&item.value.providerKey==key){
             if(LockedItem(item.value.instance))return false;
             item={};
             return true;
@@ -615,7 +617,7 @@ HIGGS_HandStatus TransactionService::Request(uint64_t owner, const HIGGS_Transfe
         return HIGGS_HAND_INVALID_ARGUMENT;
     if (!physicalOnly && !broker_.ExecutorValid(owner, r.executor, 4))
         return HIGGS_HAND_WRONG_OWNER;
-    if (inventoryIn && (r.original.provider != owner ||
+    if (inventoryIn && (r.original.provider != broker_.ClientLabel(owner) ||
                         (r.original.kind != HIGGS_ITEM_DOMAIN && r.original.kind != HIGGS_ITEM_NATIVE_INVENTORY)))
         return HIGGS_HAND_WRONG_OWNER;
     if (inventoryIn)
@@ -858,9 +860,9 @@ HIGGS_HandStatus TransactionService::Report(uint64_t owner, const HIGGS_Transfer
         return HIGGS_HAND_CONFLICT;
     if (t->request.kind == HIGGS_TRANSFER_INVENTORY_TO_HAND && !r.actualRefId)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    if (r.executionProxy.instance && (!IdentityLocked(r.executionProxy) || r.executionProxy.provider != owner))
+    if (r.executionProxy.instance && (!IdentityLocked(r.executionProxy) || r.executionProxy.provider != broker_.ClientLabel(owner)))
         return HIGGS_HAND_STALE;
-    if (r.display.instance && (!IdentityLocked(r.display) || r.display.provider != owner))
+    if (r.display.instance && (!IdentityLocked(r.display) || r.display.provider != broker_.ClientLabel(owner)))
         return HIGGS_HAND_STALE;
     t->lastReceipt = r;
     t->state.executionProxy = r.executionProxy;

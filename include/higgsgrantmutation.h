@@ -1,5 +1,6 @@
 #ifndef HIGGS_GRANT_MUTATION_H
 #define HIGGS_GRANT_MUTATION_H
+#define HIGGS_GRANT_MUTATION_ABI_VERSION 2u
 #include "higgshandapi.h"
 #ifdef __cplusplus
 extern "C"
@@ -24,7 +25,7 @@ extern "C"
                                                                 HIGGS_ActionResult *);
     } HIGGS_GrantMutationInterface;
 #pragma pack(pop)
-    /* Exact v1. Runs synchronously only on HIGGS's observed main-maintenance thread.
+    /* Public snapshot IDs never authorize a mutation. The addressed request retains its own grant. Exact v2. Runs synchronously only on HIGGS's observed main-maintenance thread.
        Validates assigned executor/request/epoch and every currently owned hand grant
        under the native mutation fence. Callback runs OUTSIDE the broker state mutex;
        no revocation, expiry or world reset may invalidate authority until it returns.

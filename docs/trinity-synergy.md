@@ -1,0 +1,11 @@
+# HIGGS in the shared VR interaction services
+
+An empty hand beside a pouch and a loose object offers two possible actions for the same grip. HIGGS owns that choice, the resulting hand use and its physical execution. A consumer supplies its eligibility and gameplay rule through the shared service. HIGGS can report the selected action and its observed outcome so another mod can cooperate with it.
+
+The maintained [English concept](https://github.com/Vhodnoylogin/body-pouches/blob/main/docs/trinity-synergy/concept-en.md) and [Russian concept](https://github.com/Vhodnoylogin/body-pouches/blob/main/docs/trinity-synergy/concept-ru.md) live in Body Pouches. HIGGS owns hand state, input, action selection, possession, physical hand operations and haptics. PLANCK owns its NPC bodies and hit path, VRIK supplies the player pose, PPB supplies anatomy, and Body Slots manages logical interaction regions. Consumers retain inventory selection, crime, harvesting and other domain rules.
+
+The proposed interfaces cover input and release correlation, scoped hand-use sessions, inventory/equipment execution routes, physical support and constraints, copied motion/contact observations and coordinated haptics. Clients negotiate each table and capability independently. Released interface 001 has its original declarations. New observer identifiers and mutation permissions have separate meanings, with explicit version negotiation for the experimental tables.
+
+Every change to the author's gameplay path must enable one of those contracts. Input admission, physical request execution, actual result publication and lifecycle invalidation need calls from the existing runtime. Build declarations and exports connect the new implementation. Internal optimization and unrelated behavior repairs are outside this proposal.
+
+Capability results describe supported operations precisely. A policy for trigger-originated weapon drawing requires a qualified semantic command provider. Exact equipment layouts require an executor that can observe and confirm all affected places and instances. Unsupported operations are rejected before mutation. The [implementation ledger](https://github.com/Vhodnoylogin/body-pouches/blob/main/docs/trinity-synergy/implementation-status.md) records source, build, consumer and game verification separately.

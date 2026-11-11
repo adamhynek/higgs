@@ -137,6 +137,16 @@ HIGGS_HandStatus Observe(const HIGGS_NativeOwnContact& input,uint64_t& last){
 }
 }
 void InvalidateNativeOwnContacts(){OwnContacts().Invalidate();}
+uint64_t NativeItemBodyLifetime(const hkpRigidBody* body,uint64_t epoch)
+{
+    const auto current=snapshot.load(std::memory_order_acquire);
+    if(current->version!=OwnContacts().SourceTicket() || current->frame.epoch!=epoch)return 0;
+    for(const auto& source:current->sources)
+        if(source.body.val()==body && source.worldKey && source.worldKey==reinterpret_cast<uintptr_t>(body->getWorld()) &&
+           source.shape.val()==body->getCollidable()->getShape() && current->version==OwnContacts().SourceTicket())
+            return source.item.bodyGeneration;
+    return 0;
+}
 void PublishNativeOwnContacts(){
     if(publishThread==std::thread::id{})publishThread=std::this_thread::get_id();if(publishThread!=std::this_thread::get_id()){InvalidateNativeOwnContacts();return;}
     auto dispatchers=GetEventDispatcherList();if(!dispatchers)return;

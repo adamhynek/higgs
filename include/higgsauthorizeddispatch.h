@@ -1,7 +1,7 @@
 #ifndef HIGGS_AUTHORIZED_DISPATCH_H
 #define HIGGS_AUTHORIZED_DISPATCH_H
 #include "higgshandapi.h"
-#define HIGGS_AUTHORIZED_DISPATCH_ABI_VERSION 1u
+#define HIGGS_AUTHORIZED_DISPATCH_ABI_VERSION 2u
 #ifdef __cplusplus
 extern "C"
 {
@@ -24,7 +24,7 @@ extern "C"
                                                 HIGGS_AuthorizedDispatchCallback, void *);
     } HIGGS_AuthorizedDispatchInterface;
 #pragma pack(pop)
-    /* Exact v1, independently negotiated. Invoke runs only on HIGGS's observed
+    /* Public snapshot IDs never authorize a mutation. The addressed request retains its own grant. Exact v2, independently negotiated. Invoke runs only on HIGGS's observed
        main-maintenance thread. It checks the selected executor/request/epoch,
        input context and every currently owned, known and available hand resource
        under the native mutation fence, then claims this request once BEFORE

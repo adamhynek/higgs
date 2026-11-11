@@ -1,5 +1,6 @@
 #ifndef HIGGS_PHYSICAL_POLICY_H
 #define HIGGS_PHYSICAL_POLICY_H
+#define HIGGS_PHYSICAL_POLICY_ABI_VERSION 2u
 #include "higgstransactions.h"
 #ifdef __cplusplus
 extern "C"

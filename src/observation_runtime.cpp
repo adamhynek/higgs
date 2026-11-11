@@ -34,9 +34,26 @@ HIGGS_HandStatus HIGGS_HAND_CALL Mappings(uint64_t client,const HIGGS_Observatio
 }
 }
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryObservationInterface(uint32_t version,uint32_t size,HIGGS_ObservationAPI* out){
-    if(version!=1)return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if(version!=HIGGS_OBSERVATION_ABI_VERSION)return HIGGS_HAND_UNSUPPORTED_VERSION;
     if(!out)return HIGGS_HAND_INVALID_ARGUMENT;
     if(size<sizeof(*out))return HIGGS_HAND_BUFFER_TOO_SMALL;
     constexpr auto capabilities=HIGGS_OBSERVATION_CAP_MOTION|HIGGS_OBSERVATION_CAP_CONTACT|HIGGS_OBSERVATION_CAP_RELEASE|HIGGS_OBSERVATION_CAP_CONTROLLER_MAPPING;
     const HIGGS_ObservationAPI table{sizeof(table),HIGGS_OBSERVATION_ABI_VERSION,capabilities,Motion,Contacts,Release,Mappings};std::memcpy(out,&table,sizeof(table));return HIGGS_HAND_OK;
+}
+namespace {
+HIGGS_HandStatus HIGGS_HAND_CALL ContactDetails(uint64_t owner,uint64_t epoch,uint64_t seq,HIGGS_ContactDetails* out){
+    if(!out)return HIGGS_HAND_INVALID_ARGUMENT;
+    if(out->structSize<sizeof(*out))return HIGGS_HAND_BUFFER_TOO_SMALL;
+    return Guard([&]()->HIGGS_HandStatus{
+        if(!HiggsHands::Service().ClientValid(owner))return HIGGS_HAND_INVALID_CLIENT;
+        if(epoch!=HiggsHands::Service().Epoch())return HIGGS_HAND_STALE;
+        return HiggsHands::Observations().CopyContactDetails(epoch,seq,*out);
+    });
+}
+}
+extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryContactDetailsInterface(uint32_t v,uint32_t size,HIGGS_ContactDetailsInterface* out){
+    if(v!=1)return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if(!out)return HIGGS_HAND_INVALID_ARGUMENT;
+    if(size<sizeof(*out))return HIGGS_HAND_BUFFER_TOO_SMALL;
+    *out={sizeof(*out),1,ContactDetails};return HIGGS_HAND_OK;
 }
