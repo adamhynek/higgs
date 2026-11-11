@@ -4230,8 +4230,9 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     const uint32_t physicalHand = isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT;
     const bool rawTrigger = (pControllerState->ulButtonPressed & triggerMask) != 0;
     const bool rawGrip = ((useTouchForGrip ? pControllerState->ulButtonTouched : pControllerState->ulButtonPressed) & gripMask) != 0;
-    const bool brokerTrigger = HiggsHands::Input(physicalHand, HIGGS_INPUT_TRIGGER, rawTrigger);
-    const bool brokerGrip = HiggsHands::Input(physicalHand, HIGGS_INPUT_GRIP, rawGrip);
+    bool nativeTrigger = false, nativeGrip = false;
+    const bool brokerTrigger = HiggsHands::Input(physicalHand, HIGGS_INPUT_TRIGGER, rawTrigger, nativeTrigger);
+    const bool brokerGrip = HiggsHands::Input(physicalHand, HIGGS_INPUT_GRIP, rawGrip, nativeGrip);
     const bool gameplayContext = HiggsHands::Service().GameplayContext();
     const bool gameplayTrigger = HiggsHands::Service().GameplayInput(physicalHand, HIGGS_INPUT_TRIGGER);
     const bool gameplayGrip = HiggsHands::Service().GameplayInput(physicalHand, HIGGS_INPUT_GRIP);
@@ -4247,16 +4248,20 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     if (!gameplayTrigger) triggerDownBefore = triggerDown = false;
     if (!gameplayGrip) gripDownBefore = gripDown = false;
     const bool brokerGrant = HiggsHands::HasGrant(isLeft);
-    if (brokerTrigger || brokerGrant) pControllerState->ulButtonPressed &= ~triggerMask;
-    if (brokerGrip || brokerGrant) {
+    // Keep the original falling edge for a native grab even when another
+    // hand-use service acquired a grant while the physical control was held.
+    const bool blockTrigger = brokerTrigger || (brokerGrant && !nativeTrigger);
+    const bool blockGrip = brokerGrip || (brokerGrant && !nativeGrip);
+    if (blockTrigger) pControllerState->ulButtonPressed &= ~triggerMask;
+    if (blockGrip) {
         pControllerState->ulButtonPressed &= ~gripMask;
         pControllerState->ulButtonTouched &= ~gripMask;
     }
     // Preserve native edge history during an owned use; its release is explicit.
-    triggerDown = brokerTrigger || brokerGrant || !gameplayTrigger ? triggerDownBefore : Config::options.enableTrigger && rawTrigger;
+    triggerDown = blockTrigger || !gameplayTrigger ? triggerDownBefore : Config::options.enableTrigger && rawTrigger;
 
     // Check if the grip is pressed or touched
-    if (brokerGrip || brokerGrant || !gameplayGrip) {
+    if (blockGrip || !gameplayGrip) {
         gripDown = gripDownBefore;
     } else if (useTouchForGrip) {
         gripDown = Config::options.enableGrip && (pControllerState->ulButtonTouched & gripMask);
@@ -4424,8 +4429,8 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     }
     // Force/leeway handling above can synthesize a game press; final broker
     // masking also covers that path and the release edge of a consumed press.
-    if (brokerTrigger || brokerGrant) pControllerState->ulButtonPressed &= ~triggerMask;
-    if (brokerGrip || brokerGrant) {
+    if (blockTrigger) pControllerState->ulButtonPressed &= ~triggerMask;
+    if (blockGrip) {
         pControllerState->ulButtonPressed &= ~gripMask;
         pControllerState->ulButtonTouched &= ~gripMask;
     }

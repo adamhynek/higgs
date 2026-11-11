@@ -1271,8 +1271,9 @@ void Broker::AdvanceInputRecognitions(const HIGGS_ControllerFrame &frame)
     }
     FlushEvents();
 }
-bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now)
+bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now, bool *nativeContinuation)
 {
+    if (nativeContinuation) *nativeContinuation = false;
     const auto control = InputControlId(button), slot = InputControlSlot(button);
     if (!Hand(hand) || slot >= kInputControlSlots || control >= 64 || !(ActionControlMask() & (UINT64_C(1) << control)))
         return false;
@@ -1296,6 +1297,9 @@ bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now)
             return (mask & (UINT64_C(1) << control)) != 0;
         }
         contextGeneration = contextGeneration_;
+        const bool nativeHeld = activeSequences_[hi][bi].record.nativeAction != 0;
+        if (nativeContinuation) *nativeContinuation = nativeHeld;
+        if (down_[hi][bi] == down && nativeHeld) return false;
         if (down_[hi][bi] == down)
         {
             if (down && snapshot_.hands[hi].grant)
@@ -1310,7 +1314,7 @@ bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now)
         }
         freshDown = down && !down_[hi][bi];
         down_[hi][bi] = down;
-        wasConsumed = consumed_[hi][bi] || (down && snapshot_.hands[hi].grant != 0);
+        wasConsumed = !nativeHeld && (consumed_[hi][bi] || (down && snapshot_.hands[hi].grant != 0));
         input.structSize = sizeof(input);
         input.physicalHand = hand;
         input.button = button;
@@ -1515,6 +1519,7 @@ bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now)
             d.reason = (winnerOverride ? HIGGS_DECISION_USER_PRIORITY : HIGGS_DECISION_CLIENT_PRIORITY) | tieRules;
         }
         if (nativeSelected) {
+            if (nativeContinuation) *nativeContinuation = true;
             auto &d = decisions_[input.inputId % decisions_.size()];
             d.effectivePriority = nativePriority;
             d.reason = HIGGS_DECISION_NATIVE | (nativeOverride ? HIGGS_DECISION_USER_PRIORITY : HIGGS_DECISION_CLIENT_PRIORITY);
@@ -2659,9 +2664,9 @@ void NewGame()
     BeginLoad();
     EndLoad();
 }
-bool Input(uint32_t hand, uint32_t button, bool down)
+bool Input(uint32_t hand, uint32_t button, bool down, bool &nativeContinuation)
 {
-    return Service().Input(hand, button, down, Now());
+    return Service().Input(hand, button, down, Now(), &nativeContinuation);
 }
 bool HasGrant(bool left)
 {

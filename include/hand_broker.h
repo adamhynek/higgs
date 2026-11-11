@@ -75,7 +75,7 @@ class Broker
     void ObserveWorld(uintptr_t identity, bool loading, Clock);
     void Publish(const std::array<HIGGS_HandRecord, 2> &, Clock);
     // Returns true when this raw state belongs to a consumed press (including up).
-    bool Input(uint32_t hand, uint32_t button, bool down, Clock);
+    bool Input(uint32_t hand, uint32_t button, bool down, Clock, bool *nativeContinuation = nullptr);
     HIGGS_HandStatus InputRecognizer(uint64_t, const HIGGS_InputRecognizerSpec &, uint64_t &);
     HIGGS_HandStatus SubmitInputCandidate(uint64_t, const HIGGS_InputCandidate &, uint64_t &, Clock);
     HIGGS_HandStatus CopyInputRecognition(uint64_t, uint64_t, HIGGS_InputRecognition &);
@@ -291,7 +291,7 @@ void ObserveWorld(uintptr_t, bool loading = false);
 void BeginLoad();
 void EndLoad();
 void NewGame();
-bool Input(uint32_t hand, uint32_t button, bool down);
+bool Input(uint32_t hand, uint32_t button, bool down, bool &nativeContinuation);
 bool HasGrant(bool isLeft);
 bool MayAcquire(bool isLeft);
 bool MaySupport(bool isLeft);
