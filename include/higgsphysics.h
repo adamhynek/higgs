@@ -454,11 +454,12 @@ enum
         HIGGS_HandStatus(HIGGS_HAND_CALL *CopyHaptic)(HIGGS_HandClient, uint64_t, HIGGS_HapticState *);
     } HIGGS_HapticsInterface;
     /* One coordinated output per physical hand, including all legacy HIGGS calls.
-       Higher configured client priority wins; equal-priority envelopes combine by
-       maximum strength, independent of submission order. Legacy HIGGS uses the
-       configurable client name HIGGS with fallback 0. contextKey!=0 replaces only
+       Native HIGGS keeps its newest envelope and first-poll timing, including
+       zero-duration pulses. Its finite sample enters the configurable HIGGS lane
+       (fallback priority 0). Higher client priority wins; equal-priority lanes and
+       API requests combine by maximum strength. contextKey!=0 replaces only
        that owner's same-hand/same-context request. No hand/input grant is acquired.
-       Delays <=5000ms, durations 1..5000ms, strengths [0,1]. Client/world revocation
+       API delays <=5000ms, durations 1..5000ms, strengths [0,1]. Client/world revocation
        and cancellation remove scheduled effects; an issued hardware pulse cannot be
        recalled. submittedSamples confirms native API submission only, not delivery.
        Queued/active requests bounded256; oldest terminal records may be evicted.

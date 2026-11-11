@@ -121,6 +121,7 @@ HIGGS_HandStatus HapticSchedule::Copy(uint64_t owner, uint64_t id, HIGGS_HapticS
 }
 HapticOutput HapticSchedule::Sample(uint32_t hand, uint64_t now, std::optional<float> nativeStrength)
 {
+    if (nativeStrength && !std::isfinite(*nativeStrength)) nativeStrength.reset();
     std::lock_guard lock(mutex_);
     Refresh(now);
     if (hand != HIGGS_HAND_LEFT && hand != HIGGS_HAND_RIGHT)
