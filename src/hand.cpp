@@ -23,6 +23,11 @@
 #include "finger_curves.h"
 #include "hooks.h"
 #include "pluginapi.h"
+#include "synergy_runtime.h"
+#include "hand_broker.h"
+#include "own_contact.h"
+#include "hand_support.h"
+#include "hand_physical_policy.h"
 #include "main.h"
 #include "constraint.h"
 
@@ -522,7 +527,13 @@ bool Hand::FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &sta
 hkTransform Hand::ComputeHandCollisionTransform(bool isBeast, const NiTransform *a_handTransform)
 {
     // handTransform must be where the hand is in real life, as the hand collision is what drives the grab constraint
-    const NiTransform &handTransformToUse = a_handTransform ? *a_handTransform : m_handTransformWithoutVrikOffset;
+    NiTransform handTransformToUse = a_handTransform ? *a_handTransform : m_handTransformWithoutVrikOffset;
+    float ownedPosition[3], ownedRotation[9], ownedScale;
+    if (HiggsHands::CopyNativeTarget(isLeft, ownedPosition, ownedRotation, ownedScale)) {
+        handTransformToUse.pos = { ownedPosition[0], ownedPosition[1], ownedPosition[2] };
+        for (size_t row = 0; row < 3; ++row) for (size_t col = 0; col < 3; ++col) handTransformToUse.rot.data[row][col] = ownedRotation[row * 3 + col];
+        handTransformToUse.scale = ownedScale;
+    }
 
     hkTransform transform;
     NiPoint3 handCollisionBoxOffset = isBeast ? Config::options.handCollisionBoxOffsetBeast : Config::options.handCollisionBoxOffset;
@@ -556,7 +567,7 @@ hkTransform Hand::ComputeWeaponCollisionTransform(bhkRigidBody *existingWeaponCo
 }
 
 
-void Hand::CreateHandCollision(bhkWorld *world)
+void Hand::CreateHandCollision(bhkWorld *world, const NiPoint3 *halfExtentsOverride)
 {
     PlayerCharacter *player = *g_thePlayer;
 
@@ -566,6 +577,11 @@ void Hand::CreateHandCollision(bhkWorld *world)
     if (!handShape) return;
 
     hkVector4 halfExtents = NiPointToHkVector(isBeast ? Config::options.handCollisionBoxHalfExtentsBeast : Config::options.handCollisionBoxHalfExtents);
+    if (halfExtentsOverride) halfExtents = NiPointToHkVector(*halfExtentsOverride);
+    else {
+        float ownedExtents[3];
+        if (HiggsHands::CopyHandGeometry(isLeft, ownedExtents)) halfExtents = NiPointToHkVector({ownedExtents[0], ownedExtents[1], ownedExtents[2]});
+    }
     bhkBoxShape_ctor(handShape, &halfExtents);
     handShape->materialId = skinMaterialId;
     ((hkpBoxShape*)handShape->shape.val())->m_radius = isBeast ? Config::options.handCollisionBoxRadiusBeast : Config::options.handCollisionBoxRadius;
@@ -693,10 +709,11 @@ void Hand::MoveHandAndWeaponCollision(const NiPoint3 &additionalOffset)
         bool isBeast = TESRace_IsBeast(Actor_GetRace(*g_thePlayer));
 
         hkTransform transform = ComputeHandCollisionTransform(isBeast);
-        transform.m_translation = NiPointToHkVector(HkVectorToNiPoint(transform.m_translation) + additionalOffset);
+        if (!HiggsHands::HasNativeTarget(isLeft)) transform.m_translation = NiPointToHkVector(HkVectorToNiPoint(transform.m_translation) + additionalOffset);
 
         hkQuaternion desiredQuat; desiredQuat.setFromRotationSimd(transform.m_rotation);
         ApplyHardKeyframeVelocityClamped(transform.m_translation, desiredQuat, 1.f / *g_deltaTime, handBody);
+        HiggsHands::ConfirmNativeTarget(isLeft);
     }
 
     if (weaponBody) {
@@ -807,6 +824,7 @@ void Hand::RemoveWeaponCollision(bhkWorld *world)
 
 void Hand::RemoveWeaponCollisionFromCurrentWorld()
 {
+    HiggsHands::InvalidateNativeOwnContacts();
     if (weaponBody) {
         if (ahkpWorld *world = weaponBody->GetHavokWorld_1()) {
             if (NiPointer<bhkWorld> worldWrapper = world->m_userData) {
@@ -860,12 +878,11 @@ void Hand::UpdateWeaponCollision()
         return;
     }
 
-    bool shouldDisableCollision = !player->actorState.IsWeaponDrawn() || g_interface001.IsWeaponCollisionDisabled(isLeft);
-    if (!g_interface001.forceEnableWeaponCollision[isLeft]) {
-        float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponHitTime;
-        bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
-        shouldDisableCollision |= disableDueToHit;
-    }
+    const auto restrictions = HiggsSynergy::CopyHandState(isLeft);
+    float timeElapsedSinceWeaponHit = g_currentFrameTime - weaponHitTime;
+    bool disableDueToHit = timeElapsedSinceWeaponHit >= Config::options.weaponCollisionDisableOnHitDelay && timeElapsedSinceWeaponHit < (Config::options.weaponCollisionDisableOnHitTime + Config::options.weaponCollisionDisableOnHitDelay);
+    bool shouldDisableCollision = HiggsSynergy::ShouldDisableWeaponCollision(restrictions,
+        player->actorState.IsWeaponDrawn(), disableDueToHit);
 
     bool wasCollisionDisabled = (weaponBody->hkBody->m_collidable.m_broadPhaseHandle.m_collisionFilterInfo >> 14 & 1) != 0;
 
@@ -1144,7 +1161,7 @@ std::optional<NiTransform> Hand::GetInitialObjectTransformBasedOnGrabNodes(const
 
 bool Hand::ShouldUsePhysicsBasedGrab(TESObjectREFR *refr, bhkRigidBody *rigidBody)
 {
-    if (Config::options.forcePhysicsGrab) return true;
+    if (HiggsHands::PhysicsGrabPreference(isLeft,Config::options.forcePhysicsGrab)) return true;
 
     if (NiPointer<NiAVObject> node = GetNodeFromCollidable(rigidBody->hkBody->getCollidable())) {
         if (NiPointer<NiNode> root = refr->GetNiNode()) {
@@ -1300,6 +1317,7 @@ NiPointer<bhkRigidBody> Hand::GetRigidBodyToGrabBasedOnGeometry(const Hand &othe
 
 void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos, const NiPoint3 &palmDirection, const NiPoint3 &closestPoint, float havokWorldScale, const NiAVObject *handNode, float handSize, TESObjectREFR *selectedObj, const std::optional<NiTransform> &initialTransform, bool warpToHand, bool reuseTriangles, bool playSound)
 {
+    HiggsHands::InvalidateNativeOwnContacts();
     NiPointer<NiAVObject> collidableNode = GetNodeFromCollidable(selectedObject.collidable);
     NiPointer<NiNode> objRoot = selectedObj->GetNiNode();
     if (!collidableNode || !objRoot) {
@@ -1701,6 +1719,7 @@ void Hand::TransitionHeld(Hand &other, bhkWorld &world, const NiPoint3 &palmPos,
 
     HiggsPluginAPI::TriggerGrabbedCallbacks(isLeft, selectedObj);
 
+    if(synergyContactHoldEpisode!=UINT64_MAX)++synergyContactHoldEpisode;
     state = usePhysicsGrab ? State::HeldBody : State::HeldInit;
 
     if (state == State::HeldBody) {
@@ -1879,6 +1898,7 @@ void Hand::TransitionHeldTwoHanded(Hand &other, bhkWorld &world, const NiPoint3 
 
     HiggsPluginAPI::TriggerStartTwoHandingCallbacks();
 
+    ++synergySecondaryEpisode;
     state = State::HeldTwoHanded;
 }
 
@@ -1905,7 +1925,47 @@ void Hand::TransitionPreGrab(TESObjectREFR *selectedObj, bool isExternal)
 }
 
 
-bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const
+void Hand::UpdateNativeRegionSelection(NiAVObject* hmdNode, const NiPoint3& handPos, const NiPoint3& palmPos)
+{
+    if (!hmdNode) { nativeRegionInsideMask = 0; nativeRegionEpoch = 0; return; }
+    const auto& hmd = hmdNode->m_worldTransform;
+    const std::array<float, 13> signature{
+        Config::options.mouthHmdOffset.x, Config::options.mouthHmdOffset.y, Config::options.mouthHmdOffset.z,
+        Config::options.rightShoulderHmdOffset.x, Config::options.rightShoulderHmdOffset.y, Config::options.rightShoulderHmdOffset.z,
+        Config::options.leftShoulderHmdOffset.x, Config::options.leftShoulderHmdOffset.y, Config::options.leftShoulderHmdOffset.z,
+        Config::options.mouthRadius, Config::options.rightShoulderRadius, Config::options.leftShoulderRadius, hmd.scale};
+    if (nativeRegionHmdSource != hmdNode || nativeRegionGeometrySignature != signature) {
+        if (nativeRegionSourceGeneration == UINT64_MAX) { nativeRegionInsideMask = 0; nativeRegionEpoch = 0; return; }
+        nativeRegionHmdSource = hmdNode;
+        nativeRegionGeometrySignature = signature;
+        ++nativeRegionSourceGeneration;
+    }
+    HIGGS_NativeRegionFrame frame{};
+    frame.structSize = sizeof(frame);
+    frame.physicalHand = isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT;
+    frame.flags = HIGGS_REGION_SOURCE_VALID;
+    frame.sourceGeneration = nativeRegionSourceGeneration;
+    const auto copy = [](float (&out)[3], const NiPoint3& point) {
+        out[0] = point.x; out[1] = point.y; out[2] = point.z;
+    };
+    copy(frame.hmdPosition, hmd.pos);
+    copy(frame.handPosition, handPos);
+    copy(frame.palmPosition, palmPos);
+    frame.hmdScale = hmd.scale;
+    for (size_t row = 0; row < 3; ++row)
+        for (size_t column = 0; column < 3; ++column)
+            frame.hmdRotation[row * 3 + column] = hmd.rot.data[row][column];
+    copy(frame.spheres[0].worldCenter, hmd * Config::options.mouthHmdOffset);
+    copy(frame.spheres[1].worldCenter, hmd * Config::options.rightShoulderHmdOffset);
+    copy(frame.spheres[2].worldCenter, hmd * Config::options.leftShoulderHmdOffset);
+    frame.spheres[0].worldRadius = Config::options.mouthRadius;
+    frame.spheres[1].worldRadius = Config::options.rightShoulderRadius;
+    frame.spheres[2].worldRadius = Config::options.leftShoulderRadius;
+    nativeRegionInsideMask = HiggsHands::Service().EvaluateNativeRegions(frame);
+    nativeRegionEpoch = frame.epoch;
+}
+
+bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *, const NiPoint3 &) const
 {
     if (selectedObject.isActor) return false;
 
@@ -1923,26 +1983,12 @@ bool Hand::IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const N
     }
     speed /= std::size(controllerData.linearVelocities);
 
-    if (speed < Config::options.shoulderVelocityThreshold) {
-        NiPoint3 rightShoulderPos = hmdNode->m_worldTransform * Config::options.rightShoulderHmdOffset;
-        float rightShoulderDistance = VectorLength(handPos - rightShoulderPos);
-        if (rightShoulderDistance < Config::options.rightShoulderRadius) {
-            return true;
-        }
-        else {
-            NiPoint3 leftShoulderPos = hmdNode->m_worldTransform * Config::options.leftShoulderHmdOffset;
-            float leftShoulderDistance = VectorLength(handPos - leftShoulderPos);
-            if (leftShoulderDistance < Config::options.leftShoulderRadius) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    return speed < Config::options.shoulderVelocityThreshold &&
+        (nativeRegionInsideMask & (HIGGS_REGION_RIGHT_SHOULDER | HIGGS_REGION_LEFT_SHOULDER));
 }
 
 
-bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &palmPos) const
+bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *, const NiPoint3 &) const
 {
     TESForm *baseForm = refr->baseForm;
     if (!baseForm || !baseForm->IsPlayable() || (baseForm->formType != kFormType_Potion && baseForm->formType != kFormType_Ingredient && baseForm->formType != kFormType_Book)) {
@@ -1965,15 +2011,7 @@ bool Hand::IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const Ni
     }
     speed /= std::size(controllerData.linearVelocities);
 
-    if (speed < Config::options.mouthVelocityThreshold) {
-        NiPoint3 mouthPos = hmdNode->m_worldTransform * Config::options.mouthHmdOffset;
-        float mouthDistance = VectorLength(palmPos - mouthPos);
-        if (mouthDistance < Config::options.mouthRadius) {
-            return true;
-        }
-    }
-
-    return false;
+    return speed < Config::options.mouthVelocityThreshold && (nativeRegionInsideMask & HIGGS_REGION_MOUTH);
 }
 
 
@@ -2294,6 +2332,8 @@ NiPoint3 Hand::GetPointingVectorWS(NiMatrix33 &handRotation)
 
 void Hand::Update(Hand &other, bhkWorld *world)
 {
+    nativeRegionInsideMask = 0;
+    nativeRegionEpoch = 0;
     //_MESSAGE("%s:, pose update", name);
 
     PlayerCharacter *player = *g_thePlayer;
@@ -2381,9 +2421,20 @@ void Hand::Update(Hand &other, bhkWorld *world)
     NiPoint3 palmPos = GetPalmPositionWS(handNode->m_worldTransform);
     NiPoint3 hkPalmPos = palmPos * havokWorldScale;
 
+    // Source geometry is captured once in this actual native hand-update phase;
+    // preview and release predicates share its one selected detector result.
+    UpdateNativeRegionSelection(hmdNode, handPos, palmPos);
+
     TESObjectWEAP *otherHandEquippedWeap = GetEquippedWeapon(player, *g_leftHandedMode == isLeft);
     bool isTwoHandedOffhand = otherHandEquippedWeap && IsTwoHandable(otherHandEquippedWeap) && other.weaponBody;
 
+    if (synergyGrabPending && !HiggsHands::Service().PhysicalPending(isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, HiggsHands::Now())) {
+        externalGrabRequested = false;
+        externalGrabRequestedObject = nullptr;
+        if (state == State::GrabExternal) state = State::Idle;
+        grabRequested = false;
+        synergyGrabPending = false;
+    }
     if (externalGrabRequested) {
         TransitionGrabExternal(externalGrabRequestedObject);
         externalGrabRequested = false;
@@ -2392,7 +2443,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
     if (state == State::GrabFromOtherHand) {
         NiPointer<TESObjectREFR> selectedObj;
-        if (LookupREFRByHandle(selectedObject.handle, selectedObj)) {
+        if (isAllowedToHold && LookupREFRByHandle(selectedObject.handle, selectedObj)) {
             TransitionHeld(other, *world, palmPos, palmVector, selectedObject.point, havokWorldScale, handNode, handSize, selectedObj);
         }
         else {
@@ -2401,7 +2452,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
     }
 
     if (state == State::GrabExternal) {
-        if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
+        if (!isAllowedToHold || g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // revalidate admission while waiting for spawn
             state = State::Idle;
         }
         else {
@@ -2757,7 +2808,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             if (!isTwoHandedOffhand || closestRigidBody != other.weaponBody) {
                 Deselect();
             }
-            else if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
+            else if (canTwoHand && grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
                 NiPointer<NiAVObject> tpHandNode = other.GetThirdPersonHandNode();
                 NiPointer<NiAVObject> tpWeaponNode = other.GetWeaponNode(true);
 
@@ -2832,7 +2883,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 }
                 else {
                     // Check if we should lock in the selection
-                    if (grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
+                    if (isAllowedToHold && grabRequested && g_currentFrameTime - grabRequestedTime <= Config::options.triggerPressedLeewayTime) {
                         if (state == State::SelectedFar) {
                             hkVector4 translation = selectedObject.rigidBody->hkBody->m_motion.m_motionState.m_transform.m_translation;
                             NiPoint3 hkObjPos = HkVectorToNiPoint(translation);
@@ -2943,14 +2994,20 @@ void Hand::Update(Hand &other, bhkWorld *world)
             idleDesired = true;
         }
 
-        bool shouldStopTwoHanding = IsTwoHanding() && !canTwoHand;
-        bool shouldStopHolding = !IsTwoHanding() && !isAllowedToHold;
+        // A scoped admission restriction does not implicitly release possession.
+        // Legacy DisableHand and equipment changes keep their previous drop behavior.
+        bool shouldStopTwoHanding = IsTwoHanding() && !CanTwoHand(true);
+        bool shouldStopHolding = !IsTwoHanding() && (HasHeldObject() ?
+            (!CanHoldBasedOnWeapon() || !HiggsSynergy::MayContinueHeldInteraction(HiggsSynergy::CopyHandState(isLeft))) :
+            !isAllowedToHold);
         if (shouldStopTwoHanding || shouldStopHolding) {
             idleDesired = true;
         }
 
         if (idleDesired) {
             idleDesired = false;
+            HiggsHands::PrepareSupportRelease(isLeft);
+            HiggsHands::PreparePhysicalPolicyRelease(isLeft);
 
             if (other.HasHeldObject() && selectedObject.rigidBody == other.selectedObject.rigidBody && !other.disableDropEvents) {
                 // Don't trigger drop events if the other hand is still holding the same object
@@ -3082,13 +3139,34 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             selectedObject.rigidBody->hkBody->m_motion.m_angularVelocity = NiPointToHkVector(angularVelocity);
                         }
 
-                        if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && !disableConsumeStash) {
+                        const auto nativeRegionActionCurrent = [&](uint32_t requiredRegion) {
+                            // Do not refresh away an input-context/epoch invalidation
+                            // that occurred while request callbacks were running.
+                            if (disableConsumeStash || !HiggsHands::Service().MayNativeRegionAction(
+                                isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, nativeRegionEpoch, HiggsHands::Now()))
+                                return false;
+                            const auto expectedEpoch = nativeRegionEpoch;
+                            // Refresh through the same one selected detector at the
+                            // action boundary: Body Slots may have reset since preview.
+                            UpdateNativeRegionSelection(hmdNode, handPos, palmPos);
+                            return nativeRegionEpoch == expectedEpoch && !disableConsumeStash && HiggsHands::Service().MayNativeRegionAction(
+                                isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, nativeRegionEpoch, HiggsHands::Now()) &&
+                                (nativeRegionInsideMask & requiredRegion);
+                        };
+                        const bool nativeRegionActionAllowed = nativeRegionActionCurrent(HIGGS_REGION_ALL);
+                        bool nativeRegionActionExecuted = false;
+                        if ((state == State::Held || state == State::HeldBody) && IsObjectConsumable(selectedObj, hmdNode, palmPos) && nativeRegionActionAllowed) {
                             // Object dropped at the mouth
 
                             TESForm *baseForm = selectedObj->baseForm;
 
+                            HiggsHands::Service().SemanticEvent(HIGGS_EVENT_CONSUMPTION_REQUESTED, isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, selectedObj->formID, HiggsHands::Now());
                             HiggsPluginAPI::TriggerConsumedCallbacks(isLeft, baseForm); // Do this before activating it so that a callback could still get the held object
 
+                            // Requested-event callbacks may reenter menu/grant/load APIs.
+                            // Revalidate after all callbacks, immediately before the game write.
+                            if (nativeRegionActionCurrent(HIGGS_REGION_MOUTH)) {
+                            nativeRegionActionExecuted = true;
                             UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
                             TESObjectREFR_Activate(selectedObj, player, 0, 0, count, false);
 
@@ -3104,16 +3182,20 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             }
 
                             haptics.QueueHapticEvent(Config::options.mouthDropHapticStrength, 0, Config::options.mouthDropHapticFadeTime);
+                            }
                         }
-                        else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && !disableConsumeStash) {
+                        else if ((state == State::Held || state == State::HeldBody) && IsObjectDepositable(selectedObj, hmdNode, handPos) && nativeRegionActionAllowed) {
                             // Object deposited in the shoulder
 
                             UInt32 count = BSExtraList_GetCount(&selectedObj->extraData);
 
                             TESForm *baseForm = selectedObj->baseForm;
 
+                            HiggsHands::Service().SemanticEvent(HIGGS_EVENT_STASH_REQUESTED, isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, selectedObj->formID, HiggsHands::Now());
                             HiggsPluginAPI::TriggerStashedCallbacks(isLeft, baseForm); // Do this before activating it so that a callback could still get the held object
 
+                            if (nativeRegionActionCurrent(HIGGS_REGION_RIGHT_SHOULDER | HIGGS_REGION_LEFT_SHOULDER)) {
+                            nativeRegionActionExecuted = true;
                             if (Config::options.skipActivateBooks && selectedObject.isBook) {
                                 // PickUpObject is vfunc 0xCE
 
@@ -3127,8 +3209,9 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             }
 
                             haptics.QueueHapticEvent(Config::options.shoulderDropHapticStrength, 0, Config::options.shoulderDropHapticFadeTime);
+                            }
                         }
-                        else {
+                        if (!nativeRegionActionExecuted) {
                             float mass = NiAVObject_GetMass(GetNodeFromCollidable(selectedObject.collidable), 0);
                             float hapticStrength = min(1.0f, Config::options.grabBaseHapticStrength + Config::options.grabProportionalHapticStrength * max(0.0f, powf(mass, Config::options.grabHapticMassExponent)));
                             haptics.QueueHapticEvent(hapticStrength, 0, Config::options.grabHapticFadeTime);
@@ -3358,7 +3441,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
     }
 
     if (state == State::PreGrabItem) {
-        if (g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
+        if (!isAllowedToHold || g_currentFrameTime - grabbedTime > Config::options.lootSpawnInTime) { // revalidate pending acquisition
             state = State::Idle;
         }
         else {
@@ -3400,7 +3483,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
     }
 
     if (state == State::PrePullItem) {
-        if (g_currentFrameTime - pulledTime > Config::options.lootSpawnInTime) { // wait for the item to spawn in
+        if (!isAllowedToHold || g_currentFrameTime - pulledTime > Config::options.lootSpawnInTime) { // revalidate pending pull before spawn commitment
             state = State::Idle;
         }
         else {
@@ -3683,6 +3766,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
             // desiredTransform is where we want the weapon to be after vrik is done applying its transform, so we must apply an inverted vrik-applied transform here so that it evens out at the end.
             NiTransform vrikCorrectedTransform = desiredTransform * InverseTransform(twoHandedState.otherFpWeaponToTpWeaponTransform);
             NiMathDouble::UpdateTransform(fpWeaponNode, vrikCorrectedTransform);
+            HiggsHands::ConfirmNativeGrip(isLeft);
 
             // This makes the weapon collision (for melee hit detection as well as the higgs collision) move with our transform
             NiPointer<NiAVObject> collisionOffsetNode = other.GetWeaponCollisionOffsetNode(twoHandedState.weapon);
@@ -3771,6 +3855,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         if (advancedTransform) {
                             // Rotation or position is not yet close enough
                             UpdateKeyframedNode(collidableNode, *advancedTransform);
+                            HiggsHands::ConfirmNativeGrip(isLeft);
                         }
                         else {
                             // Both position and rotation are close enough to their final values - we're done
@@ -3782,6 +3867,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
 
                 if (state == State::Held) {
                     UpdateKeyframedNode(collidableNode, desiredTransform);
+                    HiggsHands::ConfirmNativeGrip(isLeft);
                     if (selectedObj->formType == kFormType_Reference && collidableNode == selectedObj->GetNiNode()) {
                         // Update the refr position and changeflags
                         // Technically we should check the kNotify flag on the collision object, but often it's not set even though it should be.
@@ -3924,6 +4010,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                         // desiredHandTransformHavokObjSpace is the hand's transform in the space of the grabbed object
                         NiPoint3 newPivotB = (desiredHandTransformHavokObjSpace * palmPosHandspace) * collidableNode->m_worldTransform.scale * havokWorldScale;
                         constraintData->m_atoms.m_transforms.m_transformB.m_translation = NiPointToHkVector(newPivotB);
+                        HiggsHands::ConfirmNativeGrip(isLeft);
 
                         hkpPositionConstraintMotor *linearMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_linearMotor0.m_motor;
                         hkpPositionConstraintMotor *angularMotor = (hkpPositionConstraintMotor *)constraintData->m_atoms.m_ragdollMotors.m_motors[0];
@@ -3986,6 +4073,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             angularMotor->m_maxForce = min(angularMotor->m_maxForce, linearMotor->m_maxForce / angularToLinearForceRatio);
                         }
 
+                        HiggsHands::ApplyDriveCap(isLeft, linearMotor->m_maxForce, angularMotor->m_maxForce);
                         // Ensure max/min forces match
                         linearMotor->m_minForce = -linearMotor->m_maxForce;
                         angularMotor->m_minForce = -angularMotor->m_maxForce;
@@ -4137,11 +4225,40 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     uint64_t triggerMask = vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_SteamVR_Trigger);
     uint64_t gripMask = vr_src::ButtonMaskFromId(vr_src::EVRButtonId::k_EButton_Grip);
 
-    // Check if the trigger is pressed
-    triggerDown = Config::options.enableTrigger && (pControllerState->ulButtonPressed & triggerMask);
+    // Broker raw edges before HIGGS defaults or game input mutation. The broker
+    // and all consumers inspect the same retained post-VRIK observation pair.
+    const uint32_t physicalHand = isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT;
+    const bool rawTrigger = (pControllerState->ulButtonPressed & triggerMask) != 0;
+    const bool rawGrip = ((useTouchForGrip ? pControllerState->ulButtonTouched : pControllerState->ulButtonPressed) & gripMask) != 0;
+    const bool brokerTrigger = HiggsHands::Input(physicalHand, HIGGS_INPUT_TRIGGER, rawTrigger);
+    const bool brokerGrip = HiggsHands::Input(physicalHand, HIGGS_INPUT_GRIP, rawGrip);
+    const bool gameplayContext = HiggsHands::Service().GameplayContext();
+    const bool gameplayTrigger = HiggsHands::Service().GameplayInput(physicalHand, HIGGS_INPUT_TRIGGER);
+    const bool gameplayGrip = HiggsHands::Service().GameplayInput(physicalHand, HIGGS_INPUT_GRIP);
+    if (HiggsHands::Service().RebaseNativeInput(physicalHand) || !gameplayContext) {
+        // Retire legacy leeway/Force history, never replay a press across UI.
+        inputState = InputState::Idle;
+        grabRequested = false;
+        inputTrigger = inputGrip = gripPressWasBlockedWithGripTouch = false;
+        triggerDownBefore = gripDownBefore = false;
+        triggerDown = gripDown = false;
+    }
+    if (!gameplayContext) return;
+    if (!gameplayTrigger) triggerDownBefore = triggerDown = false;
+    if (!gameplayGrip) gripDownBefore = gripDown = false;
+    const bool brokerGrant = HiggsHands::HasGrant(isLeft);
+    if (brokerTrigger || brokerGrant) pControllerState->ulButtonPressed &= ~triggerMask;
+    if (brokerGrip || brokerGrant) {
+        pControllerState->ulButtonPressed &= ~gripMask;
+        pControllerState->ulButtonTouched &= ~gripMask;
+    }
+    // Preserve native edge history during an owned use; its release is explicit.
+    triggerDown = brokerTrigger || brokerGrant || !gameplayTrigger ? triggerDownBefore : Config::options.enableTrigger && rawTrigger;
 
     // Check if the grip is pressed or touched
-    if (useTouchForGrip) {
+    if (brokerGrip || brokerGrant || !gameplayGrip) {
+        gripDown = gripDownBefore;
+    } else if (useTouchForGrip) {
         gripDown = Config::options.enableGrip && (pControllerState->ulButtonTouched & gripMask);
     } else {
         gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
@@ -4301,6 +4418,13 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             pControllerState->ulButtonPressed &= ~gripMask;
         }
     }
+    // Force/leeway handling above can synthesize a game press; final broker
+    // masking also covers that path and the release edge of a consumed press.
+    if (brokerTrigger || brokerGrant) pControllerState->ulButtonPressed &= ~triggerMask;
+    if (brokerGrip || brokerGrant) {
+        pControllerState->ulButtonPressed &= ~gripMask;
+        pControllerState->ulButtonTouched &= ~gripMask;
+    }
 }
 
 bool Hand::CanHoldBasedOnWeapon() const
@@ -4369,8 +4493,10 @@ bool Hand::CanHoldBasedOnWeapon() const
     return isMainHand ? isMainValid : isOffhandValid;
 }
 
-bool Hand::CanTwoHand() const
+bool Hand::CanTwoHand(bool continuingExisting) const
 {
+    if (!continuingExisting && !HiggsHands::MaySupport(isLeft)) return false;
+    if (!continuingExisting && !HiggsSynergy::MayStartHandInteraction(HiggsSynergy::CopyHandState(isLeft))) return false;
     if (!Config::options.enableWeaponTwoHanding) return false;
 
     PlayerCharacter *player = *g_thePlayer;
@@ -4526,7 +4652,7 @@ bool Hand::ShouldNotBlockTrigger() const
 
 bool Hand::CanHoldObject() const
 {
-    return CanHoldBasedOnWeapon() && !g_interface001.IsDisabled(isLeft);
+    return HiggsHands::MayAcquire(isLeft) && CanHoldBasedOnWeapon() && !g_interface001.IsDisabled(isLeft);
 }
 
 bool Hand::CanGrabObject() const

@@ -217,8 +217,15 @@
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\effects.cpp" />
     <ClCompile Include="src\pluginapi.cpp" />
+    <ClCompile Include="src\synergy_core.cpp" />
+    <ClCompile Include="src\synergy_runtime.cpp" />
+    <ClCompile Include="src\controller_tracking.cpp" />
+    <ClCompile Include="src\motion_runtime.cpp" />
     <ClCompile Include="src\RE\havok.cpp" />
     <ClCompile Include="src\RE\offsets.cpp" />
+    <ClCompile Include="src\hand_observations.cpp" />
+    <ClCompile Include="src\observation_runtime.cpp" />
+    <ClCompile Include="src\hand_observations_native.cpp" />
     <ClCompile Include="src\utils.cpp" />
     <ClCompile Include="src\vrikinterface001.cpp" />
   </ItemGroup>
@@ -232,8 +239,15 @@
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\papyrusapi.h" />
     <ClInclude Include="include\pluginapi.h" />
+    <ClInclude Include="include\higgssynergy.h" />
+    <ClInclude Include="include\synergy_core.h" />
+    <ClInclude Include="include\synergy_policy.h" />
+    <ClInclude Include="include\synergy_runtime.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\hand.h" />
+    <ClInclude Include="include\controller_tracking.h" />
+    <ClInclude Include="include\higgsmotion.h" />
+    <ClInclude Include="include\motion_runtime.h" />
     <ClInclude Include="include\havok_ref_ptr.h" />
     <ClInclude Include="include\hooks.h" />
     <ClInclude Include="include\math_utils.h" />
@@ -258,4 +272,69 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ItemGroup>
+    <ClCompile Include="src\hand_broker.cpp" />
+    <ClCompile Include="src\hand_runtime.cpp" />
+    <ClCompile Include="src\main\native_regions.cpp" />
+    <ClCompile Include="src\hand_native.cpp" />
+    <ClInclude Include="include\hand_broker.h" />
+    <ClInclude Include="include\higgshandapi.h" />
+    <ClInclude Include="include\higgsnativeregions.h" />
+    <ClInclude Include="include\native_regions.h" />
+    <ClInclude Include="include\higgshandrouting.h" />
+    <ClInclude Include="include\higgshandoperations.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\hand_transactions.cpp" />
+    <ClCompile Include="src\transaction_runtime.cpp" />
+    <ClCompile Include="src\inventory_service.cpp" />
+    <ClCompile Include="src\own_contact.cpp" />
+    <ClCompile Include="src\own_contact_runtime.cpp" />
+    <ClCompile Include="src\own_contact_native.cpp" />
+    <ClCompile Include="src\synergy_inventory_native.cpp" />
+    <ClInclude Include="include\hand_transactions.h" />
+    <ClInclude Include="include\higgstransactions.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\higgsgrantmutation.h" />
+    <ClInclude Include="include\higgsauthorizeddispatch.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\hand_sessions.cpp" />
+    <ClCompile Include="src\hand_use_proposals.cpp" />
+    <ClCompile Include="src\haptic_schedule.cpp" />
+    <ClInclude Include="include\higgshanduse.h" />
+    <ClInclude Include="include\higgshaptics.h" />
+    <ClInclude Include="include\haptic_schedule.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\hand_input_extended.cpp" />
+    <ClCompile Include="src\hand_input_context.cpp" />
+    <ClCompile Include="src\input_runtime.cpp" />
+    <ClCompile Include="src\hand_support.cpp" />
+    <ClCompile Include="src\hand_parts.cpp" />
+    <ClCompile Include="src\hand_parts_runtime.cpp" />
+    <ClCompile Include="src\hand_parts_native.cpp" />
+    <ClCompile Include="src\hand_support_native.cpp" />
+    <ClInclude Include="include\higgsinput.h" />
+    <ClInclude Include="include\hand_input_extended.h" />
+    <ClInclude Include="include\higgsinputcontext.h" />
+    <ClInclude Include="include\higgshandusetransition.h" />
+    <ClInclude Include="include\higgshanduseproposals.h" />
+    <ClInclude Include="include\higgssupport.h" />
+    <ClInclude Include="include\hand_support.h" />
+    <ClInclude Include="include\higgshandparts.h" />
+    <ClInclude Include="include\higgshandpartsnative.h" />
+    <ClInclude Include="include\hand_parts.h" />
+    <ClInclude Include="include\hand_parts_native.h" />
+    <ClInclude Include="include\interop\planck_synergy.h" />
+    <ClInclude Include="include\interop\planck_physical_interop.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\hand_physical_policy.cpp" />
+    <ClCompile Include="src\physical_policy_runtime.cpp" />
+    <ClCompile Include="src\hand_physical_policy_native.cpp" />
+    <ClInclude Include="include\higgsphysicalpolicy.h" />
+    <ClInclude Include="include\hand_physical_policy.h" />
+  </ItemGroup>
 </Project>
