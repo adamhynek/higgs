@@ -1,3 +1,4 @@
+#include "hand_abi_boundary.h"
 #include "synergy_inventory_native.h"
 #include "hand_broker.h"
 #include "hand_transactions.h"
@@ -104,13 +105,15 @@ void InventoryService::Report(const HIGGS_TransferExecution& x,uint64_t permit,c
 }
 }
 namespace {
-template<class F> HIGGS_HandStatus Safe(F f)noexcept{try{return f();}catch(...){return HIGGS_HAND_INTERNAL_ERROR;}}
-HIGGS_HandStatus HIGGS_HAND_CALL Select(uint64_t c,const HIGGS_InventorySelectionRequest* r,uint64_t* out){if(!r||!out)return HIGGS_HAND_INVALID_ARGUMENT;return Safe([&]{return HiggsHands::Inventory().Request(c,*r,*out);});}
-HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t c,uint64_t t,HIGGS_InventorySelection* out){if(!out)return HIGGS_HAND_INVALID_ARGUMENT;if(out->structSize<sizeof(*out)){out->structSize=sizeof(*out);return HIGGS_HAND_BUFFER_TOO_SMALL;}return Safe([&]{HIGGS_InventorySelection value{};auto s=HiggsHands::Inventory().Copy(c,t,value);if(!s)std::memcpy(out,&value,sizeof(value));return s;});}
-HIGGS_HandStatus HIGGS_HAND_CALL Release(uint64_t c,uint64_t t){return Safe([&]{return HiggsHands::Inventory().Release(c,t);});}
-HIGGS_HandStatus HIGGS_HAND_CALL Executor(uint64_t c,uint64_t* out){if(!out)return HIGGS_HAND_INVALID_ARGUMENT;return Safe([&]{return HiggsHands::Inventory().Executor(c,*out);});}
+
+HIGGS_HandStatus HIGGS_HAND_CALL Select(uint64_t c,const HIGGS_InventorySelectionRequest* r,uint64_t* out){if(!r||!out)return HIGGS_HAND_INVALID_ARGUMENT;return HiggsAbi::Guard([&]{return HiggsHands::Inventory().Request(c,*r,*out);});}
+HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t c,uint64_t t,HIGGS_InventorySelection* out){if(!out)return HIGGS_HAND_INVALID_ARGUMENT;if(out->structSize<sizeof(*out)){out->structSize=sizeof(*out);return HIGGS_HAND_BUFFER_TOO_SMALL;}return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Inventory().Copy(c,t,value);
+    });}
+HIGGS_HandStatus HIGGS_HAND_CALL Release(uint64_t c,uint64_t t){return HiggsAbi::Guard([&]{return HiggsHands::Inventory().Release(c,t);});}
+HIGGS_HandStatus HIGGS_HAND_CALL Executor(uint64_t c,uint64_t* out){if(!out)return HIGGS_HAND_INVALID_ARGUMENT;return HiggsAbi::Guard([&]{return HiggsHands::Inventory().Executor(c,*out);});}
 }
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryInventoryInterface(uint32_t version,uint32_t bytes,HIGGS_InventoryInterface* out){
     if(version!=HIGGS_INVENTORY_VERSION)return HIGGS_HAND_UNSUPPORTED_VERSION;if(!out)return HIGGS_HAND_INVALID_ARGUMENT;if(bytes<sizeof(*out))return HIGGS_HAND_BUFFER_TOO_SMALL;
-    return Safe([&]{HIGGS_InventoryInterface value{sizeof(value),version,HiggsHands::Inventory().Capabilities(),Select,Copy,Release,Executor};std::memcpy(out,&value,sizeof(value));return HIGGS_HAND_OK;});
+    return HiggsAbi::Guard([&]{HIGGS_InventoryInterface value{sizeof(value),version,HiggsHands::Inventory().Capabilities(),Select,Copy,Release,Executor};std::memcpy(out,&value,sizeof(value));return HIGGS_HAND_OK;});
 }

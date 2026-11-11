@@ -1,7 +1,8 @@
 #pragma once
-#include "higgshaptics.h"
+#include "higgsphysics.h"
 #include <array>
 #include <mutex>
+#include <optional>
 namespace HiggsHands
 {
 class Broker;
@@ -17,13 +18,11 @@ class HapticSchedule
     explicit HapticSchedule(Broker &broker) : broker_(broker)
     {
     }
-    HIGGS_HandStatus Request(uint64_t, const HIGGS_HapticRequest &, uint64_t &, uint64_t, uint64_t operation = 0,
-                             bool legacy = false);
+    HIGGS_HandStatus Request(uint64_t, const HIGGS_HapticRequest &, uint64_t &, uint64_t, uint64_t operation = 0);
     HIGGS_HandStatus Cancel(uint64_t, uint64_t);
     HIGGS_HandStatus Copy(uint64_t, uint64_t, HIGGS_HapticState &, uint64_t);
-    HapticOutput Sample(uint32_t, uint64_t);
+    HapticOutput Sample(uint32_t, uint64_t, std::optional<float> nativeStrength = std::nullopt);
     void Submitted(const HapticOutput &, bool);
-    void Legacy(uint32_t, float, float, float, uint64_t);
 
   private:
     struct Event

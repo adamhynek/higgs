@@ -1,3 +1,4 @@
+#include "hand_abi_boundary.h"
 #include "hand_broker.h"
 #include <algorithm>
 #include <cstring>
@@ -86,13 +87,7 @@ void Broker::ResolveHandUseProposalsLocked(Clock now)
                 reason = HIGGS_HAND_STALE;
         if (!reason && !EligibleLocked(a.request.physicalHands)) reason = HIGGS_HAND_CONFLICT;
         if (reason) { FinishLocked(a,HIGGS_ACTION_REJECTED,reason); continue; }
-        a.request.grant = nextToken_++;
-        a.grantActive = a.selected = true;
-        a.sessionKind = a.useProposal.use.kind;
-        a.sessionRevision = 1;
-        a.expires = now + uint64_t(a.useProposal.use.durationMs) * 1000000;
-        FinishLocked(a,HIGGS_ACTION_ACCEPTED,0);
-        RefreshLocked();
+        AcceptHandUseLocked(a, a.useProposal.use, now);
     }
 }
 
@@ -118,8 +113,7 @@ HIGGS_HandStatus Broker::CopyHandUseProposal(uint64_t owner, uint64_t id,
     out.decisionFlags = a->proposalDecisionFlags;
     out.use.structSize = sizeof(out.use);
     if (a->sessionKind)
-        out.use = {sizeof(out.use),a->sessionKind,a->grantActive ? 1u : 0u,0,
-                   a->request.epoch,a->expires,a->request};
+        out.use = HandUseState(*a);
     return HIGGS_HAND_OK;
 }
 
@@ -141,24 +135,22 @@ HIGGS_HandStatus Broker::CancelHandUseProposal(uint64_t owner, uint64_t id, uint
 }
 } // namespace HiggsHands
 namespace {
-template<class F> HIGGS_HandStatus Guard(F f) noexcept {
-    try { return f(); } catch (...) { return HIGGS_HAND_INTERNAL_ERROR; }
-}
+
 HIGGS_HandStatus HIGGS_HAND_CALL Propose(uint64_t owner,const HIGGS_HandUseProposalRequest *r,uint64_t *out) {
     if (!r || !out || r->structSize != sizeof(*r)) return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] { uint64_t id=0;
-        const auto s=HiggsHands::Service().ProposeHandUse(owner,*r,id,HiggsHands::Now());
-        if (!s) *out=id; return s; });
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& id) {
+        return HiggsHands::Service().ProposeHandUse(owner,*r,id,HiggsHands::Now());
+    });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner,uint64_t id,HIGGS_HandUseProposalState *out) {
     if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
     if (out->structSize < sizeof(*out)) { out->structSize=sizeof(*out); return HIGGS_HAND_BUFFER_TOO_SMALL; }
-    return Guard([&] { HIGGS_HandUseProposalState value{};
-        const auto s=HiggsHands::Service().CopyHandUseProposal(owner,id,value,HiggsHands::Now());
-        if (!s) *out=value; return s; });
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().CopyHandUseProposal(owner,id,value,HiggsHands::Now());
+    });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Cancel(uint64_t owner,uint64_t id,uint64_t epoch) {
-    return Guard([&] { return HiggsHands::Service().CancelHandUseProposal(owner,id,epoch); });
+    return HiggsAbi::Guard([&] { return HiggsHands::Service().CancelHandUseProposal(owner,id,epoch); });
 }
 }
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandUseProposalsInterface(uint32_t version,uint32_t bytes,

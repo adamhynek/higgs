@@ -1,3 +1,4 @@
+#include "hand_abi_boundary.h"
 #include "hand_broker.h"
 #include "native_regions.h"
 #include <cmath>
@@ -36,24 +37,24 @@ uint32_t NativeRegionFallbackMask(const HIGGS_NativeRegionFrame& frame) {
 }
 }
 namespace {
-template<class F> HIGGS_HandStatus Guard(F action) noexcept {
-    try { return action(); } catch (...) { return HIGGS_HAND_INTERNAL_ERROR; }
-}
+
 HIGGS_HandStatus HIGGS_HAND_CALL Register(uint64_t owner, HIGGS_NativeRegionDetector callback,
                                         void* context, uint64_t* out) {
     if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] { uint64_t value = 0; const auto status = HiggsHands::Service().NativeRegionDetector(
-        owner, callback, context, value); if (!status) *out = value; return status; });
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().NativeRegionDetector(
+        owner, callback, context, value);
+    });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Remove(uint64_t owner, uint64_t registration) {
-    return Guard([&] { return HiggsHands::Service().RemoveNativeRegionDetector(owner, registration); });
+    return HiggsAbi::Guard([&] { return HiggsHands::Service().RemoveNativeRegionDetector(owner, registration); });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint32_t hand, HIGGS_NativeRegionFrame* out) {
     if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
     if (out->structSize < sizeof(*out)) { out->structSize = sizeof(*out); return HIGGS_HAND_BUFFER_TOO_SMALL; }
-    return Guard([&] { HIGGS_NativeRegionFrame value{};
-        const auto status = HiggsHands::Service().CopyNativeRegionFrame(owner, hand, value);
-        if (!status) std::memcpy(out, &value, sizeof(value)); return status; });
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().CopyNativeRegionFrame(owner, hand, value);
+    });
 }
 }
 extern "C" const HIGGS_NativeRegionsInterface* HIGGS_HAND_CALL

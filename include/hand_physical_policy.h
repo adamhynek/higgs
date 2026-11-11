@@ -1,5 +1,5 @@
 #pragma once
-#include "higgsphysicalpolicy.h"
+#include "higgsphysics.h"
 #include <array>
 #include <mutex>
 namespace HiggsHands

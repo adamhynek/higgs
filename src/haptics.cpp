@@ -18,8 +18,16 @@ void HapticsManager::TriggerHapticPulse(float duration)
 
 void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, float duration)
 {
-    HiggsHands::Haptics().Legacy(hand == BSVRInterface::kControllerHand_Left ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT,
-                                 startStrength, endStrength, duration, HiggsHands::Now());
+    HapticEvent hapticEvent{};
+    hapticEvent.startStrength = startStrength;
+    hapticEvent.endStrength = endStrength;
+    hapticEvent.duration = duration;
+    hapticEvent.isNew = true;
+
+    {
+        std::scoped_lock lock(eventsLock);
+        events.push_back(std::move(hapticEvent));
+    }
 }
 
 void HapticsManager::QueueHapticPulse(float strength)
@@ -30,18 +38,51 @@ void HapticsManager::QueueHapticPulse(float strength)
 void HapticsManager::Loop()
 {
     while (true) {
+        std::optional<float> nativeStrength;
+        {
+            std::scoped_lock lock(eventsLock);
+
+            size_t numEvents = events.size();
+            if (numEvents > 0) {
+                double currentTime = GetTime();
+
+                // Just play the last event that was added
+                HapticEvent &lastEvent = events[numEvents - 1];
+
+                if (lastEvent.isNew) {
+                    lastEvent.isNew = false;
+                    lastEvent.startTime = currentTime;
+                }
+
+                float strength;
+                if (lastEvent.duration == 0) {
+                    strength = lastEvent.startStrength;
+                }
+                else {
+                    // Simple lerp from start to end strength over duration
+                    double elapsedTime = currentTime - lastEvent.startTime;
+                    strength = lerp(lastEvent.startStrength, lastEvent.endStrength, min(1.0f, elapsedTime / lastEvent.duration));
+                }
+                nativeStrength = strength;
+
+                // Cleanup events that are past their duration
+                auto end = std::remove_if(events.begin(), events.end(),
+                    [currentTime](HapticEvent &evnt) { return currentTime - evnt.startTime >= evnt.duration; }
+                );
+                events.erase(end, events.end());
+            }
+        }
+
         {
             auto phase = HiggsHands::Service().NativePhase();
-            const auto sample = HiggsHands::Haptics().Sample(
-                hand == BSVRInterface::kControllerHand_Left ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, HiggsHands::Now());
-            if (sample.strength > 0)
-            {
+            const auto physicalHand = hand == BSVRInterface::kControllerHand_Left ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT;
+            const auto sample = HiggsHands::Haptics().Sample(physicalHand, HiggsHands::Now(), nativeStrength);
+            if (sample.strength > 0) {
                 const bool available = g_openVR && *g_openVR;
-                if (available)
-                    TriggerHapticPulse(sample.strength);
+                if (available) TriggerHapticPulse(sample.strength);
                 HiggsHands::Haptics().Submitted(sample, available);
             }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5)); // TriggerHapticPulse can only be called once every 5ms
     }
 }

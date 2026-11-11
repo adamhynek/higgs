@@ -1,5 +1,6 @@
 #pragma once
-#include "higgsowncontactnative.h"
+#include "higgsnativeinterop.h"
+#include "higgsphysics.h"
 #include <array>
 #include <atomic>
 #include <mutex>

@@ -1,3 +1,4 @@
+#include "hand_abi_boundary.h"
 #include "haptic_schedule.h"
 #include "hand_broker.h"
 #include <algorithm>
@@ -20,7 +21,7 @@ void HapticSchedule::Refresh(uint64_t now)
         {
             const auto &hand = snapshot.hands[e.state.physicalHand == HIGGS_HAND_LEFT ? 0 : 1];
             if (e.state.epoch != epoch_ || !snapshot.worldReady ||
-                (e.state.owner && !broker_.ClientValid(e.state.owner)) ||
+                !broker_.ClientValid(e.state.owner) ||
                 !(hand.observationMask & HIGGS_OBS_TRACKING_VALID) ||
                 (e.operation && !broker_.OperationActive(e.operation, now)))
                 e.state.stage = HIGGS_HAPTIC_CANCELLED;
@@ -29,14 +30,12 @@ void HapticSchedule::Refresh(uint64_t now)
         }
 }
 HIGGS_HandStatus HapticSchedule::Request(uint64_t owner, const HIGGS_HapticRequest &r, uint64_t &out, uint64_t now,
-                                         uint64_t operation, bool legacy)
+                                         uint64_t operation)
 {
-    std::unique_lock<std::recursive_mutex> phase;
-    if (owner)
-        phase = broker_.NativePhase();
+    auto phase = broker_.NativePhase();
     std::lock_guard lock(mutex_);
     Refresh(now);
-    if ((!owner && !legacy) || (owner && !broker_.ClientValid(owner)))
+    if (!broker_.ClientValid(owner))
         return HIGGS_HAND_INVALID_CLIENT;
     if (r.structSize < sizeof(r) || (r.physicalHand != HIGGS_HAND_LEFT && r.physicalHand != HIGGS_HAND_RIGHT) ||
         r.delayMs > 5000 || !r.durationMs || r.durationMs > 5000 || !std::isfinite(r.startStrength) ||
@@ -49,36 +48,28 @@ HIGGS_HandStatus HapticSchedule::Request(uint64_t owner, const HIGGS_HapticReque
     if (!snapshot.worldReady ||
         !(snapshot.hands[r.physicalHand == HIGGS_HAND_LEFT ? 0 : 1].observationMask & HIGGS_OBS_TRACKING_VALID))
         return HIGGS_HAND_NOT_READY;
-    Event *slot = nullptr;
+    Event *freeSlot = nullptr;
+    Event *oldestTerminal = nullptr;
     Event *replacement = nullptr;
-    if (r.contextKey)
-        for (auto &e : events_)
-            if (e.state.owner == owner && e.request.physicalHand == r.physicalHand &&
-                e.request.contextKey == r.contextKey && e.state.stage < HIGGS_HAPTIC_COMPLETED)
-            {
-                replacement = &e;
-                break;
-            }
-    if (!slot)
-        for (auto &e : events_)
-            if (!e.state.requestId)
-            {
-                slot = &e;
-                if (!slot)
-                    slot = replacement;
-                break;
-            }
-    if (!slot)
-        for (auto &e : events_)
-            if (e.state.stage >= HIGGS_HAPTIC_COMPLETED && (!slot || e.state.requestId < slot->state.requestId))
-                slot = &e;
-    if (!slot)
-        return HIGGS_HAND_CAPACITY;
-    if (r.contextKey)
-        for (auto &e : events_)
-            if (e.state.owner == owner && e.request.physicalHand == r.physicalHand &&
-                e.request.contextKey == r.contextKey && e.state.stage < HIGGS_HAPTIC_COMPLETED)
-                e.state.stage = HIGGS_HAPTIC_CANCELLED;
+    for (auto &event : events_)
+    {
+        if (!event.state.requestId)
+        {
+            if (!freeSlot) freeSlot = &event;
+        }
+        else if (event.state.stage >= HIGGS_HAPTIC_COMPLETED)
+        {
+            if (!oldestTerminal || event.state.requestId < oldestTerminal->state.requestId)
+                oldestTerminal = &event;
+        }
+        else if (r.contextKey && event.state.owner == owner && event.request.physicalHand == r.physicalHand &&
+                 event.request.contextKey == r.contextKey)
+            replacement = &event;
+    }
+    Event *slot = freeSlot ? freeSlot : oldestTerminal;
+    if (!slot) slot = replacement;
+    if (!slot) return HIGGS_HAND_CAPACITY;
+    if (replacement) replacement->state.stage = HIGGS_HAPTIC_CANCELLED;
     *slot = {};
     slot->request = r;
     slot->operation = operation;
@@ -128,7 +119,7 @@ HIGGS_HandStatus HapticSchedule::Copy(uint64_t owner, uint64_t id, HIGGS_HapticS
         }
     return HIGGS_HAND_NOT_FOUND;
 }
-HapticOutput HapticSchedule::Sample(uint32_t hand, uint64_t now)
+HapticOutput HapticSchedule::Sample(uint32_t hand, uint64_t now, std::optional<float> nativeStrength)
 {
     std::lock_guard lock(mutex_);
     Refresh(now);
@@ -140,6 +131,11 @@ HapticOutput HapticSchedule::Sample(uint32_t hand, uint64_t now)
     output.value.atNs = now;
     output.value.serial = next_++;
     int32_t priority = (std::numeric_limits<int32_t>::min)();
+    int32_t nativePriority = priority;
+    if (nativeStrength) {
+        broker_.EffectivePriority(0, nativePriority);
+        priority = nativePriority;
+    }
     for (auto &e : events_)
         if (e.state.stage < HIGGS_HAPTIC_COMPLETED && e.state.physicalHand == hand && now >= e.state.dueAtNs)
         {
@@ -149,6 +145,8 @@ HapticOutput HapticSchedule::Sample(uint32_t hand, uint64_t now)
             e.state.effectivePriority = value;
             priority = (std::max)(priority, value);
         }
+    if (nativeStrength && nativePriority == priority)
+        output.value.strength = *nativeStrength;
     for (auto &e : events_)
         if (e.state.requestId && e.state.stage < HIGGS_HAPTIC_COMPLETED && e.state.physicalHand == hand &&
             now >= e.state.dueAtNs)
@@ -190,49 +188,21 @@ void HapticSchedule::Submitted(const HapticOutput &sample, bool accepted)
                     ++e.state.unavailableSamples;
             }
 }
-void HapticSchedule::Legacy(uint32_t hand, float start, float end, float seconds, uint64_t now)
-{
-    if (!std::isfinite(seconds) || seconds < 0)
-        return;
-    HIGGS_HapticRequest r{};
-    r.structSize = sizeof(r);
-    r.physicalHand = hand;
-    r.epoch = broker_.Epoch();
-    r.durationMs = static_cast<uint32_t>((std::max)(1.f, (std::min)(seconds * 1000.f, 5000.f)));
-    r.startStrength = std::clamp(start, 0.f, 1.f);
-    r.endStrength = std::clamp(end, 0.f, 1.f);
-    uint64_t ignored = 0;
-    Request(0, r, ignored, now, 0, true);
-}
 } // namespace HiggsHands
 namespace
 {
-template <class F> HIGGS_HandStatus Guard(F f) noexcept
-{
-    try
-    {
-        return f();
-    }
-    catch (...)
-    {
-        return HIGGS_HAND_INTERNAL_ERROR;
-    }
-}
+
 HIGGS_HandStatus HIGGS_HAND_CALL Request(uint64_t owner, const HIGGS_HapticRequest *r, uint64_t *out)
 {
     if (!r || r->structSize < sizeof(*r) || !out)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] {
-        uint64_t value = 0;
-        auto s = HiggsHands::Haptics().Request(owner, *r, value, HiggsHands::Now());
-        if (!s)
-            *out = value;
-        return s;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Haptics().Request(owner, *r, value, HiggsHands::Now());
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Cancel(uint64_t owner, uint64_t request)
 {
-    return Guard([&] { return HiggsHands::Haptics().Cancel(owner, request); });
+    return HiggsAbi::Guard([&] { return HiggsHands::Haptics().Cancel(owner, request); });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint64_t request, HIGGS_HapticState *out)
 {
@@ -243,12 +213,8 @@ HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint64_t request, HIGGS_Ha
         out->structSize = sizeof(*out);
         return HIGGS_HAND_BUFFER_TOO_SMALL;
     }
-    return Guard([&] {
-        HIGGS_HapticState value{};
-        auto s = HiggsHands::Haptics().Copy(owner, request, value, HiggsHands::Now());
-        if (!s)
-            std::memcpy(out, &value, sizeof(value));
-        return s;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Haptics().Copy(owner, request, value, HiggsHands::Now());
     });
 }
 } // namespace

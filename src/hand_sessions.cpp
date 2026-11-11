@@ -1,8 +1,24 @@
+#include "hand_abi_boundary.h"
 #include "hand_broker.h"
 #include <cstring>
 #include <limits>
 namespace HiggsHands
 {
+HIGGS_HandUseState Broker::HandUseState(const Action &a)
+{
+    return {sizeof(HIGGS_HandUseState), a.sessionKind, a.grantActive ? 1u : 0u, 0,
+            a.request.epoch, a.expires, a.request};
+}
+void Broker::AcceptHandUseLocked(Action &a, const HIGGS_HandUseRequest &use, Clock now)
+{
+    a.request.grant = nextToken_++;
+    a.selected = a.grantActive = true;
+    a.sessionKind = use.kind;
+    a.sessionRevision = 1;
+    a.expires = now + uint64_t(use.durationMs) * 1000000;
+    FinishLocked(a, HIGGS_ACTION_ACCEPTED, 0);
+    RefreshLocked();
+}
 HIGGS_HandStatus Broker::HandUse(uint64_t owner, const HIGGS_HandUseRequest &r, HIGGS_HandUseState &out, uint64_t now)
 {
     auto phase = NativePhase();
@@ -34,23 +50,11 @@ HIGGS_HandStatus Broker::HandUse(uint64_t owner, const HIGGS_HandUseRequest &r, 
     action->request.executor = r.executor;
     action->request.physicalHands = r.physicalHands;
     action->request.epoch = r.epoch;
-    action->request.grant = nextToken_++;
     action->request.actionId = r.kind;
     action->request.contextId = r.contextId;
     action->request.contextGeneration = r.contextGeneration;
-    action->selected = action->grantActive = true;
-    action->sessionKind = r.kind;
-    action->sessionRevision = 1;
-    action->expires = now + static_cast<uint64_t>(r.durationMs) * 1000000;
-    FinishLocked(*action, HIGGS_ACTION_ACCEPTED, 0);
-    RefreshLocked();
-    out = {};
-    out.structSize = sizeof(out);
-    out.kind = r.kind;
-    out.active = 1;
-    out.epoch = r.epoch;
-    out.expiresAtNs = action->expires;
-    out.authority = action->request;
+    AcceptHandUseLocked(*action, r, now);
+    out = HandUseState(*action);
     return HIGGS_HAND_OK;
 }
 HIGGS_HandStatus Broker::ReadHandUse(uint64_t owner, uint64_t id, uint64_t epoch, uint32_t renew,
@@ -83,13 +87,7 @@ HIGGS_HandStatus Broker::ReadHandUse(uint64_t owner, uint64_t id, uint64_t epoch
                     return HIGGS_HAND_STALE;
         a->expires = now + static_cast<uint64_t>(renew) * 1000000;
     }
-    out = {};
-    out.structSize = sizeof(out);
-    out.kind = a->sessionKind;
-    out.active = a->grantActive ? 1u : 0u;
-    out.epoch = a->request.epoch;
-    out.expiresAtNs = a->expires;
-    out.authority = a->request;
+    out = HandUseState(*a);
     return HIGGS_HAND_OK;
 }
 HIGGS_HandStatus Broker::EndHandUse(uint64_t owner, uint64_t id, uint64_t epoch)
@@ -166,8 +164,7 @@ HIGGS_HandStatus Broker::CopyHandUseTransition(uint64_t owner, uint64_t id,
     out = {};
     out.structSize = sizeof(out);
     out.revision = a->sessionRevision;
-    out.use = {sizeof(out.use),a->sessionKind,a->grantActive ? 1u : 0u,0,
-               a->request.epoch,a->expires,a->request};
+    out.use = HandUseState(*a);
     return HIGGS_HAND_OK;
 }
 HIGGS_HandStatus Broker::ResizeHandUse(uint64_t owner, const HIGGS_HandUseTransitionRequest &r,
@@ -219,103 +216,64 @@ HIGGS_HandStatus Broker::ResizeHandUse(uint64_t owner, const HIGGS_HandUseTransi
     out = {};
     out.structSize = sizeof(out);
     out.revision = a->sessionRevision;
-    out.use = {sizeof(out.use),a->sessionKind,1,0,r.epoch,a->expires,a->request};
+    out.use = HandUseState(*a);
     return HIGGS_HAND_OK;
 }
 } // namespace HiggsHands
 namespace
 {
-template <class F> HIGGS_HandStatus Guard(F f) noexcept
-{
-    try
-    {
-        return f();
-    }
-    catch (...)
-    {
-        return HIGGS_HAND_INTERNAL_ERROR;
-    }
-}
-HIGGS_HandStatus Output(HIGGS_HandUseState *out)
-{
-    if (!out)
-        return HIGGS_HAND_INVALID_ARGUMENT;
-    if (out->structSize < sizeof(*out))
-    {
-        out->structSize = sizeof(*out);
-        return HIGGS_HAND_BUFFER_TOO_SMALL;
-    }
-    return HIGGS_HAND_OK;
-}
+
 HIGGS_HandStatus HIGGS_HAND_CALL Request(uint64_t owner, const HIGGS_HandUseRequest *r, HIGGS_HandUseState *out)
 {
     if (!r || r->structSize < sizeof(*r))
         return HIGGS_HAND_INVALID_ARGUMENT;
-    auto s = Output(out);
+    auto s = HiggsAbi::CheckSized(out);
     if (s)
         return s;
-    return Guard([&] {
-        HIGGS_HandUseState value{};
-        auto status = HiggsHands::Service().HandUse(owner, *r, value, HiggsHands::Now());
-        if (!status)
-            std::memcpy(out, &value, sizeof(value));
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().HandUse(owner, *r, value, HiggsHands::Now());
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Renew(uint64_t owner, uint64_t id, uint64_t epoch, uint32_t duration,
                                        HIGGS_HandUseState *out)
 {
-    auto s = Output(out);
+    auto s = HiggsAbi::CheckSized(out);
     if (s)
         return s;
     if (!duration)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] {
-        HIGGS_HandUseState value{};
-        auto status = HiggsHands::Service().ReadHandUse(owner, id, epoch, duration, value, HiggsHands::Now());
-        if (!status)
-            std::memcpy(out, &value, sizeof(value));
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().ReadHandUse(owner, id, epoch, duration, value, HiggsHands::Now());
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint64_t id, HIGGS_HandUseState *out)
 {
-    auto s = Output(out);
+    auto s = HiggsAbi::CheckSized(out);
     if (s)
         return s;
-    return Guard([&] {
-        HIGGS_HandUseState value{};
-        auto status = HiggsHands::Service().ReadHandUse(owner, id, 0, 0, value, HiggsHands::Now());
-        if (!status)
-            std::memcpy(out, &value, sizeof(value));
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().ReadHandUse(owner, id, 0, 0, value, HiggsHands::Now());
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL End(uint64_t owner, uint64_t id, uint64_t epoch)
 {
-    return Guard([&] { return HiggsHands::Service().EndHandUse(owner, id, epoch); });
-}
-HIGGS_HandStatus TransitionOutput(HIGGS_HandUseTransitionState *out)
-{
-    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
-    if (out->structSize < sizeof(*out)) { out->structSize = sizeof(*out); return HIGGS_HAND_BUFFER_TOO_SMALL; }
-    return HIGGS_HAND_OK;
+    return HiggsAbi::Guard([&] { return HiggsHands::Service().EndHandUse(owner, id, epoch); });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL CopyTransition(uint64_t owner,uint64_t id,HIGGS_HandUseTransitionState *out)
 {
-    const auto status = TransitionOutput(out); if (status) return status;
-    return Guard([&] { HIGGS_HandUseTransitionState value{};
-        const auto s=HiggsHands::Service().CopyHandUseTransition(owner,id,value,HiggsHands::Now());
-        if (!s) *out=value; return s; });
+    const auto status = HiggsAbi::CheckSized(out); if (status) return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().CopyHandUseTransition(owner,id,value,HiggsHands::Now());
+    });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL ResizeTransition(uint64_t owner,const HIGGS_HandUseTransitionRequest *r,
                                                 HIGGS_HandUseTransitionState *out)
 {
     if (!r || r->structSize != sizeof(*r)) return HIGGS_HAND_INVALID_ARGUMENT;
-    const auto status=TransitionOutput(out); if (status) return status;
-    return Guard([&] { HIGGS_HandUseTransitionState value{};
-        const auto s=HiggsHands::Service().ResizeHandUse(owner,*r,value,HiggsHands::Now());
-        if (!s) *out=value; return s; });
+    const auto status=HiggsAbi::CheckSized(out); if (status) return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().ResizeHandUse(owner,*r,value,HiggsHands::Now());
+    });
 }
 } // namespace
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandUseTransitionInterface(uint32_t version,uint32_t bytes,

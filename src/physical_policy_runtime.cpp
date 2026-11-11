@@ -1,29 +1,16 @@
+#include "hand_abi_boundary.h"
 #include "hand_broker.h"
 #include "hand_physical_policy.h"
 #include <cstring>
 namespace
 {
-template <class F> HIGGS_HandStatus Guard(F f) noexcept
-{
-    try
-    {
-        return f();
-    }
-    catch (...)
-    {
-        return HIGGS_HAND_INTERNAL_ERROR;
-    }
-}
+
 HIGGS_HandStatus HIGGS_HAND_CALL Request(uint64_t owner, const HIGGS_PhysicalPolicyRequest *request, uint64_t *out)
 {
     if (!request || request->structSize < sizeof(*request) || !out)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] {
-        uint64_t id = 0;
-        auto status = HiggsHands::PhysicalPolicies().Request(owner, *request, id, HiggsHands::Now());
-        if (!status)
-            *out = id;
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& id) {
+        return HiggsHands::PhysicalPolicies().Request(owner, *request, id, HiggsHands::Now());
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Update(uint64_t owner, uint64_t id, uint64_t revision,
@@ -31,12 +18,12 @@ HIGGS_HandStatus HIGGS_HAND_CALL Update(uint64_t owner, uint64_t id, uint64_t re
 {
     if (!request || request->structSize < sizeof(*request))
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard(
+    return HiggsAbi::Guard(
         [&] { return HiggsHands::PhysicalPolicies().Update(owner, id, revision, *request, HiggsHands::Now()); });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL End(uint64_t owner, uint64_t id, uint64_t epoch)
 {
-    return Guard([&] { return HiggsHands::PhysicalPolicies().End(owner, id, epoch); });
+    return HiggsAbi::Guard([&] { return HiggsHands::PhysicalPolicies().End(owner, id, epoch); });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint64_t id, HIGGS_PhysicalPolicyState *out)
 {
@@ -47,12 +34,8 @@ HIGGS_HandStatus HIGGS_HAND_CALL Copy(uint64_t owner, uint64_t id, HIGGS_Physica
         out->structSize = sizeof(*out);
         return HIGGS_HAND_BUFFER_TOO_SMALL;
     }
-    return Guard([&] {
-        HIGGS_PhysicalPolicyState value{};
-        auto status = HiggsHands::PhysicalPolicies().Copy(owner, id, value);
-        if (!status)
-            std::memcpy(out, &value, sizeof(value));
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::PhysicalPolicies().Copy(owner, id, value);
     });
 }
 } // namespace

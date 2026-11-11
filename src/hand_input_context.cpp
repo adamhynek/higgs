@@ -1,3 +1,4 @@
+#include "hand_abi_boundary.h"
 #include "hand_broker.h"
 #include <cstring>
 namespace HiggsHands {
@@ -243,25 +244,25 @@ HIGGS_HandStatus Broker::EvaluateDraw(uint64_t owner, uint64_t registration, uin
 }
 }
 namespace {
-template<class F> HIGGS_HandStatus GuardCommand(F f) noexcept { try { return f(); } catch (...) { return HIGGS_HAND_INTERNAL_ERROR; } }
+
 HIGGS_HandStatus HIGGS_HAND_CALL AttachDraw(uint64_t owner,uint32_t paths,uint64_t *id) {
     if (!id) return HIGGS_HAND_INVALID_ARGUMENT;
-    return GuardCommand([&]{return HiggsHands::Service().AttachDraw(owner,paths,*id);});
+    return HiggsAbi::Guard([&]{return HiggsHands::Service().AttachDraw(owner,paths,*id);});
 }
 HIGGS_HandStatus HIGGS_HAND_CALL DetachDraw(uint64_t owner,uint64_t id) {
-    return GuardCommand([&]{return HiggsHands::Service().DetachDraw(owner,id);});
+    return HiggsAbi::Guard([&]{return HiggsHands::Service().DetachDraw(owner,id);});
 }
 HIGGS_HandStatus HIGGS_HAND_CALL DrawCoverage(uint32_t *paths) {
     if (!paths) return HIGGS_HAND_INVALID_ARGUMENT;
-    return GuardCommand([&]{*paths=HiggsHands::Service().DrawCoverage();return HIGGS_HAND_OK;});
+    return HiggsAbi::Guard([&]{*paths=HiggsHands::Service().DrawCoverage();return HIGGS_HAND_OK;});
 }
 HIGGS_HandStatus HIGGS_HAND_CALL SetDraw(uint64_t owner,const HIGGS_TriggerDrawPolicy *r) {
     if (!r) return HIGGS_HAND_INVALID_ARGUMENT;
-    return GuardCommand([&]{return HiggsHands::Service().DrawPolicy(owner,*r,HiggsHands::Now());});
+    return HiggsAbi::Guard([&]{return HiggsHands::Service().DrawPolicy(owner,*r,HiggsHands::Now());});
 }
 HIGGS_HandStatus HIGGS_HAND_CALL EvaluateDraw(uint64_t owner,uint64_t id,uint32_t path,uint32_t *decision) {
     if (!decision) return HIGGS_HAND_INVALID_ARGUMENT;
-    return GuardCommand([&]{return HiggsHands::Service().EvaluateDraw(owner,id,path,*decision,HiggsHands::Now());});
+    return HiggsAbi::Guard([&]{return HiggsHands::Service().EvaluateDraw(owner,id,path,*decision,HiggsHands::Now());});
 }
 }
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryDefaultCommandInterface(uint32_t version,uint32_t bytes,HIGGS_DefaultCommandInterface *out) {

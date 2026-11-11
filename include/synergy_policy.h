@@ -1,5 +1,5 @@
 #pragma once
-#include "higgssynergy.h"
+#include "higgsphysics.h"
 
 namespace HiggsSynergy {
     inline bool MayStartHandInteraction(const HIGGS_SynergyHandState &state) {

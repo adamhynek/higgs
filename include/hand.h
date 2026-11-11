@@ -6,7 +6,7 @@
 #include <mutex>
 
 #include "skse64/InternalVR.h"
-#include "higgsnativeregions.h"
+#include "higgsinput.h"
 
 #include "RE/havok.h"
 #include "physics.h"

@@ -1,5 +1,5 @@
 #pragma once
-#include "higgsinventory.h"
+#include "higgstransactions.h"
 #include <array>
 #include <memory>
 #include <mutex>

@@ -1,19 +1,10 @@
+#include "hand_abi_boundary.h"
 #include "hand_broker.h"
 #include "hand_input_extended.h"
 #include <cstring>
 namespace
 {
-template <class F> HIGGS_HandStatus Guard(F f) noexcept
-{
-    try
-    {
-        return f();
-    }
-    catch (...)
-    {
-        return HIGGS_HAND_INTERNAL_ERROR;
-    }
-}
+
 const HIGGS_ControlInfo catalogue[]{
     {0, 1, "System"},     {1, 11, "ApplicationMenu"}, {2, 15, "Grip"},           {3, 11, "DPadLeft"},
     {4, 11, "DPadUp"},    {5, 11, "DPadRight"},       {6, 11, "DPadDown"},       {7, 11, "A"},
@@ -43,7 +34,7 @@ HIGGS_HandStatus HIGGS_HAND_CALL Snapshot(uint64_t client, HIGGS_InputSnapshot *
         out->structSize = sizeof(*out);
         return HIGGS_HAND_BUFFER_TOO_SMALL;
     }
-    return Guard([&]() -> HIGGS_HandStatus {
+    return HiggsAbi::Guard([&]() -> HIGGS_HandStatus {
         if (!HiggsHands::Service().ClientValid(client))
             return HIGGS_HAND_INVALID_CLIENT;
         const auto epoch = HiggsHands::Service().Epoch();
@@ -62,7 +53,7 @@ HIGGS_HandStatus HIGGS_HAND_CALL Frames(uint64_t client, const HIGGS_InputFrameQ
 {
     if (!query || !count)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&]() -> HIGGS_HandStatus {
+    return HiggsAbi::Guard([&]() -> HIGGS_HandStatus {
         if (!HiggsHands::Service().ClientValid(client))
             return HIGGS_HAND_INVALID_CLIENT;
         const auto epoch = HiggsHands::Service().Epoch();
@@ -78,24 +69,16 @@ HIGGS_HandStatus HIGGS_HAND_CALL Register(uint64_t client, const HIGGS_InputReco
 {
     if (!spec || !out)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] {
-        uint64_t token = 0;
-        const auto status = HiggsHands::Service().InputRecognizer(client, *spec, token);
-        if (!status)
-            *out = token;
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& token) {
+        return HiggsHands::Service().InputRecognizer(client, *spec, token);
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Submit(uint64_t client, const HIGGS_InputCandidate *spec, uint64_t *out)
 {
     if (!spec || !out)
         return HIGGS_HAND_INVALID_ARGUMENT;
-    return Guard([&] {
-        uint64_t request = 0;
-        const auto status = HiggsHands::Service().SubmitInputCandidate(client, *spec, request, HiggsHands::Now());
-        if (!status)
-            *out = request;
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& request) {
+        return HiggsHands::Service().SubmitInputCandidate(client, *spec, request, HiggsHands::Now());
     });
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Recognition(uint64_t client, uint64_t request, HIGGS_InputRecognition *out)
@@ -107,12 +90,8 @@ HIGGS_HandStatus HIGGS_HAND_CALL Recognition(uint64_t client, uint64_t request, 
         out->structSize = sizeof(*out);
         return HIGGS_HAND_BUFFER_TOO_SMALL;
     }
-    return Guard([&] {
-        HIGGS_InputRecognition value{};
-        const auto status = HiggsHands::Service().CopyInputRecognition(client, request, value);
-        if (!status)
-            *out = value;
-        return status;
+    return HiggsAbi::PublishOnSuccess(out, [&](auto& value) {
+        return HiggsHands::Service().CopyInputRecognition(client, request, value);
     });
 }
 } // namespace

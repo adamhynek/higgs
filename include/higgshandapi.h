@@ -1,16 +1,12 @@
-#ifndef HIGGS_HAND_API_H
-#define HIGGS_HAND_API_H
-/* Additive, copied C ABI. Official001, restrictions v1 and motion v1 are unchanged. */
-#include <stdint.h>
-#if defined(_WIN32)
-#define HIGGS_HAND_CALL __cdecl
-#else
-#define HIGGS_HAND_CALL
-#endif
+#ifndef HIGGSHANDAPI_H
+#define HIGGSHANDAPI_H
+#include "higgsabitypes.h"
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
+#pragma pack(push, 8)
+
+/* Additive, copied C ABI. Official001, restrictions v1 and motion v1 are unchanged. */
 #define HIGGS_HAND_ABI_VERSION 2u
 #define HIGGS_HAND_CAP_SNAPSHOT UINT64_C(1)
 #define HIGGS_HAND_CAP_INPUT_BROKER UINT64_C(2)
@@ -18,36 +14,6 @@ extern "C"
 #define HIGGS_HAND_CAP_EXECUTOR_RECEIPTS UINT64_C(8)
 #define HIGGS_HAND_CAP_PHYSICAL_REQUESTS UINT64_C(16)
 #define HIGGS_HAND_CAP_INTERACTION_EVENTS UINT64_C(32)
-    typedef uint32_t HIGGS_HandStatus;
-    typedef uint64_t HIGGS_HandClient;
-    typedef uint64_t HIGGS_HandRegistration;
-    typedef uint64_t HIGGS_HandExecutor;
-    typedef uint64_t HIGGS_HandGrant;
-    typedef uint64_t HIGGS_HandRequestId;
-    enum
-    {
-        HIGGS_HAND_OK = 0,
-        HIGGS_HAND_INVALID_ARGUMENT = 1,
-        HIGGS_HAND_UNSUPPORTED_VERSION = 2,
-        HIGGS_HAND_BUFFER_TOO_SMALL = 3,
-        HIGGS_HAND_INVALID_CLIENT = 4,
-        HIGGS_HAND_WRONG_OWNER = 5,
-        HIGGS_HAND_NOT_READY = 6,
-        HIGGS_HAND_STALE = 7,
-        HIGGS_HAND_CAPACITY = 8,
-        HIGGS_HAND_WRONG_PHASE = 9,
-        HIGGS_HAND_CONFLICT = 10,
-        HIGGS_HAND_NOT_FOUND = 11,
-        HIGGS_HAND_PENDING = 12,
-        HIGGS_HAND_UNSUPPORTED = 13,
-        HIGGS_HAND_INTERNAL_ERROR = 14
-    };
-    enum
-    {
-        HIGGS_HAND_LEFT = 1,
-        HIGGS_HAND_RIGHT = 2,
-        HIGGS_HAND_BOTH = 3
-    };
     /* occupancy is meaningful ONLY when both HELD_KNOWN and EQUIPMENT_KNOWN are set. */
     enum
     {
@@ -134,7 +100,6 @@ extern "C"
         HIGGS_PHYSICAL_SECONDARY_SUPPORT = 3 /* existing HIGGS close weapon selection only. */
     };
 
-#pragma pack(push, 8)
     typedef struct HIGGS_HandClientInfo
     {
         uint32_t structSize;
@@ -239,7 +204,6 @@ extern "C"
         HIGGS_HandStatus(HIGGS_HAND_CALL *RequestPhysical)(HIGGS_HandClient, const HIGGS_PhysicalRequest *,
                                                            HIGGS_HandRequestId *);
     } HIGGS_HandInterface;
-#pragma pack(pop)
     /* All copied reads and registration/receipt calls serialize and may run on any
      thread. Recognizers/executors run synchronously on the controller callback
      thread BEFORE HIGGS defaults. Recognizers may ONLY read/submit candidates or
@@ -264,6 +228,247 @@ extern "C"
     typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryHandInterfaceFn)(uint32_t, uint32_t, HIGGS_HandInterface *);
     HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandInterface(uint32_t version, uint32_t tableSize,
                                                               HIGGS_HandInterface *);
+
+#define HIGGS_HAND_ROUTING_ABI_VERSION 2u
+    typedef struct HIGGS_HandRoutingInterface
+    {
+        uint32_t structSize, abiVersion;
+        uint64_t capabilities;
+        /* Executor owner explicitly authorizes another client's recognizer. Hands is
+           a mask, not a grant. Authority is checked again at selection and dispatch. */
+        HIGGS_HandStatus(HIGGS_HAND_CALL *AuthorizeRecognizer)(HIGGS_HandClient executorOwner, HIGGS_HandExecutor,
+                                                               uint64_t recognizerPublicLabel,
+                                                               uint32_t physicalHands);
+        HIGGS_HandStatus(HIGGS_HAND_CALL *RevokeRecognizer)(HIGGS_HandClient executorOwner, HIGGS_HandExecutor,
+                                                            uint64_t recognizerPublicLabel);
+        HIGGS_HandStatus(HIGGS_HAND_CALL *CanRoute)(HIGGS_HandClient recognizerOwner, HIGGS_HandExecutor,
+                                                    uint32_t physicalHands);
+        HIGGS_HandStatus(HIGGS_HAND_CALL *CancelRecognizedAction)(HIGGS_HandClient recognizerOwner, HIGGS_HandRequestId,
+                                                                  uint64_t epoch, uint32_t reason);
+    } HIGGS_HandRoutingInterface;
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryHandRoutingInterfaceFn)(uint32_t, uint32_t,
+                                                                                 HIGGS_HandRoutingInterface *);
+    HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandRoutingInterface(uint32_t, uint32_t, HIGGS_HandRoutingInterface *);
+/* Routed grant/request owner is the assigned executor's client. Recognizer and
+   executor may copy results; only executor owner may report/release/use grant.
+   A narrower mask requires Revoke then Authorize. Revocation invalidates pending uncommitted routed actions, preserving a
+   completed physical hold. It does not release a held item or undo inventory. */
+
+#define HIGGS_GRANT_MUTATION_ABI_VERSION 2u
+    typedef struct HIGGS_GrantedMutationRequest
+    {
+        uint32_t structSize, commitStage; /* COMMITTED or COMPLETED; recorded before fence exit. */
+        HIGGS_HandRequestId requestId;
+        HIGGS_HandExecutor executor;
+        uint64_t epoch;
+        HIGGS_HandGrant grant;
+    } HIGGS_GrantedMutationRequest;
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_GrantedMutationCallback)(const HIGGS_ActionRequest *,
+                                                                             const HIGGS_HandSnapshot *, void *);
+    typedef struct HIGGS_GrantMutationInterface
+    {
+        uint32_t structSize, abiVersion;
+        HIGGS_HandStatus(HIGGS_HAND_CALL *WithAuthorizedAction)(HIGGS_HandClient, const HIGGS_GrantedMutationRequest *,
+                                                                HIGGS_GrantedMutationCallback, void *,
+                                                                HIGGS_ActionResult *);
+    } HIGGS_GrantMutationInterface;
+    /* Public snapshot IDs never authorize a mutation. The addressed request retains its own grant. Exact v2. Runs synchronously only on HIGGS's observed main-maintenance thread.
+       Validates assigned executor/request/epoch and every currently owned hand grant
+       under the native mutation fence. Callback runs OUTSIDE the broker state mutex;
+       no revocation, expiry or world reset may invalidate authority until it returns.
+       Same-grant reentrant revoke/remove returns PENDING. Return OK only after the
+       domain mutation actually commits (e.g. saved placement CAS); HIGGS records the
+       requested stage before releasing the fence. Output is that committed receipt.
+       Callback failure/exception cannot promise rollback of its arbitrary effects.
+       Inventory transfer/consumption uses TransactionsInterface and its item/permit
+       rules; this fence itself creates no item, inventory or physical receipt flag.
+       No callback/context is retained. On failure output remains untouched except
+       BUFFER_TOO_SMALL sets its required structSize. Stop callers before DLL unload. */
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryGrantMutationInterfaceFn)(uint32_t, uint32_t,
+                                                                                   HIGGS_GrantMutationInterface *);
+    HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryGrantMutationInterface(uint32_t, uint32_t,
+                                                                       HIGGS_GrantMutationInterface *);
+
+#define HIGGS_AUTHORIZED_DISPATCH_ABI_VERSION 2u
+    typedef struct HIGGS_AuthorizedDispatchRequest
+    {
+        uint32_t structSize, reserved;
+        HIGGS_HandRequestId requestId;
+        HIGGS_HandExecutor executor;
+        uint64_t epoch;
+        HIGGS_HandGrant grant;
+    } HIGGS_AuthorizedDispatchRequest;
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_AuthorizedDispatchCallback)(const HIGGS_ActionRequest *,
+                                                                            const HIGGS_HandSnapshot *, void *);
+    typedef struct HIGGS_AuthorizedDispatchInterface
+    {
+        uint32_t structSize, abiVersion;
+        HIGGS_HandStatus(HIGGS_HAND_CALL *Invoke)(HIGGS_HandClient, const HIGGS_AuthorizedDispatchRequest *,
+                                                HIGGS_AuthorizedDispatchCallback, void *);
+    } HIGGS_AuthorizedDispatchInterface;
+    /* Public snapshot IDs never authorize a mutation. The addressed request retains its own grant. Exact v2, independently negotiated. Invoke runs only on HIGGS's observed
+       main-maintenance thread. It checks the selected executor/request/epoch,
+       input context and every currently owned, known and available hand resource
+       under the native mutation fence, then claims this request once BEFORE
+       calling outside the broker state mutex. Duplicate invocation is CONFLICT,
+       including reentry and after callback failure/exception. The callback is
+       synchronous; no pointer/context is retained. It may queue ordinary child
+       physical/transaction requests using the grant. Same-grant revocation,
+       removal and ReportResult return PENDING while the callback is entered.
+       Callback status is returned (exception becomes INTERNAL_ERROR); invocation
+       creates no commit/completion/receipt, rejection or rollback promise. Report
+       factual results after return or use the existing child transaction's facts.
+       WithAuthorizedAction remains the separate actual-domain-commit fence.
+       Requests are copied before callback entry. Stop callers before DLL unload. */
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryAuthorizedDispatchInterfaceFn)(
+        uint32_t, uint32_t, HIGGS_AuthorizedDispatchInterface *);
+    HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryAuthorizedDispatchInterface(
+        uint32_t, uint32_t, HIGGS_AuthorizedDispatchInterface *);
+#ifdef __cplusplus
+static_assert(sizeof(HIGGS_AuthorizedDispatchRequest) == 40, "authorized dispatch request ABI");
+static_assert(sizeof(HIGGS_AuthorizedDispatchInterface) == 16, "authorized dispatch table ABI (x64)");
+#endif
+
+enum
+    {
+        HIGGS_USE_HAND_GOALS = 1,
+        HIGGS_USE_GAME_EQUIPMENT = 2,
+        HIGGS_USE_HELD_OBJECT = 3,
+        HIGGS_USE_SECONDARY_SUPPORT = 4,
+        HIGGS_USE_WORLD_SUPPORT = 5,
+        HIGGS_USE_CONSTRAINT = 6,
+        HIGGS_USE_CONSUMPTION = 7
+    };
+    typedef struct HIGGS_HandUseRequest
+    {
+        uint32_t structSize, kind, physicalHands, durationMs;
+        uint64_t epoch, contextId, contextGeneration;
+        HIGGS_HandExecutor executor;
+    } HIGGS_HandUseRequest;
+    typedef struct HIGGS_HandUseState
+    {
+        uint32_t structSize, kind, active, reserved;
+        uint64_t epoch, expiresAtNs;
+        HIGGS_ActionRequest authority;
+    } HIGGS_HandUseState;
+    typedef struct HIGGS_HandUseInterface
+    {
+        uint32_t structSize, abiVersion;
+        uint64_t capabilities;
+        HIGGS_HandStatus(HIGGS_HAND_CALL *RequestHandUse)(HIGGS_HandClient, const HIGGS_HandUseRequest *,
+                                                          HIGGS_HandUseState *);
+        HIGGS_HandStatus(HIGGS_HAND_CALL *RenewHandUse)(HIGGS_HandClient, HIGGS_HandRequestId, uint64_t, uint32_t,
+                                                        HIGGS_HandUseState *);
+        HIGGS_HandStatus(HIGGS_HAND_CALL *CopyHandUse)(HIGGS_HandClient, HIGGS_HandRequestId, HIGGS_HandUseState *);
+        HIGGS_HandStatus(HIGGS_HAND_CALL *EndHandUse)(HIGGS_HandClient, HIGGS_HandRequestId, uint64_t);
+    } HIGGS_HandUseInterface;
+    /* Externally initiated continuous uses (activation, contact or domain events)
+       require no fabricated controller press. This finite catalogue authorizes hand
+       resources and reserves all named hands atomically; acceptance is NOT physical
+       actuation. Apply supported goals/grips/constraints through their own receipts.
+       The assigned generic executor is notified once in HIGGS main maintenance with
+       inputId=0, actionId=kind and copied context identity. Use GrantMutationInterface
+       for a fenced domain-state commit. Renew validates current ownership and cannot
+       revive expired, reset, unregistered or tracking-invalid grants. Ending removes
+       this use's grants/effects, never implicitly releases an already held item.
+       This is a reservation primitive, not permission for a custom physical driver.
+       Durations1..60000ms, exact copied v1, existing shared-client/registration rules. */
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryHandUseInterfaceFn)(uint32_t, uint32_t,
+                                                                             HIGGS_HandUseInterface *);
+    HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandUseInterface(uint32_t, uint32_t, HIGGS_HandUseInterface *);
+
+#define HIGGS_HAND_USE_PROPOSALS_ABI_VERSION 1u
+#define HIGGS_HAND_USE_PROPOSALS_CAP_PRIORITY_ROUNDS UINT64_C(1)
+enum {
+    HIGGS_USE_PROPOSAL_PENDING = 1,
+    HIGGS_USE_PROPOSAL_ACCEPTED = 2,
+    HIGGS_USE_PROPOSAL_REJECTED = 3,
+    HIGGS_USE_PROPOSAL_CANCELLED = 4
+};
+typedef struct HIGGS_HandUseProposalRequest {
+    uint32_t structSize, deadlineMs;
+    uint64_t expectedHandGenerations[2];
+    HIGGS_HandUseRequest use;
+} HIGGS_HandUseProposalRequest;
+
+typedef struct HIGGS_HandUseProposalState {
+    uint32_t structSize, stage, reason, decisionFlags;
+    uint64_t proposalId, roundId;
+    int32_t effectivePriority;
+    uint32_t reserved;
+    HIGGS_HandUseState use;
+} HIGGS_HandUseProposalState;
+
+typedef struct HIGGS_HandUseProposalsInterface {
+    uint32_t structSize, abiVersion;
+    uint64_t capabilities;
+    HIGGS_HandStatus (HIGGS_HAND_CALL *Propose)(HIGGS_HandClient, const HIGGS_HandUseProposalRequest *, uint64_t *);
+    HIGGS_HandStatus (HIGGS_HAND_CALL *Copy)(HIGGS_HandClient, uint64_t, HIGGS_HandUseProposalState *);
+    HIGGS_HandStatus (HIGGS_HAND_CALL *Cancel)(HIGGS_HandClient, uint64_t, uint64_t);
+} HIGGS_HandUseProposalsInterface;
+/* Nonbutton admission only; pending proposals carry NO grant or mutation authority.
+ * The next HIGGS main maintenance selects a disjoint set in effective user-priority
+ * order, then stable client ID, use kind, context ID and generation. Both hands are all-or-none.
+ * Existing uses are never preempted. A pending proposal is one-shot, not a retry.
+ * Deadline1..1000ms bounds collection; use.durationMs begins on acceptance.
+ * All requested generations must be current at proposal AND selection. UI/load,
+ * tracking/eligibility changes, cancellation, executor/client removal invalidate it.
+ * Accepted proposalId is the ordinary HandUse requestId. Renew/End/Resize and the
+ * existing executor/receipt protocol apply. Cancel only cancels pending proposals;
+ * use EndHandUse after acceptance. Copy preserves the admission decision even after
+ * a session ends; use.active reports current authority. Results share the bounded
+ * broker history and can be evicted. At most8pending proposals per client, one per
+ * client/kind/contextId/contextGeneration. Reentrant proposals wait for later main
+ * maintenance. Input arbitration and already acquired legacy immediate HandUse
+ * are separate admission paths; no cross-frame or global default-action claim.
+ * Exact v1 copied POD; existing client and sized-output rules apply. */
+HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandUseProposalsInterface(uint32_t, uint32_t, HIGGS_HandUseProposalsInterface *);
+typedef HIGGS_HandStatus (HIGGS_HAND_CALL *HIGGS_QueryHandUseProposalsInterfaceFn)(uint32_t, uint32_t, HIGGS_HandUseProposalsInterface *);
+#ifdef __cplusplus
+static_assert(sizeof(HIGGS_HandUseProposalRequest) == 72, "hand-use proposal request ABI");
+static_assert(sizeof(HIGGS_HandUseProposalState) == 160, "hand-use proposal state ABI");
+static_assert(sizeof(HIGGS_HandUseProposalsInterface) == 40, "hand-use proposal table ABI (x64)");
+#endif
+
+typedef struct HIGGS_HandUseTransitionRequest {
+    uint32_t structSize,physicalHands,durationMs,reserved;
+    uint64_t epoch,requestId,expectedRevision,expectedHandGenerations[2];
+} HIGGS_HandUseTransitionRequest;
+
+typedef struct HIGGS_HandUseTransitionState {
+    uint32_t structSize,reserved;
+    uint64_t revision;
+    HIGGS_HandUseState use;
+} HIGGS_HandUseTransitionState;
+
+typedef struct HIGGS_HandUseTransitionInterface {
+    uint32_t structSize,abiVersion;
+    uint64_t capabilities;
+    HIGGS_HandStatus (HIGGS_HAND_CALL *Copy)(HIGGS_HandClient,uint64_t,HIGGS_HandUseTransitionState*);
+    HIGGS_HandStatus (HIGGS_HAND_CALL *Resize)(HIGGS_HandClient,const HIGGS_HandUseTransitionRequest*,HIGGS_HandUseTransitionState*);
+} HIGGS_HandUseTransitionInterface;
+/* Atomic live-session footprint changes. Copy supplies the footprint revision;
+ * Hand.CopySnapshot supplies generations for all hands in the requested footprint.
+ * Successful Resize preserves request/grant/context/kind and the retained hands'
+ * authority; it changes the entire footprint or nothing. Every Resize advances
+ * revision, including same-footprint renewal. Old HandUse.Renew does not change it.
+ * No priority preemption: an added hand must be eligible now. Removed hands must
+ * have no live broker child/native/retained/actuator work under this grant: end it
+ * and await its actual drainage first. Refusal leaves existing authority intact.
+ * Existing held items are never implicitly released. UI permits renew/reduction,
+ * but not expansion. Expiry/load/tracking loss cannot be revived by Resize.
+ * Separate HandUseProposals supplies nonbutton admission rounds. Resize is not
+ * proposal arbitration or a transferable/delegated grant.
+ * Exact v1 copied POD, ordinary client/output rules. Capability bit0: resize. */
+HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandUseTransitionInterface(uint32_t,uint32_t,HIGGS_HandUseTransitionInterface*);
+typedef HIGGS_HandStatus (HIGGS_HAND_CALL *HIGGS_QueryHandUseTransitionInterfaceFn)(uint32_t,uint32_t,HIGGS_HandUseTransitionInterface*);
+#ifdef __cplusplus
+static_assert(sizeof(HIGGS_HandUseTransitionRequest)==56,"HandUse transition request ABI");
+static_assert(sizeof(HIGGS_HandUseTransitionState)==136,"HandUse transition state ABI");
+static_assert(sizeof(HIGGS_HandUseTransitionInterface)==32,"HandUse transition table ABI (x64)");
+#endif
+
+#pragma pack(pop)
 #ifdef __cplusplus
 }
 #endif

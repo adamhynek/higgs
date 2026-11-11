@@ -1,17 +1,9 @@
 #pragma once
 #include "hand_input_extended.h"
-#include "higgsinputcontext.h"
-#include "higgsinputroutes.h"
-#include "higgscommandpolicy.h"
-#include "higgsgrantmutation.h"
-#include "higgsauthorizeddispatch.h"
+#include "higgsinput.h"
 #include "higgshandapi.h"
-#include "higgshandoperations.h"
-#include "higgshanduse.h"
-#include "higgshandusetransition.h"
-#include "higgshanduseproposals.h"
+#include "higgsphysics.h"
 #include "higgstransactions.h"
-#include "higgsnativeregions.h"
 #include <array>
 #include <condition_variable>
 #include <memory>
@@ -210,6 +202,8 @@ class Broker
     std::shared_ptr<Registration> RegistrationLocked(uint64_t);
     Action *ActionLocked(uint64_t);
     Action *NewActionLocked();
+    void AcceptHandUseLocked(Action &, const HIGGS_HandUseRequest &, Clock);
+    static HIGGS_HandUseState HandUseState(const Action &);
     void ExpireLocked(Clock);
     void ResolveHandUseProposalsLocked(Clock);
     bool EligibleLocked(uint32_t hands) const;

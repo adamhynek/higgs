@@ -1,5 +1,5 @@
 #pragma once
-#include "higgssynergy.h"
+#include "higgsphysics.h"
 #include "synergy_policy.h"
 #include <cstdint>
 
