@@ -4149,10 +4149,14 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     }
 
     const bool stopped = MenuChecker::isGameStopped();
-    if (gripDown && !gripDownBefore && !externalGrip && !stopped && !triggerDown && !triggerDownBefore &&
+    const auto epoch = HiggsGrip::Epoch();
+    if (stopped || gripController != unControllerDeviceIndex) gripNeutralEpoch = 0;
+    gripController = unControllerDeviceIndex;
+    if (!stopped && !gripDown && !triggerDown) gripNeutralEpoch = epoch;
+    if (epoch && gripNeutralEpoch == epoch && gripDown && !gripDownBefore && !externalGrip && !triggerDown && !triggerDownBefore &&
         inputState == InputState::Idle && !grabRequested && state != State::SelectionLocked &&
         IsInGrabbableState() && !g_interface001.IsDisabled(isLeft)) {
-        externalGrip = HiggsGrip::Select(isLeft);
+        externalGrip = HiggsGrip::Select(isLeft, epoch);
     }
     if (externalGrip) {
         externalGrip = gripDown;

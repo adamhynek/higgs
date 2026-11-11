@@ -36,6 +36,7 @@
 #include "vrikinterface001.h"
 #include "papyrusapi.h"
 #include "pluginapi.h"
+#include "higgsgripactions.h"
 #include "math_utils.h"
 #include "physics.h"
 #include "main.h"
@@ -560,6 +561,7 @@ void Update()
     }
 
     if (world != g_physicsListener.world) {
+        HiggsGrip::Invalidate();
         if (NiPointer<bhkWorld> oldWorld = g_physicsListener.world) {
             // If exists, remove the listener from the previous world
             _MESSAGE("Removing listeners and collision from old havok world");
@@ -1092,6 +1094,12 @@ extern "C" {
             }
             else if (msg->type == SKSEMessagingInterface::kMessage_DataLoaded) {
                 OnDataLoaded();
+            }
+            else if (msg->type == SKSEMessagingInterface::kMessage_PreLoadGame) {
+                HiggsGrip::SetLoading(true);
+            }
+            else if (msg->type == SKSEMessagingInterface::kMessage_PostLoadGame || msg->type == SKSEMessagingInterface::kMessage_NewGame) {
+                HiggsGrip::SetLoading(false);
             }
             else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad) {
                 // Register our own mod api listener

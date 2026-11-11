@@ -2,6 +2,7 @@
 #include "config.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <cstring>
 #include <mutex>
@@ -20,6 +21,8 @@ struct Entry {
 std::array<Entry, 32> entries;
 std::mutex gate;
 uint64_t nextToken = 1;
+std::atomic<uint64_t> contextGeneration{1};
+std::atomic<bool> loading{false};
 
 uint32_t Register(const char* id, HiggsGripOffer offer, HiggsGripSelected selected, void* context, uint64_t* token)
 {
@@ -74,7 +77,24 @@ extern "C" const HiggsGripActions001* HIGGS_GetGripActions001()
     return &api;
 }
 
-bool HiggsGrip::Select(bool isLeft)
+uint64_t HiggsGrip::Epoch()
+{
+    return loading.load() ? 0 : contextGeneration.load();
+}
+
+void HiggsGrip::Invalidate()
+{
+    ++contextGeneration;
+}
+
+void HiggsGrip::SetLoading(bool value)
+{
+    if (value) loading = true;
+    Invalidate();
+    if (!value) loading = false;
+}
+
+bool HiggsGrip::Select(bool isLeft, uint64_t epoch)
 {
     struct Candidate { Entry* source; Entry copy; };
     std::array<Candidate, 32> candidates;
@@ -93,6 +113,7 @@ bool HiggsGrip::Select(bool isLeft)
         auto& entry = *candidate.source;
         {
             std::lock_guard lock(gate);
+            if (Epoch() != epoch) return false;
             if (entry.token != candidate.copy.token || !entry.active) continue;
             ++entry.inFlight;
         }
@@ -100,7 +121,7 @@ bool HiggsGrip::Select(bool isLeft)
         try { action = candidate.copy.offer(isLeft, candidate.copy.context); } catch (...) {}
         {
             std::lock_guard lock(gate);
-            if (!action || !entry.active) {
+            if (!action || !entry.active || Epoch() != epoch) {
                 --entry.inFlight;
                 continue;
             }

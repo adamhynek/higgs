@@ -31,5 +31,10 @@ const HiggsGripActions001* HIGGS_GetGripActions001(void);
 
 #ifdef __cplusplus
 }
-namespace HiggsGrip { bool Select(bool isLeft); }
+namespace HiggsGrip {
+    uint64_t Epoch();
+    void Invalidate();
+    void SetLoading(bool loading);
+    bool Select(bool isLeft, uint64_t epoch);
+}
 #endif

@@ -1,4 +1,6 @@
 #include "menu_checker.h"
+#include "higgsgripactions.h"
+#include <algorithm>
 
 // Big thanks to Shizof for this method of checking what menus are open
 namespace MenuChecker
@@ -92,6 +94,8 @@ namespace MenuChecker
     EventResult AllMenuEventHandler::ReceiveEvent(MenuOpenCloseEvent * evn, EventDispatcher<MenuOpenCloseEvent> * dispatcher)
     {
         const char * menuName = evn->menuName.data;
+        if (std::find(gameStoppingMenus.begin(), gameStoppingMenus.end(), menuName) != gameStoppingMenus.end())
+            HiggsGrip::Invalidate();
                 
         if (evn->opening) { // Menu opened
             if (menuTypes.find(menuName) != menuTypes.end()) {

@@ -32,7 +32,7 @@ void OnSKSEMessage(SKSEMessagingInterface::Message* msg)
 
 ## Optional one-shot grip actions
 
-A pouch mod can offer an action when an idle player's physical hand presses grip. HIGGS selects one eligible provider before its own grab starts. Without an offer the original input path runs. A winning action consumes the grip through release. Trigger input, an existing grab, and menus keep their usual handling.
+A pouch mod can offer an action when an idle player's physical hand presses grip. HIGGS selects one eligible provider before its own grab starts. Without an offer the original input path runs. A winning action consumes the grip through release. Trigger input, an existing grab, and menus keep their usual handling. After a save load, physics-world change, stopping menu, or controller reassignment, the hand must first be observed with grip and trigger up.
 
 After SKSE PostPostLoad, look up `HIGGS_GetGripActions001` in the loaded HIGGS DLL and use [its C header](include/higgsgripactions.h). The offer callback reads local context and returns an action ID. Only the selected callback queues that action. Revalidate the target on the game thread before performing deferred work.
 
