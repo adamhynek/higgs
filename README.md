@@ -2,6 +2,8 @@
 
 This mod is complicated.
 
+This fork proposes optional hand-interaction services for Skyrim VR mods. [Read the HIGGS proposal](docs/trinity-synergy.md).
+
 To build from source, it requires object definitions / headers similar to those belonging to havok 2010.2. I will not be providing these, nor do I claim to have them myself.
 
 
