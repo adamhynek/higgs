@@ -6,14 +6,15 @@
 #include "math_utils.h"
 #include "utils.h"
 
+
 void HapticsManager::TriggerHapticPulse(float duration)
 {
-    if (g_openVR && *g_openVR && duration > 0)
-    {
+    if (g_openVR && *g_openVR && duration > 0) {
         BSOpenVR *openVR = *g_openVR;
         openVR->TriggerHapticPulse(hand, duration);
     }
 }
+
 
 void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, float duration)
 {
@@ -28,8 +29,7 @@ void HapticsManager::QueueHapticPulse(float strength)
 
 void HapticsManager::Loop()
 {
-    while (true)
-    {
+    while (true) {
         {
             auto phase = HiggsHands::Service().NativePhase();
             const auto sample = HiggsHands::Haptics().Sample(

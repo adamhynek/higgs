@@ -19,7 +19,6 @@ namespace MenuChecker
         "ContainerMenu",
         "Dialogue Menu",
         "Crafting Menu",
-        "CustomMenu",
         "Credits Menu",
         "Debug Text Menu",
         "FavoritesMenu",
@@ -53,7 +52,6 @@ namespace MenuChecker
         { "ContainerMenu", false },
         { "Dialogue Menu", false },
         { "Crafting Menu", false },
-        { "CustomMenu", false },
         { "Credits Menu", false },
         { "Cursor Menu", false },
         { "Debug Text Menu", false },
@@ -125,8 +123,8 @@ namespace MenuChecker
     bool isGameStopped()
     {
         std::lock_guard lock(menuMutex);
-        for (const auto &name : gameStoppingMenus) {
-            if (menuTypes[name]) {
+        for (int i = 0; i < gameStoppingMenus.size(); i++) {
+            if (menuTypes[gameStoppingMenus[i]] == true) {
                 return true;
             }
         }
