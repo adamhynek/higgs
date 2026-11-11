@@ -47,7 +47,7 @@ class Broker
     HIGGS_HandStatus CancelNativeRequest(uint64_t, uint64_t);
     HIGGS_HandStatus Remove(HIGGS_HandClient, uint64_t);
     HIGGS_HandStatus Submit(HIGGS_HandClient, const HIGGS_ActionCandidate &, uint64_t &, Clock, uint64_t stableTarget = 0);
-    void AcceptNativePress(uint32_t hand,uint32_t button);
+    bool AcceptNativePress(uint32_t hand,uint32_t button);
     HIGGS_HandStatus CopySequence(uint64_t, uint64_t, HIGGS_InputSequence &);
     HIGGS_HandStatus CheckSelectedAction(uint64_t, uint64_t, uint64_t, uint32_t, uint64_t &, Clock);
     HIGGS_HandStatus ObservedSnapshot(uint64_t, HIGGS_HandSnapshot &, Clock);
@@ -104,6 +104,14 @@ class Broker
     HIGGS_HandStatus ResizeHandUse(uint64_t, const HIGGS_HandUseTransitionRequest &, HIGGS_HandUseTransitionState &, uint64_t);
     void DrainHandUses();
     HIGGS_HandStatus ProposeHandUse(uint64_t, const HIGGS_HandUseProposalRequest &, uint64_t &, Clock);
+    HIGGS_HandStatus EnableSharedRounds(uint64_t);
+    HIGGS_HandStatus ProposeOrderedHandUse(uint64_t, const HIGGS_HandUseProposalRequest &, uint64_t action,
+                                         uint64_t target, uint64_t &, Clock);
+    HIGGS_HandStatus ProposeHandUseResize(uint64_t, const HIGGS_HandUseTransitionRequest &, uint64_t action,
+                                        uint64_t target, uint64_t &, Clock);
+    void SetNativeTargetKeys(uint32_t hand, uint64_t grip, uint64_t trigger);
+    HIGGS_HandStatus NativeRegionAdmission(uint32_t hand, uint64_t epoch, uint32_t ref, uint32_t action, Clock);
+    void FinishNativeRegionAction(uint32_t hand, bool executed);
     HIGGS_HandStatus CopyHandUseProposal(uint64_t, uint64_t, HIGGS_HandUseProposalState &, Clock);
     HIGGS_HandStatus CancelHandUseProposal(uint64_t, uint64_t, uint64_t);
     bool PhysicalPending(uint32_t hand, Clock);
@@ -115,6 +123,8 @@ class Broker
     void ApplyDeferredWorld();
     bool MutationAdmissionReady(bool recovery = false);
     void MarkMainThread();
+    bool IsMainThread() const;
+    bool ObservedWorldMatches(uintptr_t identity) const;
     HIGGS_HandStatus WithAuthorizedAction(uint64_t, const HIGGS_GrantedMutationRequest &, HIGGS_GrantedMutationCallback,
                                           void *, HIGGS_ActionResult &);
     HIGGS_HandStatus InvokeAuthorized(uint64_t, const HIGGS_AuthorizedDispatchRequest &,
@@ -142,6 +152,7 @@ class Broker
         uint64_t id = 0, label = 0;
         HIGGS_HandClientInfo info{};
         bool active = true;
+        bool sharedRounds = false;
         uint64_t drawEpoch = 0, drawUntil = 0;
         uint32_t drawDecision = HIGGS_DRAW_DEFAULT;
     };
@@ -190,10 +201,17 @@ class Broker
         uint64_t dependencyGrant = 0;
         uint32_t dependencyHands = 0;
         bool sessionNotified = false;
-        HIGGS_HandUseProposalRequest useProposal{};
+        union {
+            HIGGS_HandUseProposalRequest useProposal{};
+            HIGGS_HandUseTransitionRequest resizeProposal;
+        };
         uint64_t proposalRound = 0;
         int32_t proposalPriority = 0;
         uint32_t proposalDecisionFlags = 0;
+        bool sharedPending = false;
+        bool resizingProposal = false;
+        bool nativeAcquired = false;
+        uint32_t nativeCandidate = 0, sourceHand = 0, sourceButton = 0;
     };
     HIGGS_HandStatus Add(HIGGS_HandClient, uint32_t, HIGGS_RecognizerCallback, HIGGS_ExecutorCallback,
                          HIGGS_HandEventCallback, void *, uint64_t &);
@@ -203,9 +221,13 @@ class Broker
     Action *ActionLocked(uint64_t);
     Action *NewActionLocked();
     void AcceptHandUseLocked(Action &, const HIGGS_HandUseRequest &, Clock);
+    HIGGS_HandStatus ResizeHandUseLocked(uint64_t, const HIGGS_HandUseTransitionRequest &,
+                                        HIGGS_HandUseTransitionState &, Clock, bool selected = false);
     static HIGGS_HandUseState HandUseState(const Action &);
     void ExpireLocked(Clock);
     void ResolveHandUseProposalsLocked(Clock);
+    bool SharedRoundsLocked() const;
+    bool NativeAcquisitionPendingLocked(uint32_t hands) const;
     bool EligibleLocked(uint32_t hands) const;
     bool GrantReadyLocked(uint64_t owner, uint64_t grant) const;
     bool InputEligibleLocked(uint32_t hands, uint64_t executorOwner, uint64_t parentGrant,
@@ -273,6 +295,7 @@ class Broker
     bool down_[2][kInputControlSlots]{}, consumed_[2][kInputControlSlots]{};
     uint64_t nextToken_ = 1, nextInput_ = 1, nextObservation_ = 1, nextEvent_ = 1;
     uint64_t nextUseRound_ = 1;
+    uint64_t nativeTargetKeys_[2][2]{};
     bool drainingHandUses_ = false; // serialized by dispatch_, including callback reentry
     HIGGS_NativeRegionFrame nativeRegionFrames_[2]{};
     uint64_t nativeRegionContexts_[2]{};

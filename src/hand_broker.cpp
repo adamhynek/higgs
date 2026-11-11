@@ -237,6 +237,9 @@ void Broker::EndSequenceLocked(size_t hand, size_t control, uint64_t up, uint32_
     route.phase = up ? HIGGS_SEQUENCE_RELEASED : HIGGS_SEQUENCE_CANCELLED;
     route.terminalInputId = up;
     route.reason = reason;
+    if (route.nativeAction && route.requestId)
+        if (auto a = ActionLocked(route.requestId); a && a->nativeCandidate == 1)
+            FinishLocked(*a,up ? HIGGS_ACTION_COMPLETED : HIGGS_ACTION_CANCELLED,reason);
     pastSequences_[nextPastSequence_++ % pastSequences_.size()] = route;
     if (active.owner) {
         HIGGS_HandEvent event{};
@@ -270,20 +273,23 @@ void Broker::CancelRoutesLocked(uint64_t executor, uint64_t owner, uint64_t reco
                 (!recognizer || r.recognizer == recognizer)) EndSequenceLocked(h,i,0,reason);
         }
 }
-void Broker::AcceptNativePress(uint32_t hand, uint32_t button)
+bool Broker::AcceptNativePress(uint32_t hand, uint32_t button)
 {
-    if (!Hand(hand) || (button != HIGGS_INPUT_GRIP && button != HIGGS_INPUT_TRIGGER)) return;
+    if (!Hand(hand) || (button != HIGGS_INPUT_GRIP && button != HIGGS_INPUT_TRIGGER)) return false;
     std::lock_guard lock(mutex_);
     const size_t h = hand == HIGGS_HAND_LEFT ? 0 : 1;
     const size_t b = button == HIGGS_INPUT_GRIP ? 0 : 1;
     const auto id = nativeFallbackPress_[h][b];
     auto &decision = decisions_[id % decisions_.size()];
     auto &route = activeSequences_[h][b].record;
+    if (route.nativeAction && route.epoch == snapshot_.epoch) return true;
+    if (SharedRoundsLocked()) return false;
     if (!id || route.pressInputId || decision.inputId != id || decision.consumed ||
         !down_[h][b] || snapshot_.epoch != decision.epoch || !snapshot_.worldReady || contextMenus_ ||
-        decisionContexts_[id % decisions_.size()] != contextGeneration_) return;
+        decisionContexts_[id % decisions_.size()] != contextGeneration_) return true;
     decision.reason |= HIGGS_DECISION_NATIVE;
     route = {sizeof(route), HIGGS_SEQUENCE_HELD, hand, button, 1, 0, decision.epoch, id, 0, 0, 0, 0, 1};
+    return true;
 }
 
 HIGGS_HandStatus Broker::CopySequence(uint64_t owner, uint64_t press, HIGGS_InputSequence &out)
@@ -750,6 +756,7 @@ bool Broker::EligibleLocked(uint32_t hands) const
         return false;
     if (!snapshot_.worldReady || !hands || (hands & ~3u))
         return false;
+    if (NativeAcquisitionPendingLocked(hands)) return false;
     for (const auto &h : snapshot_.hands)
         if (h.physicalHand & hands)
         {
@@ -1297,6 +1304,16 @@ bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now, bool *n
             return (mask & (UINT64_C(1) << control)) != 0;
         }
         contextGeneration = contextGeneration_;
+        auto &active = activeSequences_[hi][bi];
+        if (active.record.nativeAction && active.record.requestId) {
+            auto a = ActionLocked(active.record.requestId);
+            if (!a || a->result.stage != HIGGS_ACTION_ACCEPTED ||
+                (!a->dispatched && (!down || a->inputContextGeneration != contextGeneration_ ||
+                 a->inputHandGenerations[hi] != snapshot_.hands[hi].generation ||
+                 nativeTargetKeys_[hi][button == HIGGS_INPUT_GRIP ? 0 : 1] != a->stableTarget)))
+                EndSequenceLocked(hi,bi,0,HIGGS_HAND_STALE);
+            else if (down) { a->dispatched = true; a->expires = 0; }
+        }
         const bool nativeHeld = activeSequences_[hi][bi].record.nativeAction != 0;
         if (nativeContinuation) *nativeContinuation = nativeHeld;
         if (down_[hi][bi] == down && nativeHeld) return false;
@@ -1314,6 +1331,13 @@ bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now, bool *n
         }
         freshDown = down && !down_[hi][bi];
         down_[hi][bi] = down;
+        if (!down)
+            for (auto &a : actions_)
+                if (a.sharedPending && !a.result.stage && a.sourceHand == hand && a.sourceButton == button) {
+                    FinishLocked(a,HIGGS_ACTION_CANCELLED,HIGGS_HAND_STALE);
+                    auto &pending = decisions_[a.request.inputId % decisions_.size()];
+                    if (pending.inputId == a.request.inputId) pending.reason &= ~HIGGS_DECISION_PENDING;
+                }
         wasConsumed = !nativeHeld && (consumed_[hi][bi] || (down && snapshot_.hands[hi].grant != 0));
         input.structSize = sizeof(input);
         input.physicalHand = hand;
@@ -1418,6 +1442,46 @@ bool Broker::Input(uint32_t hand, uint32_t button, bool down, Clock now, bool *n
     bool consumed = wasConsumed;
     {
         std::lock_guard lock(mutex_);
+        bool continuing = false;
+        for (const auto &a : actions_)
+            if (a.request.inputId == input.inputId && !a.result.stage && a.inputSpec.existingGrant) continuing = true;
+        if (freshDown && !wasConsumed && !continuing && SharedRoundsLocked()) {
+            bool queued = false;
+            for (auto &a : actions_)
+                if (a.request.inputId == input.inputId && !a.result.stage) {
+                    queued = true;
+                    a.sharedPending = true; a.sourceHand = hand; a.sourceButton = button;
+                    a.request.poseObservationId = input.poseObservationId;
+                    a.inputPressed = down; a.inputDownAt = now;
+                    a.recognition.initialFrame = raw;
+                    for (unsigned h = 0; h < 2; ++h) a.inputHandGenerations[h] = snapshot_.hands[h].generation;
+                }
+            const auto targetMask = button == HIGGS_INPUT_GRIP ? HIGGS_OBS_NATIVE_GRIP_TARGET :
+                button == HIGGS_INPUT_TRIGGER ? HIGGS_OBS_NATIVE_TRIGGER_TARGET : 0u;
+            const auto nativeTarget = bi < 2 ? nativeTargetKeys_[hi][bi] : 0;
+            if (nativeTarget && (snapshot_.hands[hi].observationMask & targetMask) &&
+                now >= snapshot_.sampledAtNs && now - snapshot_.sampledAtNs <= UINT64_C(100000000) &&
+                input.epoch == snapshot_.epoch && input.snapshot.observationId == snapshot_.observationId &&
+                contextGeneration == contextGeneration_ && EligibleLocked(hand)) {
+                if (auto a = NewActionLocked()) {
+                    queued = true;
+                    a->sharedPending = true; a->nativeCandidate = 1;
+                    a->sourceHand = hand; a->sourceButton = button; a->stableTarget = nativeTarget;
+                    a->request = {sizeof(HIGGS_ActionRequest),hand,nextToken_++,0,0,0,input.epoch,
+                                  input.inputId,1,0,0,input.poseObservationId};
+                    a->inputContextGeneration = contextGeneration_;
+                    a->inputHandGenerations[hi] = snapshot_.hands[hi].generation;
+                    a->expires = now + UINT64_C(1000000000);
+                }
+            }
+            if (queued) {
+                auto &decision = decisions_[input.inputId % decisions_.size()];
+                decision.consumed = 1; decision.reason = HIGGS_DECISION_PENDING;
+                consumed_[hi][bi] = true;
+                if (bi < 2) nativeFallbackPress_[hi][bi] = 0;
+                return true;
+            }
+        }
         Action *winner = nullptr;
         int32_t priority = (std::numeric_limits<int32_t>::min)();
         bool winnerOverride = false;
@@ -1694,6 +1758,7 @@ void Broker::ObserveWorld(uintptr_t world, bool loading, Clock now)
         snapshot_.sampledAtNs = now;
         for (auto& frame : nativeRegionFrames_) frame = {};
         for (auto& context : nativeRegionContexts_) context = 0;
+        for (auto &keys : nativeTargetKeys_) for (auto &key : keys) key = 0;
         snapshot_.hands[0].physicalHand = HIGGS_HAND_LEFT;
         snapshot_.hands[1].physicalHand = HIGGS_HAND_RIGHT;
         for (auto &hand : contextHands_) hand = {};
@@ -1782,6 +1847,16 @@ void Broker::MarkMainThread()
 {
     std::lock_guard lock(mutex_);
     mainThread_ = std::this_thread::get_id();
+}
+bool Broker::IsMainThread() const
+{
+    std::lock_guard lock(mutex_);
+    return mainThread_ != std::thread::id{} && mainThread_ == std::this_thread::get_id();
+}
+bool Broker::ObservedWorldMatches(uintptr_t identity) const
+{
+    std::lock_guard lock(mutex_);
+    return identity && snapshot_.worldReady && !worldChangePending_ && !loading_ && world_ == identity;
 }
 HIGGS_HandStatus Broker::WithAuthorizedAction(uint64_t owner, const HIGGS_GrantedMutationRequest &r,
                                               HIGGS_GrantedMutationCallback callback, void *context,
@@ -2002,6 +2077,10 @@ void Broker::Publish(const std::array<HIGGS_HandRecord, 2> &records, Clock now)
                 h.poseObservedAtNs = now;
             }
             snapshot_.hands[i] = h;
+            if (h.heldRefId || (h.observationMask & HIGGS_OBS_SECONDARY_SUPPORT))
+                for (auto &a : actions_)
+                    if (a.nativeCandidate == 1 && a.selected && a.sourceHand == h.physicalHand &&
+                        a.request.epoch == snapshot_.epoch) a.nativeAcquired = true;
             if (!(h.observationMask & HIGGS_OBS_TRACKING_VALID))
                 CancelSequencesLocked(i, HIGGS_HAND_NOT_READY);
             if (!(h.observationMask & HIGGS_OBS_TRACKING_VALID))
@@ -2057,6 +2136,7 @@ HIGGS_HandStatus Broker::Physical(uint64_t owner, const HIGGS_PhysicalRequest &p
     std::lock_guard lock(mutex_);
     if (!ClientLocked(owner))
         return HIGGS_HAND_INVALID_CLIENT;
+    if (!p.grant && SharedRoundsLocked()) return HIGGS_HAND_WRONG_PHASE;
     if (worldChangePending_ || (contextMenus_ && p.kind != HIGGS_PHYSICAL_RELEASE))
         return HIGGS_HAND_NOT_READY;
     if (p.structSize < sizeof(p) || !Hand(p.physicalHand) || p.reserved || !p.timeoutMs || p.timeoutMs > 60000 ||
@@ -2340,11 +2420,19 @@ bool Broker::MayNativeRegionAction(uint32_t hand, uint64_t epoch, Clock now)
     const auto index = hand == HIGGS_HAND_LEFT ? 0 : 1;
     const auto& current = snapshot_.hands[index];
     const auto& frame = nativeRegionFrames_[index];
+    bool authority = !current.grant;
+    if (SharedRoundsLocked()) {
+        authority = false;
+        for (const auto &a : actions_)
+            if (a.nativeCandidate >= 2 && a.sourceHand == hand && a.grantActive &&
+                a.request.grant == current.grant && a.request.epoch == epoch && a.stableTarget == current.heldRefId &&
+                a.inputContextGeneration == contextGeneration_) authority = true;
+    }
     return snapshot_.worldReady && !worldChangePending_ && !contextMenus_ && epoch == snapshot_.epoch &&
         frame.epoch == epoch && (frame.flags & HIGGS_REGION_SOURCE_VALID) &&
         nativeRegionContexts_[index] == contextGeneration_ &&
         current.availability != HIGGS_AVAILABILITY_UNKNOWN &&
-        current.generation == frame.handGeneration && !current.grant && !current.unavailableReasons &&
+        current.generation == frame.handGeneration && authority && !current.unavailableReasons &&
         !(current.observationMask & HIGGS_OBS_SECONDARY_SUPPORT);
 }
 HIGGS_HandStatus Broker::Operation(uint64_t owner, const HIGGS_HandOperation &p, uint64_t &out, Clock now)
@@ -2353,6 +2441,7 @@ HIGGS_HandStatus Broker::Operation(uint64_t owner, const HIGGS_HandOperation &p,
     std::lock_guard lock(mutex_);
     if (!ClientLocked(owner))
         return HIGGS_HAND_INVALID_CLIENT;
+    if (!p.grant && SharedRoundsLocked()) return HIGGS_HAND_WRONG_PHASE;
     if (worldChangePending_ || contextMenus_)
         return HIGGS_HAND_NOT_READY;
     if (p.structSize < sizeof(p) || !Hand(p.physicalHand) || p.reserved || p.reserved2 || !p.durationMs ||

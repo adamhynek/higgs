@@ -29,3 +29,4 @@ HIGGS_QuerySupportInterface
 HIGGS_QueryPhysicalPolicyInterface
 HIGGS_QueryHandPartsInterface
 HIGGS_QueryHandPartsNativeInterface
+HIGGS_QueryHandSurfaceInterface

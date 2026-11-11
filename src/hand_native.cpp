@@ -3,6 +3,7 @@
 #include "config.h"
 #include "hand.h"
 #include "hand_broker.h"
+#include "hand_abi_boundary.h"
 #include "hand_observations.h"
 #include "hand_parts_native.h"
 #include "hand_physical_policy.h"
@@ -95,6 +96,41 @@ struct StaticSupportCollector : hkpRayHitCollector
             reference = nullptr;
         }
         m_earlyOutHitFraction = fraction;
+    }
+};
+// A read-only query keeps only copied evidence while Havok holds the read lock.
+struct HandSurfaceCollector : hkpRayHitCollector
+{
+    const HIGGS_HandSurfaceQuery &query;
+    HIGGS_HandSurface result{};
+    float fraction = 1.f;
+    bool found = false;
+    explicit HandSurfaceCollector(const HIGGS_HandSurfaceQuery &q) : query(q) { m_earlyOutHitFraction = 1.f; }
+    void addRayHit(const hkpCdBody &leaf, const hkpShapeRayCastCollectorOutput &hit) override
+    {
+        if (!std::isfinite(hit.m_hitFraction) || hit.m_hitFraction < 0 || hit.m_hitFraction > fraction)
+            return;
+        fraction = m_earlyOutHitFraction = hit.m_hitFraction;
+        found = false;
+        const auto *root = &leaf;
+        while (root->m_parent) root = root->m_parent;
+        const auto *collidable = static_cast<const hkpCollidable *>(root);
+        const auto *body = hkpGetRigidBody(collidable);
+        if (!body) return;
+        const auto kind = body->m_motion.m_type == hkpMotion::MotionType::MOTION_FIXED ? HIGGS_SURFACE_FIXED : HIGGS_SURFACE_MOVING;
+        const auto ref = GetRefFromCollidable(collidable);
+        if (!(query.surfaceKinds & kind) || (query.targetRefId && (!ref || ref->formID != query.targetRefId))) return;
+        const auto normal = HkVectorToNiPoint(hit.m_normal);
+        const auto length = VectorLength(normal);
+        if (!std::isfinite(length) || length < .001f) return;
+        result.targetRefId = ref ? ref->formID : 0;
+        result.bodyKey = body->m_uid;
+        result.leafShapeKey = leaf.getShapeKey();
+        result.surfaceKind = kind;
+        result.targetToProbeNormal[0] = normal.x / length;
+        result.targetToProbeNormal[1] = normal.y / length;
+        result.targetToProbeNormal[2] = normal.z / length;
+        found = true;
     }
 };
 NiTransform Transform(const HIGGS_HandOperation &request)
@@ -573,15 +609,23 @@ void PublishNative()
         }
         if (hand->IsTwoHanding())
             h.observationMask |= HIGGS_OBS_SECONDARY_SUPPORT;
+        uint64_t nativeTarget = 0;
         if ((Config::options.enableGrip || Config::options.enableTrigger) && hand->inputState==Hand::InputState::Idle) {
             NiPointer<TESObjectREFR> selected;
             const bool object = (hand->state == Hand::State::SelectedClose || hand->state == Hand::State::SelectedFar) &&
                 hand->CanGrabObject() && LookupREFRByHandle(hand->selectedObject.handle,selected) && selected;
             if (object || (hand->state == Hand::State::SelectedTwoHand && hand->CanTwoHand())) {
+                if (object)
+                    nativeTarget = (uint64_t(selected->formID) << 32) | hand->selectedObject.handle;
+                else if (hand->selectedObject.rigidBody && hand->selectedObject.rigidBody->hkBody)
+                    nativeTarget = UINT64_C(0x8000000000000000) | (uint64_t(hand->selectedObject.rigidBody->hkBody->m_uid) + 1);
                 if(Config::options.enableGrip) h.observationMask |= HIGGS_OBS_NATIVE_GRIP_TARGET;
                 if(Config::options.enableTrigger && !hand->ShouldRestrictTrigger()) h.observationMask |= HIGGS_OBS_NATIVE_TRIGGER_TARGET;
             }
         }
+        Service().SetNativeTargetKeys(i + 1,
+            (h.observationMask & HIGGS_OBS_NATIVE_GRIP_TARGET) ? nativeTarget : 0,
+            (h.observationMask & HIGGS_OBS_NATIVE_TRIGGER_TARGET) ? nativeTarget : 0);
         if (tracking.hands[i].available)
             h.observationMask |= HIGGS_OBS_TRACKING_VALID;
         if (auto node = hand->GetFirstPersonHandNode())
@@ -685,3 +729,76 @@ bool CopyNativeItemReference(const HIGGS_ItemIdentity &identity, NiPointer<TESOb
     return false;
 }
 } // namespace HiggsHands
+
+namespace {
+HIGGS_HandStatus HIGGS_HAND_CALL QuerySurface(HIGGS_HandClient owner, const HIGGS_HandSurfaceQuery *query,
+                                             HIGGS_HandSurface *out)
+{
+    if (!query || !out || query->structSize != sizeof(*query) || query->reserved ||
+        (query->physicalHand != HIGGS_HAND_LEFT && query->physicalHand != HIGGS_HAND_RIGHT) ||
+        !query->surfaceKinds || (query->surfaceKinds & ~3u) || !query->maxObservationAgeMs ||
+        query->maxObservationAgeMs > 1000 || !std::isfinite(query->maxDistanceWorld) ||
+        query->maxDistanceWorld <= 0 || query->maxDistanceWorld > 10000)
+        return HIGGS_HAND_INVALID_ARGUMENT;
+    if (out->structSize < sizeof(*out)) return HIGGS_HAND_BUFFER_TOO_SMALL;
+    const NiPoint3 direction{query->direction[0], query->direction[1], query->direction[2]};
+    const auto length = VectorLength(direction);
+    if (!std::isfinite(length) || std::abs(length - 1.f) > .001f) return HIGGS_HAND_INVALID_ARGUMENT;
+    return HiggsAbi::PublishOnSuccess(out, [&](HIGGS_HandSurface &value) -> HIGGS_HandStatus {
+        using namespace HiggsHands;
+        if (!Service().IsMainThread()) return HIGGS_HAND_WRONG_PHASE;
+        auto phase = Service().NativePhase();
+        HIGGS_HandSnapshot snapshot{};
+        const auto status = Service().ObservedSnapshot(owner, snapshot, Now());
+        if (status) return status;
+        if (!Service().MutationAdmissionReady(true)) return HIGGS_HAND_NOT_READY;
+        const auto &hand = snapshot.hands[query->physicalHand - 1];
+        const auto now = Now();
+        if (query->epoch != snapshot.epoch || query->handGeneration != hand.generation ||
+            query->poseObservationId != hand.poseObservationId || now < hand.poseObservedAtNs ||
+            now - hand.poseObservedAtNs > uint64_t(query->maxObservationAgeMs) * 1000000)
+            return HIGGS_HAND_STALE;
+        if ((hand.observationMask & (HIGGS_OBS_PALM_VALID | HIGGS_OBS_TRACKING_VALID)) !=
+            (HIGGS_OBS_PALM_VALID | HIGGS_OBS_TRACKING_VALID)) return HIGGS_HAND_NOT_READY;
+        auto player = *g_thePlayer;
+        auto native = query->physicalHand == HIGGS_HAND_LEFT ? g_leftHand : g_rightHand;
+        NiPointer<bhkWorld> world = player && player->parentCell ? GetHavokWorldFromCell(player->parentCell) : nullptr;
+        if (!world || !native || !std::isfinite(*g_havokWorldScale) || *g_havokWorldScale <= 0)
+            return HIGGS_HAND_NOT_READY;
+        if (!Service().ObservedWorldMatches(reinterpret_cast<uintptr_t>(world.operator->()))) return HIGGS_HAND_STALE;
+        const NiPoint3 origin{hand.palmPosition[0], hand.palmPosition[1], hand.palmPosition[2]};
+        hkpWorldRayCastInput ray;
+        ray.m_filterInfo = (static_cast<UInt32>(native->playerCollisionGroup) << 16) | 0x28;
+        ray.m_enableShapeCollectionFilter = true;
+        ray.m_from = NiPointToHkVector(origin * *g_havokWorldScale);
+        ray.m_to = NiPointToHkVector((origin + direction * query->maxDistanceWorld) * *g_havokWorldScale);
+        HandSurfaceCollector hit(*query);
+        {
+            BSReadLocker lock(&world->worldLock);
+            hkpWorld_CastRay(world->world, &ray, &hit);
+        }
+        if (!hit.found) return HIGGS_HAND_NOT_FOUND;
+        value = hit.result;
+        value.structSize = sizeof(value);
+        value.epoch = snapshot.epoch;
+        value.handGeneration = hand.generation;
+        value.poseObservationId = hand.poseObservationId;
+        value.observedAtNs = Now();
+        value.probeObservedAtNs = hand.poseObservedAtNs;
+        value.distanceWorld = hit.fraction * query->maxDistanceWorld;
+        const auto position = origin + direction * value.distanceWorld;
+        value.position[0] = position.x; value.position[1] = position.y; value.position[2] = position.z;
+        return HIGGS_HAND_OK;
+    });
+}
+}
+extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandSurfaceInterface(
+    uint32_t version, uint32_t bytes, HIGGS_HandSurfaceInterface *out)
+{
+    if (version != HIGGS_HAND_SURFACE_ABI_VERSION) return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
+    if (bytes < sizeof(*out)) return HIGGS_HAND_BUFFER_TOO_SMALL;
+    const HIGGS_HandSurfaceInterface table{sizeof(table), version, HIGGS_SURFACE_CAP_PALM_RAY, QuerySurface};
+    std::memcpy(out, &table, sizeof(table));
+    return HIGGS_HAND_OK;
+}

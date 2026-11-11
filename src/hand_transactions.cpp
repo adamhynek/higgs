@@ -54,6 +54,7 @@ HIGGS_HandStatus Broker::ReserveDomain(uint64_t owner, uint64_t executor, uint32
     ExpireLocked(now);
     if (!ClientLocked(owner))
         return HIGGS_HAND_INVALID_CLIENT;
+    if (!grant && SharedRoundsLocked()) return HIGGS_HAND_WRONG_PHASE;
     if (worldChangePending_ || contextMenus_)
         return HIGGS_HAND_NOT_READY;
     if (epoch != snapshot_.epoch)

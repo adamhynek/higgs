@@ -3004,7 +3004,22 @@ void Hand::Update(Hand &other, bhkWorld *world)
             idleDesired = true;
         }
 
-        if (idleDesired) {
+        bool waitForRegionDecision = false;
+        if (idleDesired && !disableConsumeStash && (state == State::Held || state == State::HeldBody)) {
+            NiPointer<TESObjectREFR> regionItem;
+            if (LookupREFRByHandle(selectedObject.handle, regionItem) && regionItem) {
+                const uint32_t action = IsObjectConsumable(regionItem, hmdNode, palmPos) ? 2u :
+                    IsObjectDepositable(regionItem, hmdNode, handPos) ? 3u : 0u;
+                if (action) {
+                    const auto admission = HiggsHands::Service().NativeRegionAdmission(
+                        isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, nativeRegionEpoch, regionItem->formID,
+                        action, HiggsHands::Now());
+                    waitForRegionDecision = admission == HIGGS_HAND_PENDING ||
+                        (admission != HIGGS_HAND_OK && HiggsHands::HasGrant(isLeft));
+                }
+            }
+        }
+        if (idleDesired && !waitForRegionDecision) {
             idleDesired = false;
             HiggsHands::PrepareSupportRelease(isLeft);
             HiggsHands::PreparePhysicalPolicyRelease(isLeft);
@@ -3225,6 +3240,8 @@ void Hand::Update(Hand &other, bhkWorld *world)
                             }
                         }
 
+                        HiggsHands::Service().FinishNativeRegionAction(
+                            isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, nativeRegionActionExecuted);
                         if (!other.HasHeldObject() || other.selectedObject.rigidBody != selectedObject.rigidBody) {
                             // TODO: Should we do this for all connected bodies?
                             AddHiggsDroppedTrackingInfo(selectedObject.rigidBody->hkBody);
@@ -3262,6 +3279,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
                 HiggsPluginAPI::TriggerStopTwoHandingCallbacks();
             }
 
+            HiggsHands::Service().FinishNativeRegionAction(isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, false);
             Deselect();
         }
     }
@@ -4294,11 +4312,13 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     bool shouldNotBlockTrigger = ShouldNotBlockTrigger(); // offhand trigger triggers eagle eye with crossbows, and we want to keep that
 
     if (inputState == InputState::Idle) {
-        if (((triggerRisingEdge && canUseTrigger) || gripRisingEdge) && canGrab) {
+        const bool admittedTrigger = triggerRisingEdge && canUseTrigger && canGrab &&
+            HiggsHands::Service().AcceptNativePress(physicalHand, HIGGS_INPUT_TRIGGER);
+        const bool admittedGrip = gripRisingEdge && canGrab &&
+            HiggsHands::Service().AcceptNativePress(physicalHand, HIGGS_INPUT_GRIP);
+        if (admittedTrigger || admittedGrip) {
             // The native leeway window can acquire a target after this Down. Its matching
             // falling edge belongs to this native attempt even if the initial ray was empty.
-            if (triggerRisingEdge && canUseTrigger) HiggsHands::Service().AcceptNativePress(physicalHand, HIGGS_INPUT_TRIGGER);
-            if (gripRisingEdge) HiggsHands::Service().AcceptNativePress(physicalHand, HIGGS_INPUT_GRIP);
             grabRequestedTime = g_currentFrameTime;
             grabRequested = true;
 
@@ -4306,7 +4326,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
             inputGrip = false;
             gripPressWasBlockedWithGripTouch = false;
 
-            if (triggerRisingEdge) {
+            if (admittedTrigger) {
                 if (!player->actorState.IsWeaponDrawn()) {
                     inputTrigger = true;
                 }

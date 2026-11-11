@@ -31,6 +31,8 @@ HIGGS_HandStatus Broker::HandUse(uint64_t owner, const HIGGS_HandUseRequest &r, 
         return HIGGS_HAND_INVALID_ARGUMENT;
     if (r.epoch != snapshot_.epoch)
         return HIGGS_HAND_STALE;
+    if (SharedRoundsLocked())
+        return HIGGS_HAND_WRONG_PHASE;
     auto executor = RegistrationLocked(r.executor);
     if (!executor || !executor->active || executor->owner != owner || executor->kind != 2)
         return HIGGS_HAND_WRONG_OWNER;
@@ -127,7 +129,9 @@ void Broker::DrainHandUses()
         ExpireLocked(Now());
         ResolveHandUseProposalsLocked(Now());
         for (auto &a : actions_)
-            if (a.sessionKind && a.grantActive && !a.sessionNotified)
+            if ((a.sessionKind || (a.proposalRound && a.request.inputId && !a.nativeCandidate &&
+                                  a.recognition.stage != HIGGS_RECOGNITION_WAITING)) &&
+                a.grantActive && !a.sessionNotified && !a.dispatched)
             {
                 work[count++] = a.request;
             }
@@ -144,6 +148,7 @@ void Broker::DrainHandUses()
             if (contextMenus_ || !a || a->sessionNotified || !a->grantActive || a->result.stage >= HIGGS_ACTION_COMPLETED)
                 continue;
             a->sessionNotified = true;
+            a->dispatched = true;
             work[i] = a->request;
             executor = RegistrationLocked(a->request.executor);
         }
@@ -172,6 +177,11 @@ HIGGS_HandStatus Broker::ResizeHandUse(uint64_t owner, const HIGGS_HandUseTransi
 {
     auto phase = NativePhase();
     std::lock_guard lock(mutex_);
+    return ResizeHandUseLocked(owner,r,out,now);
+}
+HIGGS_HandStatus Broker::ResizeHandUseLocked(uint64_t owner, const HIGGS_HandUseTransitionRequest &r,
+                                            HIGGS_HandUseTransitionState &out, uint64_t now, bool selected)
+{
     ExpireLocked(now);
     if (!ClientLocked(owner)) return HIGGS_HAND_INVALID_CLIENT;
     if (r.structSize != sizeof(r) || r.reserved || !r.physicalHands || (r.physicalHands & ~3u) ||
@@ -190,6 +200,7 @@ HIGGS_HandStatus Broker::ResizeHandUse(uint64_t owner, const HIGGS_HandUseTransi
     if (a->nativeStarted) return HIGGS_HAND_CONFLICT;
     const auto added = r.physicalHands & ~a->request.physicalHands;
     const auto removed = a->request.physicalHands & ~r.physicalHands;
+    if (added && !selected && SharedRoundsLocked()) return HIGGS_HAND_WRONG_PHASE;
     if (added && !EligibleLocked(added)) return HIGGS_HAND_CONFLICT;
     for (const auto &h : snapshot_.hands) {
         if (h.physicalHand & a->request.physicalHands)

@@ -319,6 +319,41 @@ enum
                                                                              HIGGS_SupportInterface *);
     HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QuerySupportInterface(uint32_t, uint32_t, HIGGS_SupportInterface *);
 
+#define HIGGS_HAND_SURFACE_ABI_VERSION 1u
+#define HIGGS_SURFACE_CAP_PALM_RAY UINT64_C(1)
+enum { HIGGS_SURFACE_FIXED = 1, HIGGS_SURFACE_MOVING = 2 };
+typedef struct HIGGS_HandSurfaceQuery {
+    uint32_t structSize, physicalHand, targetRefId, surfaceKinds;
+    uint64_t epoch, handGeneration, poseObservationId;
+    uint32_t maxObservationAgeMs, reserved;
+    float direction[3], maxDistanceWorld;
+} HIGGS_HandSurfaceQuery;
+typedef struct HIGGS_HandSurface {
+    uint32_t structSize, targetRefId, bodyKey, leafShapeKey, surfaceKind, reserved;
+    uint64_t epoch, handGeneration, poseObservationId, observedAtNs, probeObservedAtNs;
+    float position[3], targetToProbeNormal[3], distanceWorld;
+} HIGGS_HandSurface;
+typedef struct HIGGS_HandSurfaceInterface {
+    uint32_t structSize, abiVersion;
+    uint64_t capabilities;
+    HIGGS_HandStatus(HIGGS_HAND_CALL *QueryHandSurface)(HIGGS_HandClient, const HIGGS_HandSurfaceQuery*, HIGGS_HandSurface*);
+} HIGGS_HandSurfaceInterface;
+/* Passive ray from the identified, current resolved HIGGS palm. Call on HIGGS's
+   observed main thread before taking engine locks. Direction is a world-axis
+   unit vector; distance/position use Skyrim game units (range: (0,10000]).
+   Age limit is 1..1000ms. The native world must match the observed probe epoch.
+   The nearest blocking physics surface wins; filtering never sees through an
+   occluder. targetRefId=0 accepts any reference, including unnamed world geometry.
+   A miss or a filtered occluder is NOT_FOUND; an old probe is STALE. Failure
+   preserves output. No grant, constraint, target, selection or input is changed.
+   bodyKey is an epoch-scoped observed Havok UID, NOT a pinned body lifetime;
+   leafShapeKey is the terminal ray shape key, not a compound path or anatomy.
+   The result is query evidence, not solver contact or permission to mutate.
+   A support request revalidates its own endpoint through its physical owner.
+   No native pointer, retained body, collision enumeration or PPB label is exposed. */
+typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryHandSurfaceInterfaceFn)(uint32_t,uint32_t,HIGGS_HandSurfaceInterface*);
+HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandSurfaceInterface(uint32_t,uint32_t,HIGGS_HandSurfaceInterface*);
+
 #define HIGGS_PHYSICAL_POLICY_ABI_VERSION 2u
 #define HIGGS_POLICY_CAP_PROPERTIES UINT64_C(1)
 #define HIGGS_POLICY_CAP_GRAB_MODE UINT64_C(2)

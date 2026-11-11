@@ -65,7 +65,8 @@ extern "C" {
         HIGGS_DECISION_REGISTRATION_ORDER = 4u, /* reserved for earlier drafts */
         HIGGS_DECISION_CANDIDATE_ORDER = 8u, /* offers of the same recognizer for one provider */
         HIGGS_DECISION_STABLE_ID = 16u,
-        HIGGS_DECISION_NATIVE = 32u
+        HIGGS_DECISION_NATIVE = 32u,
+        HIGGS_DECISION_PENDING = 64u /* negotiated shared decision window has not closed */
     };
     enum
     {
@@ -379,6 +380,7 @@ enum
 
 #define HIGGS_HAND_USE_PROPOSALS_ABI_VERSION 1u
 #define HIGGS_HAND_USE_PROPOSALS_CAP_PRIORITY_ROUNDS UINT64_C(1)
+#define HIGGS_HAND_USE_PROPOSALS_CAP_SHARED_WINDOWS UINT64_C(2)
 enum {
     HIGGS_USE_PROPOSAL_PENDING = 1,
     HIGGS_USE_PROPOSAL_ACCEPTED = 2,
@@ -406,6 +408,38 @@ typedef struct HIGGS_HandUseProposalsInterface {
     HIGGS_HandStatus (HIGGS_HAND_CALL *Copy)(HIGGS_HandClient, uint64_t, HIGGS_HandUseProposalState *);
     HIGGS_HandStatus (HIGGS_HAND_CALL *Cancel)(HIGGS_HandClient, uint64_t, uint64_t);
 } HIGGS_HandUseProposalsInterface;
+struct HIGGS_HandUseTransitionRequest;
+typedef struct HIGGS_SharedHandUseProposalsInterface {
+    HIGGS_HandUseProposalsInterface proposals; /* exact v1 prefix; abiVersion=2 */
+    HIGGS_HandStatus (HIGGS_HAND_CALL *EnableSharedRounds)(HIGGS_HandClient);
+    HIGGS_HandStatus (HIGGS_HAND_CALL *ProposeOrdered)(HIGGS_HandClient,
+        const HIGGS_HandUseProposalRequest *, uint64_t actionId, uint64_t stableTargetKey, uint64_t *);
+    HIGGS_HandStatus (HIGGS_HAND_CALL *ProposeResize)(HIGGS_HandClient,
+        const struct HIGGS_HandUseTransitionRequest *, uint64_t actionId, uint64_t stableTargetKey, uint64_t *);
+} HIGGS_SharedHandUseProposalsInterface;
+/* Negotiate version2 with sizeof(HIGGS_SharedHandUseProposalsInterface), passing
+ * its proposals prefix. Enable once before gameplay, with all controls released;
+ * participation lasts until client unregister. All new button, native grab and
+ * nonbutton proposals then collect until the next main maintenance. No executor
+ * runs before the whole window is ranked. Native consume/stash use that window
+ * before release mutation. Persistent provider/action/target keys break ties;
+ * duplicate identical keys are rejected as ambiguous. Per-action INI priorities
+ * also apply to nonbutton proposals. Ordered actionId must be nonzero; a zero
+ * target is suitable for a single untargeted action only.
+ * Existing possession/authorized continuation is never preempted. Native pending
+ * acquisition owns its hand until acquisition or release, but held-item consume
+ * and transfer can use that possession. Immediate HandUse returns WRONG_PHASE
+ * while shared windows are enabled; new clients use ProposeOrdered. Pending button taps released
+ * before selection cancel without replay. A native winner is delivered at the
+ * next held controller sample after selection, only while its target is current.
+ * Controls without an eligible shared candidate retain their default path.
+ * Reentrant proposals collect for the next maintenance window. ProposeResize
+ * submits revision-checked expansion of an existing session; only added hands
+ * compete, and denial preserves its previous grant and footprint. Copy/Cancel
+ * use the proposal ID; accepted Copy.use describes the parent session. Collection
+ * expires after1000ms; durationMs starts on acceptance. Immediate Resize remains
+ * available for renewal/reduction; expansion uses ProposeResize in this mode.
+ * The v1 table and the no-participant standalone path retain their semantics. */
 /* Nonbutton admission only; pending proposals carry NO grant or mutation authority.
  * The next HIGGS main maintenance selects a disjoint set in effective user-priority
  * order, then stable client ID, use kind, context ID and generation. Both hands are all-or-none.
@@ -428,6 +462,7 @@ typedef HIGGS_HandStatus (HIGGS_HAND_CALL *HIGGS_QueryHandUseProposalsInterfaceF
 static_assert(sizeof(HIGGS_HandUseProposalRequest) == 72, "hand-use proposal request ABI");
 static_assert(sizeof(HIGGS_HandUseProposalState) == 160, "hand-use proposal state ABI");
 static_assert(sizeof(HIGGS_HandUseProposalsInterface) == 40, "hand-use proposal table ABI (x64)");
+static_assert(sizeof(HIGGS_SharedHandUseProposalsInterface) == 64, "shared proposal table ABI (x64)");
 #endif
 
 typedef struct HIGGS_HandUseTransitionRequest {

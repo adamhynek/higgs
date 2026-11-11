@@ -219,6 +219,15 @@ enum
    INPUT_RELEASED/CANCELLED events reach the selected executor owner only. Their
    result.inputId is the original press. CopyClientLabel returns a public label
    for this live registration for routing, never a credential or durable key. */
+/* Shared HandUseProposals v2 opt-in defers new eligible input candidates to the
+   next main-maintenance decision window alongside native and nonbutton offers.
+   A pending InputDecision has PENDING and no authority. Its eventual selected
+   executor runs once at maintenance (or after deferred gesture recognition).
+   Release before selection cancels pending button offers without replay. Native
+   acquisition is delivered on a later held controller sample; its matching Up
+   remains native through possession/handoff. Controls with no eligible candidate
+   keep their default behavior. Existing-grant continuation keeps its current
+   owner and does not enter a competing new-action window. */
 
 #define HIGGS_INPUT_CONTEXT_ABI_VERSION 1u
 enum HIGGS_InputContextKind { HIGGS_CONTEXT_GAMEPLAY = 1, HIGGS_CONTEXT_UI = 2 };
