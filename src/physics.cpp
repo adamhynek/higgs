@@ -7,6 +7,8 @@
 #include "hand.h"
 #include "config.h"
 #include "main.h"
+#include "hand_observations.h"
+#include "hand_parts_native.h"
 
 #include "skse64/NiNodes.h"
 #include "skse64/gamethreads.h"
@@ -395,8 +397,15 @@ void IslandDeactivationListener::islandDeactivatedCallback(hkpSimulationIsland* 
 }
 
 
+uint32_t OwnedHandPartSide(const hkpRigidBody* body)
+{
+    uint32_t hand=0,part=0;uint64_t set=0,revision=0;
+    return HiggsHands::ResolveNativeHandPart(body,hand,part,set,revision)?hand:0;
+}
+
 inline bool IsLeftRigidBody(hkpRigidBody *rigidBody)
 {
+    if(OwnedHandPartSide(rigidBody)==HIGGS_HAND_LEFT)return true;
     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
     if (!wrapper) return false;
     return wrapper == g_leftHand->handBody || wrapper == g_leftHand->weaponBody || (g_leftHand->HasHeldObject() && wrapper == g_leftHand->selectedObject.rigidBody);
@@ -404,6 +413,7 @@ inline bool IsLeftRigidBody(hkpRigidBody *rigidBody)
 
 inline bool IsRightRigidBody(hkpRigidBody *rigidBody)
 {
+    if(OwnedHandPartSide(rigidBody)==HIGGS_HAND_RIGHT)return true;
     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
     if (!wrapper) return false;
     return wrapper == g_rightHand->handBody || wrapper == g_rightHand->weaponBody || (g_rightHand->HasHeldObject() && wrapper == g_rightHand->selectedObject.rigidBody);
@@ -418,6 +428,7 @@ inline bool IsWeaponRigidBody(hkpRigidBody *rigidBody)
 
 inline bool IsHandRigidBody(hkpRigidBody *rigidBody)
 {
+    if(OwnedHandPartSide(rigidBody))return true;
     bhkRigidBody *wrapper = (bhkRigidBody *)rigidBody->m_userData;
     if (!wrapper) return false;
     return wrapper == g_leftHand->handBody || wrapper == g_rightHand->handBody;
@@ -689,6 +700,14 @@ void PhysicsListener::contactPointCallback(const hkpContactPointEvent& evnt)
     }
 
     // Ensure full manifold callbacks for any higgs collisions
+    const auto recordContact=[&](hkpRigidBody* probe,bool first){
+        const auto hand=GetRigidBodyHandIndex(probe);
+        const uint32_t hands=hand==HandIndex::Both?HIGGS_HAND_BOTH:hand==HandIndex::Left?HIGGS_HAND_LEFT:HIGGS_HAND_RIGHT;
+        const uint32_t source=IsHeldRigidBody(probe)?HIGGS_CONTACT_HELD:IsWeaponRigidBody(probe)?HIGGS_CONTACT_WEAPON:HIGGS_CONTACT_HAND;
+        HiggsHands::ObserveNativeContact(evnt,hands,source,first);
+    };
+    if(isAHiggs)recordContact(rigidBodyA,true);
+    if(isBHiggs)recordContact(rigidBodyB,false);
     evnt.m_contactMgr->m_contactPointCallbackDelay = 0;
 
     float separatingVelocity = fabs(hkpContactPointEvent_getSeparatingVelocity(evnt));

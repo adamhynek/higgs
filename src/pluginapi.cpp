@@ -5,6 +5,7 @@
 #include "papyrusapi.h"
 #include "config.h"
 #include "hand.h"
+#include "synergy_runtime.h"
 
 using namespace HiggsPluginAPI;
 
@@ -290,67 +291,37 @@ bool HiggsInterface001::IsHandInGrabbableState(bool isLeft)
 
 void HiggsInterface001::DisableHand(bool isLeft)
 {
-    if (isLeft) {
-        isLeftHandDisabled = true;
-    }
-    else {
-        isRightHandDisabled = true;
-    }
+    HiggsSynergy::SetLegacyHandDisabled(isLeft, true);
 }
 
 void HiggsInterface001::EnableHand(bool isLeft)
 {
-    if (isLeft) {
-        isLeftHandDisabled = false;
-    }
-    else {
-        isRightHandDisabled = false;
-    }
+    HiggsSynergy::SetLegacyHandDisabled(isLeft, false);
 }
 
 bool HiggsInterface001::IsDisabled(bool isLeft)
 {
-    if (isLeft) {
-        return isLeftHandDisabled;
-    }
-    else {
-        return isRightHandDisabled;
-    }
+    return !HiggsSynergy::MayStartHandInteraction(HiggsSynergy::CopyHandState(isLeft));
 }
 
 void HiggsInterface001::DisableWeaponCollision(bool isLeft)
 {
-    if (isLeft) {
-        isLeftWeaponCollisionDisabled = true;
-    }
-    else {
-        isRightWeaponCollisionDisabled = true;
-    }
+    HiggsSynergy::SetLegacyWeaponCollisionDisabled(isLeft, true);
 }
 
 void HiggsInterface001::EnableWeaponCollision(bool isLeft)
 {
-    if (isLeft) {
-        isLeftWeaponCollisionDisabled = false;
-    }
-    else {
-        isRightWeaponCollisionDisabled = false;
-    }
+    HiggsSynergy::SetLegacyWeaponCollisionDisabled(isLeft, false);
 }
 
 bool HiggsInterface001::IsWeaponCollisionDisabled(bool isLeft)
 {
-    if (isLeft) {
-        return isLeftWeaponCollisionDisabled;
-    }
-    else {
-        return isRightWeaponCollisionDisabled;
-    }
+    return HiggsSynergy::CopyHandState(isLeft).weaponCollisionDisabled != 0;
 }
 
 void HiggsInterface001::ForceWeaponCollisionEnabled(bool isLeft)
 {
-    forceEnableWeaponCollision[isLeft] = true;
+    HiggsSynergy::ForceLegacyWeaponCollision(isLeft);
 }
 
 bool HiggsInterface001::IsTwoHanding()

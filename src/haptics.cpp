@@ -1,5 +1,7 @@
 #include <algorithm>
 
+#include "hand_broker.h"
+#include "haptic_schedule.h"
 #include "haptics.h"
 #include "math_utils.h"
 #include "utils.h"
@@ -16,7 +18,7 @@ void HapticsManager::TriggerHapticPulse(float duration)
 
 void HapticsManager::QueueHapticEvent(float startStrength, float endStrength, float duration)
 {
-    HapticEvent hapticEvent;
+    HapticEvent hapticEvent{};
     hapticEvent.startStrength = startStrength;
     hapticEvent.endStrength = endStrength;
     hapticEvent.duration = duration;
@@ -36,6 +38,7 @@ void HapticsManager::QueueHapticPulse(float strength)
 void HapticsManager::Loop()
 {
     while (true) {
+        std::optional<float> nativeStrength;
         {
             std::scoped_lock lock(eventsLock);
 
@@ -60,7 +63,7 @@ void HapticsManager::Loop()
                     double elapsedTime = currentTime - lastEvent.startTime;
                     strength = lerp(lastEvent.startStrength, lastEvent.endStrength, min(1.0f, elapsedTime / lastEvent.duration));
                 }
-                TriggerHapticPulse(strength);
+                nativeStrength = strength;
 
                 // Cleanup events that are past their duration
                 auto end = std::remove_if(events.begin(), events.end(),
@@ -70,6 +73,16 @@ void HapticsManager::Loop()
             }
         }
 
+        {
+            auto phase = HiggsHands::Service().NativePhase();
+            const auto physicalHand = hand == BSVRInterface::kControllerHand_Left ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT;
+            const auto sample = HiggsHands::Haptics().Sample(physicalHand, HiggsHands::Now(), nativeStrength);
+            if (sample.strength > 0) {
+                const bool available = g_openVR && *g_openVR;
+                if (available) TriggerHapticPulse(sample.strength);
+                HiggsHands::Haptics().Submitted(sample, available);
+            }
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(5)); // TriggerHapticPulse can only be called once every 5ms
     }
 }

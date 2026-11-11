@@ -2,6 +2,7 @@
 #include <filesystem>
 
 #include "config.h"
+#include "hand_broker.h"
 #include "math_utils.h"
 #include "utils.h"
 
@@ -542,6 +543,12 @@ namespace Config {
         RegisterInt("dummyInt3", options.dummyInt3, false);
         RegisterInt("dummyInt4", options.dummyInt4, false);
 
+        char priorities[8192]{};
+        const auto count = GetPrivateProfileString("HandBroker", "Priorities", "", priorities, sizeof(priorities), GetConfigPath().c_str());
+        if (count >= sizeof(priorities) - 1 || !HiggsHands::Service().ConfigurePriorities(priorities)) {
+            _WARNING("Invalid [HandBroker] Priorities; preserving the previous complete override map");
+            success = false;
+        }
         g_registrationComplete = true;
 
         return success;
