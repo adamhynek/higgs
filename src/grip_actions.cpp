@@ -1,3 +1,4 @@
+#include "grip_actions.h"
 #include "higgsgripactions.h"
 #include "config.h"
 #include <algorithm>

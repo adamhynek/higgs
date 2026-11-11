@@ -234,6 +234,7 @@
     <ClInclude Include="include\papyrusapi.h" />
     <ClInclude Include="include\pluginapi.h" />
     <ClInclude Include="include\higgsgripactions.h" />
+    <ClInclude Include="include\grip_actions.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\hand.h" />
     <ClInclude Include="include\havok_ref_ptr.h" />

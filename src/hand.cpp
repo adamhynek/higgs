@@ -13,7 +13,7 @@
 #include "skse64/GameExtraData.h"
 
 #include "hand.h"
-#include "higgsgripactions.h"
+#include "grip_actions.h"
 #include "RE/offsets.h"
 #include "utils.h"
 #include "config.h"

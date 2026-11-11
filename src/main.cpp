@@ -36,7 +36,7 @@
 #include "vrikinterface001.h"
 #include "papyrusapi.h"
 #include "pluginapi.h"
-#include "higgsgripactions.h"
+#include "grip_actions.h"
 #include "math_utils.h"
 #include "physics.h"
 #include "main.h"

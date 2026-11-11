@@ -1,5 +1,5 @@
 #include "menu_checker.h"
-#include "higgsgripactions.h"
+#include "grip_actions.h"
 #include <algorithm>
 
 // Big thanks to Shizof for this method of checking what menus are open
