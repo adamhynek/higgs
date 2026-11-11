@@ -217,6 +217,7 @@
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\effects.cpp" />
     <ClCompile Include="src\pluginapi.cpp" />
+    <ClCompile Include="src\grip_actions.cpp" />
     <ClCompile Include="src\RE\havok.cpp" />
     <ClCompile Include="src\RE\offsets.cpp" />
     <ClCompile Include="src\utils.cpp" />
@@ -232,6 +233,7 @@
     <ClInclude Include="include\main.h" />
     <ClInclude Include="include\papyrusapi.h" />
     <ClInclude Include="include\pluginapi.h" />
+    <ClInclude Include="include\higgsgripactions.h" />
     <ClInclude Include="include\config.h" />
     <ClInclude Include="include\hand.h" />
     <ClInclude Include="include\havok_ref_ptr.h" />

@@ -2,3 +2,4 @@ LIBRARY	"higgs_vr"
 EXPORTS
 SKSEPlugin_Query
 SKSEPlugin_Load
+HIGGS_GetGripActions001

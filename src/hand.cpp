@@ -13,6 +13,7 @@
 #include "skse64/GameExtraData.h"
 
 #include "hand.h"
+#include "higgsgripactions.h"
 #include "RE/offsets.h"
 #include "utils.h"
 #include "config.h"
@@ -4147,6 +4148,20 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
         gripDown = Config::options.enableGrip && (pControllerState->ulButtonPressed & gripMask);
     }
 
+    const bool stopped = MenuChecker::isGameStopped();
+    if (gripDown && !gripDownBefore && !externalGrip && !stopped && !triggerDown && !triggerDownBefore &&
+        inputState == InputState::Idle && !grabRequested && state != State::SelectionLocked &&
+        IsInGrabbableState() && !g_interface001.IsDisabled(isLeft)) {
+        externalGrip = HiggsGrip::Select(isLeft);
+    }
+    if (externalGrip) {
+        externalGrip = gripDown;
+        gripDown = false;
+        if (useTouchForGrip) pControllerState->ulButtonTouched &= ~gripMask;
+        if (!useTouchForGrip || !Config::options.allowGripPressWhileUsingTouchInput)
+            pControllerState->ulButtonPressed &= ~gripMask;
+    }
+
     bool triggerRisingEdge = triggerDown && !triggerDownBefore;
     bool triggerFallingEdge = !triggerDown && triggerDownBefore;
     bool suppressTrigger = false;
@@ -4156,7 +4171,7 @@ void Hand::ControllerStateUpdate(uint32_t unControllerDeviceIndex, vr_src::VRCon
     bool suppressGrip = false;
 
     // Only advance states if no menus are open
-    if (MenuChecker::isGameStopped()) return;
+    if (stopped) return;
 
     PlayerCharacter *player = *g_thePlayer;
 

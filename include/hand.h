@@ -399,6 +399,7 @@ struct Hand
 
     bool triggerDown = false; // Whether the trigger was down last frame
     bool gripDown = false;
+    bool externalGrip = false; // Keep a selected one-shot grip out of HIGGS through its release.
     bool grabRequested = false; // True on rising edge of trigger press
     bool releaseRequested = false; // True on falling edge of trigger press
     bool wasObjectGrabbed = false;
