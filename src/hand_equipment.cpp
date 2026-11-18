@@ -12,6 +12,7 @@ struct Entry
 {
     HIGGS_EquipmentOutcome outcome{};
     uint64_t owner = 0;
+    uint64_t domainClaim = 0;
     bool pendingBackend = false;
 };
 std::mutex equipmentMutex;
@@ -118,6 +119,34 @@ bool Terminal(uint32_t stage)
     return stage == HIGGS_EQUIP_CONFIRMED || stage == HIGGS_EQUIP_DECLINED ||
            stage == HIGGS_EQUIP_ORIGINAL_OBSERVED;
 }
+void ReleaseClaim(Entry &entry)
+{
+    if (!entry.domainClaim)
+        return;
+    Service().RetainRequest(entry.domainClaim, false);
+    Service().CancelNativeRequest(entry.owner, entry.domainClaim);
+    entry.domainClaim = 0;
+}
+bool SameInstance(const HIGGS_EquipmentItem &a, const HIGGS_EquipmentItem &b)
+{
+    // Generation is an observation revision, not a new identity namespace.
+    return a.state == HIGGS_EQUIP_ITEM && b.state == HIGGS_EQUIP_ITEM &&
+           a.instanceProvider == b.instanceProvider && a.instance == b.instance;
+}
+bool Overlaps(const HIGGS_EquipmentOutcome &held, const HIGGS_EquipmentTransition &request)
+{
+    for (unsigned i = 0; i < held.placeCount; ++i)
+        for (unsigned j = 0; j < request.placeCount; ++j)
+        {
+            const auto &a = held.expected[i];
+            const auto &b = request.places[j];
+            if ((a.placeKind == b.placeKind && a.placeId == b.placeId) ||
+                SameInstance(a.before, b.before) || SameInstance(a.before, b.after) ||
+                SameInstance(a.after, b.before) || SameInstance(a.after, b.after))
+                return true;
+        }
+    return false;
+}
 struct Work
 {
     HIGGS_EquipmentTransition request;
@@ -136,6 +165,13 @@ HIGGS_HandStatus HIGGS_HAND_CALL Execute(const HIGGS_ActionRequest *selected, co
     Entry *entry = nullptr;
     {
         std::lock_guard lock(equipmentMutex);
+        for (auto &held : history)
+        {
+            if (held.outcome.epoch != selected->epoch)
+                ReleaseClaim(held); // Runtime permissions do not survive an epoch change.
+            else if (held.outcome.requestId && !Terminal(held.outcome.stage) && Overlaps(held.outcome, r))
+                return HIGGS_HAND_CONFLICT;
+        }
         for (size_t n = 0; n < history.size(); ++n)
         {
             auto &candidate = history[(nextEntry + n) % history.size()];
@@ -195,6 +231,22 @@ HIGGS_HandStatus HIGGS_HAND_CALL Execute(const HIGGS_ActionRequest *selected, co
         entry->outcome.reason = HIGGS_HAND_STALE;
         return HIGGS_HAND_OK;
     }
+    // Reuse the broker's retained domain claim: an unsettled backend must keep
+    // its hands unavailable after the short-lived selected grant ends.
+    HIGGS_ActionRequest claim{};
+    status = Service().ReserveEffectAuthority(work.owner, selected->epoch, 60000, claim, Now(),
+                                              selected->grant, r.physicalHands);
+    {
+        std::lock_guard lock(equipmentMutex);
+        entry->domainClaim = claim.requestId;
+        if (status)
+        {
+            ReleaseClaim(*entry);
+            entry->outcome.stage = HIGGS_EQUIP_DECLINED;
+            entry->outcome.reason = status;
+            return HIGGS_HAND_OK;
+        }
+    }
     try
     {
         status = work.backend.Apply(&r, work.backend.context);
@@ -213,15 +265,15 @@ HIGGS_HandStatus HIGGS_HAND_CALL Execute(const HIGGS_ActionRequest *selected, co
     if (observation == HIGGS_HAND_OK && ValidEvidence(after, r.placeCount))
     {
         o.after = after;
-        if (MatchesLayout(o, after, true))
-            ObserveOutcome(o, after, status != HIGGS_HAND_PENDING);
-        else if (status != HIGGS_HAND_PENDING)
+        if (status != HIGGS_HAND_PENDING || MatchesLayout(o, after, true))
             ObserveOutcome(o, after, status != HIGGS_HAND_PENDING);
     }
     else if (status != HIGGS_HAND_PENDING && observation != HIGGS_HAND_PENDING)
     {
         o.stage = HIGGS_EQUIP_RECOVERY_REQUIRED;
     }
+    if (Terminal(o.stage))
+        ReleaseClaim(*entry);
     return HIGGS_HAND_OK;
 }
 HIGGS_HandStatus HIGGS_HAND_CALL Request(uint64_t owner, const HIGGS_EquipmentTransition *r,
@@ -304,6 +356,8 @@ HIGGS_HandStatus HIGGS_HAND_CALL Report(uint64_t owner, uint64_t epoch, uint64_t
         if (evidence->flags & HIGGS_EQUIP_BACKEND_SETTLED)
             entry->pendingBackend = false;
         ObserveOutcome(entry->outcome, *evidence, !entry->pendingBackend);
+        if (Terminal(entry->outcome.stage))
+            ReleaseClaim(*entry);
         return HIGGS_HAND_OK;
     }
     catch (...)
