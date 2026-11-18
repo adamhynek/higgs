@@ -6,6 +6,34 @@ extern "C" {
 #endif
 #pragma pack(push, 8)
 
+/* Semantic pre-drop intent, not another hardware Up. Only recognizers registered
+   below receive this edge. inputId belongs to this one-shot intent and must not
+   be interpreted as the original press or its terminal. */
+#define HIGGS_INPUT_HELD_RELEASE 3u
+#define HIGGS_HELD_RELEASE_ABI_VERSION 1u
+typedef struct HIGGS_HeldReleaseInterface {
+    uint32_t structSize, abiVersion;
+    uint64_t capabilities; /* bit0: native and confirmed inventory-grip releases */
+    HIGGS_HandStatus(HIGGS_HAND_CALL *SubscribeRecognizer)(HIGGS_HandClient,
+        HIGGS_RecognizerCallback, void*, HIGGS_HandRegistration*);
+    HIGGS_HandStatus(HIGGS_HAND_CALL *FollowInventoryGrip)(HIGGS_HandClient, uint64_t transferId);
+} HIGGS_HeldReleaseInterface;
+/* Optional. Enable shared rounds before subscribing. A copied HandInput is
+   offered once before HIGGS releases this exact held reference. Propose through
+   InputRoutes.SubmitOrderedCandidate; ordinary routing, user priorities and the
+   native mouth/stash decision window apply. No mutation in this callback.
+   An accepted action queues work to the normal safe phase. Rejection/cancellation
+   before irreversible work resumes the original native release once; pending,
+   committed or uncertain transfers never cause a second fallback drop.
+   FollowInventoryGrip explicitly opts ONE completed inventory withdrawal into
+   matching-release handling. It requires that owner's factual grip receipt and
+   the original press, and is idempotent per transfer. Old consumers do not opt in
+   implicitly. A terminal received while the grip was pending is preserved.
+   Remove using Hand.RemoveRegistration; standard callback drainage applies.
+   Legacy raw Down/Up and InputSequence layouts/ownership remain unchanged. */
+HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHeldReleaseInterface(uint32_t, uint32_t, HIGGS_HeldReleaseInterface*);
+typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryHeldReleaseInterfaceFn)(uint32_t, uint32_t, HIGGS_HeldReleaseInterface*);
+
 #define HIGGS_INPUT_ABI_VERSION 2u
 #define HIGGS_INPUT_CAP_FRAMES UINT64_C(1)
 #define HIGGS_INPUT_CAP_OBSERVATIONS UINT64_C(2)

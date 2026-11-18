@@ -1,11 +1,25 @@
 #include "hand_abi_boundary.h"
 #include "hand_broker.h"
+#include "hand_transactions.h"
 #include "higgshandapi.h"
 #include <cstring>
 #include <type_traits>
 namespace
 {
 using namespace HiggsHands;
+
+HIGGS_HandStatus HIGGS_HAND_CALL HeldReleaseRecognizer(uint64_t owner,HIGGS_RecognizerCallback callback,
+                                                     void* context,uint64_t* out)
+{
+    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
+    return HiggsAbi::PublishOnSuccess(out,[&](auto& id) {
+        return Service().HeldReleaseRecognizer(owner,callback,context,id);
+    });
+}
+HIGGS_HandStatus HIGGS_HAND_CALL FollowInventoryGrip(uint64_t owner,uint64_t transfer)
+{
+    return HiggsAbi::Guard([&] { return Transactions().FollowInventoryGrip(owner,transfer); });
+}
 
 
 HIGGS_HandStatus HIGGS_HAND_CALL Register(const HIGGS_HandClientInfo *p, uint64_t *out)
@@ -293,3 +307,13 @@ extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandInterface(uint32_t ve
     std::memcpy(out, &table, sizeof(table));
     return HIGGS_HAND_OK;
 }
+extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHeldReleaseInterface(uint32_t version,uint32_t bytes,
+                                                                         HIGGS_HeldReleaseInterface* out)
+{
+    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
+    if (version != HIGGS_HELD_RELEASE_ABI_VERSION) return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if (bytes < sizeof(*out)) return HIGGS_HAND_BUFFER_TOO_SMALL;
+    *out = {sizeof(*out),HIGGS_HELD_RELEASE_ABI_VERSION,UINT64_C(1),HeldReleaseRecognizer,FollowInventoryGrip};
+    return HIGGS_HAND_OK;
+}
+static_assert(sizeof(HIGGS_HeldReleaseInterface) == 32,"held-release table ABI (x64)");

@@ -111,6 +111,11 @@ class Broker
                                         uint64_t target, uint64_t &, Clock);
     void SetNativeTargetKeys(uint32_t hand, uint64_t grip, uint64_t trigger);
     HIGGS_HandStatus NativeRegionAdmission(uint32_t hand, uint64_t epoch, uint32_t ref, uint32_t action, Clock);
+    HIGGS_HandStatus HeldReleaseRecognizer(uint64_t, HIGGS_RecognizerCallback, void*, uint64_t&);
+    bool HoldNativeRelease(uint32_t hand, uint64_t epoch, uint32_t ref, uint32_t nativeAction, bool newRelease, Clock);
+    HIGGS_HandStatus ConfirmInventoryGrip(uint64_t owner, uint64_t grant, uint32_t hand, uint32_t ref, uint64_t epoch);
+    bool TakeInventoryRelease(uint32_t hand, uint32_t ref);
+    void TrackReleaseTransfer(uint64_t grant, uint64_t transfer, uint32_t outcome);
     void FinishNativeRegionAction(uint32_t hand, bool executed);
     HIGGS_HandStatus CopyHandUseProposal(uint64_t, uint64_t, HIGGS_HandUseProposalState &, Clock);
     HIGGS_HandStatus CancelHandUseProposal(uint64_t, uint64_t, uint64_t);
@@ -212,6 +217,7 @@ class Broker
         bool resizingProposal = false;
         bool nativeAcquired = false;
         uint32_t nativeCandidate = 0, sourceHand = 0, sourceButton = 0;
+        uint64_t releaseInput = 0;
     };
     HIGGS_HandStatus Add(HIGGS_HandClient, uint32_t, HIGGS_RecognizerCallback, HIGGS_ExecutorCallback,
                          HIGGS_HandEventCallback, void *, uint64_t &);
@@ -295,6 +301,18 @@ class Broker
     bool down_[2][kInputControlSlots]{}, consumed_[2][kInputControlSlots]{};
     uint64_t nextToken_ = 1, nextInput_ = 1, nextObservation_ = 1, nextEvent_ = 1;
     uint64_t nextUseRound_ = 1;
+    struct HeldRelease {
+        uint64_t input = 0, epoch = 0, generation = 0, context = 0, transfer = 0, waitUntil = 0, observedAfter = 0;
+        uint32_t ref = 0, button = 0;
+        bool fallback = false, transferPending = false, unsafe = false;
+    } heldReleases_[2];
+    struct InventoryGrip {
+        HIGGS_InputSequence sequence{};
+        uint64_t generation = 0, observedAfter = 0;
+        uint32_t ref = 0;
+    } inventoryGrips_[2];
+    uint32_t releaseButtons_[2]{HIGGS_INPUT_GRIP, HIGGS_INPUT_GRIP};
+    uint64_t heldEpisodes_[2]{};
     uint64_t nativeTargetKeys_[2][2]{};
     bool drainingHandUses_ = false; // serialized by dispatch_, including callback reentry
     HIGGS_NativeRegionFrame nativeRegionFrames_[2]{};

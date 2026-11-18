@@ -2988,6 +2988,7 @@ void Hand::Update(Hand &other, bhkWorld *world)
         grabRequested = false; // Consume grab event here as we cannot grab from any of these states and don't want to grab immediately upon exiting them
 
         // Check if we should drop the object
+        const bool originalRelease = releaseRequested;
         if (releaseRequested) {
             releaseRequested = false;
             wasObjectGrabbed = false;
@@ -3005,18 +3006,15 @@ void Hand::Update(Hand &other, bhkWorld *world)
         }
 
         bool waitForRegionDecision = false;
-        if (idleDesired && !disableConsumeStash && (state == State::Held || state == State::HeldBody)) {
+        if (idleDesired && !disableConsumeStash && (state == State::HeldInit || state == State::Held || state == State::HeldBody)) {
             NiPointer<TESObjectREFR> regionItem;
             if (LookupREFRByHandle(selectedObject.handle, regionItem) && regionItem) {
-                const uint32_t action = IsObjectConsumable(regionItem, hmdNode, palmPos) ? 2u :
+                const bool stableHeld = state == State::Held || state == State::HeldBody;
+                const uint32_t action = !stableHeld ? 0u : IsObjectConsumable(regionItem, hmdNode, palmPos) ? 2u :
                     IsObjectDepositable(regionItem, hmdNode, handPos) ? 3u : 0u;
-                if (action) {
-                    const auto admission = HiggsHands::Service().NativeRegionAdmission(
-                        isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT, nativeRegionEpoch, regionItem->formID,
-                        action, HiggsHands::Now());
-                    waitForRegionDecision = admission == HIGGS_HAND_PENDING ||
-                        (admission != HIGGS_HAND_OK && HiggsHands::HasGrant(isLeft));
-                }
+                waitForRegionDecision = HiggsHands::Service().HoldNativeRelease(
+                    isLeft ? HIGGS_HAND_LEFT : HIGGS_HAND_RIGHT,nativeRegionEpoch,regionItem->formID,
+                    action,originalRelease,HiggsHands::Now());
             }
         }
         if (idleDesired && !waitForRegionDecision) {

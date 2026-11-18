@@ -269,6 +269,9 @@ void TransactionService::Finish(Transaction &t, uint32_t stage, uint32_t disposi
     t.state.stage = stage;
     t.state.disposition = disposition;
     t.state.reason = reason;
+    broker_.TrackReleaseTransfer(t.state.grant,t.state.requestId,
+        (t.state.receiptFlags & (HIGGS_TX_DOMAIN_ATTESTED | HIGGS_TX_MUTATION_UNCERTAIN)) ||
+        stage == HIGGS_TX_RECOVERY_REQUIRED ? 2u : 1u);
     broker_.RetainRequest(t.state.physicalRequestId, false);
     broker_.RetainRequest(t.state.requestId, false);
     if (stage == HIGGS_TX_COMPLETED)
@@ -717,11 +720,36 @@ HIGGS_HandStatus TransactionService::Request(uint64_t owner, const HIGGS_Transfe
     state.disposition = HIGGS_DISPOSITION_UNCHANGED;
     out = state.requestId;
     keys_.back().request = state.requestId;
+    broker_.TrackReleaseTransfer(state.grant,state.requestId,0);
     return HIGGS_HAND_OK;
 }
 bool TransactionService::Alive(Transaction &t, uint64_t now)
 {
     return broker_.DomainAlive(t.state.owner, t.state.requestId, now);
+}
+HIGGS_HandStatus TransactionService::FollowInventoryGrip(uint64_t owner,uint64_t id)
+{
+    auto phase = broker_.NativePhase();
+    std::lock_guard lock(mutex_);
+    SyncLocked();
+    if (!broker_.ClientValid(owner)) return HIGGS_HAND_INVALID_CLIENT;
+    const auto t = Find(id);
+    if (!t) return HIGGS_HAND_NOT_FOUND;
+    if (t->state.owner != owner) return HIGGS_HAND_WRONG_OWNER;
+    if (t->state.epoch != epoch_) return HIGGS_HAND_STALE;
+    if (t->releaseFollowed) return HIGGS_HAND_OK;
+    constexpr auto required = HIGGS_TX_DOMAIN_ATTESTED | HIGGS_TX_NATIVE_GRIP_CONFIRMED;
+    if (t->request.kind != HIGGS_TRANSFER_INVENTORY_TO_HAND || t->state.stage != HIGGS_TX_COMPLETED ||
+        t->state.disposition != HIGGS_DISPOSITION_HAND || (t->state.receiptFlags & required) != required ||
+        (t->state.receiptFlags & (HIGGS_TX_COMPENSATION_CONFIRMED | HIGGS_TX_MUTATION_UNCERTAIN)))
+        return HIGGS_HAND_WRONG_PHASE;
+    const auto held = FindItem(held_[t->request.destinationHand == HIGGS_HAND_LEFT ? 0 : 1]);
+    if (!held || held->value.worldRefId != t->state.actualRefId || held->value.epoch != epoch_)
+        return HIGGS_HAND_STALE;
+    const auto status = broker_.ConfirmInventoryGrip(owner,t->state.grant,t->request.destinationHand,
+        t->state.actualRefId,epoch_);
+    if (!status) t->releaseFollowed = true;
+    return status;
 }
 void TransactionService::NeedCompensation(Transaction &t, uint32_t reason, uint64_t now)
 {

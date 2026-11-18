@@ -70,10 +70,11 @@ HIGGS_HandStatus Broker::NativeRegionAdmission(uint32_t hand, uint64_t epoch, ui
     ExpireLocked(now);
     if (!SharedRoundsLocked()) return HIGGS_HAND_OK;
     const auto hi = hand == HIGGS_HAND_LEFT ? 0u : 1u;
+    const auto releaseInput = heldReleases_[hi].input;
     const auto &h = snapshot_.hands[hi];
     if (epoch != snapshot_.epoch || ref != h.heldRefId) return HIGGS_HAND_STALE;
     for (const auto &a : actions_)
-        if (a.nativeCandidate == action && a.sourceHand == hand && a.request.epoch == epoch &&
+        if (a.nativeCandidate == action && a.releaseInput == releaseInput && a.sourceHand == hand && a.request.epoch == epoch &&
             a.stableTarget == ref && a.inputHandGenerations[hi] == h.generation) {
             if (!a.result.stage) return HIGGS_HAND_PENDING;
             return a.result.stage == HIGGS_ACTION_ACCEPTED && a.grantActive &&
@@ -84,6 +85,7 @@ HIGGS_HandStatus Broker::NativeRegionAdmission(uint32_t hand, uint64_t epoch, ui
     const auto a = NewActionLocked();
     if (!a) return HIGGS_HAND_CAPACITY;
     a->sharedPending = true; a->nativeCandidate = action; a->sourceHand = hand; a->stableTarget = ref;
+    a->releaseInput = releaseInput;
     a->request = {sizeof(HIGGS_ActionRequest),hand,nextToken_++,0,0,0,epoch,0,action,ref,h.generation,h.poseObservationId};
     a->inputContextGeneration = contextGeneration_;
     a->inputHandGenerations[hi] = h.generation;
@@ -226,7 +228,8 @@ void Broker::ResolveHandUseProposalsLocked(Clock now)
         if (!a.nativeCandidate && !ClientLocked(a.request.owner)) reason = HIGGS_HAND_INVALID_CLIENT;
         else if (!a.nativeCandidate && (!executor || !executor->active)) reason = HIGGS_HAND_NOT_FOUND;
         else if (a.inputRegistration && (!RegistrationLocked(a.inputRegistration) ||
-                 !RegistrationLocked(a.inputRegistration)->active || RegistrationLocked(a.inputRegistration)->kind != 5))
+                 !RegistrationLocked(a.inputRegistration)->active ||
+                 RegistrationLocked(a.inputRegistration)->kind != (a.releaseInput ? 8u : 5u)))
             reason = HIGGS_HAND_NOT_FOUND;
         else if (a.request.epoch != snapshot_.epoch || a.inputContextGeneration != contextGeneration_)
             reason = HIGGS_HAND_STALE;
@@ -240,7 +243,12 @@ void Broker::ResolveHandUseProposalsLocked(Clock now)
                 reason = HIGGS_HAND_STALE;
         if (!reason && a.request.inputId) {
             const auto hi = a.sourceHand == HIGGS_HAND_LEFT ? 0u : 1u;
-            if (!down_[hi][InputControlSlot(a.sourceButton)]) reason = HIGGS_HAND_STALE;
+            if (a.releaseInput) {
+                const auto& release = heldReleases_[hi];
+                if (release.input != a.releaseInput || release.ref != snapshot_.hands[hi].heldRefId ||
+                    release.generation != snapshot_.hands[hi].generation || release.context != contextGeneration_)
+                    reason = HIGGS_HAND_STALE;
+            } else if (!down_[hi][InputControlSlot(a.sourceButton)]) reason = HIGGS_HAND_STALE;
             if (!a.nativeCandidate && !RoutedLocked(a.request.executor, a.recognizerOwner, a.request.physicalHands))
                 reason = HIGGS_HAND_WRONG_OWNER;
             if (a.nativeCandidate && nativeTargetKeys_[hi][a.sourceButton == HIGGS_INPUT_GRIP ? 0 : 1] != a.stableTarget)
@@ -270,13 +278,16 @@ void Broker::ResolveHandUseProposalsLocked(Clock now)
             FinishLocked(a,HIGGS_ACTION_ACCEPTED,0);
             if (a.request.inputId) {
                 const auto hi = a.sourceHand == HIGGS_HAND_LEFT ? 0u : 1u;
-                auto &active = activeSequences_[hi][InputControlSlot(a.sourceButton)];
-                active.owner = a.request.owner;
-                active.recognizer = a.recognizerOwner;
-                active.record = {sizeof(HIGGS_InputSequence), HIGGS_SEQUENCE_HELD, a.sourceHand, a.sourceButton,
-                    a.nativeCandidate ? 1u : 0u, 0, a.request.epoch, a.request.inputId, 0, a.request.requestId,
-                    a.request.executor, GrantCorrelationLocked(a.request.grant), a.request.actionId};
+                if (!a.releaseInput) {
+                    auto &active = activeSequences_[hi][InputControlSlot(a.sourceButton)];
+                    active.owner = a.request.owner;
+                    active.recognizer = a.recognizerOwner;
+                    active.record = {sizeof(HIGGS_InputSequence), HIGGS_SEQUENCE_HELD, a.sourceHand, a.sourceButton,
+                        a.nativeCandidate ? 1u : 0u, 0, a.request.epoch, a.request.inputId, 0, a.request.requestId,
+                        a.request.executor, GrantCorrelationLocked(a.request.grant), a.request.actionId};
+                }
                 auto &decision = decisions_[a.request.inputId % decisions_.size()];
+                decision.consumed = 1;
                 decision.owner = a.request.owner; decision.grant = a.request.grant;
                 decision.requestId = a.request.requestId; decision.effectivePriority = a.proposalPriority;
                 decision.reason = a.proposalDecisionFlags | (a.nativeCandidate ? HIGGS_DECISION_NATIVE : 0);

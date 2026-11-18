@@ -462,6 +462,13 @@ void DrainNative()
     DrainNativeSupport();
     DrainNativeInventory();
     Transactions().Drain(Now());
+    Hand* hands[2]{g_leftHand,g_rightHand};
+    for (unsigned i = 0; i < 2; ++i) if (hands[i] && hands[i]->HasHeldObject()) {
+        NiPointer<TESObjectREFR> held;
+        if (LookupREFRByHandle(hands[i]->selectedObject.handle,held) && held &&
+            Service().TakeInventoryRelease(i + 1,held->formID))
+            hands[i]->releaseRequested = true;
+    }
     Service().DrainPhysical(DispatchPhysical, nullptr, Now());
     Service().DrainOperations(DispatchOperation, nullptr, Now());
     for (auto id : immediateConfirm)
