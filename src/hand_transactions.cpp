@@ -269,6 +269,9 @@ void TransactionService::Finish(Transaction &t, uint32_t stage, uint32_t disposi
     t.state.stage = stage;
     t.state.disposition = disposition;
     t.state.reason = reason;
+    if (stage == HIGGS_TX_COMPLETED && t.request.kind == HIGGS_TRANSFER_INVENTORY_TO_HAND &&
+        disposition == HIGGS_DISPOSITION_HAND && (t.state.receiptFlags & HIGGS_TX_NATIVE_GRIP_CONFIRMED))
+        t.completedGripEpisode = broker_.HeldEpisode(t.request.destinationHand,t.state.actualRefId);
     broker_.TrackReleaseTransfer(t.state.grant,t.state.requestId,
         (t.state.receiptFlags & (HIGGS_TX_DOMAIN_ATTESTED | HIGGS_TX_MUTATION_UNCERTAIN)) ||
         stage == HIGGS_TX_RECOVERY_REQUIRED ? 2u : 1u);
@@ -675,6 +678,7 @@ HIGGS_HandStatus TransactionService::Request(uint64_t owner, const HIGGS_Transfe
     if (!slot)
         for (auto &t : transactions_)
             if (TerminalTx(t.state.stage) && (t.state.stage != HIGGS_TX_RECOVERY_REQUIRED || t.state.epoch != epoch_) &&
+                !broker_.ReceiptPending(t.state.requestId) &&
                 (!slot || t.state.requestId < slot->state.requestId))
                 slot = &t;
     if (!slot)
@@ -747,7 +751,7 @@ HIGGS_HandStatus TransactionService::FollowInventoryGrip(uint64_t owner,uint64_t
     if (!held || held->value.worldRefId != t->state.actualRefId || held->value.epoch != epoch_)
         return HIGGS_HAND_STALE;
     const auto status = broker_.ConfirmInventoryGrip(owner,t->state.grant,t->request.destinationHand,
-        t->state.actualRefId,epoch_);
+        t->state.actualRefId,epoch_,t->completedGripEpisode);
     if (!status) t->releaseFollowed = true;
     return status;
 }

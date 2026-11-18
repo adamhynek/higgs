@@ -51,6 +51,7 @@ class TransactionService
         uint64_t equipmentObservation = 0;
         bool ownGrant = false, notified = false, permitIssued = false, compensationPermit = false;
         bool releaseFollowed = false;
+        uint64_t completedGripEpisode = 0;
     };
     void SyncLocked();
     Transaction *Find(uint64_t);

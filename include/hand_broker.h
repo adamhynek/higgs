@@ -44,6 +44,7 @@ class Broker
     void ExitDomainMutation(uint64_t request);
     void DomainResult(uint64_t, uint32_t, uint32_t, uint32_t = 0, uint32_t = 0);
     void RetainRequest(uint64_t, bool);
+    bool ReceiptPending(uint64_t childRequest) const;
     HIGGS_HandStatus CancelNativeRequest(uint64_t, uint64_t);
     HIGGS_HandStatus Remove(HIGGS_HandClient, uint64_t);
     HIGGS_HandStatus Submit(HIGGS_HandClient, const HIGGS_ActionCandidate &, uint64_t &, Clock, uint64_t stableTarget = 0);
@@ -113,7 +114,9 @@ class Broker
     HIGGS_HandStatus NativeRegionAdmission(uint32_t hand, uint64_t epoch, uint32_t ref, uint32_t action, Clock);
     HIGGS_HandStatus HeldReleaseRecognizer(uint64_t, HIGGS_RecognizerCallback, void*, uint64_t&);
     bool HoldNativeRelease(uint32_t hand, uint64_t epoch, uint32_t ref, uint32_t nativeAction, bool newRelease, Clock);
-    HIGGS_HandStatus ConfirmInventoryGrip(uint64_t owner, uint64_t grant, uint32_t hand, uint32_t ref, uint64_t epoch);
+    HIGGS_HandStatus ConfirmInventoryGrip(uint64_t owner, uint64_t grant, uint32_t hand, uint32_t ref, uint64_t epoch,
+                                          uint64_t completedEpisode);
+    uint64_t HeldEpisode(uint32_t hand, uint32_t ref) const;
     bool TakeInventoryRelease(uint32_t hand, uint32_t ref);
     void TrackReleaseTransfer(uint64_t grant, uint64_t transfer, uint32_t outcome);
     void FinishNativeRegionAction(uint32_t hand, bool executed);
@@ -192,6 +195,7 @@ class Broker
         bool authorizedDispatchClaimed = false;
         bool retained = false;
         bool domainOwned = false;
+        bool receiptOnly = false; // Natural expiry ended authority, not child-receipt settlement.
         uint32_t ownedActuator = 0;
         HIGGS_InputCandidate inputSpec{};
         HIGGS_InputRecognition recognition{};
@@ -226,6 +230,8 @@ class Broker
     std::shared_ptr<Registration> RegistrationLocked(uint64_t);
     Action *ActionLocked(uint64_t);
     Action *NewActionLocked();
+    static bool ReceiptChildOf(const Action &child, const Action &parent);
+    bool HasReceiptChildLocked(const Action &, const HIGGS_ActionResult * = nullptr) const;
     void AcceptHandUseLocked(Action &, const HIGGS_HandUseRequest &, Clock);
     HIGGS_HandStatus ResizeHandUseLocked(uint64_t, const HIGGS_HandUseTransitionRequest &,
                                         HIGGS_HandUseTransitionState &, Clock, bool selected = false);

@@ -29,6 +29,11 @@ typedef struct HIGGS_HeldReleaseInterface {
    matching-release handling. It requires that owner's factual grip receipt and
    the original press, and is idempotent per transfer. Old consumers do not opt in
    implicitly. A terminal received while the grip was pending is preserved.
+   Natural grant expiry never renews mutation authority. An admitted transaction
+   keeps only its exact parent's receipt channel available for factual settlement;
+   successful late reports must match that child's attested result. Continuation
+   after expiry additionally requires the same completed possession episode and
+   unchanged input context. Cancelled contexts/epochs are never reopened.
    Remove using Hand.RemoveRegistration; standard callback drainage applies.
    Legacy raw Down/Up and InputSequence layouts/ownership remain unchanged. */
 HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHeldReleaseInterface(uint32_t, uint32_t, HIGGS_HeldReleaseInterface*);

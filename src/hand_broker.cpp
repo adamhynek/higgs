@@ -365,11 +365,43 @@ Broker::Action *Broker::NewActionLocked()
     Action *oldest = nullptr;
     for (auto &a : actions_)
         if (!a.grantActive && !a.operationActive && !a.nativeStarted && !a.retained && !a.releaseInput && Terminal(a.result.stage) &&
+            (!a.domainOwned || std::none_of(actions_.begin(),actions_.end(),[&](const Action& parent) {
+                return !Terminal(parent.result.stage) && ReceiptChildOf(a,parent);
+            })) &&
             (!oldest || a.request.requestId < oldest->request.requestId))
             oldest = &a;
     if (oldest)
         *oldest = {};
     return oldest;
+}
+bool Broker::ReceiptChildOf(const Action& child, const Action& parent)
+{
+    return child.domainOwned && !parent.domainOwned && parent.selected && parent.request.grant &&
+        child.request.owner == parent.request.owner && child.request.epoch == parent.request.epoch &&
+        child.request.grant == parent.request.grant && child.request.inputId == parent.request.inputId &&
+        child.request.physicalHands && !(child.request.physicalHands & ~parent.request.physicalHands);
+}
+bool Broker::HasReceiptChildLocked(const Action& parent, const HIGGS_ActionResult* receipt) const
+{
+    for (const auto& child : actions_) if (ReceiptChildOf(child,parent)) {
+        if (!receipt) {
+            if (child.retained || (child.result.receiptFlags &
+                (HIGGS_RECEIPT_INVENTORY_COMMITTED | HIGGS_RECEIPT_PHYSICAL_CONFIRMED))) return true;
+        } else if ((child.result.stage == HIGGS_ACTION_COMMITTED || child.result.stage == HIGGS_ACTION_COMPLETED) &&
+            (receipt->stage != HIGGS_ACTION_COMPLETED || child.result.stage == HIGGS_ACTION_COMPLETED) &&
+            (child.result.receiptFlags & (HIGGS_RECEIPT_INVENTORY_COMMITTED | HIGGS_RECEIPT_PHYSICAL_CONFIRMED)) &&
+            !(receipt->receiptFlags & ~child.result.receiptFlags) &&
+            receipt->itemRefId == child.result.itemRefId && receipt->quantity == child.result.quantity) return true;
+    }
+    return false;
+}
+bool Broker::ReceiptPending(uint64_t childRequest) const
+{
+    std::lock_guard lock(mutex_);
+    for (const auto& child : actions_) if (child.request.requestId == childRequest)
+        for (const auto& parent : actions_)
+            if (!Terminal(parent.result.stage) && ReceiptChildOf(child,parent)) return true;
+    return false;
 }
 HIGGS_HandStatus Broker::Register(const HIGGS_HandClientInfo &info, uint64_t &out)
 {
@@ -557,14 +589,27 @@ bool Broker::HoldNativeRelease(uint32_t hand, uint64_t epoch, uint32_t ref,
     }
     return native == HIGGS_HAND_PENDING || (native != HIGGS_HAND_OK && snapshot_.hands[hi].grant != 0);
 }
-HIGGS_HandStatus Broker::ConfirmInventoryGrip(uint64_t owner, uint64_t grant, uint32_t hand, uint32_t ref, uint64_t epoch)
+uint64_t Broker::HeldEpisode(uint32_t hand, uint32_t ref) const
+{
+    if (!Hand(hand)) return 0;
+    std::lock_guard lock(mutex_);
+    const auto hi = hand == HIGGS_HAND_LEFT ? 0u : 1u;
+    return snapshot_.hands[hi].heldRefId == ref ? heldEpisodes_[hi] : 0;
+}
+HIGGS_HandStatus Broker::ConfirmInventoryGrip(uint64_t owner, uint64_t grant, uint32_t hand, uint32_t ref, uint64_t epoch,
+                                              uint64_t completedEpisode)
 {
     if (!Hand(hand) || !ref) return HIGGS_HAND_INVALID_ARGUMENT;
     std::lock_guard lock(mutex_);
+    ExpireLocked(Now());
     if (epoch != snapshot_.epoch) return HIGGS_HAND_STALE;
     const auto hi = hand == HIGGS_HAND_LEFT ? 0u : 1u;
     for (const auto& a : actions_)
-        if (a.request.owner == owner && a.request.grant == grant && a.grantActive && !a.domainOwned &&
+        if (a.request.owner == owner && a.request.grant == grant &&
+            (a.grantActive || (a.receiptOnly && !Terminal(a.result.stage) &&
+                a.inputContextGeneration == contextGeneration_ && completedEpisode &&
+                completedEpisode == heldEpisodes_[hi] && snapshot_.hands[hi].heldRefId == ref &&
+                HasReceiptChildLocked(a))) && !a.domainOwned &&
             a.request.inputId && !a.releaseInput) {
             const auto remember = [&](const HIGGS_InputSequence& sequence) {
                 if (sequence.epoch != epoch || sequence.pressInputId != a.request.inputId ||
@@ -849,7 +894,11 @@ void Broker::ExpireLocked(Clock now)
         {
             a.grantActive = false;
             a.operationActive = false;
-            if (!Terminal(a.result.stage))
+            // An admitted child may already have mutated inventory. Preserve
+            // only its parent's receipt channel; no hand authority survives.
+            if (!Terminal(a.result.stage) && a.request.epoch == snapshot_.epoch && HasReceiptChildLocked(a))
+                a.receiptOnly = true;
+            else if (!Terminal(a.result.stage))
                 FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_STALE);
         }
     RefreshLocked();
@@ -1824,6 +1873,9 @@ HIGGS_HandStatus Broker::Report(uint64_t owner, const HIGGS_ActionResult &result
             return HIGGS_HAND_OK;
         if (Terminal(a->result.stage))
             return HIGGS_HAND_CONFLICT;
+        if (a->receiptOnly && (result.stage == HIGGS_ACTION_COMMITTED || result.stage == HIGGS_ACTION_COMPLETED) &&
+            !HasReceiptChildLocked(*a,&result))
+            return HIGGS_HAND_CONFLICT; // Only the exact factual child receipt can settle expired work.
         if (result.stage < a->result.stage || (a->result.receiptFlags & ~result.receiptFlags))
             return HIGGS_HAND_CONFLICT;
         if (a->result.stage >= HIGGS_ACTION_COMMITTED && result.stage == HIGGS_ACTION_REJECTED)
