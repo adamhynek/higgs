@@ -479,7 +479,7 @@ HIGGS_HandStatus Broker::Unregister(uint64_t owner)
             if (!Terminal(a.result.stage))
                 FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_INVALID_CLIENT);
         }
-        else if ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.recognizerOwner == owner)
+        else if (a.recognizerOwner == owner)
             InvalidateActionSourceLocked(a, HIGGS_HAND_INVALID_CLIENT);
     }
     RefreshLocked();
@@ -705,7 +705,7 @@ HIGGS_HandStatus Broker::Remove(uint64_t owner, uint64_t token)
                 FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_NOT_FOUND);
             }
         }
-        else if ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.inputRegistration == token)
+        else if (a.inputRegistration == token)
             InvalidateActionSourceLocked(a, HIGGS_HAND_NOT_FOUND);
     }
     RefreshLocked();
