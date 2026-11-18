@@ -233,6 +233,7 @@ class Broker
     Action *NewActionLocked();
     static bool ReceiptChildOf(const Action &child, const Action &parent);
     bool HasReceiptChildLocked(const Action &, const HIGGS_ActionResult * = nullptr) const;
+    void InvalidateActionSourceLocked(Action &, uint32_t reason);
     void AcceptHandUseLocked(Action &, const HIGGS_HandUseRequest &, Clock);
     HIGGS_HandStatus ResizeHandUseLocked(uint64_t, const HIGGS_HandUseTransitionRequest &,
                                         HIGGS_HandUseTransitionState &, Clock, bool selected = false);

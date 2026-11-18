@@ -14,6 +14,7 @@ extern "C" {
 #define HIGGS_HAND_CAP_EXECUTOR_RECEIPTS UINT64_C(8)
 #define HIGGS_HAND_CAP_PHYSICAL_REQUESTS UINT64_C(16)
 #define HIGGS_HAND_CAP_INTERACTION_EVENTS UINT64_C(32)
+#define HIGGS_HAND_CAP_ACCEPTED_RECEIPTS UINT64_C(64)
     /* occupancy is meaningful ONLY when both HELD_KNOWN and EQUIPMENT_KNOWN are set. */
     enum
     {
@@ -227,6 +228,12 @@ extern "C" {
      Identical repeated reports do not acknowledge consumption or renew authority.
      Owner-client/executor removal or an epoch change ends this retention;
      recognizer removal and input/UI cancellation alone do not acknowledge it.
+     With HIGGS_HAND_CAP_ACCEPTED_RECEIPTS, ReportResult may echo the exact current
+     ACCEPTED result of a selected, dispatched generic candidate while its grant is
+     active and recognition is not waiting. This explicitly opts the queued executor
+     into the same retention before any child admission, until ReleaseGrant. It
+     changes no result, stage or authority; an expired/cancelled action cannot opt in.
+     Repeating that exact ACCEPTED receipt while still active is idempotent.
      Physical requests are queued, dispatched in HIGGS's main update and completed
      only after an actual matching hold transition. Acceptance is not completion.
      Successful outputs copy known bytes only; failures leave output unchanged except

@@ -395,6 +395,17 @@ bool Broker::HasReceiptChildLocked(const Action& parent, const HIGGS_ActionResul
     }
     return false;
 }
+void Broker::InvalidateActionSourceLocked(Action& action, uint32_t reason)
+{
+    action.grantActive = false;
+    action.operationActive = false;
+    if (Terminal(action.result.stage)) return;
+    // A lost source revokes authority, not an admitted child's factual outcome.
+    if (action.request.epoch == snapshot_.epoch && HasReceiptChildLocked(action))
+        action.receiptOnly = true;
+    else
+        FinishLocked(action, HIGGS_ACTION_CANCELLED, reason);
+}
 bool Broker::ReceiptPending(uint64_t childRequest) const
 {
     std::lock_guard lock(mutex_);
@@ -461,15 +472,15 @@ HIGGS_HandStatus Broker::Unregister(uint64_t owner)
     for (auto &a : actions_)
     {
         if (a.request.owner == owner)
-            a.receiptAckPending = false;
-        if (a.request.owner == owner ||
-            ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.recognizerOwner == owner))
         {
+            a.receiptAckPending = false;
             a.grantActive = false;
             a.operationActive = false;
             if (!Terminal(a.result.stage))
                 FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_INVALID_CLIENT);
         }
+        else if ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.recognizerOwner == owner)
+            InvalidateActionSourceLocked(a, HIGGS_HAND_INVALID_CLIENT);
     }
     RefreshLocked();
     if (callbackDepth)
@@ -686,14 +697,16 @@ HIGGS_HandStatus Broker::Remove(uint64_t owner, uint64_t token)
     for (auto &a : actions_)
     {
         if (a.request.executor == token)
-            a.receiptAckPending = false;
-        if ((a.request.executor == token ||
-             ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.inputRegistration == token)) &&
-            !Terminal(a.result.stage))
         {
-            a.grantActive = false;
-            FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_NOT_FOUND);
+            a.receiptAckPending = false;
+            if (!Terminal(a.result.stage))
+            {
+                a.grantActive = false;
+                FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_NOT_FOUND);
+            }
         }
+        else if ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.inputRegistration == token)
+            InvalidateActionSourceLocked(a, HIGGS_HAND_NOT_FOUND);
     }
     RefreshLocked();
     if (callbackDepth)
@@ -1039,10 +1052,7 @@ HIGGS_HandStatus Broker::Revoke(uint64_t owner, uint64_t executor, uint64_t reco
     for (auto &a : actions_)
         if (a.request.executor == executor && a.recognizerOwner == recognizer &&
             a.result.stage < HIGGS_ACTION_COMMITTED)
-        {
-            a.grantActive = false;
-            FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_WRONG_OWNER);
-        }
+            InvalidateActionSourceLocked(a, HIGGS_HAND_WRONG_OWNER);
     RefreshLocked();
     return HIGGS_HAND_OK;
 }
@@ -1073,8 +1083,7 @@ HIGGS_HandStatus Broker::CancelRecognized(uint64_t recognizer, uint64_t request,
             return HIGGS_HAND_STALE;
         if (a->result.stage >= HIGGS_ACTION_COMMITTED)
             return HIGGS_HAND_CONFLICT;
-        a->grantActive = false;
-        FinishLocked(*a, HIGGS_ACTION_CANCELLED, reason);
+        InvalidateActionSourceLocked(*a, reason);
         RefreshLocked();
     }
     FlushEvents();
@@ -1868,15 +1877,25 @@ HIGGS_HandStatus Broker::Report(uint64_t owner, const HIGGS_ActionResult &result
         if (a->request.owner != owner || a->request.executor != result.executor)
             return HIGGS_HAND_WRONG_OWNER;
         if (a->recognition.stage == HIGGS_RECOGNITION_WAITING &&
-            (result.stage == HIGGS_ACTION_COMMITTED || result.stage == HIGGS_ACTION_COMPLETED))
+            (result.stage == HIGGS_ACTION_ACCEPTED || result.stage == HIGGS_ACTION_COMMITTED ||
+             result.stage == HIGGS_ACTION_COMPLETED))
             return HIGGS_HAND_WRONG_PHASE;
-        if (result.structSize < sizeof(result) || result.stage < HIGGS_ACTION_COMMITTED ||
+        if (result.structSize < sizeof(result) || result.stage < HIGGS_ACTION_ACCEPTED ||
             result.stage > HIGGS_ACTION_CANCELLED || (result.receiptFlags & ~7u))
             return HIGGS_HAND_INVALID_ARGUMENT;
         if (a->request.epoch != result.epoch || result.epoch != snapshot_.epoch || a->request.inputId != result.inputId)
             return HIGGS_HAND_STALE;
         if (!a->selected || !result.executor)
             return HIGGS_HAND_WRONG_PHASE;
+        if (result.stage == HIGGS_ACTION_ACCEPTED)
+        {
+            if (!a->candidate.structSize || !a->dispatched || !a->grantActive)
+                return HIGGS_HAND_WRONG_PHASE;
+            if (a->result.stage != HIGGS_ACTION_ACCEPTED || std::memcmp(&a->result, &result, sizeof(result)))
+                return HIGGS_HAND_CONFLICT;
+            a->receiptAckPending = true;
+            return HIGGS_HAND_OK;
+        }
         if (std::memcmp(&a->result, &result, sizeof(result)) == 0)
             return HIGGS_HAND_OK;
         if (Terminal(a->result.stage))
@@ -2318,11 +2337,7 @@ void Broker::Publish(const std::array<HIGGS_HandRecord, 2> &records, Clock now)
             if (!(h.observationMask & HIGGS_OBS_TRACKING_VALID))
                 for (auto &a : actions_)
                     if (a.grantActive && (a.request.physicalHands & h.physicalHand))
-                    {
-                        a.grantActive = false;
-                        if (!Terminal(a.result.stage))
-                            FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_NOT_READY);
-                    }
+                        InvalidateActionSourceLocked(a, HIGGS_HAND_NOT_READY);
         }
         for (auto &a : actions_)
             if (a.physical.kind && a.dispatched && !Terminal(a.result.stage))

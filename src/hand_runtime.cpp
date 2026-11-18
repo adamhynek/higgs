@@ -290,7 +290,8 @@ extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryHandInterface(uint32_t ve
                                     HIGGS_HAND_ABI_VERSION,
                                     HIGGS_HAND_CAP_SNAPSHOT | HIGGS_HAND_CAP_INPUT_BROKER |
                                         HIGGS_HAND_CAP_OWNED_GRANTS | HIGGS_HAND_CAP_EXECUTOR_RECEIPTS |
-                                        HIGGS_HAND_CAP_PHYSICAL_REQUESTS | HIGGS_HAND_CAP_INTERACTION_EVENTS,
+                                        HIGGS_HAND_CAP_PHYSICAL_REQUESTS | HIGGS_HAND_CAP_INTERACTION_EVENTS |
+                                        HIGGS_HAND_CAP_ACCEPTED_RECEIPTS,
                                     Register,
                                     Unregister,
                                     Copy,
