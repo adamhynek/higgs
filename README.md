@@ -4,6 +4,8 @@ This mod is complicated.
 
 This fork proposes optional hand-interaction services for Skyrim VR mods. [Read the HIGGS proposal](docs/trinity-synergy.md).
 
+The proposed contract core has self-contained offline tests in [test/](test/README.md). Run `python test/run.py --build-dir <external-build-directory>` with Python 3.9+, CMake 3.26+ and an x64 C11/C++20 toolchain. These tests need no Skyrim, SKSE or Havok installation; they do not qualify native plugin initialization or gameplay.
+
 To build from source, it requires object definitions / headers similar to those belonging to havok 2010.2. I will not be providing these, nor do I claim to have them myself.
 
 
