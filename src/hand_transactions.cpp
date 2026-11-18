@@ -114,6 +114,10 @@ HIGGS_HandStatus Broker::ReserveDomain(uint64_t owner, uint64_t executor, uint32
     a->domainOwned = true;
     a->retained = true;
     a->expires = deadline;
+    // Terminal reporting may precede the consumer's final content mirror.
+    for (auto &parent : actions_)
+        if (ReceiptChildOf(*a, parent))
+            parent.receiptAckPending = true;
     FinishLocked(*a, HIGGS_ACTION_ACCEPTED, 0);
     RefreshLocked();
     out = a->request;

@@ -221,6 +221,12 @@ extern "C" {
      Epoch changes invalidate grants/pending requests; registration survives loads.
      Deadlines use provider steady clock. Consumers must renew by a new action after
      expiry; no hardware timestamp or callback-silence freshness is promised.
+     A selected action with an admitted transaction child retains its correlated
+     receipt history through terminal reports and natural grant expiry until the
+     owning consumer calls ReleaseGrant after consuming/mirroring the outcome.
+     Identical repeated reports do not acknowledge consumption or renew authority.
+     Owner-client/executor removal or an epoch change ends this retention;
+     recognizer removal and input/UI cancellation alone do not acknowledge it.
      Physical requests are queued, dispatched in HIGGS's main update and completed
      only after an actual matching hold transition. Acceptance is not completion.
      Successful outputs copy known bytes only; failures leave output unchanged except

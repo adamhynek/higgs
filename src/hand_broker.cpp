@@ -364,9 +364,9 @@ Broker::Action *Broker::NewActionLocked()
         }
     Action *oldest = nullptr;
     for (auto &a : actions_)
-        if (!a.grantActive && !a.operationActive && !a.nativeStarted && !a.retained && !a.releaseInput && Terminal(a.result.stage) &&
+        if (!a.grantActive && !a.operationActive && !a.nativeStarted && !a.retained && !a.receiptAckPending && !a.releaseInput && Terminal(a.result.stage) &&
             (!a.domainOwned || std::none_of(actions_.begin(),actions_.end(),[&](const Action& parent) {
-                return !Terminal(parent.result.stage) && ReceiptChildOf(a,parent);
+                return (!Terminal(parent.result.stage) || parent.receiptAckPending) && ReceiptChildOf(a,parent);
             })) &&
             (!oldest || a.request.requestId < oldest->request.requestId))
             oldest = &a;
@@ -400,7 +400,7 @@ bool Broker::ReceiptPending(uint64_t childRequest) const
     std::lock_guard lock(mutex_);
     for (const auto& child : actions_) if (child.request.requestId == childRequest)
         for (const auto& parent : actions_)
-            if (!Terminal(parent.result.stage) && ReceiptChildOf(child,parent)) return true;
+            if ((!Terminal(parent.result.stage) || parent.receiptAckPending) && ReceiptChildOf(child,parent)) return true;
     return false;
 }
 HIGGS_HandStatus Broker::Register(const HIGGS_HandClientInfo &info, uint64_t &out)
@@ -459,6 +459,9 @@ HIGGS_HandStatus Broker::Unregister(uint64_t owner)
         if (r->owner == owner)
             r->active = false;
     for (auto &a : actions_)
+    {
+        if (a.request.owner == owner)
+            a.receiptAckPending = false;
         if (a.request.owner == owner ||
             ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.recognizerOwner == owner))
         {
@@ -467,6 +470,7 @@ HIGGS_HandStatus Broker::Unregister(uint64_t owner)
             if (!Terminal(a.result.stage))
                 FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_INVALID_CLIENT);
         }
+    }
     RefreshLocked();
     if (callbackDepth)
         return HIGGS_HAND_PENDING;
@@ -680,6 +684,9 @@ HIGGS_HandStatus Broker::Remove(uint64_t owner, uint64_t token)
     r->active = false;
     if (r->kind == 2) CancelRoutesLocked(token,owner,0,HIGGS_HAND_NOT_FOUND);
     for (auto &a : actions_)
+    {
+        if (a.request.executor == token)
+            a.receiptAckPending = false;
         if ((a.request.executor == token ||
              ((a.recognition.stage == HIGGS_RECOGNITION_WAITING || a.releaseInput) && a.inputRegistration == token)) &&
             !Terminal(a.result.stage))
@@ -687,6 +694,7 @@ HIGGS_HandStatus Broker::Remove(uint64_t owner, uint64_t token)
             a.grantActive = false;
             FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_NOT_FOUND);
         }
+    }
     RefreshLocked();
     if (callbackDepth)
         return HIGGS_HAND_PENDING;
@@ -1930,6 +1938,7 @@ HIGGS_HandStatus Broker::Release(uint64_t owner, uint64_t grant)
             if (a.request.owner != owner)
                 return HIGGS_HAND_WRONG_OWNER;
             found = true;
+            a.receiptAckPending = false;
             a.grantActive = false;
             a.operationActive = false;
             if (!Terminal(a.result.stage))
@@ -1983,6 +1992,7 @@ void Broker::ObserveWorld(uintptr_t world, bool loading, Clock now)
             {
                 a.grantActive = false;
                 a.operationActive = false;
+                a.receiptAckPending = false;
                 a.releaseInput = 0;
                 if (!Terminal(a.result.stage))
                     FinishLocked(a, HIGGS_ACTION_CANCELLED, HIGGS_HAND_STALE);

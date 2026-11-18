@@ -196,6 +196,7 @@ class Broker
         bool retained = false;
         bool domainOwned = false;
         bool receiptOnly = false; // Natural expiry ended authority, not child-receipt settlement.
+        bool receiptAckPending = false; // Pins child receipt history, never hand/mutation authority.
         uint32_t ownedActuator = 0;
         HIGGS_InputCandidate inputSpec{};
         HIGGS_InputRecognition recognition{};
