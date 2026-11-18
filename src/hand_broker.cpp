@@ -606,10 +606,10 @@ HIGGS_HandStatus Broker::ConfirmInventoryGrip(uint64_t owner, uint64_t grant, ui
     const auto hi = hand == HIGGS_HAND_LEFT ? 0u : 1u;
     for (const auto& a : actions_)
         if (a.request.owner == owner && a.request.grant == grant &&
+            a.inputContextGeneration == contextGeneration_ &&
+            (!completedEpisode || (completedEpisode == heldEpisodes_[hi] && snapshot_.hands[hi].heldRefId == ref)) &&
             (a.grantActive || (a.receiptOnly && !Terminal(a.result.stage) &&
-                a.inputContextGeneration == contextGeneration_ && completedEpisode &&
-                completedEpisode == heldEpisodes_[hi] && snapshot_.hands[hi].heldRefId == ref &&
-                HasReceiptChildLocked(a))) && !a.domainOwned &&
+                completedEpisode && HasReceiptChildLocked(a))) && !a.domainOwned &&
             a.request.inputId && !a.releaseInput) {
             const auto remember = [&](const HIGGS_InputSequence& sequence) {
                 if (sequence.epoch != epoch || sequence.pressInputId != a.request.inputId ||
