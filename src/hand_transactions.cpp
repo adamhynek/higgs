@@ -964,6 +964,7 @@ HIGGS_HandStatus TransactionService::CopyInventoryEffect(uint64_t observer, uint
     const auto status=broker_.CopyReceiptChildren(observer,parent,result,children,count,closed);
     if (status) return status;
     uint32_t flags=closed?HIGGS_INVENTORY_EFFECT_CLOSED:HIGGS_INVENTORY_EFFECT_UNCERTAIN;
+    bool mutationSeen=false,allRestored=true;
     if (result.receiptFlags&HIGGS_RECEIPT_INVENTORY_COMMITTED) flags|=HIGGS_INVENTORY_EFFECT_COMMITTED;
     for (uint32_t i=0;i<count;++i) {
         const auto& child=children[i];
@@ -974,14 +975,21 @@ HIGGS_HandStatus TransactionService::CopyInventoryEffect(uint64_t observer, uint
             continue;
         }
         const auto& state=transfer->state;
+        const bool inventoryMutation=(state.receiptFlags&HIGGS_TX_DOMAIN_ATTESTED) &&
+            transfer->request.kind!=HIGGS_TRANSFER_EQUIP_GAME && transfer->request.kind!=HIGGS_TRANSFER_UNEQUIP_GAME;
         if (!TerminalTx(state.stage) || state.stage==HIGGS_TX_RECOVERY_REQUIRED ||
             (transfer->permitIssued && !(state.receiptFlags&HIGGS_TX_DOMAIN_ATTESTED)) ||
+            ((child.receiptFlags&HIGGS_RECEIPT_INVENTORY_COMMITTED) && !inventoryMutation) ||
             ((state.receiptFlags&HIGGS_TX_MUTATION_UNCERTAIN) && !(state.receiptFlags&HIGGS_TX_RECOVERY_RECONCILED)))
             flags|=HIGGS_INVENTORY_EFFECT_UNCERTAIN;
-        if ((state.receiptFlags&HIGGS_TX_DOMAIN_ATTESTED) &&
-            transfer->request.kind!=HIGGS_TRANSFER_EQUIP_GAME && transfer->request.kind!=HIGGS_TRANSFER_UNEQUIP_GAME)
+        if (inventoryMutation) {
             flags|=HIGGS_INVENTORY_EFFECT_COMMITTED;
+            mutationSeen=true;
+            if (!(state.receiptFlags&HIGGS_TX_COMPENSATION_CONFIRMED)) allRestored=false;
+        }
     }
+    if (closed && !(flags&HIGGS_INVENTORY_EFFECT_UNCERTAIN) && mutationSeen && allRestored)
+        flags|=HIGGS_INVENTORY_EFFECT_RESTORED;
     out={sizeof(out),flags,parent,result.epoch,count,0};
     return HIGGS_HAND_OK;
 }

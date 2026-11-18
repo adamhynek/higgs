@@ -16,7 +16,8 @@ extern "C" {
     enum {
         HIGGS_INVENTORY_EFFECT_CLOSED = 1u,
         HIGGS_INVENTORY_EFFECT_COMMITTED = 2u,
-        HIGGS_INVENTORY_EFFECT_UNCERTAIN = 4u
+        HIGGS_INVENTORY_EFFECT_UNCERTAIN = 4u,
+        HIGGS_INVENTORY_EFFECT_RESTORED = 8u
     };
     typedef struct HIGGS_ActionInventoryEffect {
         uint32_t structSize, flags;
@@ -42,9 +43,14 @@ extern "C" {
        CLOSED requires complete retained child history (or no child ever admitted),
        a terminal parent and no active same-grant authority. Active/missing/recovery
        children remain UNCERTAIN. No proof is inferred after acknowledged history.
+       RESTORED additionally requires every recorded inventory mutation to have
+       confirmed compensation, complete closure and no uncertainty. COMMITTED stays set.
        Borrowed session grants or an unattributed same-grant child cannot establish
        CLOSED through this observation, even after the continuation is removed.
        Retain through ACCEPTED opt-in/child admission and copy before ReleaseGrant.
+       This contract covers HIGGS-recorded transactions only: callers must route
+       all inventory effects through them and use parent flags only as summaries,
+       not additional untracked effects. It cannot prove global game inventory state.
        No inventory identities, client credentials, authority or mutations are given.
        Old transaction/hand result layouts, flags and query versions stay unchanged. */
     enum
