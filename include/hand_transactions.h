@@ -18,6 +18,7 @@ class TransactionService
     HIGGS_HandStatus Begin(uint64_t, uint64_t, uint64_t, uint64_t &);
     HIGGS_HandStatus Report(uint64_t, const HIGGS_TransferReceipt &);
     HIGGS_HandStatus Copy(uint64_t, uint64_t, HIGGS_TransferState &);
+    HIGGS_HandStatus CopyInventoryEffect(uint64_t observer, uint64_t parent, HIGGS_ActionInventoryEffect&);
     HIGGS_HandStatus FollowInventoryGrip(uint64_t owner, uint64_t transfer);
     HIGGS_HandStatus Cancel(uint64_t, uint64_t, uint64_t);
     void Drain(uint64_t);

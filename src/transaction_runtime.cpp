@@ -71,7 +71,26 @@ HIGGS_HandStatus HIGGS_HAND_CALL Cancel(uint64_t owner, uint64_t request, uint64
 {
     return HiggsAbi::Guard([&] { return Transactions().Cancel(owner, request, epoch); });
 }
+HIGGS_HandStatus HIGGS_HAND_CALL CopyInventoryEffect(uint64_t observer, uint64_t parent,
+    HIGGS_ActionInventoryEffect* out)
+{
+    const auto status=HiggsAbi::CheckSized(out);
+    if (status) return status;
+    return HiggsAbi::PublishOnSuccess(out,[&](auto& value) {
+        return Transactions().CopyInventoryEffect(observer,parent,value);
+    });
+}
 } // namespace
+extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryInventoryEffectsInterface(uint32_t version,
+    uint32_t bytes,HIGGS_InventoryEffectsInterface* out)
+{
+    if (version!=HIGGS_INVENTORY_EFFECTS_ABI_VERSION) return HIGGS_HAND_UNSUPPORTED_VERSION;
+    if (!out) return HIGGS_HAND_INVALID_ARGUMENT;
+    if (bytes<sizeof(*out)) return HIGGS_HAND_BUFFER_TOO_SMALL;
+    const HIGGS_InventoryEffectsInterface table{sizeof(table),version,1,CopyInventoryEffect};
+    std::memcpy(out,&table,sizeof(table));
+    return HIGGS_HAND_OK;
+}
 extern "C" HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryTransactionsInterface(uint32_t version, uint32_t bytes,
                                                                              HIGGS_TransactionsInterface *out)
 {

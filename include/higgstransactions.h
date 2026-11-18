@@ -12,6 +12,41 @@ extern "C" {
 #define HIGGS_TX_CAP_CONSUMPTION UINT64_C(4)
 #define HIGGS_TX_CAP_MUTATION_PERMITS UINT64_C(8)
 #define HIGGS_TX_CAP_GAME_EQUIPMENT UINT64_C(16)
+#define HIGGS_INVENTORY_EFFECTS_ABI_VERSION 1u
+    enum {
+        HIGGS_INVENTORY_EFFECT_CLOSED = 1u,
+        HIGGS_INVENTORY_EFFECT_COMMITTED = 2u,
+        HIGGS_INVENTORY_EFFECT_UNCERTAIN = 4u
+    };
+    typedef struct HIGGS_ActionInventoryEffect {
+        uint32_t structSize, flags;
+        uint64_t parentRequestId, epoch;
+        uint32_t childCount, reserved;
+    } HIGGS_ActionInventoryEffect;
+    typedef struct HIGGS_InventoryEffectsInterface {
+        uint32_t structSize, abiVersion;
+        uint64_t capabilities; /* bit0: correlated inventory-effect observations */
+        HIGGS_HandStatus(HIGGS_HAND_CALL *CopyForAction)(HIGGS_HandClient observer,
+            HIGGS_HandRequestId parent, HIGGS_ActionInventoryEffect*);
+    } HIGGS_InventoryEffectsInterface;
+    HIGGS_HandStatus HIGGS_HAND_CALL HIGGS_QueryInventoryEffectsInterface(
+        uint32_t, uint32_t, HIGGS_InventoryEffectsInterface*);
+    typedef HIGGS_HandStatus(HIGGS_HAND_CALL *HIGGS_QueryInventoryEffectsInterfaceFn)(
+        uint32_t, uint32_t, HIGGS_InventoryEffectsInterface*);
+#ifdef __cplusplus
+    static_assert(sizeof(HIGGS_ActionInventoryEffect)==32,"Inventory effect ABI changed (x64)");
+    static_assert(sizeof(HIGGS_InventoryEffectsInterface)==24,"Inventory effects table ABI changed (x64)");
+#endif
+    /* Read-only, for the selected generic executor owner or its recorded recognizer.
+       Positive nonmutation requires CLOSED and neither COMMITTED nor UNCERTAIN.
+       CLOSED requires complete retained child history (or no child ever admitted),
+       a terminal parent and no active same-grant authority. Active/missing/recovery
+       children remain UNCERTAIN. No proof is inferred after acknowledged history.
+       Borrowed session grants or an unattributed same-grant child cannot establish
+       CLOSED through this observation, even after the continuation is removed.
+       Retain through ACCEPTED opt-in/child admission and copy before ReleaseGrant.
+       No inventory identities, client credentials, authority or mutations are given.
+       Old transaction/hand result layouts, flags and query versions stay unchanged. */
     enum
     {
         HIGGS_ITEM_DOMAIN = 1,

@@ -45,6 +45,8 @@ class Broker
     void DomainResult(uint64_t, uint32_t, uint32_t, uint32_t = 0, uint32_t = 0);
     void RetainRequest(uint64_t, bool);
     bool ReceiptPending(uint64_t childRequest) const;
+    HIGGS_HandStatus CopyReceiptChildren(uint64_t observer, uint64_t parent,
+        HIGGS_ActionResult&, std::array<HIGGS_ActionResult, 128>&, uint32_t& count, bool& closed);
     HIGGS_HandStatus CancelNativeRequest(uint64_t, uint64_t);
     HIGGS_HandStatus Remove(HIGGS_HandClient, uint64_t);
     HIGGS_HandStatus Submit(HIGGS_HandClient, const HIGGS_ActionCandidate &, uint64_t &, Clock, uint64_t stableTarget = 0);
@@ -197,6 +199,8 @@ class Broker
         bool domainOwned = false;
         bool receiptOnly = false; // Natural expiry ended authority, not child-receipt settlement.
         bool receiptAckPending = false; // Pins child receipt history, never hand/mutation authority.
+        bool receiptChildSeen = false; // Sticky completeness fence after acknowledgement/history eviction.
+        bool receiptUncorrelatedChild = false; // A shared-grant child was attributed to another input/hand set.
         uint32_t ownedActuator = 0;
         HIGGS_InputCandidate inputSpec{};
         HIGGS_InputRecognition recognition{};

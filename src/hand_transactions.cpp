@@ -116,8 +116,14 @@ HIGGS_HandStatus Broker::ReserveDomain(uint64_t owner, uint64_t executor, uint32
     a->expires = deadline;
     // Terminal reporting may precede the consumer's final content mirror.
     for (auto &parent : actions_)
-        if (ReceiptChildOf(*a, parent))
+        if (ReceiptChildOf(*a, parent)) {
             parent.receiptAckPending = true;
+            parent.receiptChildSeen = true;
+        } else if (!parent.domainOwned && parent.selected && parent.candidate.structSize &&
+            parent.request.owner==a->request.owner && parent.request.epoch==a->request.epoch &&
+            parent.request.grant==a->request.grant) {
+            parent.receiptUncorrelatedChild=true;
+        }
     FinishLocked(*a, HIGGS_ACTION_ACCEPTED, 0);
     RefreshLocked();
     out = a->request;
@@ -944,6 +950,39 @@ HIGGS_HandStatus TransactionService::Copy(uint64_t owner, uint64_t id, HIGGS_Tra
     if (t->state.owner != owner)
         return HIGGS_HAND_WRONG_OWNER;
     out = t->state;
+    return HIGGS_HAND_OK;
+}
+HIGGS_HandStatus TransactionService::CopyInventoryEffect(uint64_t observer, uint64_t parent,
+    HIGGS_ActionInventoryEffect& out)
+{
+    auto phase=broker_.NativePhase();
+    std::lock_guard lock(mutex_);
+    SyncLocked();
+    HIGGS_ActionResult result{};
+    std::array<HIGGS_ActionResult,128> children{};
+    uint32_t count=0;bool closed=false;
+    const auto status=broker_.CopyReceiptChildren(observer,parent,result,children,count,closed);
+    if (status) return status;
+    uint32_t flags=closed?HIGGS_INVENTORY_EFFECT_CLOSED:HIGGS_INVENTORY_EFFECT_UNCERTAIN;
+    if (result.receiptFlags&HIGGS_RECEIPT_INVENTORY_COMMITTED) flags|=HIGGS_INVENTORY_EFFECT_COMMITTED;
+    for (uint32_t i=0;i<count;++i) {
+        const auto& child=children[i];
+        if (child.receiptFlags&HIGGS_RECEIPT_INVENTORY_COMMITTED) flags|=HIGGS_INVENTORY_EFFECT_COMMITTED;
+        const auto* transfer=Find(child.requestId);
+        if (!transfer || transfer->state.epoch!=result.epoch) {
+            flags|=HIGGS_INVENTORY_EFFECT_UNCERTAIN;
+            continue;
+        }
+        const auto& state=transfer->state;
+        if (!TerminalTx(state.stage) || state.stage==HIGGS_TX_RECOVERY_REQUIRED ||
+            (transfer->permitIssued && !(state.receiptFlags&HIGGS_TX_DOMAIN_ATTESTED)) ||
+            ((state.receiptFlags&HIGGS_TX_MUTATION_UNCERTAIN) && !(state.receiptFlags&HIGGS_TX_RECOVERY_RECONCILED)))
+            flags|=HIGGS_INVENTORY_EFFECT_UNCERTAIN;
+        if ((state.receiptFlags&HIGGS_TX_DOMAIN_ATTESTED) &&
+            transfer->request.kind!=HIGGS_TRANSFER_EQUIP_GAME && transfer->request.kind!=HIGGS_TRANSFER_UNEQUIP_GAME)
+            flags|=HIGGS_INVENTORY_EFFECT_COMMITTED;
+    }
+    out={sizeof(out),flags,parent,result.epoch,count,0};
     return HIGGS_HAND_OK;
 }
 HIGGS_HandStatus TransactionService::Cancel(uint64_t owner, uint64_t id, uint64_t epoch)

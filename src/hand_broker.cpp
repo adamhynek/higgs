@@ -414,6 +414,35 @@ bool Broker::ReceiptPending(uint64_t childRequest) const
             if ((!Terminal(parent.result.stage) || parent.receiptAckPending) && ReceiptChildOf(child,parent)) return true;
     return false;
 }
+HIGGS_HandStatus Broker::CopyReceiptChildren(uint64_t observer, uint64_t parent,
+    HIGGS_ActionResult& result, std::array<HIGGS_ActionResult,128>& children, uint32_t& count, bool& closed)
+{
+    std::lock_guard lock(mutex_);
+    ExpireLocked(Now());
+    if (!ClientLocked(observer)) return HIGGS_HAND_INVALID_CLIENT;
+    auto action=ActionLocked(parent);
+    if (!action) return HIGGS_HAND_NOT_FOUND;
+    if (action->request.owner!=observer && action->recognizerOwner!=observer) return HIGGS_HAND_WRONG_OWNER;
+    if (action->request.epoch!=snapshot_.epoch) return HIGGS_HAND_STALE;
+    if (!action->selected || !action->dispatched || action->domainOwned || !action->candidate.structSize)
+        return HIGGS_HAND_WRONG_PHASE;
+    result=action->result;
+    // Borrowed session grants can attribute a child to another input episode.
+    // Do not infer an empty child set or closed inventory outcome for them.
+    closed=!action->receiptUncorrelatedChild && (action->receiptAckPending || !action->receiptChildSeen) &&
+        !action->inputSpec.existingGrant && Terminal(action->result.stage) &&
+        std::none_of(actions_.begin(),actions_.end(),[&](const Action& candidate) {
+            return candidate.request.owner==action->request.owner && candidate.request.epoch==action->request.epoch &&
+                candidate.request.grant==action->request.grant &&
+                (candidate.grantActive || candidate.nativeStarted || candidate.operationActive);
+        });
+    count=0;
+    for (const auto& child:actions_) if (ReceiptChildOf(child,*action)) {
+        if (count==children.size()) return HIGGS_HAND_CAPACITY;
+        children[count++]=child.result;
+    }
+    return HIGGS_HAND_OK;
+}
 HIGGS_HandStatus Broker::Register(const HIGGS_HandClientInfo &info, uint64_t &out)
 {
     if (info.structSize < sizeof(info) || !info.name[0] || !std::memchr(info.name, 0, sizeof(info.name)))
