@@ -1,8 +1,11 @@
 #include "menu_checker.h"
+#include "hand_broker.h"
+#include <mutex>
 
 // Big thanks to Shizof for this method of checking what menus are open
 namespace MenuChecker
 {
+    namespace { std::mutex menuMutex; }
     std::vector<std::string> iniChangeMenus{
         "Console",
         "Journal Menu"
@@ -91,7 +94,14 @@ namespace MenuChecker
     
     EventResult AllMenuEventHandler::ReceiveEvent(MenuOpenCloseEvent * evn, EventDispatcher<MenuOpenCloseEvent> * dispatcher)
     {
+        if (!evn || !evn->menuName.data) return EventResult::kEvent_Continue;
+        // Match the controller/native serialization order. Never call broker code
+        // while holding menuMutex: native publication reads this menu set too.
+        auto phase = HiggsHands::Service().NativePhase();
         const char * menuName = evn->menuName.data;
+        uint32_t active = 0;
+        {
+        std::lock_guard lock(menuMutex);
                 
         if (evn->opening) { // Menu opened
             if (menuTypes.find(menuName) != menuTypes.end()) {
@@ -103,11 +113,16 @@ namespace MenuChecker
                 menuTypes[menuName] = false;
             }			
         }
+        for (const auto &name : gameStoppingMenus)
+            if (menuTypes[name]) ++active;
+        }
+        HiggsHands::Service().SetInputContext(active, HiggsHands::Now());
         return EventResult::kEvent_Continue;
     }
 
     bool isGameStopped()
     {
+        std::lock_guard lock(menuMutex);
         for (int i = 0; i < gameStoppingMenus.size(); i++) {
             if (menuTypes[gameStoppingMenus[i]] == true) {
                 return true;

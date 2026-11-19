@@ -6,6 +6,7 @@
 #include <mutex>
 
 #include "skse64/InternalVR.h"
+#include "higgsinput.h"
 
 #include "RE/havok.h"
 #include "physics.h"
@@ -204,7 +205,7 @@ struct Hand
     bool FindFarObject(bhkWorld *world, const Hand &other, const NiPoint3 &hkPalmNodePos, const NiPoint3 &castDirection, const NiPoint3 &hkHmdPos, const NiPoint3 &hmdForward, const bhkSimpleShapePhantom *sphere,
         NiPointer<TESObjectREFR> &closestObj, NiPointer<bhkRigidBody> &closestRigidBody, hkVector4 &closestPoint);
     bool FindOtherWeapon(bhkWorld *world, const Hand &other, const NiPoint3 &startPos, const NiPoint3 &castDirection, const bhkSimpleShapePhantom *sphere, hkVector4 &hitPoint);
-    void CreateHandCollision(bhkWorld *world);
+    void CreateHandCollision(bhkWorld *world, const NiPoint3 *halfExtentsOverride = nullptr);
     void RemoveHandCollision(bhkWorld *world);
     void RemoveHandCollisionFromCurrentWorld();
     void UpdateHandCollision(bhkWorld *world);
@@ -248,6 +249,7 @@ struct Hand
     NiPoint3 GetHandVelocity();
     bool IsObjectDepositable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
     bool IsObjectConsumable(TESObjectREFR *refr, NiAVObject *hmdNode, const NiPoint3 &handPos) const;
+    void UpdateNativeRegionSelection(NiAVObject*, const NiPoint3& handPosition, const NiPoint3& palmPosition);
     bool IsTwoHanding() const;
     UInt32 SpawnEquippedSelectedObject(TESObjectREFR *selectedObj, float zOffsetWhenNotDisconnected);
     bool ShouldDisplayRollover(Hand &other);
@@ -258,7 +260,7 @@ struct Hand
     bool ShouldRestrictTrigger() const;
     bool ShouldNotBlockTrigger() const;
     bool CanHoldObject() const;
-    bool CanTwoHand() const;
+    bool CanTwoHand(bool continuingExisting = false) const;
     bool CanGrabObject() const;
     bool HasHeldObject() const;
     bool CanOtherGrab() const;
@@ -361,9 +363,15 @@ struct Hand
     bool isExternalGrab = false;
     bool disableDropEvents = false;
     bool disableConsumeStash = false;
+    uint32_t nativeRegionInsideMask = 0; // One selected spatial detector per native update.
+    uint64_t nativeRegionEpoch = 0;
+    NiPointer<NiAVObject> nativeRegionHmdSource; // Retained identity, never exposed through the ABI.
+    std::array<float, 13> nativeRegionGeometrySignature{};
+    uint64_t nativeRegionSourceGeneration = 0;
 
     bool externalGrabRequested = false;
     NiPointer<TESObjectREFR> externalGrabRequestedObject = nullptr;
+    bool synergyGrabPending = false; // Broker-owned async acquisition; cancel on revoked request.
 
     double lastSelectedTime = 0; // Timestamp of the last time we were pointing at something valid
     double grabRequestedTime = 0; // Timestamp when the trigger was pressed
@@ -383,6 +391,8 @@ struct Hand
     double startGrabLerpHandDuration = 0;
 
     double selectedTwoHandTime = 0;
+    uint64_t synergySecondaryEpisode = 0;
+    uint64_t synergyContactHoldEpisode = 0;
     bool wasSelectedTwoHandLerping = false;
 
     float handSize = 1.f;

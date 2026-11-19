@@ -3,6 +3,7 @@
 #include "skse64/NiNodes.h"
 
 #include "finger_animator.h"
+#include "hand_physical_policy.h"
 #include "finger_curves.h"
 #include "math_utils.h"
 #include "config.h"
@@ -54,6 +55,7 @@ bool FillFingerNodes(NiPointer<NiAVObject> fingerNodes[5][3], BSFixedString fing
 
 void FingerAnimator::Update()
 {
+    if(HiggsHands::SuppressHiggsFingers(isLeft)){saveCurrentTransforms=true;return;}
     if (!animate) return;
 
     NiPointer<NiAVObject> fingerNodes[5][3];
