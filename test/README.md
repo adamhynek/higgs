@@ -2,6 +2,16 @@
 
 These tests compile this checkout's production service implementations directly from `../src` and the public headers in `../include`. They need no Skyrim, SKSE, Havok headers, game files, external fixture checkout, downloaded dependency or network connection. The top-level native plugin project is not built.
 
+## Qualification status — 19 November 2026
+
+The current test sources have been updated for the receipt and held-release contracts implemented through `0e9053fe4beb657ef51c7bf2e2bc031091d815cc`. **This refreshed package has not been configured, compiled or run.** The cases below describe intended assertions, not successful results. No native DLL, game or automated test run was started for this refresh.
+
+The earlier 16-suite Release run and compiled negative control passed on the exact historical source `fd226f6546877fae8b82380ce16aa800000d12ad`. That evidence does not qualify the later changes or these new cases. The production plugin at `0e9053f` was separately compiled/linked; that also does not qualify this test package or gameplay. Keep the source hashes from each future runner report with its actual result.
+
+The refreshed cases exercise the production broker and transaction core: a distinct one-shot pre-drop intent; shared release admission and fallback state; original-press/possession continuation; exact `ACCEPTED` receipt opt-in; authority expiry versus factual result retention; explicit consumption acknowledgement; and closed, committed, uncertain or collectively restored recorded inventory effects. Linked C11 consumers check the additive tables, flags, negotiation failures and output guards. Native controller/hand adapters still require separate qualification.
+
+## Running the package
+
 Prerequisites: CMake 3.26 or newer, a 64-bit C11/C++20 compiler and its standard library/thread support. CMake 3.26 is required for CTest's explicit empty-suite failure option. The convenience runner additionally needs Python 3.9 or newer and uses only its standard library. On Windows, install Visual Studio 2022 or newer with Desktop development with C++ and CMake tools; the runner discovers CMake bundled with Visual Studio if it is absent from PATH. A Linux compiler with C++20 support can use the same CMake project, but the recorded verification for this package is Windows x64 MSVC 19.51, Release.
 
 From the repository root:
@@ -26,11 +36,11 @@ The runner writes `configure.log`, `build.log`, `ctest.log` and a JSON result (b
 
 | CTest case | Main contract assertions |
 | --- | --- |
-| `hand_broker` | Occupancy/unknown fields, priority maps and arbitration, both-hand grants, input ownership, typed operations, callback removal and concurrent callback drainage, owner/epoch/deadline validation, copied C table negotiation and extension-tail guards. |
+| `hand_broker` | Occupancy/unknown fields, priority maps and arbitration, both-hand grants, input ownership, typed operations, callback removal and concurrent callback drainage, owner/epoch/deadline validation, exact queued `ACCEPTED` opt-in, retained cancellation under history pressure, acknowledgement versus expiry, copied C table negotiation and extension-tail guards (including InventoryEffects1). |
 | `hand_authority` | Exactly-once dispatch, owner/thread/scope fences, session renewal and resizing, child effect cleanup, races, lifecycle deferral, haptic priority/composition/replacement. |
-| `shared_rounds` | Native/button/dwell order independence, exactly one selected effect, no replay, native possession, region arbitration, deterministic ties, reentrancy, legacy negotiation and extended-input lifecycle. |
+| `shared_rounds` | Native/button/dwell order independence, exactly one selected effect, no replay, native possession, region arbitration, deterministic ties, reentrancy, legacy negotiation and extended-input lifecycle; distinct held-release intent, exact reference, common native/external release arbitration, fallback guards and original-grip continuation gates. |
 | `native_regions` | Core detector registration/correlation, readiness/validation, callback reentrancy, self-removal and concurrent removal drainage. This case executes `src/main/native_regions.cpp`; its name does not imply a native adapter or game test. |
-| `transactions` | Domain/native identities, idempotency, release before mutation, one-shot permits, held handover, commitment versus observed grip/equipment, compensation and unresolved recovery. |
+| `transactions` | Domain/native identities, idempotency, release before mutation, one-shot permits, held handover, commitment versus observed grip/equipment, compensation and unresolved recovery; parent/child factual receipt lifetime across expiry/tracking/routed-source teardown, explicit acknowledgement, borrowed-grant correlation guards, InventoryEffects closure/nonmutation and aggregate restoration, factual inventory-grip continuation. |
 | `equipment_claims` | Unsettled place/instance claims survive grant expiry and client loss; generation cannot rename an unresolved instance; independent instances remain usable; partial/unknown evidence retains claims until settled observation. |
 | `inventory_service` | Queued selections, owner/buffer guards, current-selection invalidation, truthful backend capability, pending mutation/result handling, native pins retained after client loss and released at epoch change. Uses the production `InventoryService` with an explicit abstract `InventoryEngine` test backend. |
 | `physical_policy` | Passive property resource ownership, revision checks, per-hand grab/finger policy, native cleanup acknowledgement, expiry/tracking/lifecycle fences, C layout/table. |
@@ -42,7 +52,7 @@ The runner writes `configure.log`, `build.log`, `ctest.log` and a JSON result (b
 | `tracking`, `motion` | Production motion history, transformations, tracking validity, age boundaries, concurrent coherent reads and C table consumer. |
 | `restrictions` | Overlapping owned leases, legacy isolation, collision precedence, expiry/renewal, capacity, lifecycle, concurrent owners and C table negotiation. |
 
-Test backends provide outcomes at the production core's existing interfaces; they do not replace the tested service implementation. This package does not execute `hand_native.cpp`, `synergy_inventory_native.cpp`, other `*_native.cpp` adapters, the native plugin loader, Skyrim equipment/event processing, extra-data/UID resolution, Havok constraints/collision response, controller hardware, audio or physical haptics. It also does not probe exports from a complete native DLL. Separate extracted adapter fixtures and static project/export audits can cover those boundaries offline; they are distinct evidence and are not counted among these 16 core suites. Native build and in-game behavior require their own checks.
+Test backends provide outcomes at the production core's existing interfaces; they do not replace the tested service implementation. This package does not execute `hand.cpp`, `hand_native.cpp`, `synergy_inventory_native.cpp`, other `*_native.cpp` adapters, the native plugin loader, Skyrim equipment/event processing, extra-data/UID resolution, Havok constraints/collision response, controller hardware, audio or physical haptics. In particular, core release/fallback assertions do not prove native drop/store/consume behavior or release-to-assign/pull-out gameplay in Body Pouches2. It also does not probe exports from a complete native DLL. Separate extracted adapter fixtures and static project/export audits can cover those boundaries offline; they are distinct evidence and are not counted among these 16 core suites. Native build and in-game behavior require their own checks.
 
 An optional implementation negative control adds a generation-equality condition to `SameInstance` in a new disposable copy of `src/hand_equipment.cpp`. It copies only the required source/header/test closure, requires a successful compilation, then requires CTest exit 8 and the exact unresolved same-item claim assertion. An observation revision must not turn the same instance into an independent resource. Run it with a fresh output directory:
 

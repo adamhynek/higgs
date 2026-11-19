@@ -143,6 +143,147 @@ struct Fixture
             tx.Drain(++now);
     }
 };
+bool Accept(const HIGGS_PhysicalRequest &, void *);
+bool Reject(const HIGGS_PhysicalRequest &, void *);
+// An actual selected generic action provides the correlation parent. Transaction
+// executors remain the explicit backend seam used by the original fixture.
+struct ActionFixture : Fixture
+{
+    uint64_t actionExecutor = 0, recognizer = 0, recognizerOwner = 0;
+    uint64_t borrowedGrant = 0;
+    uint32_t triggerHand = HIGGS_HAND_LEFT, requiredHands = HIGGS_HAND_BOTH;
+    HIGGS_ActionRequest action{};
+
+    void Select(bool routed = false, bool extended = false)
+    {
+        recognizerOwner = routed ? other : owner;
+        CHECK(!broker.Executor(owner, Selected, this, actionExecutor));
+        if (routed)
+            CHECK(!broker.Authorize(owner, actionExecutor, other, requiredHands));
+        if (extended)
+        {
+            HIGGS_InputRecognizerSpec spec{};
+            spec.structSize = sizeof(spec);
+            spec.physicalHands = requiredHands;
+            spec.controlMask = UINT64_C(1) << HIGGS_CONTROL_GRIP;
+            spec.callback = RecognizeExtended;
+            spec.context = this;
+            CHECK(!broker.InputRecognizer(recognizerOwner, spec, recognizer));
+            ControllerGrip(false); // establish a released baseline before a fresh press
+            CHECK(ControllerGrip(true));
+        }
+        else
+        {
+            CHECK(!broker.Recognizer(recognizerOwner, Recognize, this, recognizer));
+            CHECK(broker.Input(triggerHand, HIGGS_INPUT_GRIP, true, ++now));
+        }
+        CHECK(action.requestId && action.owner == owner && action.physicalHands == requiredHands);
+    }
+
+    bool ControllerGrip(bool down)
+    {
+        HIGGS_ControllerFrame frame{};
+        frame.structSize = sizeof(frame);
+        frame.physicalHand = triggerHand;
+        frame.deviceIndex = triggerHand;
+        frame.flags = HIGGS_INPUT_NO_HARDWARE_TIME;
+        frame.epoch = broker.Epoch();
+        frame.observedAtNs = ++now;
+        frame.handObservationId = broker.CopyPublished().observationId;
+        frame.pressed = down ? UINT64_C(1) << HIGGS_CONTROL_GRIP : 0;
+        // The production frame store/current-frame marker supplies the raw
+        // observation; this fixture's own broker performs recognition/admission.
+        BeginControllerFrame(frame);
+        return broker.Input(triggerHand, HIGGS_INPUT_GRIP, down, now);
+    }
+
+    static void HIGGS_HAND_CALL RecognizeExtended(const HIGGS_InputEvent *input, void *context)
+    {
+        if (!(input->flags & HIGGS_INPUT_ACTIONABLE) || input->kind != HIGGS_RAW_PRESS)
+            return;
+        auto &f = *static_cast<ActionFixture *>(context);
+        HIGGS_InputCandidate candidate{};
+        candidate.structSize = sizeof(candidate);
+        candidate.defaultPolicy = HIGGS_DEFAULT_DISCARD_AFTER_SELECTION;
+        candidate.existingGrant = f.borrowedGrant;
+        candidate.candidate = {sizeof(candidate.candidate), f.requiredHands, input->inputId,
+            input->snapshot.epoch, input->snapshot.hands[input->physicalHand - 1].generation,
+            f.actionExecutor, 701, 801, 901, 1000, 0};
+        uint64_t request = 0;
+        CHECK(!f.broker.SubmitInputCandidate(f.recognizerOwner, candidate, request, f.now));
+    }
+
+    static void HIGGS_HAND_CALL Recognize(const HIGGS_HandInput *input, void *context)
+    {
+        auto &f = *static_cast<ActionFixture *>(context);
+        if (input->edge != HIGGS_INPUT_DOWN)
+            return;
+        HIGGS_ActionCandidate candidate{sizeof(candidate), f.requiredHands, input->inputId,
+            input->epoch, input->handGeneration, f.actionExecutor, 701, 801, 901, 1000, 0};
+        uint64_t request = 0;
+        CHECK(!f.broker.Submit(f.recognizerOwner, candidate, request, f.now));
+    }
+
+    static void HIGGS_HAND_CALL Selected(const HIGGS_ActionRequest *request, void *context)
+    {
+        static_cast<ActionFixture *>(context)->action = *request;
+    }
+
+    uint64_t Child(HIGGS_ItemIdentity item, uint64_t key = 1)
+    {
+        auto request = Request(HIGGS_TRANSFER_INVENTORY_TO_HAND, item, key);
+        request.grant = action.grant;
+        uint64_t child = 0;
+        CHECK(!tx.Request(owner, request, child, now));
+        return child;
+    }
+
+    HIGGS_ActionResult ParentResult()
+    {
+        HIGGS_ActionResult result{};
+        CHECK(!broker.Result(owner, action.requestId, result));
+        return result;
+    }
+
+    void CancelParent()
+    {
+        auto result = ParentResult();
+        result.stage = HIGGS_ACTION_CANCELLED;
+        CHECK(!broker.Report(owner, result));
+    }
+
+    HIGGS_ActionInventoryEffect Effects(uint64_t observer = 0)
+    {
+        HIGGS_ActionInventoryEffect result{};
+        CHECK(!tx.CopyInventoryEffect(observer ? observer : owner, action.requestId, result));
+        CHECK(result.structSize == sizeof(result) && result.parentRequestId == action.requestId &&
+              result.epoch == action.epoch && !result.reserved);
+        return result;
+    }
+
+    void CompleteGrip(uint64_t child)
+    {
+        Drain();
+        CHECK(State(child).stage == HIGGS_TX_WAIT_GRIP);
+        broker.DrainPhysical(Accept, nullptr, ++now);
+        hands[1].heldRefId = 200;
+        tx.ObserveHeld(HIGGS_HAND_RIGHT, 1200, 200, 100, 1, now);
+        Publish();
+        Drain();
+        CHECK(State(child).stage == HIGGS_TX_COMPLETED &&
+              (State(child).receiptFlags & HIGGS_TX_NATIVE_GRIP_CONFIRMED));
+    }
+
+    void CompensateGrip(uint64_t child)
+    {
+        Drain();
+        CHECK(State(child).stage == HIGGS_TX_WAIT_GRIP);
+        broker.DrainPhysical(Reject, nullptr, ++now);
+        Drain(4);
+        CHECK(State(child).stage == HIGGS_TX_COMPLETED &&
+              (State(child).receiptFlags & HIGGS_TX_COMPENSATION_CONFIRMED));
+    }
+};
 bool Accept(const HIGGS_PhysicalRequest &, void *)
 {
     return true;
@@ -347,6 +488,271 @@ void MenuCompensation()
     CHECK(lost->State(id).receiptFlags&HIGGS_TX_MUTATION_UNCERTAIN);
     std::puts("PASS UI after inventory commit compensates; entered uncertain mutation retains recovery path");
 }
+
+void InventoryEffectClosure()
+{
+    for (bool admitChild : {false, true})
+    {
+        auto f = std::make_unique<ActionFixture>();
+        const auto item = f->DomainItem();
+        f->Select(true);
+        CHECK(f->Effects().flags == HIGGS_INVENTORY_EFFECT_UNCERTAIN);
+        if (admitChild)
+        {
+            const auto child = f->Child(item);
+            // No executor has entered mutation. Cancellation supplies a positive
+            // nonmutation fact; lack of a parent inventory flag alone cannot.
+            CHECK(f->Effects().flags & HIGGS_INVENTORY_EFFECT_UNCERTAIN);
+            CHECK(!f->tx.Cancel(f->owner, child, f->action.epoch));
+            CHECK(f->State(child).stage == HIGGS_TX_CANCELLED && !f->executions);
+        }
+        f->CancelParent();
+        auto effect = f->Effects();
+        CHECK(effect.flags == HIGGS_INVENTORY_EFFECT_CLOSED && effect.childCount == unsigned(admitChild));
+        const auto routed = f->Effects(f->other);
+        CHECK(routed.flags == effect.flags && routed.childCount == effect.childCount);
+        // Read-only routed observation grants no reporting/acknowledgement right.
+        auto result = f->ParentResult();
+        CHECK(f->broker.Report(f->other, result) == HIGGS_HAND_WRONG_OWNER);
+        CHECK(f->broker.Release(f->other, f->action.grant) == HIGGS_HAND_WRONG_OWNER);
+        CHECK(!f->broker.Release(f->owner, f->action.grant));
+        effect = f->Effects();
+        CHECK(effect.flags == (admitChild ? HIGGS_INVENTORY_EFFECT_UNCERTAIN : HIGGS_INVENTORY_EFFECT_CLOSED));
+    }
+    auto f = std::make_unique<ActionFixture>();
+    f->Select();
+    HIGGS_ActionInventoryEffect untouched{};
+    std::memset(&untouched, 0x5a, sizeof(untouched));
+    const auto before = untouched;
+    CHECK(f->tx.CopyInventoryEffect(f->other, f->action.requestId, untouched) == HIGGS_HAND_WRONG_OWNER);
+    CHECK(!std::memcmp(&untouched, &before, sizeof(before)));
+    f->broker.ObserveWorld(2, false, ++f->now);
+    CHECK(f->tx.CopyInventoryEffect(f->owner, f->action.requestId, untouched) == HIGGS_HAND_STALE);
+    CHECK(!std::memcmp(&untouched, &before, sizeof(before)));
+    std::puts("PASS positive closed nonmutation, exact routed observer and acknowledged-history/epoch fences");
+}
+
+void AggregateInventoryEffects()
+{
+    for (unsigned mode = 0; mode < 3; ++mode)
+    {
+        auto f = std::make_unique<ActionFixture>();
+        const auto firstItem = f->DomainItem(10), secondItem = f->DomainItem(20);
+        f->Select();
+        const auto first = f->Child(firstItem);
+        f->CompensateGrip(first);
+        auto effect = f->Effects();
+        CHECK((effect.flags & (HIGGS_INVENTORY_EFFECT_COMMITTED | HIGGS_INVENTORY_EFFECT_UNCERTAIN)) ==
+              (HIGGS_INVENTORY_EFFECT_COMMITTED | HIGGS_INVENTORY_EFFECT_UNCERTAIN));
+        CHECK(!(effect.flags & (HIGGS_INVENTORY_EFFECT_CLOSED | HIGGS_INVENTORY_EFFECT_RESTORED)));
+        const auto second = f->Child(secondItem, 2);
+        if (mode == 0)
+            f->CompensateGrip(second);
+        else if (mode == 1)
+        {
+            f->noReceipt = true;
+            f->Drain();
+            CHECK(f->State(second).stage == HIGGS_TX_EXECUTING);
+            CHECK(!f->tx.Cancel(f->owner, second, f->action.epoch));
+            CHECK(f->State(second).stage == HIGGS_TX_RECOVERY_REQUIRED &&
+                  (f->State(second).receiptFlags & HIGGS_TX_MUTATION_UNCERTAIN));
+        }
+        else
+            f->CompleteGrip(second);
+        f->CancelParent();
+        // Deliberately keep the parent's summary empty: the service must use all
+        // correlated transaction facts, not assume cancellation means rollback.
+        CHECK(!f->ParentResult().receiptFlags);
+        effect = f->Effects();
+        CHECK(effect.childCount == 2 && (effect.flags & HIGGS_INVENTORY_EFFECT_CLOSED) &&
+              (effect.flags & HIGGS_INVENTORY_EFFECT_COMMITTED));
+        CHECK(bool(effect.flags & HIGGS_INVENTORY_EFFECT_UNCERTAIN) == (mode == 1));
+        CHECK(bool(effect.flags & HIGGS_INVENTORY_EFFECT_RESTORED) == (mode == 0));
+    }
+    std::puts("PASS aggregate restoration requires every mutation compensated and no uncertain sibling");
+}
+
+void MissingTransactionIsNotNonmutation()
+{
+    auto f = std::make_unique<ActionFixture>();
+    f->Select();
+    HIGGS_ActionRequest child{};
+    CHECK(!f->broker.ReserveDomain(f->owner, f->executor, HIGGS_HAND_RIGHT, f->action.epoch,
+        f->action.grant, 1000, child, f->now));
+    // Model a recorded native-domain effect without a retained transaction row.
+    // Its public summary cannot be upgraded to complete inventory evidence.
+    f->broker.DomainResult(child.requestId, HIGGS_ACTION_COMPLETED, HIGGS_RECEIPT_INVENTORY_COMMITTED, 200, 1);
+    f->broker.RetainRequest(child.requestId, false);
+    f->CancelParent();
+    const auto effect = f->Effects();
+    CHECK(effect.childCount == 1 && (effect.flags & HIGGS_INVENTORY_EFFECT_COMMITTED) &&
+          (effect.flags & HIGGS_INVENTORY_EFFECT_UNCERTAIN) && !(effect.flags & HIGGS_INVENTORY_EFFECT_RESTORED));
+    std::puts("PASS missing transaction history stays uncertain despite a committed child summary");
+}
+
+void FactualReceiptAfterAuthorityExpiry()
+{
+    for (unsigned invalidation = 0; invalidation < 4; ++invalidation)
+    {
+        auto f = std::make_unique<ActionFixture>();
+        const auto item = f->DomainItem();
+        // Extended recognizers carry their own registration identity. Legacy
+        // generic recognizer removal cannot establish that per-source boundary.
+        f->Select(true, invalidation == 2);
+        const auto child = f->Child(item);
+        f->CompleteGrip(child);
+        HIGGS_ActionResult factual{};
+        CHECK(!f->broker.Result(f->owner, child, factual));
+        HIGGS_HandSnapshot expired{};
+        if (invalidation == 0)
+            CHECK(!f->broker.Copy(f->owner, expired, f->now + UINT64_C(2000000000)));
+        else
+        {
+            if (invalidation == 1)
+            {
+                f->hands[0].observationMask &= ~HIGGS_OBS_TRACKING_VALID;
+                f->Publish();
+            }
+            if (invalidation == 2)
+                CHECK(!f->broker.Remove(f->other, f->recognizer));
+            if (invalidation == 3)
+                CHECK(!f->broker.Unregister(f->other));
+            CHECK(!f->broker.Copy(f->owner, expired, f->now));
+        }
+        CHECK(!expired.hands[0].grant && !expired.hands[1].grant);
+        CHECK(f->ParentResult().stage == HIGGS_ACTION_ACCEPTED);
+        auto report = f->ParentResult();
+        report.stage = HIGGS_ACTION_COMPLETED;
+        report.receiptFlags = factual.receiptFlags;
+        report.itemRefId = factual.itemRefId;
+        report.quantity = factual.quantity;
+        auto wrong = report;
+        ++wrong.quantity;
+        CHECK(f->broker.Report(f->owner, wrong) == HIGGS_HAND_CONFLICT);
+        wrong = report;
+        ++wrong.itemRefId;
+        CHECK(f->broker.Report(f->owner, wrong) == HIGGS_HAND_CONFLICT);
+        CHECK(!f->broker.Report(f->owner, report));
+        CHECK(!f->broker.Report(f->owner, report));
+        const auto effect = f->Effects();
+        CHECK(effect.childCount == 1 && effect.flags ==
+              (HIGGS_INVENTORY_EFFECT_CLOSED | HIGGS_INVENTORY_EFFECT_COMMITTED));
+        HIGGS_PhysicalRequest physical{sizeof(physical), HIGGS_PHYSICAL_RELEASE, HIGGS_HAND_RIGHT,
+            200, f->action.epoch, expired.hands[1].generation, f->action.grant, 1000, 0};
+        uint64_t request = 0;
+        CHECK(f->broker.Physical(f->owner, physical, request, f->now) != HIGGS_HAND_OK);
+        CHECK(!f->broker.Release(f->owner, f->action.grant));
+        CHECK(f->Effects().flags & HIGGS_INVENTORY_EFFECT_UNCERTAIN);
+    }
+    std::puts("PASS expiry/tracking/routed-source teardown retain exact facts without renewed authority");
+}
+
+void UnattributedContinuationCannotProveNonmutation()
+{
+    auto f = std::make_unique<ActionFixture>();
+    const auto item = f->DomainItem();
+    f->Select();
+    const auto original = f->action;
+    // Legacy recognizer removal retires callbacks, not an identified action;
+    // the selected grant remains available for an explicit fresh continuation.
+    CHECK(!f->broker.Remove(f->owner, f->recognizer));
+    f->borrowedGrant = original.grant;
+    f->Select(false, true);
+    CHECK(f->action.grant == original.grant && f->action.inputId != original.inputId);
+    HIGGS_ActionResult retired{};
+    CHECK(!f->broker.Result(f->owner, original.requestId, retired));
+    retired.stage = HIGGS_ACTION_CANCELLED;
+    CHECK(!f->broker.Report(f->owner, retired));
+    // The original episode is now terminal, but the continuation still owns
+    // this same grant and can start a transaction in its own input episode.
+    const auto child = f->Child(item);
+    f->CompleteGrip(child);
+    CHECK(f->State(child).receiptFlags & HIGGS_TX_DOMAIN_ATTESTED);
+    f->CancelParent();
+    CHECK(!f->broker.Remove(f->owner, f->recognizer));
+    const auto snapshot = f->Snapshot();
+    CHECK(!snapshot.hands[0].grant && !snapshot.hands[1].grant);
+    HIGGS_ActionInventoryEffect effect{};
+    CHECK(!f->tx.CopyInventoryEffect(f->owner, original.requestId, effect));
+    // This original parent never borrowed a grant. Its empty correlated set
+    // must still remain uncertain: another episode used the same grant after
+    // it became terminal. Removing that continuation cannot erase this fact.
+    CHECK(!effect.childCount && effect.flags == HIGGS_INVENTORY_EFFECT_UNCERTAIN);
+    CHECK(!f->broker.Release(f->owner, original.grant));
+    CHECK(!f->tx.CopyInventoryEffect(f->owner, original.requestId, effect));
+    CHECK(!effect.childCount && effect.flags == HIGGS_INVENTORY_EFFECT_UNCERTAIN);
+    std::puts("PASS removed same-grant continuation cannot manufacture closed nonmutation evidence");
+}
+
+void RetainedChildHistoryUntilAcknowledgement()
+{
+    auto f = std::make_unique<ActionFixture>();
+    const auto item = f->DomainItem(10), untouchedItem = f->DomainItem(20);
+    f->Select();
+    const auto retained = f->Child(item);
+    f->CompensateGrip(retained);
+    f->CancelParent();
+    const auto original = f->State(retained);
+    auto churn = [&](unsigned offset)
+    {
+        // Exceed both finite service histories using successful request/cancel
+        // pairs on an unrelated item, without executing any mutation backend.
+        for (unsigned i = 0; i < 300; ++i)
+        {
+            auto request = f->Request(HIGGS_TRANSFER_INVENTORY_TO_HAND, untouchedItem, offset + i);
+            uint64_t id = 0;
+            CHECK(!f->tx.Request(f->owner, request, id, f->now));
+            CHECK(!f->tx.Cancel(f->owner, id, request.epoch));
+        }
+    };
+    churn(100);
+    const auto retainedState = f->State(retained);
+    CHECK(retainedState.stage == original.stage && retainedState.receiptFlags == original.receiptFlags);
+    CHECK(f->Effects().flags == (HIGGS_INVENTORY_EFFECT_CLOSED | HIGGS_INVENTORY_EFFECT_COMMITTED |
+                                HIGGS_INVENTORY_EFFECT_RESTORED));
+    // Copying and duplicate terminal reports are observation, not consumption.
+    CHECK(!f->broker.Report(f->owner, f->ParentResult()));
+    CHECK(f->Effects().childCount == 1);
+    CHECK(!f->broker.Release(f->owner, f->action.grant));
+    CHECK(f->Effects().flags & HIGGS_INVENTORY_EFFECT_UNCERTAIN);
+    churn(1000);
+    HIGGS_TransferState removed{};
+    CHECK(f->tx.Copy(f->owner, retained, removed) == HIGGS_HAND_NOT_FOUND);
+    std::puts("PASS parent/child facts survive finite-history churn until explicit consumer acknowledgement");
+}
+
+void FollowOnlyFactualInventoryGrip()
+{
+    auto f = std::make_unique<ActionFixture>();
+    f->triggerHand = f->requiredHands = HIGGS_HAND_RIGHT;
+    HIGGS_ItemIdentity item{};
+    CHECK(!f->tx.ObserveInventory(f->owner, 100, 1, 100, 1, item));
+    f->Select();
+    const auto child = f->Child(item);
+    CHECK(f->tx.FollowInventoryGrip(f->owner, child) == HIGGS_HAND_WRONG_PHASE);
+    CHECK(f->tx.FollowInventoryGrip(f->other, child) == HIGGS_HAND_WRONG_OWNER);
+    f->CompleteGrip(child);
+    CHECK(!f->tx.FollowInventoryGrip(f->owner, child));
+    CHECK(!f->tx.FollowInventoryGrip(f->owner, child));
+    auto incomplete = std::make_unique<ActionFixture>();
+    incomplete->triggerHand = incomplete->requiredHands = HIGGS_HAND_RIGHT;
+    CHECK(!incomplete->tx.ObserveInventory(incomplete->owner, 101, 1, 100, 1, item));
+    incomplete->Select();
+    const auto waiting = incomplete->Child(item);
+    incomplete->Drain();
+    CHECK(incomplete->State(waiting).stage == HIGGS_TX_WAIT_GRIP &&
+          (incomplete->State(waiting).receiptFlags & HIGGS_TX_DOMAIN_ATTESTED));
+    CHECK(incomplete->tx.FollowInventoryGrip(incomplete->owner, waiting) == HIGGS_HAND_WRONG_PHASE);
+    auto compensated = std::make_unique<ActionFixture>();
+    compensated->triggerHand = compensated->requiredHands = HIGGS_HAND_RIGHT;
+    CHECK(!compensated->tx.ObserveInventory(compensated->owner, 102, 1, 100, 1, item));
+    compensated->Select();
+    const auto restored = compensated->Child(item);
+    compensated->CompensateGrip(restored);
+    CHECK(compensated->tx.FollowInventoryGrip(compensated->owner, restored) == HIGGS_HAND_WRONG_PHASE);
+    std::puts("PASS inventory-grip continuation requires the exact owner's completed, uncompensated native hold");
+}
+
 int main()
 {
     InventoryGripAndIdempotency();
@@ -355,5 +761,12 @@ int main()
     CompensationAndUncertainty();
     EquipmentObservation();
     MenuCompensation();
+    InventoryEffectClosure();
+    AggregateInventoryEffects();
+    MissingTransactionIsNotNonmutation();
+    FactualReceiptAfterAuthorityExpiry();
+    UnattributedContinuationCannotProveNonmutation();
+    RetainedChildHistoryUntilAcknowledgement();
+    FollowOnlyFactualInventoryGrip();
     Abi();
 }

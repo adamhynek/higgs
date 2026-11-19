@@ -385,6 +385,84 @@ void DeadlineAndReuse()
     CHECK(f.broker.Release(replacement, c.request.grant) == HIGGS_HAND_WRONG_OWNER);
     std::puts("PASS deadlines and client identity non-reuse");
 }
+
+void QueuedReceiptAcknowledgement()
+{
+    // Exercise the real bounded history: an exact ACCEPTED echo retains the
+    // outcome, without retaining a hand or renewing its finite lease.
+    for (bool retain : {false, true})
+    {
+        auto storage = std::make_unique<Fixture>();
+        auto &f = *storage;
+        Consumer queued(f, "queued"), churn(f, "churn");
+        churn.enabled = false;
+        queued.durationMs = 60000;
+        CHECK(f.Input(HIGGS_HAND_LEFT, HIGGS_INPUT_GRIP, true));
+        const auto request = queued.request;
+        const auto accepted = queued.Result();
+        CHECK(accepted.stage == HIGGS_ACTION_ACCEPTED && !accepted.receiptFlags);
+        CHECK(f.broker.Report(churn.client, accepted) == HIGGS_HAND_WRONG_OWNER);
+        auto altered = accepted;
+        altered.reason = 123;
+        CHECK(f.broker.Report(queued.client, altered) == HIGGS_HAND_CONFLICT);
+        CHECK(queued.Result().stage == HIGGS_ACTION_ACCEPTED);
+        if (retain)
+        {
+            CHECK(!f.broker.Report(queued.client, accepted));
+            CHECK(!f.broker.Report(queued.client, accepted));
+        }
+
+        queued.enabled = false;
+        f.now += UINT64_C(60000000001);
+        const auto expired = f.Snapshot(queued.client);
+        CHECK(!expired.hands[0].grant && !expired.hands[0].owner);
+        HIGGS_ActionResult cancelled{};
+        CHECK(!f.broker.Result(queued.client, request.requestId, cancelled));
+        CHECK(cancelled.stage == HIGGS_ACTION_CANCELLED);
+        CHECK(f.broker.Report(queued.client, accepted) == HIGGS_HAND_WRONG_PHASE);
+        CHECK(!f.broker.Report(queued.client, cancelled));
+        CHECK(!f.broker.Report(queued.client, cancelled));
+
+        HIGGS_PhysicalRequest physical{};
+        physical.structSize = sizeof(physical);
+        physical.kind = HIGGS_PHYSICAL_GRAB;
+        physical.physicalHand = HIGGS_HAND_LEFT;
+        physical.itemRefId = 77;
+        physical.epoch = request.epoch;
+        physical.handGeneration = expired.hands[0].generation;
+        physical.grant = request.grant;
+        physical.timeoutMs = 1000;
+        uint64_t unchanged = 900;
+        CHECK(f.broker.Physical(queued.client, physical, unchanged, f.now) == HIGGS_HAND_WRONG_OWNER);
+        CHECK(unchanged == 900);
+        f.Input(HIGGS_HAND_LEFT, HIGGS_INPUT_GRIP, false);
+
+        const auto churnHistory = [&] {
+            churn.enabled = true;
+            for (unsigned i = 0; i < 300; ++i)
+            {
+                f.Publish();
+                CHECK(f.Input(HIGGS_HAND_LEFT, HIGGS_INPUT_GRIP, true));
+                CHECK(churn.submitStatus == HIGGS_HAND_OK);
+                CHECK(!f.broker.Release(churn.client, churn.request.grant));
+                f.Input(HIGGS_HAND_LEFT, HIGGS_INPUT_GRIP, false);
+            }
+            churn.enabled = false;
+        };
+        churnHistory();
+        HIGGS_ActionResult copied{};
+        if (retain)
+        {
+            CHECK(!f.broker.Result(queued.client, request.requestId, copied));
+            CHECK(!std::memcmp(&copied, &cancelled, sizeof(copied)));
+            CHECK(f.broker.Release(churn.client, request.grant) == HIGGS_HAND_WRONG_OWNER);
+            CHECK(!f.broker.Release(queued.client, request.grant));
+            churnHistory();
+        }
+        CHECK(f.broker.Result(queued.client, request.requestId, copied) == HIGGS_HAND_NOT_FOUND);
+    }
+    std::puts("PASS exact queued receipt opt-in, finite authority and explicit consumption acknowledgement");
+}
 bool OperationAccept(uint64_t, HIGGS_HandOperationState &state, void *data)
 {
     ++*static_cast<int *>(data);
@@ -678,6 +756,7 @@ int main()
     Physical();
     MutationAndDrain();
     DeadlineAndReuse();
+    QueuedReceiptAcknowledgement();
     Operations();
     AdversarialBoundaries();
     UserPriorities();

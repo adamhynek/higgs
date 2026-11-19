@@ -242,7 +242,210 @@ void ExtendedLifecycle() {
         frame(false,at+62000000);CHECK(!b.Unregister(x.owner));
     }
 }
+// Exercise the production broker's pre-drop boundary with copied hand samples.
+// These calls do not execute hand.cpp or claim that a game object was dropped.
+struct ReleaseFixture {
+    Broker broker;
+    uint64_t owner=0,executor=0,rawRegistration=0,releaseRegistration=0,request=0;
+    uint64_t press=0,up=0;
+    unsigned offers=0,effects=0,rawEvents=0;
+    bool offer=true,claimPress=false;
+    HIGGS_HandInput intent{};
+    HIGGS_ActionRequest executed{};
+    std::array<HIGGS_HandRecord,2> hands{};
+
+    ReleaseFixture(bool shared=true) {
+        HIGGS_HandClientInfo info{};info.structSize=sizeof(info);
+        std::strcpy(info.name,"pouch");CHECK(!broker.Register(info,owner));
+        CHECK(!broker.Executor(owner,Execute,this,executor));
+        CHECK(!broker.Recognizer(owner,Raw,this,rawRegistration));
+        broker.ObserveWorld(1,false,Now());broker.MarkMainThread();
+        for(auto& h:hands)h.observationMask=HIGGS_OBS_HELD_KNOWN|HIGGS_OBS_EQUIPMENT_KNOWN|
+            HIGGS_OBS_PALM_VALID|HIGGS_OBS_TRACKING_VALID;
+        Publish(0);
+        if(shared) {
+            CHECK(!broker.EnableSharedRounds(owner));
+            CHECK(!broker.HeldReleaseRecognizer(owner,Recognize,this,releaseRegistration));
+        }
+    }
+
+    void Publish(uint32_t ref=77) {hands[0].heldRefId=ref;broker.Publish(hands,Now());}
+
+    void Submit(const HIGGS_HandInput& input,uint64_t action) {
+        HIGGS_ActionCandidate c{sizeof(c),HIGGS_HAND_LEFT,input.inputId,input.epoch,input.handGeneration,
+            executor,action,77,1,1000,0};
+        CHECK(!broker.Submit(owner,c,request,Now(),77));
+    }
+
+    static void HIGGS_HAND_CALL Raw(const HIGGS_HandInput* input,void* context) {
+        auto& f=*static_cast<ReleaseFixture*>(context);++f.rawEvents;
+        CHECK(input->edge==HIGGS_INPUT_DOWN||input->edge==HIGGS_INPUT_UP);
+        if(input->edge==HIGGS_INPUT_DOWN) {f.press=input->inputId;if(f.claimPress)f.Submit(*input,11);}
+        else f.up=input->inputId;
+    }
+
+    static void HIGGS_HAND_CALL Recognize(const HIGGS_HandInput* input,void* context) {
+        auto& f=*static_cast<ReleaseFixture*>(context);++f.offers;f.intent=*input;
+        CHECK(input->edge==HIGGS_INPUT_HELD_RELEASE&&input->physicalHand==HIGGS_HAND_LEFT);
+        CHECK(input->snapshot.hands[0].heldRefId==77);
+        if(f.offer)f.Submit(*input,10);
+    }
+
+    static void HIGGS_HAND_CALL Execute(const HIGGS_ActionRequest* r,void* context) {
+        auto& f=*static_cast<ReleaseFixture*>(context);++f.effects;f.executed=*r;
+    }
+
+    void Start(uint32_t nativeAction=0) {
+        Publish();
+        CHECK(broker.HoldNativeRelease(1,broker.Epoch(),77,nativeAction,true,Now()));
+        CHECK(!offers); // no offer using the pre-update sample
+        CHECK(broker.HoldNativeRelease(1,broker.Epoch(),77,nativeAction,false,Now()));
+        CHECK(!offers);
+        Publish(); // one actual post-update publication, rather than a fresh query
+        CHECK(broker.HoldNativeRelease(1,broker.Epoch(),77,nativeAction,false,Now()));
+        CHECK(offers==1);
+    }
+
+    HIGGS_ActionResult Result() {
+        HIGGS_ActionResult r{};CHECK(!broker.Result(owner,request,r));return r;
+    }
+
+    void Complete() {
+        auto r=Result();r.stage=HIGGS_ACTION_COMPLETED;
+        CHECK(!broker.Report(owner,r));CHECK(!broker.Release(owner,executed.grant));
+    }
+};
+
+void HeldReleaseSequenceAndFallback() {
+    auto f=std::make_unique<ReleaseFixture>();f->claimPress=true;
+    CHECK(f->broker.Input(1,HIGGS_INPUT_GRIP,true,Now()));
+    f->broker.DrainHandUses();CHECK(f->effects==1&&f->press);
+    f->Complete();f->Publish();
+    CHECK(f->broker.Input(1,HIGGS_INPUT_GRIP,false,Now()));
+    HIGGS_InputSequence original{};CHECK(!f->broker.CopySequence(f->owner,f->press,original));
+    CHECK(original.phase==HIGGS_SEQUENCE_RELEASED&&original.terminalInputId==f->up);
+    CHECK(original.executor==f->executor&&original.requestId==f->request);
+    const auto rawEvents=f->rawEvents;
+
+    f->Start();
+    CHECK(f->intent.inputId!=f->press&&f->intent.inputId!=f->up);
+    CHECK(f->intent.button==HIGGS_INPUT_GRIP&&f->rawEvents==rawEvents);
+    CHECK(f->effects==1); // the semantic offer has not run its executor
+    f->broker.DrainHandUses();CHECK(f->effects==2&&f->executed.inputId==f->intent.inputId);
+    HIGGS_InputSequence after{};CHECK(!f->broker.CopySequence(f->owner,f->press,after));
+    CHECK(!std::memcmp(&original,&after,sizeof(after)));
+    CHECK(f->broker.CopySequence(f->owner,f->intent.inputId,after)==HIGGS_HAND_NOT_FOUND);
+    CHECK(f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now()));
+    f->Complete();
+    CHECK(!f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now()));
+    CHECK(!f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now()));
+    f->broker.DrainHandUses();CHECK(f->offers==1&&f->effects==2&&f->rawEvents==rawEvents);
+}
+
+void HeldReleaseNativeCompetition() {
+    for(uint32_t nativeAction:{2u,3u})for(bool nativeWins:{false,true}) {
+        auto f=std::make_unique<ReleaseFixture>();
+        CHECK(f->broker.ConfigurePriorities(nativeWins?
+            "pouch/10=1,higgs/2=100,higgs/3=100":"pouch/10=100,higgs/2=1,higgs/3=1"));
+        f->Start(nativeAction);CHECK(!f->effects);
+        f->broker.DrainHandUses();CHECK(f->effects==(nativeWins?0u:1u));
+        CHECK(f->Result().stage==(nativeWins?HIGGS_ACTION_REJECTED:HIGGS_ACTION_ACCEPTED));
+        CHECK(f->broker.NativeRegionAdmission(1,f->broker.Epoch(),77,nativeAction,Now())==
+            (nativeWins?HIGGS_HAND_OK:HIGGS_HAND_CONFLICT));
+        if(nativeWins)f->broker.FinishNativeRegionAction(1,true);
+        else f->Complete();
+        CHECK(!f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now()));
+        f->broker.DrainHandUses();CHECK(f->offers==1&&f->effects==(nativeWins?0u:1u));
+    }
+}
+
+void HeldReleasePendingAndUnsafeTransfer() {
+    for(uint32_t outcome:{1u,2u}) {
+        auto f=std::make_unique<ReleaseFixture>();f->Start();f->broker.DrainHandUses();
+        CHECK(f->effects==1);
+        // Explicit transaction-backend feedback at the production broker seam.
+        // Actual transfer receipt validation is covered by transaction_tests.cpp.
+        f->broker.TrackReleaseTransfer(f->executed.grant,700,0);
+        CHECK(!f->broker.Release(f->owner,f->executed.grant));
+        CHECK(f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now()));
+        f->broker.TrackReleaseTransfer(f->executed.grant,701,outcome); // different child cannot settle it
+        CHECK(f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now()));
+        f->broker.TrackReleaseTransfer(f->executed.grant,700,outcome);
+        CHECK(f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now())==(outcome==2));
+        CHECK(f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now())==(outcome==2));
+        f->broker.DrainHandUses();CHECK(f->effects==1&&f->offers==1);
+    }
+}
+
+void HeldReleaseInvalidationAndStandalone() {
+    for(unsigned invalidation=0;invalidation<4;++invalidation) {
+        auto f=std::make_unique<ReleaseFixture>();f->Start();
+        if(invalidation==0)f->Publish(88);
+        if(invalidation==1)f->broker.SetInputContext(1,Now());
+        if(invalidation==2)CHECK(!f->broker.Remove(f->owner,f->releaseRegistration));
+        if(invalidation==3) {
+            f->hands[0].observationMask&=~HIGGS_OBS_TRACKING_VALID;f->Publish();
+        }
+        f->broker.DrainHandUses();CHECK(!f->effects&&f->Result().stage>=HIGGS_ACTION_REJECTED);
+        f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,false,Now());
+        CHECK(f->offers==1); // invalidating an offer cannot mint a replacement intent
+    }
+    auto f=std::make_unique<ReleaseFixture>(false);f->Publish();
+    uint64_t registration=0;
+    CHECK(f->broker.HeldReleaseRecognizer(f->owner,ReleaseFixture::Recognize,f.get(),registration)==HIGGS_HAND_WRONG_PHASE);
+    CHECK(!registration&&!f->broker.HoldNativeRelease(1,f->broker.Epoch(),77,0,true,Now()));
+    CHECK(!f->offers&&!f->effects); // standalone native release never needs the optional consumer
+
+    auto declined=std::make_unique<ReleaseFixture>();declined->offer=false;declined->Publish();
+    CHECK(declined->broker.HoldNativeRelease(1,declined->broker.Epoch(),77,0,true,Now()));
+    declined->Publish();
+    CHECK(!declined->broker.HoldNativeRelease(1,declined->broker.Epoch(),77,0,false,Now()));
+    declined->broker.DrainHandUses();CHECK(declined->offers==1&&!declined->effects);
+    CHECK(!declined->broker.HoldNativeRelease(1,declined->broker.Epoch(),77,0,false,Now()));
+    CHECK(declined->offers==1); // a read-only recognizer declining the offer preserves native fallback
+
+    auto waiting=std::make_unique<ReleaseFixture>();waiting->Publish();const auto at=Now();
+    CHECK(waiting->broker.HoldNativeRelease(1,waiting->broker.Epoch(),77,0,true,at));
+    CHECK(!waiting->broker.HoldNativeRelease(1,waiting->broker.Epoch(),77,0,false,at+UINT64_C(100000001)));
+    CHECK(!waiting->offers); // missing factual post-update sample has a bounded fallback
+}
+
+void InventoryGripOriginalPressAndEpisode() {
+    for(unsigned invalidation=0;invalidation<4;++invalidation) {
+        auto f=std::make_unique<ReleaseFixture>();f->claimPress=true;
+        CHECK(f->broker.Input(1,HIGGS_INPUT_GRIP,true,Now()));f->broker.DrainHandUses();f->Publish();
+        const auto episode=f->broker.HeldEpisode(1,77);CHECK(episode);
+        CHECK(f->broker.ConfirmInventoryGrip(f->owner,f->executed.grant,1,77,f->broker.Epoch()+1,episode)==HIGGS_HAND_STALE);
+        CHECK(!f->broker.ConfirmInventoryGrip(f->owner,f->executed.grant,1,77,f->broker.Epoch(),episode));
+        CHECK(!f->broker.TakeInventoryRelease(1,77)); // no synthetic release while original grip is held
+        if(invalidation==1) {f->Publish(0);f->Publish();}
+        if(invalidation==2)f->broker.SetInputContext(1,Now());
+        if(invalidation==3)f->broker.ObserveWorld(2,false,Now());
+        if(!invalidation) {
+            CHECK(f->broker.Input(1,HIGGS_INPUT_GRIP,false,Now()));
+            f->Complete();CHECK(f->broker.TakeInventoryRelease(1,77));
+        } else CHECK(!f->broker.TakeInventoryRelease(1,77));
+        CHECK(!f->broker.TakeInventoryRelease(1,77)); // one original terminal, consumed once
+    }
+}
+
+void HeldReleaseAbi() {
+    struct Guarded {HIGGS_HeldReleaseInterface table;uint64_t tail;};
+    Guarded value{};std::memset(&value,0xa5,sizeof(value));const auto original=value;
+    CHECK(HIGGS_QueryHeldReleaseInterface(2,sizeof(value.table),&value.table)==HIGGS_HAND_UNSUPPORTED_VERSION);
+    CHECK(!std::memcmp(&value,&original,sizeof(value)));
+    CHECK(HIGGS_QueryHeldReleaseInterface(1,sizeof(value.table)-1,&value.table)==HIGGS_HAND_BUFFER_TOO_SMALL);
+    CHECK(!std::memcmp(&value,&original,sizeof(value)));
+    CHECK(HIGGS_QueryHeldReleaseInterface(1,sizeof(value.table),nullptr)==HIGGS_HAND_INVALID_ARGUMENT);
+    CHECK(!HIGGS_QueryHeldReleaseInterface(1,sizeof(value),&value.table));
+    CHECK(value.table.structSize==sizeof(value.table)&&value.table.abiVersion==1&&value.table.capabilities==1);
+    CHECK(value.table.SubscribeRecognizer&&value.table.FollowInventoryGrip&&value.tail==original.tail);
+    CHECK(value.table.FollowInventoryGrip(0,1)==HIGGS_HAND_INVALID_CLIENT);
+}
+
 int main() {
     MixedOrders();CancelAndNoReplay();NativePossessionAndHandoff();NativeRegions();KeysAndReentry();LegacyAndAbi();ResizeAndNativeLifecycle();ExtendedLifecycle();
+    HeldReleaseSequenceAndFallback();HeldReleaseNativeCompetition();HeldReleasePendingAndUnsafeTransfer();
+    HeldReleaseInvalidationAndStandalone();InventoryGripOriginalPressAndEpisode();HeldReleaseAbi();
     std::printf("HIGGS production shared rounds: %u checks passed; zero game starts\n",checks);
 }
